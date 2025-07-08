@@ -32,7 +32,7 @@
 #define STATIC_TEXT_COLOUR wxColour("#363636")
 #define PRINTER_LIST_COLOUR wxColour("#EEEEEE")
 #define FILAMENT_OPTION_COLOUR wxColour("#D9D9D9")
-#define SELECT_ALL_OPTION_COLOUR wxColour("#009688")
+#define SELECT_ALL_OPTION_COLOUR wxColour("#d72828")
 #define DEFAULT_PROMPT_TEXT_COLOUR wxColour("#ACACAC")
 
 namespace Slic3r { 
@@ -4803,30 +4803,8 @@ wxPanel *PresetTree::get_child_item(wxPanel *parent, std::shared_ptr<Preset> pre
     Button *edit_preset_btn = new Button(panel, _L("Edit Preset")); 
     edit_preset_btn->SetStyle(ButtonStyle::Regular, ButtonType::Compact);
     //edit_preset_btn->Hide();
-    sizer->Add(edit_preset_btn, 0, wxALL | wxALIGN_CENTER_VERTICAL, 0);
     sizer->Add(0, 0, 0, wxLEFT, 5);
 
-    Button *del_preset_btn = new Button(panel, _L("Delete Preset"));
-    if (base_id_error) {
-        del_preset_btn->SetStyle(ButtonStyle::Confirm, ButtonType::Compact);
-    } else {
-        del_preset_btn->SetStyle(ButtonStyle::Alert,   ButtonType::Compact);
-    }
-    
-    //del_preset_btn->Hide();
-    sizer->Add(del_preset_btn, 0, wxALL | wxALIGN_CENTER_VERTICAL, 0);
-
-    edit_preset_btn->Bind(wxEVT_BUTTON, [this, printer_name, preset_index](wxCommandEvent &e) {
-        wxGetApp().CallAfter([this, printer_name, preset_index]() { edit_preset(printer_name, preset_index); });
-    });
-    del_preset_btn->Bind(wxEVT_BUTTON, [this, printer_name, preset_index](wxCommandEvent &e) {
-        wxGetApp().CallAfter([this, printer_name, preset_index]() { delete_preset(printer_name, preset_index); });
-    });
-
-    panel->SetSizer(sizer);
-
-    return panel;
-}
 
 void PresetTree::delete_preset(std::string printer_name, int need_delete_preset_index)
 {

@@ -779,7 +779,7 @@ static std::string none{"none"};
 #define UNSAVE_CHANGE_DIALOG_BUTTON_SIZE wxSize(FromDIP(70), FromDIP(24))
 
 #define THUMB_COLOR wxColor(196, 196, 196)
-#define GREY900 wxColour(38, 46, 48)
+#define GREY900 wxColour(48, 38, 38)
 #define GREY700 wxColour(107,107,107)
 #define GREY400 wxColour(206,206,206)
 #define GREY300 wxColour(238,238,238)

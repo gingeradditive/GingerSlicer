@@ -92,7 +92,7 @@ wxBoxSizer* NetworkTestDialog::create_info_sizer(wxWindow* parent)
 	sizer->Add(text_basic_info, 0, wxALL, 5);
 
 	wxBoxSizer* version_sizer = new wxBoxSizer(wxHORIZONTAL);
-	text_version_title = new wxStaticText(this, wxID_ANY, _L("OrcaSlicer Version:"), wxDefaultPosition, wxDefaultSize, 0);
+	text_version_title = new wxStaticText(this, wxID_ANY, _L("GingerSlicer Version:"), wxDefaultPosition, wxDefaultSize, 0);
 	text_version_title->Wrap(-1);
 	version_sizer->Add(text_version_title, 0, wxALL, 5);
 
@@ -137,11 +137,12 @@ wxBoxSizer* NetworkTestDialog::create_content_sizer(wxWindow* parent)
 	grid_sizer->SetFlexibleDirection(wxBOTH);
 	grid_sizer->SetNonFlexibleGrowMode(wxFLEX_GROWMODE_SPECIFIED);
 
-	btn_link = new Button(this, _L("Test OrcaSlicer (GitHub)"));
+	btn_link = new Button(this, _L("Test GingerSlicer (GitHub)"));
     btn_link->SetStyle(ButtonStyle::Regular, ButtonType::Window);
+
 	grid_sizer->Add(btn_link, 0, wxEXPAND | wxALL, 5);
 
-	text_link_title = new wxStaticText(this, wxID_ANY, _L("Test OrcaSlicer (GitHub):"), wxDefaultPosition, wxDefaultSize, 0);
+	text_link_title = new wxStaticText(this, wxID_ANY, _L("Test GingerSlicer (GitHub):"), wxDefaultPosition, wxDefaultSize, 0);
 	text_link_title->Wrap(-1);
 	grid_sizer->Add(text_link_title, 0, wxALIGN_RIGHT | wxALL | wxALIGN_CENTER_VERTICAL, 5);
 
@@ -248,7 +249,7 @@ void NetworkTestDialog::start_all_job_sequence()
 		update_status(-1, "start_test_sequence");
         start_test_url(TEST_BING_JOB, "Bing", "http://www.bing.com");
         if (m_closing) return;
-		start_test_url(TEST_ORCA_JOB, "OrcaSlicer(GitHub)", "https://github.com/SoftFever/OrcaSlicer");
+		start_test_url(TEST_ORCA_JOB, "GingerSlicer(GitHub)", "https://github.com/gingeradditive/OrcaSlicer");
 		if (m_closing) return;
 		update_status(-1, "end_test_sequence");
 	});
@@ -306,7 +307,7 @@ void NetworkTestDialog::start_test_github_thread()
     if (m_in_testing[TEST_ORCA_JOB])
         return;
     test_job[TEST_ORCA_JOB] = new boost::thread([this] {
-        start_test_url(TEST_ORCA_JOB, "OrcaSlicer(GitHub)", "https://github.com/SoftFever/OrcaSlicer");
+        start_test_url(TEST_ORCA_JOB, "GingerSlicer(GitHub)", "https://github.com/gingeradditive/OrcaSlicer");
     });
 }
 void NetworkTestDialog::start_test_bing_thread()
