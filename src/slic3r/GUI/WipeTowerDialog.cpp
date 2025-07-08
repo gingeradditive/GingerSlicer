@@ -265,7 +265,6 @@ wxBoxSizer* WipingDialog::create_btn_sizer(long flags)
 
 wxBoxSizer* WipingPanel::create_calc_btn_sizer(wxWindow* parent) {
     auto btn_sizer = new wxBoxSizer(wxHORIZONTAL);
-
     Button* calc_btn = new Button(parent, _L("Re-calculate"));
     calc_btn->SetStyle(ButtonStyle::Confirm, ButtonType::Window);
     calc_btn->SetFocus();
@@ -295,22 +294,6 @@ WipingDialog::WipingDialog(wxWindow* parent, const std::vector<float>& matrix, c
                 _(L("Flushing volumes for filament change")),
                 wxDefaultPosition,
                 wxDefaultSize,
-                wxDEFAULT_DIALOG_STYLE /* | wxRESIZE_BORDER*/)
-{
-    auto m_line_top = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(-1, 1));
-    m_line_top->SetBackgroundColour(wxColour(166, 169, 170));
-
-    this->SetBackgroundColour(*wxWHITE);
-    this->SetMinSize(wxSize(MIN_WIPING_DIALOG_WIDTH, -1));
-    
-
-    m_panel_wiping = new WipingPanel(this, matrix, extruders, extruder_colours, nullptr, extra_flush_volume, flush_multiplier);
-
-    auto main_sizer = new wxBoxSizer(wxVERTICAL);
-    main_sizer->Add(m_line_top, 0, wxEXPAND, 0);
-    
-    // set min sizer width according to extruders count
-    auto sizer_width = (int)((sqrt(matrix.size()) + 2.8)*ITEM_WIDTH());
     sizer_width = sizer_width > MIN_WIPING_DIALOG_WIDTH ? sizer_width : MIN_WIPING_DIALOG_WIDTH;
     main_sizer->SetMinSize(wxSize(sizer_width, -1));
     main_sizer->Add(m_panel_wiping, 1, wxEXPAND | wxALL, 0);
@@ -463,7 +446,7 @@ WipingPanel::WipingPanel(wxWindow* parent, const std::vector<float>& matrix, con
     auto message_sizer = new wxBoxSizer(wxVERTICAL);
     tip_message_panel->SetSizer(message_sizer);
     {
-        wxString message = _L("Orca would re-calculate your flushing volumes every time the filaments color changed. You could disable the auto-calculate in Orca Slicer > Preferences");
+        wxString message = _L("Orca would re-calculate your flushing volumes every time the filaments color changed. You could disable the auto-calculate in Ginger Slicer > Preferences");
         m_tip_message_label = new Label(tip_message_panel, wxEmptyString);
         wxClientDC dc(tip_message_panel);
         wxString multiline_message;

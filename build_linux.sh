@@ -15,10 +15,10 @@ function usage() {
     echo "   -C: enable ANSI-colored compile output (GNU/Clang only)"
     echo "   -d: download and build dependencies in ./deps/ (build prerequisite)"
     echo "   -h: prints this help text"
-    echo "   -i: build the Orca Slicer AppImage (optional)"
+    echo "   -i: build the Ginger Slicer AppImage (optional)"
     echo "   -p: boost ccache hit rate by disabling precompiled headers (default: ON)"
     echo "   -r: skip RAM and disk checks (low RAM compiling)"
-    echo "   -s: build the Orca Slicer (optional)"
+    echo "   -s: build the Ginger Slicer (optional)"
     echo "   -t: build tests (optional)"
     echo "   -u: install system dependencies (asks for sudo password; build prerequisite)"
     echo "   -l: use Clang instead of GCC (default: GCC)"
@@ -209,7 +209,7 @@ if [[ -n "${BUILD_DEPS}" ]] ; then
 fi
 
 if [[ -n "${BUILD_ORCA}" ]] ; then
-    echo "Configuring OrcaSlicer..."
+    echo "Configuring GingerSlicer..."
     if [[ -n "${CLEAN_BUILD}" ]] ; then
         rm -fr build
     fi
@@ -240,11 +240,11 @@ if [[ -n "${BUILD_ORCA}" ]] ; then
 	  "${BUILD_ARGS[@]}"
     set +x
     echo "done"
-    echo "Building OrcaSlicer ..."
+    echo "Building GingerSlicer ..."
     if [[ -n "${BUILD_DEBUG}" ]] ; then
-        cmake --build build --config Debug --target OrcaSlicer
+        cmake --build build --config Debug --target GingerSlicer
     else
-        cmake --build build --config Release --target OrcaSlicer
+        cmake --build build --config Release --target GingerSlicer
     fi
     echo "Building OrcaSlicer_profile_validator .."
     if [[ -n "${BUILD_DEBUG}" ]] ; then

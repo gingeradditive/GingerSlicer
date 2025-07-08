@@ -4,40 +4,15 @@
   <img alt="OrcaSlicer logo" src="resources/images/OrcaSlicer.png" width="15%" height="15%">
 </picture>
 
-<a href="https://trendshift.io/repositories/952" target="_blank"><img src="https://trendshift.io/api/badge/repositories/952" alt="SoftFever%2FOrcaSlicer | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+Ginger Slicer is an open source Next-Gen Slicing Software for Precision 3D Prints.  
+This fork focuses on **pellet-based 3D printing**, enabling advanced workflows for FGF (Fused Granulate Fabrication) and recycled materials.
 
-[![GitHub Repo stars](https://img.shields.io/github/stars/SoftFever/OrcaSlicer)](https://github.com/SoftFever/OrcaSlicer/stargazers) [![Build all](https://github.com/SoftFever/OrcaSlicer/actions/workflows/build_all.yml/badge.svg?branch=main)](https://github.com/SoftFever/OrcaSlicer/actions/workflows/build_all.yml)
+## About this Fork
 
-OrcaSlicer: an open source Next-Gen Slicing Software for Precision 3D Prints.  
-Optimize your prints with ultra-fast slicing, intelligent support generation, and seamless printer compatibility—engineered for perfection.
-<h3>
+**Ginger Slicer** is a fork of the amazing open-source project [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer) by [SoftFever](https://github.com/SoftFever).  
+While inheriting all of OrcaSlicer's powerful features and active development, this fork is tailored toward experiments and workflows involving **pellet extrusion** and **sustainable materials**.
 
-# Official links and community
-
-#### Official Website:
-<a href="https://www.orcaslicer.com/" style="font-size:2em;">OrcaSlicer.com</a>
-
-#### Github Repository:
-<a href="https://github.com/SoftFever/OrcaSlicer"><img src="https://img.shields.io/badge/OrcaSlicer-181717?style=flat&logo=github&logoColor=white" width="200" alt="GitHub Logo"/> </a>
-
-#### Follow us:
-<a href="https://twitter.com/real_OrcaSlicer"><img src="https://img.shields.io/badge/real__OrcaSlicer-000000?style=flat&logo=x&logoColor=white" width="200" alt="X Logo"/> </a>
-
-#### Join our Discord community:
-<a href="https://discord.gg/P4VE9UY9gJ"><img src="https://img.shields.io/badge/-Discord-5865F2?style=flat&logo=discord&logoColor=fff" width="200" alt="discord logo"/> </a>
-
-<table border="2" style="border-color: #ffa500; background-color:rgb(232, 220, 180); color: #856404;">
-<tr>
-<td>
-<strong>⚠️ CAUTION:</strong><br><br>
-There are several clickbait and malicious websites pretending to be Official OrcaSlicer. These sites may redirect you to dangerous downloads or contain misleading information.
-<br><br>
-If you come across any of these in search results, please <a href="https://safebrowsing.google.com/safebrowsing/report_phish/?">report them as unsafe or phishing</a>  to help keep the community secure.
-</td>
-</tr>
-</table>
-
-</div>
+We deeply thank the creators and maintainers of OrcaSlicer for making this project possible.
 
 # Main features
 
@@ -77,9 +52,11 @@ Please note that the wiki is a work in progress. We appreciate your patience as 
 ## Stable Release
 
 📥 **[Download the Latest Stable Release](https://github.com/SoftFever/OrcaSlicer/releases/latest)**  
-Visit our GitHub Releases page for the latest stable version of OrcaSlicer, recommended for most users.
+Visit our GitHub Releases page for the latest stable version of Ginger Slicer, recommended for most users.
 
 ## Nightly Builds
+🌙 **[Download the Latest Nightly Build](https://github.com/SoftFever/OrcaSlicer/releases/tag/nightly-builds)**  
+Explore the latest developments in Ginger Slicer with our nightly builds. Feedback on these versions is highly appreciated.
 
 🌙 **[Download the Latest Nightly Build](https://github.com/SoftFever/OrcaSlicer/releases/tag/nightly-builds)**  
 Explore the latest developments in OrcaSlicer with our nightly builds. Feedback on these versions is highly appreciated.
@@ -161,8 +138,7 @@ resolution: 0.1
 ```
 
 # Supports
-
-**OrcaSlicer** is an open-source project and I'm deeply grateful to all my sponsors and backers.  
+**Ginger Slicer** is an open-source project and I'm deeply grateful to all my sponsors and backers.  
 Their generous support enables me to purchase filaments and other essential 3D printing materials for the project.  
 Thank you! :)
 
@@ -198,15 +174,20 @@ Thank you! :)
 OrcaSlicer was originally forked from Bambu Studio, it was previously known as BambuStudio-SoftFever.
 
 [Bambu Studio](https://github.com/bambulab/BambuStudio) is forked from [PrusaSlicer](https://github.com/prusa3d/PrusaSlicer) by Prusa Research, which is from [Slic3r](https://github.com/Slic3r/Slic3r) by Alessandro Ranellucci and the RepRap community.
-OrcaSlicer incorporates a lot of features from [SuperSlicer](https://github.com/supermerill/SuperSlicer) by @supermerill
-OrcaSlicer's logo is designed by community member Justin Levine (@freejstnalxndr).
+Ginger Slicer incorporates a lot of features from [SuperSlicer](https://github.com/supermerill/SuperSlicer) by @supermerill
+Ginger Slicer's logo is designed by community member Justin Levine(@freejstnalxndr).
 
 # License
+**Ginger Slicer** is licensed under the GNU Affero General Public License, version 3. Ginger Slicer is based on Bambu Studio by BambuLab.
 
-- **OrcaSlicer** is licensed under the GNU Affero General Public License, version 3. OrcaSlicer is based on Bambu Studio by BambuLab.
-- **Bambu Studio** is licensed under the GNU Affero General Public License, version 3. Bambu Studio is based on PrusaSlicer by PrusaResearch.
-- **PrusaSlicer** is licensed under the GNU Affero General Public License, version 3. PrusaSlicer is owned by Prusa Research. PrusaSlicer is originally based on Slic3r by Alessandro Ranellucci.
-- **Slic3r** is licensed under the GNU Affero General Public License, version 3. Slic3r was created by Alessandro Ranellucci with the help of many other contributors.
-- The **GNU Affero General Public License**, version 3 ensures that if you use any part of this software in any way (even behind a web server), your software must be released under the same license.
-- OrcaSlicer includes a **pressure advance calibration pattern test** adapted from Andrew Ellis' generator, which is licensed under GNU General Public License, version 3. Ellis' generator is itself adapted from a generator developed by Sineos for Marlin, which is licensed under GNU General Public License, version 3.
-- The **Bambu networking plugin** is based on non-free libraries from BambuLab. It is optional to the OrcaSlicer and provides extended functionalities for Bambulab printer users.
+**Bambu Studio** is licensed under the GNU Affero General Public License, version 3. Bambu Studio is based on PrusaSlicer by PrusaResearch.
+
+**PrusaSlicer** is licensed under the GNU Affero General Public License, version 3. PrusaSlicer is owned by Prusa Research. PrusaSlicer is originally based on Slic3r by Alessandro Ranellucci.
+
+**Slic3r** is licensed under the GNU Affero General Public License, version 3. Slic3r was created by Alessandro Ranellucci with the help of many other contributors.
+
+The GNU Affero General Public License, version 3 ensures that if you use any part of this software in any way (even behind a web server), your software must be released under the same license.
+
+Ginger Slicer includes a pressure advance calibration pattern test adapted from Andrew Ellis' generator, which is licensed under GNU General Public License, version 3. Ellis' generator is itself adapted from a generator developed by Sineos for Marlin, which is licensed under GNU General Public License, version 3.
+
+The Bambu networking plugin is based on non-free libraries from BambuLab. It is optional to the Ginger Slicer and provides extended functionalities for Bambulab printer users.

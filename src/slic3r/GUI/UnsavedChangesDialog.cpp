@@ -779,7 +779,7 @@ static std::string none{"none"};
 #define UNSAVE_CHANGE_DIALOG_BUTTON_SIZE wxSize(FromDIP(70), FromDIP(24))
 
 #define THUMB_COLOR wxColor(196, 196, 196)
-#define GREY900 wxColour(38, 46, 48)
+#define GREY900 wxColour(48, 38, 38)
 #define GREY700 wxColour(107,107,107)
 #define GREY400 wxColour(206,206,206)
 #define GREY300 wxColour(238,238,238)
@@ -967,6 +967,7 @@ void UnsavedChangesDialog::build(Preset::Type type, PresetCollection *dependent_
         *btn = new Button(this, _L(label));
 
         (*btn)->SetStyle(focus ? ButtonStyle::Confirm : ButtonStyle::Regular, ButtonType::Choice);
+
 
         (*btn)->Bind(wxEVT_BUTTON, [this, close_act, dependent_presets](wxEvent &) {
             bool save_names_and_types = close_act == Action::Save || (close_act == Action::Transfer && ActionButtons::KEEP & m_buttons);
