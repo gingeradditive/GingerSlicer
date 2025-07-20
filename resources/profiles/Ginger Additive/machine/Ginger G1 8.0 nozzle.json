@@ -4,7 +4,7 @@
   "renamed_from":"ginger G1 8.0 nozzle",
   "printer_settings_id": "Ginger G1 8.0 nozzle",
   "instantiation": "true",
-  "inherits": "Ginger_G1_common",
+  "inherits": "fdm_machine_common",
   "max_layer_height": ["5.0"],
   "nozzle_diameter": ["8.0"],
   "printer_variant": "8.0",

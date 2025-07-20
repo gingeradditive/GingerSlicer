@@ -1,13 +1,55 @@
 {
+  "bbl_use_printhost": "0",
+  "bed_custom_model": "",
+  "enable_long_retraction_when_cut": "0",
+  "from": "system",
+  "long_retractions_when_cut": [
+    "0"
+  ],
+  "machine_max_acceleration_z": [
+    "200",
+    "200"
+  ],
+  "machine_max_junction_deviation": [
+    "0",
+    "0"
+  ],
+  "machine_start_gcode": "START_PRINT BED_TEMPERATURE=[bed_temperature_initial_layer] KAMP_LEVELING=1 EXTRUDER_ROTATION_VOLUME={extruder_rotation_volume[0]} MIXING_STEPPER_ROTATION_VOLUME={mixing_stepper_rotation_volume[0]} PURGE_LAYER_HEIGHT=2 PURGE_PARKING_SPEED=10000 PURGE_LENGHT=500 PURGE_SPEED=400 PURGE_MATERIAL_QUANTITY=15000 EXTRUDER_TEMPERATURE=[nozzle_temperature] EXTRUDER_TEMPERATURE_INITIAL_LAYER=[nozzle_temperature_initial_layer] PRESSURE_ADVANCE=0.2 PRESSURE_ADVANCE_SMOOTH_TIME=0.5 ZONE_1_TEMPERATURE={multi_zone_1_initial_layer[0]} ZONE_2_TEMPERATURE={multi_zone_2_initial_layer[0]} ZONE_3_TEMPERATURE={multi_zone_3_initial_layer[0]}",
+  "machine_tool_change_time": "0",
+  "max_layer_height": [
+    "2.5"
+  ],
+  "max_resonance_avoidance_speed": "120",
+  "min_resonance_avoidance_speed": "70",
+  "nozzle_diameter": [
+    "3"
+  ],
+  "nozzle_height": "2.5",
+  "printer_notes": "",
+  "printer_variant": "3.0",
+  "resonance_avoidance": "0",
+  "retract_restart_extra": [
+    "10"
+  ],
+  "retraction_distances_when_cut": [
+    "18"
+  ],
+  "retraction_length": [
+    "10"
+  ],
+  "thumbnails": "50x50/PNG",
+  "travel_slope": [
+    "3"
+  ],
+  "version": "2.3.0.4",
+  "z_hop": [
+    "1"
+  ],
   "type": "machine",
   "name": "Ginger G1 3.0 nozzle",
   "renamed_from":"ginger G1 3.0 nozzle",
   "printer_settings_id": "Ginger G1 3.0 nozzle",
   "instantiation": "true",
-  "inherits": "Ginger_G1_common",
-  "max_layer_height": ["2.5"],
-  "nozzle_diameter": ["3.0"],
-  "printer_variant": "3.0",
-  "printer_model": "ginger G1",
-  "version": "0.1.0.0"
+  "inherits": "fdm_machine_common",
+  "printer_model": "ginger G1"
 }

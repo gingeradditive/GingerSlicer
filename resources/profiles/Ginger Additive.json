@@ -1,6 +1,6 @@
 {
   "name": "Ginger Additive",
-  "version":  "02.03.00.03",
+  "version":  "02.03.00.04",
   "force_update": "1",
   "description": "Ginger configuration",
   "machine_model_list": [
@@ -15,8 +15,8 @@
       "sub_path": "machine/fdm_machine_common.json"
     },
     {
-      "name": "ginger_one_common",
-      "sub_path": "machine/Ginger_G1_common.json"
+      "name": "ginger G1 1.0 nozzle",
+      "sub_path": "machine/Ginger G1 1.0 nozzle.json"
     },
     {
       "name": "ginger G1 1.2 nozzle",
@@ -45,8 +45,16 @@
       "sub_path": "process/0.60mm Standard.json"
     },
     {
+      "name": "1.30mm Standard",
+      "sub_path": "process/1.30mm Standard.json"
+    },
+    {
       "name": "1.50mm Standard",
       "sub_path": "process/1.50mm Standard.json"
+    },
+    {
+      "name": "1.50mm Vasemode",
+      "sub_path": "process/1.50mm Vasemode.json"
     },
     {
       "name": "1.80mm Vasemode",
@@ -67,12 +75,36 @@
       "sub_path": "filament/fdm_filament_common.json"
     },
     {
-      "name": "Ginger Generic PETG",
-      "sub_path": "filament/Ginger Generic PETG.json"
+      "name": "Generic PETG",
+      "sub_path": "filament/Generic PETG.json"
     },
     {
-      "name": "Ginger Generic PLA",
-      "sub_path": "filament/Ginger Generic PLA.json"
+      "name": "Generic PLA",
+      "sub_path": "filament/Generic PLA.json"
+    },
+    {
+      "name": "Azure PETG",
+      "sub_path": "filament/Azure PETG.json"
+    },
+    {
+      "name": "Azure PLA",
+      "sub_path": "filament/Azure PLA.json"
+    },
+    {
+      "name": "colorFabb FOAM PLA",
+      "sub_path": "filament/colorFabb FOAM PLA.json"
+    },
+    {
+      "name": "FormFutura rPETG 10GF",
+      "sub_path": "filament/FormFutura rPETG 10GF.json"
+    },
+    {
+      "name": "FormFutura rPETG",
+      "sub_path": "filament/FormFutura rPETG.json"
+    },
+    {
+      "name": "Ginger rPLA",
+      "sub_path": "filament/Ginger rPLA.json"
     }
   ]
 }

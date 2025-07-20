@@ -166,7 +166,7 @@ def check_machine_default_materials(profiles_dir, vendor_name):
         
     # Load available filament profiles
     vendor_filaments = load_available_filament_profiles(profiles_dir, vendor_name)
-    all_available_filaments = vendor_filaments.union(global_filaments)
+    all_available_filaments = vendor_filaments
     
     # Check each machine profile
     for file_path in machine_dir.rglob("*.json"):

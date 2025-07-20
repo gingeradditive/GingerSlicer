@@ -12,7 +12,7 @@
   "elefant_foot_compensation": "0",
   "exclude_object": "1",
   "extra_perimeters_on_overhangs": "0",
-  "from": "User",
+  "from": "system",
   "gap_fill_target": "nowhere",
   "gap_infill_speed": "100",
   "infill_anchor_max": "30",

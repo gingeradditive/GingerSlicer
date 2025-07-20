@@ -16,6 +16,7 @@
         "1"
     ],
     "compatible_printers": [
+        "Ginger G1 1.0 nozzle",
         "Ginger G1 1.2 nozzle",
         "Ginger G1 3.0 nozzle",
         "Ginger G1 5.0 nozzle",
