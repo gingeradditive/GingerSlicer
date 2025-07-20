@@ -1,0 +1,89 @@
+{
+    "extruder_rotation_volume": [
+        "660"
+    ],
+    "filament_cost": [
+        "7"
+    ],
+    "filament_deretraction_speed": [
+        "150"
+    ],
+    "filament_max_volumetric_speed": [
+        "250"
+    ],
+    "filament_retract_before_wipe": [
+        "0%"
+    ],
+    "filament_retract_restart_extra": [
+        "10"
+    ],
+    "filament_retract_when_changing_layer": [
+        "0"
+    ],
+    "filament_retraction_length": [
+        "30"
+    ],
+    "filament_retraction_minimum_travel": [
+        "5"
+    ],
+    "filament_retraction_speed": [
+        "150"
+    ],
+    "filament_settings_id": [
+        "Azure PETG"
+    ],
+    "filament_start_gcode": [
+        "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.4"
+    ],
+    "filament_vendor": [
+        "Azure"
+    ],
+    "filament_wipe": [
+        "1"
+    ],
+    "filament_wipe_distance": [
+        "10"
+    ],
+    "filament_z_hop": [
+        "0.5"
+    ],
+    "filament_z_hop_types": [
+        "Normal Lift"
+    ],
+    "from": "system",
+    "full_fan_speed_layer": [
+        "8"
+    ],
+    "hot_plate_temp_initial_layer": [
+        "80"
+    ],
+    "inherits": "Generic PETG",
+    "is_custom_defined": "0",
+    "multi_zone_1_initial_layer": [
+        "210"
+    ],
+    "multi_zone_1_temperature": [
+        "210"
+    ],
+    "multi_zone_2_initial_layer": [
+        "210"
+    ],
+    "multi_zone_2_temperature": [
+        "210"
+    ],
+    "multi_zone_3_initial_layer": [
+        "210"
+    ],
+    "multi_zone_3_temperature": [
+        "210"
+    ],
+    "name": "Azure PETG",
+    "pressure_advance": [
+        "0.2"
+    ],
+    "slow_down_layer_time": [
+        "50"
+    ],
+    "version": "2.3.0.3",
+    "instantiation": "true"
+}

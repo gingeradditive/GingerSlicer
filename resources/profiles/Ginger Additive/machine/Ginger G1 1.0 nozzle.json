@@ -1,0 +1,21 @@
+{
+  "type": "machine",
+  "name": "Ginger G1 1.0 nozzle",
+  "renamed_from":"ginger G1 1.0 nozzle",
+  "printer_settings_id": "Ginger G1 1.0 nozzle",
+  "instantiation": "true",
+  "inherits": "fdm_machine_common",
+  "max_layer_height": ["1"],
+  "nozzle_diameter": ["1.0"],
+  "printer_variant": "1.0",
+  "printer_model": "ginger G1",
+  "machine_start_gcode": "START_PRINT BED_TEMPERATURE=[bed_temperature_initial_layer] KAMP_LEVELING=1 EXTRUDER_ROTATION_VOLUME={extruder_rotation_volume[0]} MIXING_STEPPER_ROTATION_VOLUME={mixing_stepper_rotation_volume[0]} PURGE_LAYER_HEIGHT=2 PURGE_PARKING_SPEED=10000 PURGE_LENGHT=500 PURGE_SPEED=500 PURGE_MATERIAL_QUANTITY=5000 EXTRUDER_TEMPERATURE=[nozzle_temperature] EXTRUDER_TEMPERATURE_INITIAL_LAYER=[nozzle_temperature_initial_layer] PRESSURE_ADVANCE=0.2 PRESSURE_ADVANCE_SMOOTH_TIME=0.5 ZONE_1_TEMPERATURE={multi_zone_1_initial_layer[0]} ZONE_2_TEMPERATURE={multi_zone_2_initial_layer[0]} ZONE_3_TEMPERATURE={multi_zone_3_initial_layer[0]}",
+  "deretraction_speed": ["100"],
+  "retraction_minimum_travel": ["4"],
+  "retraction_speed": ["100"],
+  "wipe_distance": ["3"],
+  "z_hop": ["0.5"],
+  "retraction_length": ["25"],
+  "retract_restart_extra": ["25"],
+  "version": "0.1.0.0"
+}
