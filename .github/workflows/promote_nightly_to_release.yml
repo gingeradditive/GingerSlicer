@@ -21,7 +21,7 @@ jobs:
       - name: Download Nightly Artifacts
         run: |
           mkdir artifacts
-          gh release download 229318516 -R ${{ github.repository }} -D ./artifacts
+          gh release download nightly-builds -R ${{ github.repository }} -D ./artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
