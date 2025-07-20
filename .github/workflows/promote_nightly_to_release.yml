@@ -1,0 +1,47 @@
+name: Promote Nightly to Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g. v1.2.3) extracted from artifacts'
+        required: true
+
+jobs:
+  promote:
+    name: Promote nightly to release
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_NAME: ${{ github.event.inputs.version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Nightly Artifacts
+        run: |
+          mkdir artifacts
+          gh release download 229318516 -R ${{ github.repository }} -D ./artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: List downloaded files
+        run: ls -lah ./artifacts
+
+      - name: Create tag ${{ env.RELEASE_NAME }}
+        uses: rickstaa/action-create-tag@v1
+        with:
+          tag: ${{ env.RELEASE_NAME }}
+          message: "Promoted release ${{ env.RELEASE_NAME }} from nightly"
+          force_push_tag: false
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_NAME }}
+          name: Release ${{ env.RELEASE_NAME }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/*
+
