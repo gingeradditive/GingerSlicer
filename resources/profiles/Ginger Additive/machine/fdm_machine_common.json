@@ -37,7 +37,7 @@
   "host_type": "octoprint",
   "is_custom_defined": "0",
   "layer_change_gcode": ";AFTER_LAYER_CHANGE\n;[layer_z]",
-  "machine_end_gcode": "PRINT_END",
+  "machine_end_gcode": "END_PRINT",
   "machine_load_filament_time": "0",
   "machine_max_acceleration_e": ["1000", "5000"],
   "machine_max_acceleration_extruding": ["2500", "20000"],
