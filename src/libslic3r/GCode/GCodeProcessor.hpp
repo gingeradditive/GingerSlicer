@@ -919,6 +919,9 @@ class Print;
         // Advanced settings
         void process_M205(const GCodeReader::GCodeLine& line);
 
+        // Klipper process_START_PRINT
+        void process_START_PRINT(const GCodeReader::GCodeLine& line);
+
         // Klipper SET_VELOCITY_LIMIT
         void process_SET_VELOCITY_LIMIT(const GCodeReader::GCodeLine& line);
 
