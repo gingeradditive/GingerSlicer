@@ -1560,6 +1560,12 @@ void GCodeProcessor::process_gcode_line(const GCodeReader::GCodeLine& line, bool
             process_SET_VELOCITY_LIMIT(line);
             return;
         }
+
+        if (boost::iequals(cmd, "START_PRINT"))
+        {
+            process_START_PRINT(line);
+            return;
+        }
     }
 
     if (cmd.length() > 1) {
@@ -3816,6 +3822,175 @@ void GCodeProcessor::process_M205(const GCodeReader::GCodeLine& line)
     }
 }
 
+void GCodeProcessor::process_START_PRINT(const GCodeReader::GCodeLine& line)
+{
+    std::smatch matches;
+    std::string raw_line = line.raw();
+    std::regex  pattern;
+
+    // BED_TEMPERATURE
+    //pattern = std::regex("\\sBED_TEMPERATURE\\s*=\\s*([0-9]*\\.?[0-9]*)");
+    //if (std::regex_search(raw_line, matches, pattern) && matches.size() == 2) {
+    //    float bed_temp = 0;
+    //    try {
+    //        bed_temp = std::stof(matches[1]);
+    //    } catch (...) {}
+    //    // TODO: usa bed_temp
+    //}
+
+    // KAMP_LEVELING
+    //pattern = std::regex("\\sKAMP_LEVELING\\s*=\\s*([0-9]+)");
+    //if (std::regex_search(raw_line, matches, pattern) && matches.size() == 2) {
+    //    int kamp_leveling = 0;
+    //    try {
+    //        kamp_leveling = std::stoi(matches[1]);
+    //    } catch (...) {}
+    //    // TODO: usa kamp_leveling
+    //}
+
+    // EXTRUDER_ROTATION_VOLUME
+    //pattern = std::regex("\\sEXTRUDER_ROTATION_VOLUME\\s*=\\s*([0-9]*\\.?[0-9]*)");
+    //if (std::regex_search(raw_line, matches, pattern) && matches.size() == 2) {
+    //    float extruder_rotation = 0;
+    //    try {
+    //        extruder_rotation = std::stof(matches[1]);
+    //    } catch (...) {}
+    //    // TODO: usa extruder_rotation
+    //}
+
+    // MIXING_STEPPER_ROTATION_VOLUME
+    //pattern = std::regex("\\sMIXING_STEPPER_ROTATION_VOLUME\\s*=\\s*([0-9]*\\.?[0-9]*)");
+    //if (std::regex_search(raw_line, matches, pattern) && matches.size() == 2) {
+    //    float mixing_stepper = 0;
+    //    try {
+    //        mixing_stepper = std::stof(matches[1]);
+    //    } catch (...) {}
+    //    // TODO: usa mixing_stepper
+    //}
+
+    // PURGE_LAYER_HEIGHT
+    //pattern = std::regex("\\sPURGE_LAYER_HEIGHT\\s*=\\s*([0-9]*\\.?[0-9]*)");
+    //if (std::regex_search(raw_line, matches, pattern) && matches.size() == 2) {
+    //    float purge_layer = 0;
+    //    try {
+    //        purge_layer = std::stof(matches[1]);
+    //    } catch (...) {}
+    //    // TODO: usa purge_layer
+    //}
+
+    // PURGE_PARKING_SPEED
+    //pattern = std::regex("\\sPURGE_PARKING_SPEED\\s*=\\s*([0-9]+)");
+    //if (std::regex_search(raw_line, matches, pattern) && matches.size() == 2) {
+    //    int purge_parking_speed = 0;
+    //    try {
+    //        purge_parking_speed = std::stoi(matches[1]);
+    //    } catch (...) {}
+    //    // TODO: usa purge_parking_speed
+    //}
+
+    // PURGE_LENGHT
+    //pattern = std::regex("\\sPURGE_LENGHT\\s*=\\s*([0-9]+)");
+    //if (std::regex_search(raw_line, matches, pattern) && matches.size() == 2) {
+    //    int purge_length = 0;
+    //    try {
+    //        purge_length = std::stoi(matches[1]);
+    //    } catch (...) {}
+    //    // TODO: usa purge_length
+    //}
+
+    // PURGE_SPEED
+    //pattern = std::regex("\\sPURGE_SPEED\\s*=\\s*([0-9]+)");
+    //if (std::regex_search(raw_line, matches, pattern) && matches.size() == 2) {
+    //    int purge_speed = 0;
+    //    try {
+    //        purge_speed = std::stoi(matches[1]);
+    //    } catch (...) {}
+    //    // TODO: usa purge_speed
+    //}
+
+    // PURGE_MATERIAL_QUANTITY
+    //pattern = std::regex("\\sPURGE_MATERIAL_QUANTITY\\s*=\\s*([0-9]+)");
+    //if (std::regex_search(raw_line, matches, pattern) && matches.size() == 2) {
+    //    int purge_material_qty = 0;
+    //    try {
+    //        purge_material_qty = std::stoi(matches[1]);
+    //    } catch (...) {}
+    //    // TODO: usa purge_material_qty
+    //}
+
+    // EXTRUDER_TEMPERATURE
+    //pattern = std::regex("\\sEXTRUDER_TEMPERATURE\\s*=\\s*([0-9]+)");
+    //if (std::regex_search(raw_line, matches, pattern) && matches.size() == 2) {
+    //    int extruder_temp = 0;
+    //    try {
+    //        extruder_temp = std::stoi(matches[1]);
+    //    } catch (...) {}
+    //    // TODO: usa extruder_temp
+    //}
+
+    // EXTRUDER_TEMPERATURE_INITIAL_LAYER
+    //pattern = std::regex("\\sEXTRUDER_TEMPERATURE_INITIAL_LAYER\\s*=\\s*([0-9]+)");
+    //if (std::regex_search(raw_line, matches, pattern) && matches.size() == 2) {
+    //    int extruder_temp_initial = 0;
+    //    try {
+    //        extruder_temp_initial = std::stoi(matches[1]);
+    //    } catch (...) {}
+    //    // TODO: usa extruder_temp_initial
+    //}
+
+    // PRESSURE_ADVANCE
+    //pattern = std::regex("\\sPRESSURE_ADVANCE\\s*=\\s*([0-9]*\\.?[0-9]*)");
+    //if (std::regex_search(raw_line, matches, pattern) && matches.size() == 2) {
+    //    float pressure_adv = 0;
+    //    try {
+    //        pressure_adv = std::stof(matches[1]);
+    //    } catch (...) {}
+    //    // TODO: usa pressure_adv
+    //}
+
+    // PRESSURE_ADVANCE_SMOOTH_TIME
+    //pattern = std::regex("\\sPRESSURE_ADVANCE_SMOOTH_TIME\\s*=\\s*([0-9]*\\.?[0-9]*)");
+    //if (std::regex_search(raw_line, matches, pattern) && matches.size() == 2) {
+    //    float pressure_smooth = 0;
+    //    try {
+    //        pressure_smooth = std::stof(matches[1]);
+    //    } catch (...) {}
+    //    // TODO: usa pressure_smooth
+    //}
+
+    // ZONE_1_TEMPERATURE
+    //pattern = std::regex("\\sZONE_1_TEMPERATURE\\s*=\\s*([0-9]+)");
+    //if (std::regex_search(raw_line, matches, pattern) && matches.size() == 2) {
+    //    int zone1_temp = 0;
+    //    try {
+    //        zone1_temp = std::stoi(matches[1]);
+    //    } catch (...) {}
+    //    // TODO: usa zone1_temp
+    //}
+
+    // ZONE_2_TEMPERATURE
+    //pattern = std::regex("\\sZONE_2_TEMPERATURE\\s*=\\s*([0-9]+)");
+    //if (std::regex_search(raw_line, matches, pattern) && matches.size() == 2) {
+    //    int zone2_temp = 0;
+    //    try {
+    //        zone2_temp = std::stoi(matches[1]);
+    //    } catch (...) {}
+    //    // TODO: usa zone2_temp
+    //}
+
+    // ZONE_3_TEMPERATURE
+    pattern = std::regex("\\sZONE_3_TEMPERATURE\\s*=\\s*([0-9]+)");
+    if (std::regex_search(raw_line, matches, pattern) && matches.size() == 2) {
+        int zone3_temp = 0;
+        try {
+            zone3_temp = std::stoi(matches[1]);
+        } catch (...) {}
+
+        m_extruder_temps[m_extruder_id] = zone3_temp;
+    }
+}
+
+
 void GCodeProcessor::process_SET_VELOCITY_LIMIT(const GCodeReader::GCodeLine& line)
 {
     // handle SQUARE_CORNER_VELOCITY
@@ -3861,7 +4036,6 @@ void GCodeProcessor::process_SET_VELOCITY_LIMIT(const GCodeReader::GCodeLine& li
                 set_option_value(m_time_processor.machine_limits.machine_max_speed_y, i, _speed);
         }
     }
-
 }
 
 void GCodeProcessor::process_M221(const GCodeReader::GCodeLine& line)
