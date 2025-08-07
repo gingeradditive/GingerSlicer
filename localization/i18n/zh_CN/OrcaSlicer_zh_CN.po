@@ -2784,8 +2784,8 @@ msgstr "下载中"
 msgid "Download failed"
 msgstr "下载失败"
 
-msgid "Canceled"
-msgstr "已取消"
+msgid "Cancelled"
+msgstr ""
 
 msgid "Installed successfully"
 msgstr "安装成功。"
@@ -3704,6 +3704,24 @@ msgstr ""
 "seam_slope_start_height需要小于layer_height。\n"
 "重置为0。"
 
+#, c-format, boost-format
+msgid ""
+"lock depth should smaller than skin depth.\n"
+"Reset to 50% of skin depth"
+msgstr ""
+
+msgid ""
+"Both [Extrusion] and [Combined] modes of Fuzzy Skin require the Arachne Wall "
+"Generator to be enabled."
+msgstr ""
+
+msgid ""
+"Change these settings automatically?\n"
+"Yes - Enable Arachne Wall Generator\n"
+"No  - Disable Arachne Wall Generator and set [Displacement] mode of the "
+"Fuzzy Skin"
+msgstr ""
+
 msgid ""
 "Lock depth should smaller than skin depth.\n"
 "Reset to 50% of skin depth."
@@ -4049,6 +4067,9 @@ msgid ""
 msgstr ""
 "无效的模式。请使用 N、N#K 或逗号分隔的列表（每个条目可选择性地添加 #K）。示"
 "例：5, 5#2, 1,7,9, 5,9#2,18。"
+
+msgid "This parameter expects a valid template."
+msgstr ""
 
 #, boost-format
 msgid "Invalid format. Expected vector format: \"%1%\""
@@ -5150,6 +5171,11 @@ msgstr "从打印机重新加载文件列表。"
 
 msgid "No printers."
 msgstr "未选择打印机"
+
+msgid ""
+"Please check the network and try again, You can restart or update the "
+"printer if the issue persists."
+msgstr ""
 
 msgid "Loading file list..."
 msgstr "加载文件列表..."
@@ -8399,6 +8425,15 @@ msgstr "体积"
 msgid "Ramming line"
 msgstr "顶压线"
 
+msgid "Total ramming"
+msgstr ""
+
+msgid "Volume"
+msgstr ""
+
+msgid "Ramming line"
+msgstr ""
+
 msgid "Auto-Calc"
 msgstr "自动计算"
 
@@ -8533,6 +8568,9 @@ msgstr ""
 "自动调整选定零件/所有零件的方向,\n"
 "有选定零件时调整选定零件的朝向,\n"
 "没有选择零件时调整当项目所有零件的朝向"
+
+msgid "Shift+Q"
+msgstr ""
 
 msgid "Auto orients all objects on the active plate."
 msgstr "自动调整活动板上的所有物体的方向。"
@@ -10165,11 +10203,9 @@ msgstr "圆盘检测半径"
 
 msgid ""
 "The geometry will be decimated before detecting sharp angles. This parameter "
-"indicates the minimum length of the deviation for the decimation.\n"
+"indicates the minimum length of the deviation for the decimation. \n"
 "0 to deactivate."
 msgstr ""
-"在检测尖锐角度之前，几何形状将被简化。此参数表示简化的最小偏差长度。\n"
-"设为0以停用"
 
 msgid "Select printers"
 msgstr "选择打印机"
@@ -11251,6 +11287,22 @@ msgid ""
 "Using multiple lines for the infill pattern, if supported by infill pattern."
 msgstr "如果填充图案支持，使用多线进行填充。"
 
+msgid "Align infill direction to model"
+msgstr ""
+
+msgid ""
+"Aligns infill and surface fill directions to follow the model's orientation "
+"on the build plate. When enabled, fill directions rotate with the model to "
+"maintain optimal strength characteristics."
+msgstr ""
+
+msgid "Fill Multiline"
+msgstr ""
+
+msgid ""
+"Using multiple lines for the infill pattern, if supported by infill pattern."
+msgstr ""
+
 msgid "Sparse infill pattern"
 msgstr "稀疏填充图案"
 
@@ -12230,8 +12282,8 @@ msgstr "与边缘保持的距离。0值将其设置为喷嘴直径的一半。"
 msgid "Ironing speed"
 msgstr "熨烫速度"
 
-msgid "Print speed of ironing lines."
-msgstr "熨烫的打印速度"
+msgid "Print speed of ironing lines"
+msgstr ""
 
 msgid "Ironing angle"
 msgstr "熨烫角度"
@@ -14742,6 +14794,9 @@ msgstr "添加到3mf中的元数据值列表。"
 msgid "Allow 3mf with newer version to be sliced"
 msgstr "允许较新版本的3mf进行切片"
 
+msgid "Allow 3mf with newer version to be sliced"
+msgstr ""
+
 msgid "Allow 3mf with newer version to be sliced."
 msgstr "允许较新版本的3mf进行切片。"
 
@@ -15084,6 +15139,9 @@ msgstr "未知的文件格式。输入文件的扩展名必须为.stl、.obj 或
 
 msgid "Unknown file format. Input file must have .3mf or .zip.amf extension."
 msgstr "未知的文件格式。输入文件的扩展名必须为.3mf或.zip .amf。"
+
+msgid "Canceled"
+msgstr "已取消"
 
 msgid "load_obj: failed to parse"
 msgstr "加载对象：无法分析"
@@ -16663,8 +16721,8 @@ msgstr "与 Repetier 的连接正常。"
 msgid "Could not connect to Repetier"
 msgstr "无法连接到Repetier"
 
-msgid "Note: Repetier version 0.90.0 or higher is required."
-msgstr "注意：需要 Repetier 版本至少为 0.90.0。"
+msgid "Note: Repetier version 0.90.0 ir higher is required."
+msgstr ""
 
 #, boost-format
 msgid ""
@@ -17335,6 +17393,329 @@ msgid ""
 msgstr ""
 "避免翘曲\n"
 "您知道吗？打印ABS这类易翘曲材料时，适当提高热床温度可以降低翘曲的概率。"
+
+#~ msgid "Set Position"
+#~ msgstr "设置位置"
+
+#~ msgid "%"
+#~ msgstr "%"
+
+#, boost-format
+#~ msgid "%1%"
+#~ msgstr "%1%"
+
+#~ msgid "Right click the icon to fix model object"
+#~ msgstr "右键点击此图标可修复模型对象"
+
+#~ msgid "The target object contains only one part and cannot be split."
+#~ msgstr "目标对象仅包含一个零件，无法被拆分。"
+
+#~ msgid "?"
+#~ msgstr "?"
+
+#~ msgid "mm³"
+#~ msgstr "mm³"
+
+#~ msgid "Color Scheme"
+#~ msgstr "颜色方案"
+
+#~ msgid "Percent"
+#~ msgstr "百分比"
+
+#~ msgid "Used filament"
+#~ msgstr "使用的耗材丝"
+
+# SoftFever
+#~ msgid "More..."
+#~ msgstr "进阶校准"
+
+#~ msgid "More calibrations"
+#~ msgstr "更多校准"
+
+#~ msgid "SD Card"
+#~ msgstr "SD卡"
+
+#~ msgid "100%"
+#~ msgstr "100%"
+
+#~ msgid "No SD Card"
+#~ msgstr "无SD卡"
+
+#~ msgid "SD Card Abnormal"
+#~ msgstr "SD卡异常"
+
+#, c-format, boost-format
+#~ msgid "Ejecting of device %s(%s) has failed."
+#~ msgstr "弹出设备%s(%s)失败。"
+
+#~ msgid "mm/s²"
+#~ msgstr "mm/s²"
+
+#~ msgid "mm/s"
+#~ msgstr "mm/s"
+
+#~ msgid "Invalid number"
+#~ msgstr "无效数字"
+
+#~ msgid "Publish was canceled"
+#~ msgstr "发布已取消"
+
+#~ msgid "Search"
+#~ msgstr "搜索"
+
+#~ msgid "My Device"
+#~ msgstr "我的设备"
+
+#~ msgid "Other Device"
+#~ msgstr "其他设备"
+
+#~ msgid "Can't find my devices?"
+#~ msgstr "无法找到我的设备？"
+
+#, c-format, boost-format
+#~ msgid "nozzle memorized: %.2f %s"
+#~ msgstr "记忆中的喷嘴：%.2f %s"
+
+#~ msgid "Modifying the device name"
+#~ msgstr "修改打印机名称"
+
+#~ msgid "Bind with Access Code"
+#~ msgstr "通过访问码绑定"
+
+#~ msgid ""
+#~ "When using support material for the support interface, we recommend the "
+#~ "following settings:\n"
+#~ "0 top z distance, 0 interface spacing, interlaced rectilinear pattern and "
+#~ "disable independent support layer height"
+#~ msgstr ""
+#~ "当使用支持界面的支持材料时，我们推荐以下设置：\n"
+#~ "0顶层z距离，0接触层间距，交叠直线图案，并且禁用独立支撑层高"
+
+#~ msgid "Ramming settings"
+#~ msgstr "尖端成型设置"
+
+#~ msgid "Profile dependencies"
+#~ msgstr "配置依赖"
+
+#~ msgid "the Configuration package is incompatible with the current APP."
+#~ msgstr "配置包与当前APP不兼容。"
+
+#~ msgid "Total ramming time"
+#~ msgstr "尖端成型总时间"
+
+#~ msgid "s"
+#~ msgstr "秒"
+
+#~ msgid "Total rammed volume"
+#~ msgstr "尖端成型总体积"
+
+#~ msgid "Ramming line width"
+#~ msgstr "尖端成型线宽"
+
+#~ msgid "Ramming line spacing"
+#~ msgstr "尖端成型线间距"
+
+#~ msgid "resume"
+#~ msgstr "继续"
+
+#~ msgid "°C"
+#~ msgstr "°C"
+
+#~ msgid "Classic mode"
+#~ msgstr "经典模式"
+
+#~ msgid "Enable this option to use classic mode."
+#~ msgstr "启用此选项以使用经典模式"
+
+#~ msgid ""
+#~ "The geometry will be decimated before detecting sharp angles. This "
+#~ "parameter indicates the minimum length of the deviation for the "
+#~ "decimation.\n"
+#~ "0 to deactivate."
+#~ msgstr ""
+#~ "在检测尖锐角度之前，几何形状将被简化。此参数表示简化的最小偏差长度。\n"
+#~ "设为0以停用"
+
+#~ msgid "Compatible machine"
+#~ msgstr "兼容的机器"
+
+#~ msgid "Compatible machine condition"
+#~ msgstr "兼容的机器的条件"
+
+#~ msgid "Compatible process profiles condition"
+#~ msgstr "兼容的切片配置的条件"
+
+#~ msgid "Default filament color"
+#~ msgstr "缺省材料颜色"
+
+#~ msgid "mm³/s"
+#~ msgstr "mm³/s"
+
+#~ msgid "g/cm³"
+#~ msgstr "g/cm³"
+
+#~ msgid "Rotate solid infill direction"
+#~ msgstr "旋转实心填充方向"
+
+#~ msgid "Rotate the solid infill direction by 90° for each layer."
+#~ msgstr "每层都旋转实心填充方向90°。"
+
+#~ msgid "Print speed of ironing lines."
+#~ msgstr "熨烫的打印速度"
+
+#~ msgid ""
+#~ "Flow Compensation Model, used to adjust the flow for small infill areas. "
+#~ "The model is expressed as a comma separated pair of values for extrusion "
+#~ "length and flow correction factors, one per line, in the following "
+#~ "format: \"1.234,5.678\""
+#~ msgstr ""
+#~ "流量补偿模型，用于调整小区域填充的流量。模型以逗号分隔的形式表示，每行一个"
+#~ "值，格式如下：\"1.234,5.678\""
+
+#~ msgid ""
+#~ "The highest printable layer height for the extruder. Used to limit the "
+#~ "maximum layer height when adaptive layer height is enabled."
+#~ msgstr "挤出头最大可打印的层高。用于限制开启自适应层高时的最大层高。"
+
+#~ msgid "mm³/s²"
+#~ msgstr "mm³/s²"
+
+#~ msgid ""
+#~ "The lowest printable layer height for the extruder. Used to limit the "
+#~ "minimum layer height when adaptive layer height is enabled."
+#~ msgstr "挤出头最小可打印的层高。用于限制开启自适应层高时的最小层高。"
+
+#~ msgid "mm²"
+#~ msgstr "mm²"
+
+#~ msgid "Retract on top layer"
+#~ msgstr "顶层回抽"
+
+#~ msgid ""
+#~ "Some amount of material in extruder is pulled back to avoid ooze during "
+#~ "long travel. Set zero to disable retraction"
+#~ msgstr ""
+#~ "挤出机中的一些材料会被拉回特定长度，避免空驶较长时材料渗出。设置为0表示关"
+#~ "闭回抽。"
+
+#~ msgid "Speed of retractions."
+#~ msgstr "回抽速度"
+
+#~ msgid ""
+#~ "Speed for reloading filament into extruder. Zero means same speed of "
+#~ "retraction."
+#~ msgstr "耗材丝装填的速度，0表示和回抽速度一致。"
+
+#~ msgid "Spacing of interface lines. Zero means solid interface."
+#~ msgstr "接触面的线距。0代表实心接触面。"
+
+#, fuzzy
+#~ msgid ""
+#~ "Minimum thickness of thin features. Model features that are thinner than "
+#~ "this value will not be printed, while features thicker than this value "
+#~ "will be widened to the minimum wall width. It's expressed as a percentage "
+#~ "over nozzle diameter."
+#~ msgstr ""
+#~ "薄壁特征的最小厚度。比这个数值还薄的特征将不被打印，而比最小特征厚度还厚的"
+#~ "特征将被加宽到墙最小宽度。参数值表示为相对喷嘴直径的百分比"
+
+#~ msgid "Load uptodate process/machine settings when using uptodate."
+#~ msgstr "在使用最新设置时加载最新的进程/机器设置"
+
+#~ msgid ""
+#~ "We now have added the auto-calibration for different filaments, which is "
+#~ "fully automated and the result will be saved into the printer for future "
+#~ "use. You only need to do the calibration in the following limited cases:\n"
+#~ "1. If you introduce a new filament of different brands/models or the "
+#~ "filament is damp\n"
+#~ "2. If the nozzle is worn out or replaced with a new one\n"
+#~ "3. If the max volumetric speed or print temperature is changed in the "
+#~ "filament setting"
+#~ msgstr ""
+#~ "我们现在已经为不同的打印材料添加了自动校准功能，该功能是完全自动化的，并且"
+#~ "结果将保存在打印机中以供将来使用。您只需要在以下有限情况下进行校准：\n"
+#~ "1. 如果您引入了不同品牌/型号的新打印材料，或者打印材料受潮；\n"
+#~ "2. 如果喷嘴磨损或更换了新的喷嘴；\n"
+#~ "3. 如果您在打印材料设置中更改了最大体积速度或打印温度。"
+
+#~ msgid "step: "
+#~ msgstr "步距"
+
+#~ msgid "Load stl"
+#~ msgstr "加载stl"
+
+#~ msgid "Load svg"
+#~ msgstr "加载svg"
+
+#~ msgid "Back Page 1"
+#~ msgstr "返回第一页"
+
+#~ msgid "Delete Filament"
+#~ msgstr "删除材料"
+
+#~ msgid "Refresh Printers"
+#~ msgstr "刷新打印机"
+
+#~ msgid "Note: Repetier version 0.90.0 or higher is required."
+#~ msgstr "注意：需要 Repetier 版本至少为 0.90.0。"
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.2 mm nozzle, it has a smaller "
+#~ "layer height. This results in almost invisible layer lines and higher "
+#~ "print quality but shorter print time."
+#~ msgstr ""
+#~ "相比于此喷嘴的默认参数，层高较小，几乎不显层纹，打印质量较高，但打印耗时较"
+#~ "长。"
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.2 mm nozzle, it has a smaller "
+#~ "layer height. This results in minimal layer lines and higher print "
+#~ "quality, but shorter print time."
+#~ msgstr ""
+#~ "相比于此喷嘴的默认参数，层高较小，几乎不显层纹，打印质量较高，但打印耗时较"
+#~ "长。"
+
+#~ msgid ""
+#~ "It has a very big layer height. This results in very apparent layer "
+#~ "lines, low print quality and general print time."
+#~ msgstr ""
+#~ "0.8 mm 喷嘴的默认参数，层高较大，层纹很明显，打印质量低，打印耗时一般。"
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a bigger "
+#~ "layer height. This results in very apparent layer lines and much lower "
+#~ "print quality but shorter print time in some cases."
+#~ msgstr ""
+#~ "相比于此喷嘴的默认参数，层高更大，层纹非常明显，打印质量较低，部分模型的打"
+#~ "印耗时较短。"
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a much "
+#~ "bigger layer height. This results in extremely apparent layer lines and "
+#~ "much lower print quality but much shorter print time in some cases."
+#~ msgstr ""
+#~ "相比于此喷嘴的默认参数，层高较大，层纹非常明显，打印质量较低，部分模型的打"
+#~ "印耗时较短。"
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a smaller "
+#~ "layer height. This results in less but still apparent layer lines and "
+#~ "slightly higher print quality, but longer print time in some cases."
+#~ msgstr ""
+#~ "相比于此喷嘴的默认参数，层高较小，层纹较不明显，打印质量较高，部分模型的打"
+#~ "印耗时较长。"
+
+#~ msgid "Connection to Flashforge is working correctly."
+#~ msgstr "与Flashforge的连接工作正常。"
+
+#~ msgid "Could not connect to Flashforge"
+#~ msgstr "无法连接至Flashforge"
+
+#~ msgid "User canceled."
+#~ msgstr "用户已取消。"
+
+#~ msgid "Set the brim type to \"painted\""
+#~ msgstr "将Brim类型设置为绘制模式"
 
 #~ msgid ""
 #~ "Improve shell precision by adjusting outer wall spacing. This also "

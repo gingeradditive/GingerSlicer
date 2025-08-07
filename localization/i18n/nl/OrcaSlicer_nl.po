@@ -2832,8 +2832,8 @@ msgstr "Downloaden"
 msgid "Download failed"
 msgstr "Downloaden mislukt"
 
-msgid "Canceled"
-msgstr "Geannuleerd"
+msgid "Cancelled"
+msgstr ""
 
 msgid "Installed successfully"
 msgstr "Succesvol geïnstalleerd."
@@ -3802,6 +3802,24 @@ msgstr ""
 msgid ""
 "seam_slope_start_height need to be smaller than layer_height.\n"
 "Reset to 0."
+msgstr ""
+
+#, c-format, boost-format
+msgid ""
+"lock depth should smaller than skin depth.\n"
+"Reset to 50% of skin depth"
+msgstr ""
+
+msgid ""
+"Both [Extrusion] and [Combined] modes of Fuzzy Skin require the Arachne Wall "
+"Generator to be enabled."
+msgstr ""
+
+msgid ""
+"Change these settings automatically?\n"
+"Yes - Enable Arachne Wall Generator\n"
+"No  - Disable Arachne Wall Generator and set [Displacement] mode of the "
+"Fuzzy Skin"
 msgstr ""
 
 msgid ""
@@ -5253,6 +5271,11 @@ msgstr ""
 
 msgid "No printers."
 msgstr "Geen printers."
+
+msgid ""
+"Please check the network and try again, You can restart or update the "
+"printer if the issue persists."
+msgstr ""
 
 msgid "Loading file list..."
 msgstr "Bestandslijst laden..."
@@ -8801,6 +8824,9 @@ msgstr ""
 "geselecteerde objecten zijn, oriënteert het alleen de geselecteerde "
 "objecten. Anders worden alle objecten van het project georiënteerd."
 
+msgid "Shift+Q"
+msgstr ""
+
 msgid "Auto orients all objects on the active plate."
 msgstr ""
 
@@ -10456,7 +10482,7 @@ msgstr ""
 
 msgid ""
 "The geometry will be decimated before detecting sharp angles. This parameter "
-"indicates the minimum length of the deviation for the decimation.\n"
+"indicates the minimum length of the deviation for the decimation. \n"
 "0 to deactivate."
 msgstr ""
 
@@ -11561,6 +11587,13 @@ msgid ""
 "The angle of the infill angled lines. 60° will result in a pure honeycomb."
 msgstr ""
 
+msgid "Infill overhang angle"
+msgstr ""
+
+msgid ""
+"The angle of the infill angled lines. 60° will result in a pure honeycomb."
+msgstr ""
+
 msgid "Sparse infill anchor length"
 msgstr ""
 
@@ -12439,8 +12472,8 @@ msgstr ""
 msgid "Ironing speed"
 msgstr "Snelheid tijdens het strijken"
 
-msgid "Print speed of ironing lines."
-msgstr "Dit is de print snelheid van de strijk lijnen"
+msgid "Print speed of ironing lines"
+msgstr ""
 
 msgid "Ironing angle"
 msgstr ""
@@ -14975,6 +15008,9 @@ msgstr ""
 msgid "Allow 3mf with newer version to be sliced"
 msgstr ""
 
+msgid "Allow 3mf with newer version to be sliced"
+msgstr ""
+
 msgid "Allow 3mf with newer version to be sliced."
 msgstr ""
 
@@ -15314,6 +15350,9 @@ msgstr ""
 
 msgid "Unknown file format. Input file must have .3mf or .zip.amf extension."
 msgstr ""
+
+msgid "Canceled"
+msgstr "Geannuleerd"
 
 msgid "load_obj: failed to parse"
 msgstr ""
@@ -16934,7 +16973,7 @@ msgstr "De verbinding met Repetier werkt goed."
 msgid "Could not connect to Repetier"
 msgstr "Kan geen verbinding maken met Repetier"
 
-msgid "Note: Repetier version 0.90.0 or higher is required."
+msgid "Note: Repetier version 0.90.0 ir higher is required."
 msgstr ""
 
 #, boost-format

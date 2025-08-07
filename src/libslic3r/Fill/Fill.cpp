@@ -848,6 +848,7 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
                 params.lateral_lattice_angle_1 = region_config.lateral_lattice_angle_1;
                 params.lateral_lattice_angle_2 = region_config.lateral_lattice_angle_2;
                 params.infill_overhang_angle = region_config.infill_overhang_angle;
+                params.angle        = 0.;
                 if (params.pattern == ipLockedZag) {
                     params.infill_lock_depth = scale_(region_config.infill_lock_depth);
                     params.skin_infill_depth = scale_(region_config.skin_infill_depth);

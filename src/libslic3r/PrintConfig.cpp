@@ -2415,7 +2415,6 @@ void PrintConfigDef::init_fff_params()
     def->mode     = comAdvanced;
     def->set_default_value(new ConfigOptionString());
 
-
     // Infill multiline
     def             = this->add("fill_multiline", coInt);
     def->label      = L("Fill Multiline");

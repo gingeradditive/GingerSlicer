@@ -48,11 +48,7 @@ bool GLGizmoFuzzySkin::on_init()
     m_desc["remove_fuzzy_skin_caption"] = shift + _L("Left mouse button");
     m_desc["remove_fuzzy_skin"]         = _L("Remove fuzzy skin");
     m_desc["remove_all"]                = _L("Erase all painting");
-    m_desc["circle"]                    = _L("Circle");
     m_desc["sphere"]                    = _L("Sphere");
-    m_desc["pointer"]                   = _L("Triangles");
-    m_desc["tool_type"]                 = _L("Tool type");
-    m_desc["tool_brush"]                = _L("Brush");
     m_desc["tool_smart_fill"]           = _L("Smart fill");
     m_desc["smart_fill_angle_caption"]  = ctrl + _L("Mouse wheel");
     m_desc["smart_fill_angle"]          = _L("Smart fill angle");
@@ -65,11 +61,7 @@ GLGizmoFuzzySkin::GLGizmoFuzzySkin(GLCanvas3D& parent, const std::string& icon_f
 {
 }
 
-void GLGizmoFuzzySkin::render_painter_gizmo()
 {
-    const Selection &selection = m_parent.get_selection();
-
-    glsafe(::glEnable(GL_BLEND));
     glsafe(::glEnable(GL_DEPTH_TEST));
 
     render_triangles(selection);

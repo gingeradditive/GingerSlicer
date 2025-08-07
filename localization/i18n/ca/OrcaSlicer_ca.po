@@ -1876,6 +1876,9 @@ msgstr "Cub d'Ginger"
 msgid "Ginger Tolerance Test"
 msgstr "Prova de tolerància d'Ginger"
 
+msgid "Orca Tolerance Test"
+msgstr "Prova de tolerància d'Orca"
+
 msgid "3DBenchy"
 msgstr "3DBenchy"
 
@@ -2890,8 +2893,8 @@ msgstr "Descarregant"
 msgid "Download failed"
 msgstr "Descàrrega fallida"
 
-msgid "Canceled"
-msgstr "Cancel·lat"
+msgid "Cancelled"
+msgstr ""
 
 msgid "Installed successfully"
 msgstr "Instal·lació correcta."
@@ -3889,6 +3892,24 @@ msgid ""
 msgstr ""
 "seam_slope_start_height ha de ser més petit que layer_height.\n"
 "Restablert a 0."
+
+#, c-format, boost-format
+msgid ""
+"lock depth should smaller than skin depth.\n"
+"Reset to 50% of skin depth"
+msgstr ""
+
+msgid ""
+"Both [Extrusion] and [Combined] modes of Fuzzy Skin require the Arachne Wall "
+"Generator to be enabled."
+msgstr ""
+
+msgid ""
+"Change these settings automatically?\n"
+"Yes - Enable Arachne Wall Generator\n"
+"No  - Disable Arachne Wall Generator and set [Displacement] mode of the "
+"Fuzzy Skin"
+msgstr ""
 
 msgid ""
 "Lock depth should smaller than skin depth.\n"
@@ -5376,6 +5397,11 @@ msgstr "Tornar a carregar la llista de fitxers des de la impressora."
 
 msgid "No printers."
 msgstr "No hi ha cap Impressora."
+
+msgid ""
+"Please check the network and try again, You can restart or update the "
+"printer if the issue persists."
+msgstr ""
 
 msgid "Loading file list..."
 msgstr "Carregant llista de fitxers..."
@@ -9016,6 +9042,9 @@ msgstr ""
 "Si hi ha objectes seleccionats, només orientarà/alinearà els seleccionats. "
 "En cas contrari, orientarà/alinearà tots els objectes del projecte actual."
 
+msgid "Shift+Q"
+msgstr ""
+
 msgid "Auto orients all objects on the active plate."
 msgstr "Orienta/alinea automàticament tots els objectes de la placa actual."
 
@@ -10910,12 +10939,9 @@ msgstr "Radi de detecció de l'orella"
 
 msgid ""
 "The geometry will be decimated before detecting sharp angles. This parameter "
-"indicates the minimum length of the deviation for the decimation.\n"
+"indicates the minimum length of the deviation for the decimation. \n"
 "0 to deactivate."
 msgstr ""
-"La geometria es simplificarà abans de detectar angles pronunciats. Aquest "
-"paràmetre indica la longitud mínima de la desviació per a la simplificació.\n"
-"0 per desactivar"
 
 msgid "Select printers"
 msgstr ""
@@ -13328,8 +13354,8 @@ msgstr ""
 msgid "Ironing speed"
 msgstr "Velocitat de planxat"
 
-msgid "Print speed of ironing lines."
-msgstr "Velocitat d'impressió de les línies de planxat"
+msgid "Print speed of ironing lines"
+msgstr ""
 
 msgid "Ironing angle"
 msgstr "Angle de planxat"
@@ -16595,6 +16621,9 @@ msgstr ""
 "Format de fitxer desconegut. El fitxer d'entrada ha de tenir extensió .3mf "
 "o .zip.amf."
 
+msgid "Canceled"
+msgstr "Cancel·lat"
+
 msgid "load_obj: failed to parse"
 msgstr "load_obj: no s'ha pogut analitzar"
 
@@ -18309,8 +18338,8 @@ msgstr "La connexió amb Repetier funciona correctament."
 msgid "Could not connect to Repetier"
 msgstr "No s'ha pogut connectar amb Repetier"
 
-msgid "Note: Repetier version 0.90.0 or higher is required."
-msgstr "Nota: Cal la versió 0.90.0 de Repetier com a mínim."
+msgid "Note: Repetier version 0.90.0 ir higher is required."
+msgstr ""
 
 #, boost-format
 msgid ""
@@ -19068,6 +19097,425 @@ msgstr ""
 "Sabíeu que quan imprimiu materials propensos a deformar-se, com ara l'ABS, "
 "augmentar adequadament la temperatura del llit pot reduir la probabilitat de "
 "deformació?"
+
+#~ msgid "Set Position"
+#~ msgstr "Establir Posició"
+
+#~ msgid "%"
+#~ msgstr "%"
+
+#, boost-format
+#~ msgid "%1%"
+#~ msgstr "%1%"
+
+#~ msgid "Right click the icon to fix model object"
+#~ msgstr ""
+#~ "Feu clic amb el botó dret a la icona per reparar l'objecte del model"
+
+#~ msgid "The target object contains only one part and cannot be split."
+#~ msgstr "L'objecte final conté només una part i no es pot partir."
+
+#~ msgid "?"
+#~ msgstr "?"
+
+#~ msgid "/"
+#~ msgstr "/"
+
+#~ msgid "℃"
+#~ msgstr "°C"
+
+#~ msgid "mm³"
+#~ msgstr "mm³"
+
+#~ msgid "Color Scheme"
+#~ msgstr "Esquema de color"
+
+#~ msgid "Percent"
+#~ msgstr "Percentatge"
+
+#~ msgid "Used filament"
+#~ msgstr "Filament usat"
+
+#~ msgid "720p"
+#~ msgstr "720p"
+
+#~ msgid "1080p"
+#~ msgstr "1080p"
+
+#~ msgid "More..."
+#~ msgstr "Més..."
+
+#~ msgid "More calibrations"
+#~ msgstr "Més calibratges"
+
+#~ msgid "0"
+#~ msgstr "0"
+
+#~ msgid "SD Card"
+#~ msgstr "Targeta SD"
+
+#~ msgid "100%"
+#~ msgstr "100%"
+
+#~ msgid "No SD Card"
+#~ msgstr "Sense targeta SD"
+
+#~ msgid "SD Card Abnormal"
+#~ msgstr "Targeta SD anormal"
+
+#, c-format, boost-format
+#~ msgid "Ejecting of device %s(%s) has failed."
+#~ msgstr "L'expulsió del dispositiu %s( %s ) ha fallat."
+
+#~ msgid "mm/s²"
+#~ msgstr "mm/s²"
+
+#~ msgid "mm/s"
+#~ msgstr "mm/s"
+
+#~ msgid ""
+#~ "This option can be changed later in preferences, under 'Load Behaviour'."
+#~ msgstr ""
+#~ "Aquesta opció es pot canviar més endavant a les preferències, a \"Carrega "
+#~ "Comportament."
+
+#~ msgid "Invalid number"
+#~ msgstr "Número no vàlid"
+
+#~ msgid "Publish was canceled"
+#~ msgstr "La publicació ha estat cancel·lada"
+
+#~ msgid "Search"
+#~ msgstr "Cercar"
+
+#~ msgid "My Device"
+#~ msgstr "El Meu Dispositiu"
+
+#~ msgid "Other Device"
+#~ msgstr "Un Altre Dispositiu"
+
+#~ msgid "Can't find my devices?"
+#~ msgstr "No puc trobar els meus dispositius?"
+
+#, c-format, boost-format
+#~ msgid "nozzle memorized: %.2f %s"
+#~ msgstr "broquet memoritzat: %.2f %s"
+
+#~ msgid "Modifying the device name"
+#~ msgstr "Modificant el nom del dispositiu"
+
+#~ msgid "Bind with Access Code"
+#~ msgstr "Enllaçar amb el codi d'accés"
+
+#~ msgid ""
+#~ "When using support material for the support interface, we recommend the "
+#~ "following settings:\n"
+#~ "0 top z distance, 0 interface spacing, interlaced rectilinear pattern and "
+#~ "disable independent support layer height"
+#~ msgstr ""
+#~ "Quan utilitzeu material de suport per a la interfície de suport, us "
+#~ "recomanem la configuració següent:\n"
+#~ "0 distància z superior, 0 espai d'interfície, patró rectilini entrellaçat "
+#~ "i desactivar l'alçada de la capa de suport independent"
+
+#~ msgid ""
+#~ "Bed temperature when the Cool Plate Supertack is installed. A value of 0 "
+#~ "means the filament does not support printing on the Cool Plate SuperTack."
+#~ msgstr ""
+#~ "Temperatura del llit quan s'instal·la la placa freda. El valor 0 "
+#~ "significa que el filament no admet la impressió al Cool Plate SuperTack"
+
+#~ msgid "Ramming settings"
+#~ msgstr "Configuració de Moldejat de punta( Ramming )"
+
+#~ msgid "Profile dependencies"
+#~ msgstr "Dependències del perfil"
+
+#~ msgid "the Configuration package is incompatible with the current APP."
+#~ msgstr "el paquet Configuració és incompatible amb l'aplicació actual."
+
+#~ msgid "Total ramming time"
+#~ msgstr "Temps total de moldejat de punta( ramming )"
+
+#~ msgid "s"
+#~ msgstr "s"
+
+#~ msgid "Total rammed volume"
+#~ msgstr "Volum de moldejat de punta( ramming ) total"
+
+#~ msgid "Ramming line width"
+#~ msgstr "Ample de la línia de moldejat de punta( ramming )"
+
+#~ msgid "Ramming line spacing"
+#~ msgstr "Espai entre línies de Moldejat de punta( Ramming )"
+
+#~ msgid "Shift+R"
+#~ msgstr "Maj+R"
+
+#~ msgid "resume"
+#~ msgstr "reprendre"
+
+#~ msgid "°C"
+#~ msgstr "°C"
+
+#~ msgid "Classic mode"
+#~ msgstr "Mode clàssic"
+
+#~ msgid "Enable this option to use classic mode."
+#~ msgstr "Activeu aquesta opció per utilitzar el mode clàssic"
+
+#~ msgid ""
+#~ "The geometry will be decimated before detecting sharp angles. This "
+#~ "parameter indicates the minimum length of the deviation for the "
+#~ "decimation.\n"
+#~ "0 to deactivate."
+#~ msgstr ""
+#~ "La geometria es simplificarà abans de detectar angles pronunciats. Aquest "
+#~ "paràmetre indica la longitud mínima de la desviació per a la "
+#~ "simplificació.\n"
+#~ "0 per desactivar"
+
+#~ msgid "Compatible machine"
+#~ msgstr "Màquina compatible"
+
+#~ msgid "Compatible machine condition"
+#~ msgstr "Condició de màquina compatible"
+
+#~ msgid "Compatible process profiles condition"
+#~ msgstr "Condició de perfils de procés compatibles"
+
+#~ msgid "Default filament color"
+#~ msgstr "Color del filament predeterminat"
+
+#~ msgid "mm³/s"
+#~ msgstr "mm³/s"
+
+#~ msgid "g/cm³"
+#~ msgstr "g/cm³"
+
+#~ msgid "Rotate solid infill direction"
+#~ msgstr "Rotar la direcció de farciment sòlid"
+
+#~ msgid "Rotate the solid infill direction by 90° for each layer."
+#~ msgstr "Rotar la direcció de farciment sòlid 90° per a cada capa."
+
+#~ msgid "Print speed of ironing lines."
+#~ msgstr "Velocitat d'impressió de les línies de planxat"
+
+#~ msgid ""
+#~ "Flow Compensation Model, used to adjust the flow for small infill areas. "
+#~ "The model is expressed as a comma separated pair of values for extrusion "
+#~ "length and flow correction factors, one per line, in the following "
+#~ "format: \"1.234,5.678\""
+#~ msgstr ""
+#~ "Model de Compensació de Flux, utilitzat per ajustar el flux per a petites "
+#~ "àrees de farciment. El model s'expressa com un parell de valors separats "
+#~ "per comes per a la longitud d'extrusió i els factors de correcció de "
+#~ "flux, un per línia, en el següent format: \"1.234,5.678\""
+
+#~ msgid ""
+#~ "The highest printable layer height for the extruder. Used to limit the "
+#~ "maximum layer height when adaptive layer height is enabled."
+#~ msgstr ""
+#~ "La major alçada de capa imprimible per a l'extrusor. S'utilitza per "
+#~ "limitar l'alçada màxima de la capa quan s'habilita l'Alçada de Capa "
+#~ "Adaptativa"
+
+#~ msgid "mm³/s²"
+#~ msgstr "mm³/s²"
+
+#~ msgid ""
+#~ "The lowest printable layer height for the extruder. Used to limit the "
+#~ "minimum layer height when adaptive layer height is enabled."
+#~ msgstr ""
+#~ "L'alçada de capa imprimible més baixa per a l'extrusor. S'utilitza per "
+#~ "limitar l'alçada mínima de la capa quan s'activa l'Alçada de Capa "
+#~ "Adaptativa"
+
+#~ msgid "mm²"
+#~ msgstr "mm²"
+
+#~ msgid "Retract on top layer"
+#~ msgstr "Retreure a la capa superior"
+
+#~ msgid ""
+#~ "Force a retraction on top layer. Disabling could prevent clog on very "
+#~ "slow patterns with small movements, like Hilbert curve."
+#~ msgstr ""
+#~ "Força una retracció a la capa superior. La desactivació podria evitar "
+#~ "l'obstrucció en patrons molt lents amb moviments petits, com la corba de "
+#~ "Hilbert"
+
+#~ msgid ""
+#~ "Some amount of material in extruder is pulled back to avoid ooze during "
+#~ "long travel. Set zero to disable retraction"
+#~ msgstr ""
+#~ "Una certa quantitat de material en l'extrusora es tira cap enrere per "
+#~ "evitar l'Ooze( goteig ) durant el llarg desplaçament. Definiu zero per "
+#~ "desactivar la retracció"
+
+#~ msgid "Speed of retractions."
+#~ msgstr "Velocitat de les retraccions"
+
+#~ msgid ""
+#~ "Speed for reloading filament into extruder. Zero means same speed of "
+#~ "retraction."
+#~ msgstr ""
+#~ "Velocitat de recàrrega del filament a l'extrusora. Zero significa la "
+#~ "mateixa velocitat amb la retracció"
+
+#~ msgid "Single loop draft shield"
+#~ msgstr "Escut d'un sol bucle"
+
+#~ msgid ""
+#~ "Limits the draft shield loops to one wall after the first layer. This is "
+#~ "useful, on occasion, to conserve filament but may cause the draft shield "
+#~ "to warp / crack."
+#~ msgstr ""
+#~ "Limita els bucles de l'escut contra corrents d'aire a una paret després "
+#~ "de la primera capa. Això és útil, en ocasions, per conservar el filament, "
+#~ "però pot provocar que l'escut de corrent es deformi o es trenqui."
+
+#~ msgid "Spacing of interface lines. Zero means solid interface."
+#~ msgstr ""
+#~ "Espaiat de les línies de la interfície. Zero significa interfície sòlida"
+
+#, fuzzy
+#~ msgid ""
+#~ "Minimum thickness of thin features. Model features that are thinner than "
+#~ "this value will not be printed, while features thicker than this value "
+#~ "will be widened to the minimum wall width. It's expressed as a percentage "
+#~ "over nozzle diameter."
+#~ msgstr ""
+#~ "Gruix mínim dels elements fins. Els elements del model que siguin més "
+#~ "prims que aquest valor no s'imprimiran, mentre que les entitats més "
+#~ "gruixudes que la mida mínima s'ampliaran a l'amplada mínima del "
+#~ "perímetre. S'expressa en percentatge sobre el diàmetre del broquet"
+
+#~ msgid "Load uptodate process/machine settings when using uptodate."
+#~ msgstr ""
+#~ "carregar la configuració del procés/la màquina d'actualització en usar "
+#~ "l'actualització"
+
+#~ msgid "Load uptodate filament settings when using uptodate."
+#~ msgstr ""
+#~ "carregar la configuració del filament Uptodate quan s'utilitza UptoDate"
+
+#~ msgid "Downward machines settings"
+#~ msgstr "configuració descendent de les màquines"
+
+#~ msgid "Load filament ids for each object"
+#~ msgstr "Carregar els identificadors del filament per a cada objecte"
+
+#~ msgid ""
+#~ "We now have added the auto-calibration for different filaments, which is "
+#~ "fully automated and the result will be saved into the printer for future "
+#~ "use. You only need to do the calibration in the following limited cases:\n"
+#~ "1. If you introduce a new filament of different brands/models or the "
+#~ "filament is damp\n"
+#~ "2. If the nozzle is worn out or replaced with a new one\n"
+#~ "3. If the max volumetric speed or print temperature is changed in the "
+#~ "filament setting"
+#~ msgstr ""
+#~ "Hem afegit el calibratge automàtic per a diferents filaments, el qual "
+#~ "està totalment automatitzat i el resultat es guardarà a la impressora per "
+#~ "al seu ús futur. Només cal fer el calibratge en els següents casos:\n"
+#~ "1. Si introdueixes un filament nou de diferents marques/models o el "
+#~ "filament està humit;\n"
+#~ "2. Si el broquet està desgastat o es substitueix per un de nou;\n"
+#~ "3. Si es canvia la velocitat volumètrica màxima o la temperatura "
+#~ "d'impressió a la configuració del filament."
+
+#~ msgid "step: "
+#~ msgstr "pas: "
+
+#~ msgid "mm/mm"
+#~ msgstr "mm/mm"
+
+#~ msgid "Load stl"
+#~ msgstr "Carregar stl"
+
+#~ msgid "Load svg"
+#~ msgstr "Carregar svg"
+
+#~ msgid "Back Page 1"
+#~ msgstr "Tornar a la Pàgina 1"
+
+#~ msgid "Delete Filament"
+#~ msgstr "Suprimeix el Filament"
+
+#~ msgid "Refresh Printers"
+#~ msgstr "Refrescar Impressores"
+
+#~ msgid "Note: Repetier version 0.90.0 or higher is required."
+#~ msgstr "Nota: Cal la versió 0.90.0 de Repetier com a mínim."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.2 mm nozzle, it has a smaller "
+#~ "layer height. This results in almost invisible layer lines and higher "
+#~ "print quality but shorter print time."
+#~ msgstr ""
+#~ "En comparació amb el perfil predeterminat del broquet de 0,2 mm, té una "
+#~ "alçada de capa més petita i resulta en línies de capes gairebé invisibles "
+#~ "i una qualitat d'impressió més alta, però un temps d'impressió més curt."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.2 mm nozzle, it has a smaller "
+#~ "layer height. This results in minimal layer lines and higher print "
+#~ "quality, but shorter print time."
+#~ msgstr ""
+#~ "En comparació amb el perfil predeterminat del broquet de 0,2 mm, té una "
+#~ "alçada de capa més petita i produeix línies de capa mínimes i una "
+#~ "qualitat d'impressió més alta, però un temps d'impressió més curt."
+
+#~ msgid ""
+#~ "It has a very big layer height. This results in very apparent layer "
+#~ "lines, low print quality and general print time."
+#~ msgstr ""
+#~ "Té una alçada de capa molt gran i produeix línies de capa molt aparents, "
+#~ "baixa qualitat d'impressió i temps d'impressió general."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a bigger "
+#~ "layer height. This results in very apparent layer lines and much lower "
+#~ "print quality but shorter print time in some cases."
+#~ msgstr ""
+#~ "En comparació amb el perfil predeterminat del broquet de 0,8 mm, té una "
+#~ "alçada de capa més gran i produeix línies de capa molt aparents i una "
+#~ "qualitat d'impressió molt menor, però un temps d'impressió més curt en "
+#~ "alguns casos d'impressió."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a much "
+#~ "bigger layer height. This results in extremely apparent layer lines and "
+#~ "much lower print quality but much shorter print time in some cases."
+#~ msgstr ""
+#~ "En comparació amb el perfil predeterminat del broquet de 0,8 mm, té una "
+#~ "alçada de capa molt més gran, i produeix línies de capa extremadament "
+#~ "aparents i una qualitat d'impressió molt menor, però un temps d'impressió "
+#~ "molt més curt en alguns casos d'impressió."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a smaller "
+#~ "layer height. This results in less but still apparent layer lines and "
+#~ "slightly higher print quality, but longer print time in some cases."
+#~ msgstr ""
+#~ "En comparació amb el perfil predeterminat del broquet de 0,8 mm, té una "
+#~ "alçada de capa més petita i produeix línies de capa menys però encara "
+#~ "aparents i una qualitat d'impressió lleugerament superior, però un temps "
+#~ "d'impressió més llarg en alguns casos d'impressió."
+
+#~ msgid "Connection to Flashforge is working correctly."
+#~ msgstr "La connexió amb Flashforge funciona correctament."
+
+#~ msgid "Could not connect to Flashforge"
+#~ msgstr "No s'ha pogut connectar a Flashforge"
+
+#~ msgid "User canceled."
+#~ msgstr "Usuari cancel·lat."
+
+#~ msgid "Set the brim type to \"painted\""
+#~ msgstr "Establir Vora d'Adherència a \"pintat\""
 
 #~ msgid ""
 #~ "Improve shell precision by adjusting outer wall spacing. This also "

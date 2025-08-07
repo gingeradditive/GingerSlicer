@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-09-28 18:44+0800\n"
+"POT-Creation-Date: 2025-07-26 14:14+0800\n"
 "PO-Revision-Date: 2025-03-21 21:00+0200\n"
 "Last-Translator: Gintaras Kučinskas <sharanchius@gmail.com>\n"
 "Language-Team: \n"
@@ -36,6 +36,14 @@ msgid "Temperature"
 msgstr "Temperatūra"
 
 msgid "Left Time"
+msgstr ""
+
+#, c-format, boost-format
+msgid "%.1f ℃"
+msgstr ""
+
+#, c-format, boost-format
+msgid "%d : %d"
 msgstr ""
 
 msgid "Serial:"
@@ -2885,8 +2893,8 @@ msgstr "Atsisiunčiama"
 msgid "Download failed"
 msgstr "Atsisiuntimas nepavyko"
 
-msgid "Canceled"
-msgstr "Atšaukta"
+msgid "Cancelled"
+msgstr ""
 
 msgid "Installed successfully"
 msgstr "Sėkmingai įdiegta."
@@ -3092,10 +3100,10 @@ msgstr "Žingsnis"
 msgid "AMS Slots"
 msgstr "AMS angos"
 
-msgid "Left AMS"
+msgid "Left Ams"
 msgstr ""
 
-msgid "Right AMS"
+msgid "Right Ams"
 msgstr ""
 
 msgid ""
@@ -3872,6 +3880,24 @@ msgstr ""
 "seam_slope_start_height turi būti mažesnis nei layer_height.\n"
 "Atstatoma į 0."
 
+#, c-format, boost-format
+msgid ""
+"lock depth should smaller than skin depth.\n"
+"Reset to 50% of skin depth"
+msgstr ""
+
+msgid ""
+"Both [Extrusion] and [Combined] modes of Fuzzy Skin require the Arachne Wall "
+"Generator to be enabled."
+msgstr ""
+
+msgid ""
+"Change these settings automatically?\n"
+"Yes - Enable Arachne Wall Generator\n"
+"No  - Disable Arachne Wall Generator and set [Displacement] mode of the "
+"Fuzzy Skin"
+msgstr ""
+
 msgid ""
 "Lock depth should smaller than skin depth.\n"
 "Reset to 50% of skin depth."
@@ -4216,11 +4242,6 @@ msgstr "Kai kurie įvesties plėtiniai yra netinkami"
 msgid "This parameter expects a valid template."
 msgstr ""
 
-msgid ""
-"Invalid pattern. Use N, N#K, or a comma-separated list with optional #K per "
-"entry. Examples: 5, 5#2, 1,7,9, 5,9#2,18."
-msgstr ""
-
 #, boost-format
 msgid "Invalid format. Expected vector format: \"%1%\""
 msgstr "Netinkamas formatas. Tinkamas vektorinis formatas: \"%1%\""
@@ -4447,7 +4468,7 @@ msgstr "Seka"
 msgid "object selection"
 msgstr ""
 
-msgid "part selection"
+msgid "part selectiont"
 msgstr ""
 
 msgid "number keys"
@@ -4557,6 +4578,9 @@ msgstr "Sekcijos peržiūra"
 
 msgid "Assemble Control"
 msgstr "Surinkimo valdymas"
+
+msgid "part selection"
+msgstr ""
 
 msgid "Selection Mode"
 msgstr ""
@@ -5347,6 +5371,11 @@ msgstr "Iš naujo iš spausdintuvo įkelti failų sąrašą."
 
 msgid "No printers."
 msgstr "Bėra spausdintuvų."
+
+msgid ""
+"Please check the network and try again, You can restart or update the "
+"printer if the issue persists."
+msgstr ""
 
 msgid "Loading file list..."
 msgstr "Įkeliamas failų sąrašas..."
@@ -8965,10 +8994,16 @@ msgstr "Pasukti vaizdą"
 msgid "Zoom View"
 msgstr "Padidinti vaizdą"
 
+msgid "Shift+A"
+msgstr "Shift+A"
+
 msgid ""
 "Auto orients selected objects or all objects. If there are selected objects, "
 "it just orients the selected ones. Otherwise, it will orient all objects in "
 "the current project."
+msgstr ""
+
+msgid "Shift+Q"
 msgstr ""
 
 msgid "Auto orients all objects on the active plate."
@@ -9297,10 +9332,10 @@ msgstr ""
 msgid "Air Pump"
 msgstr ""
 
-msgid "Laser 10 W"
+msgid "Laser 10w"
 msgstr ""
 
-msgid "Laser 40 W"
+msgid "Laser 40w"
 msgstr ""
 
 msgid "Cutting Module"
@@ -10837,12 +10872,9 @@ msgstr "Kraštų ausies aptikimo spindulys"
 
 msgid ""
 "The geometry will be decimated before detecting sharp angles. This parameter "
-"indicates the minimum length of the deviation for the decimation.\n"
+"indicates the minimum length of the deviation for the decimation. \n"
 "0 to deactivate."
 msgstr ""
-"Prieš aptikdami aštrius kampus, geometrija bus išskaidyta. Šis parametras "
-"nurodo mažiausią nuokrypio ilgį decimavimui.\n"
-"0 - išjungti"
 
 msgid "Select printers"
 msgstr ""
@@ -11718,7 +11750,7 @@ msgid "Default color"
 msgstr "Numatytoji spalva"
 
 msgid ""
-"Default filament color.\n"
+"Default filament color\n"
 "Right click to reset value to system default."
 msgstr ""
 
@@ -12070,16 +12102,6 @@ msgid ""
 "maintain optimal strength characteristics."
 msgstr ""
 
-msgid "Insert solid layers"
-msgstr ""
-
-msgid ""
-"Insert solid infill at specific layers. Use N to insert every Nth layer, N#K "
-"to insert K consecutive solid layers every N layers (K is optional, e.g. "
-"'5#' equals '5#1'), or a comma-separated list (e.g. 1,7,9) to insert at "
-"explicit layers. Layers are 1-based."
-msgstr ""
-
 msgid "Fill Multiline"
 msgstr ""
 
@@ -12132,10 +12154,10 @@ msgstr "Korys"
 msgid "3D Honeycomb"
 msgstr "3D korys"
 
-msgid "Lateral Honeycomb"
+msgid "2D Honeycomb"
 msgstr ""
 
-msgid "Lateral Lattice"
+msgid "2D Lattice"
 msgstr "2D grotelės"
 
 msgid "Cross Hatch"
@@ -12143,6 +12165,9 @@ msgstr "Kryžminis skliautas"
 
 msgid "TPMS-D"
 msgstr ""
+
+msgid "Gyroid"
+msgstr "Giroidas"
 
 msgid "TPMS-FK"
 msgstr ""
@@ -12307,8 +12332,7 @@ msgid "Default jerk."
 msgstr ""
 
 msgid ""
-"Marlin Firmware Junction Deviation (replaces the traditional XY Jerk "
-"setting)."
+"Marlin Firmware Junction Deviation (replaces the traditional XY Jerk setting)"
 msgstr ""
 
 msgid "Jerk of outer walls."
@@ -12505,12 +12529,12 @@ msgid ""
 "perimeters.\n"
 "\n"
 "Attention! The [Extrusion] and [Combined] modes works only the "
-"fuzzy_skin_thickness parameter not more than the thickness of printed loop. "
-"At the same time, the width of the extrusion for a particular layer should "
-"also not be below a certain level. It is usually equal 15-25%% of a layer "
-"height. Therefore, the maximum fuzzy skin thickness with a perimeter width "
-"of 0.4 mm and a layer height of 0.2 mm will be 0.4-(0.2*0.25)=±0.35mm! If "
-"you enter a higher parameter than this, the error Flow::spacing() will "
+"fuzzy_skin_thickness parameter not more than the thickness of printed "
+"loop.At the same time, the width of the extrusion for a particular layer "
+"should also not be below a certain level. It is usually equal 15-25%% of a "
+"layer height. Therefore, the maximum fuzzy skin thickness with a perimeter "
+"width of 0.4 mm and a layer height of 0.2 mm will be 0.4-(0.2*0.25)=±0.35mm! "
+"If you enter a higher parameter than this, the error Flow::spacing() will "
 "displayed, and the model will not be sliced. You can choose this number "
 "until this error is repeated."
 msgstr ""
@@ -12881,23 +12905,22 @@ msgid ""
 "a cross texture."
 msgstr ""
 
-msgid "Sparse infill rotation template"
+msgid "Sparse infill rotatation template"
 msgstr ""
 
 msgid ""
-"Rotate the sparse infill direction per layer using a template of angles. "
-"Enter comma-separated degrees (e.g., '0,30,60,90'). Angles are applied in "
-"order by layer and repeat when the list ends. Advanced syntax is supported: "
-"'+5' rotates +5° every layer; '+5#5' rotates +5° every 5 layers. See the "
-"Wiki for details. When a template is set, the standard infill direction "
-"setting is ignored. Note: some infill patterns (e.g., Gyroid) control "
-"rotation themselves; use with care."
+"This parameter adds a rotation of sparse infill direction to each layer "
+"according to the specified template. The template is a comma-separated list "
+"of angles in degrees, e.g. '0,90'. The first angle is applied to the first "
+"layer, the second angle to the second layer, and so on. If there are more "
+"layers than angles, the angles will be repeated. Note that not all sparse "
+"infill patterns support rotation."
 msgstr ""
 
 msgid "°"
 msgstr "°"
 
-msgid "Solid infill rotation template"
+msgid "Solid infill rotatation template"
 msgstr ""
 
 msgid ""
@@ -12915,9 +12938,9 @@ msgstr ""
 msgid ""
 "The remaining part of the model contour after removing a certain depth from "
 "the surface is called the skeleton. This parameter is used to adjust the "
-"density of this section. When two regions have the same sparse infill "
+"density of this section.When two regions have the same sparse infill "
 "settings but different skeleton densities, their skeleton areas will develop "
-"overlapping sections. Default is as same as infill density."
+"overlapping sections.default is as same as infill density."
 msgstr ""
 
 msgid "Skin infill density"
@@ -12926,9 +12949,9 @@ msgstr ""
 msgid ""
 "The portion of the model's outer surface within a certain depth range is "
 "called the skin. This parameter is used to adjust the density of this "
-"section. When two regions have the same sparse infill settings but different "
-"skin densities, this area will not be split into two separate regions. "
-"Default is as same as infill density."
+"section.When two regions have the same sparse infill settings but different "
+"skin densities, This area will not be split into two separate "
+"regions.default is as same as infill density."
 msgstr ""
 
 msgid "Skin infill depth"
@@ -12955,11 +12978,11 @@ msgstr ""
 msgid "Adjust the line width of the selected skeleton paths."
 msgstr ""
 
-msgid "Symmetric infill Y axis"
+msgid "Symmetric infill y axis"
 msgstr ""
 
 msgid ""
-"If the model has two parts that are symmetric about the Y axis, and you want "
+"If the model has two parts that are symmetric about the y-axis, and you want "
 "these parts to have symmetric textures, please click this option on one of "
 "the parts."
 msgstr ""
@@ -13189,8 +13212,8 @@ msgstr ""
 msgid "Ironing speed"
 msgstr "Lyginimo greitis"
 
-msgid "Print speed of ironing lines."
-msgstr "Lyginimo linijų spausdinimo greitis"
+msgid "Print speed of ironing lines"
+msgstr ""
 
 msgid "Ironing angle"
 msgstr "Lyginimo kampas"
@@ -13328,7 +13351,8 @@ msgid "Maximum Junction Deviation"
 msgstr ""
 
 msgid ""
-"Maximum junction deviation (M205 J, only apply if JD > 0 for Marlin Firmware)"
+"Maximum junction deviation (M205 J, only apply if  JD > 0 for Marlin "
+"Firmware)"
 msgstr ""
 
 msgid "Minimum speed for extruding"
@@ -14498,6 +14522,9 @@ msgstr "Išstumti likusias gijas į pirminio valymo bokštą"
 msgid "Enable filament ramming"
 msgstr ""
 
+msgid "Enable filament ramming."
+msgstr "Įjungti gijų įspaudimą"
+
 msgid "No sparse layers (beta)"
 msgstr "Nėra retų sluoksnių (beta)"
 
@@ -15284,14 +15311,11 @@ msgstr ""
 
 msgid ""
 "Positive values can increase the size of the rib wall, while negative values "
-"can reduce the size. However, the size of the rib wall can not be smaller "
+"can reduce the size.However, the size of the rib wall can not be smaller "
 "than that determined by the cleaning volume."
 msgstr ""
 
 msgid "Rib width"
-msgstr ""
-
-msgid "Rib width."
 msgstr ""
 
 msgid "Fillet wall"
@@ -16365,6 +16389,9 @@ msgstr ""
 "Nežinomas failo formatas. Įvesties failo plėtinys turi būti .3mf "
 "arba .zip.amf."
 
+msgid "Canceled"
+msgstr "Atšaukta"
+
 msgid "load_obj: failed to parse"
 msgstr "load_obj: nepavyko apdoroti"
 
@@ -17123,6 +17150,9 @@ msgstr ""
 msgid "Frequency settings"
 msgstr ""
 
+msgid "hz"
+msgstr ""
+
 msgid "Damp: "
 msgstr ""
 
@@ -17132,8 +17162,8 @@ msgid ""
 msgstr ""
 
 msgid ""
-"Please input valid values:\n"
-"(0 < FreqStart < FreqEnd < 500)"
+"Please input valid values\n"
+"(0 < FreqStart < FreqEnd < 500"
 msgstr ""
 
 msgid "Please input a valid damping factor (0 < Damping/zeta factor <= 1)"
@@ -17152,8 +17182,8 @@ msgid "Note: Use previously calculated frequencies."
 msgstr ""
 
 msgid ""
-"Please input valid values:\n"
-"(0 < Freq < 500)"
+"Please input valid values\n"
+"(0 < Freq < 500"
 msgstr ""
 
 msgid ""
@@ -17176,7 +17206,7 @@ msgid "Note: Lower values = sharper corners but slower speeds"
 msgstr ""
 
 msgid ""
-"Please input valid values:\n"
+"Please input valid values\n"
 "(0 <= Junction Deviation < 1)"
 msgstr ""
 
@@ -17711,8 +17741,8 @@ msgstr ""
 
 #, c-format, boost-format
 msgid ""
-"The file: %s\n"
-"may have been opened by another program.\n"
+"The file: %s \n"
+"may have been opened by another program. \n"
 "Please close it and try again."
 msgstr ""
 
@@ -18056,8 +18086,8 @@ msgstr "Ryšys su REpieter veikia tinkamai."
 msgid "Could not connect to Repetier"
 msgstr "Nepavyko prisijungti prie Repieter"
 
-msgid "Note: Repetier version 0.90.0 or higher is required."
-msgstr "Pastaba: reikalinga bent 0.90.0 Repetier versija."
+msgid "Note: Repetier version 0.90.0 ir higher is required."
+msgstr ""
 
 #, boost-format
 msgid ""
@@ -18776,103 +18806,6 @@ msgid ""
 "probability of warping?"
 msgstr ""
 
-#~ msgid ""
-#~ "Improve shell precision by adjusting outer wall spacing. This also "
-#~ "improves layer consistency."
-#~ msgstr ""
-#~ "Pagerinti korpuso tikslumą reguliuojant atstumus tarp išorinių sienelių. "
-#~ "Tai taip pat pagerina sluoksnių nuoseklumą."
-
-#~ msgid "Enable filament ramming."
-#~ msgstr "Įjungti gijų įspaudimą"
-
-#~ msgid "Alt + Mouse wheel"
-#~ msgstr "Alt + pelės ratukas"
-
-#~ msgid "Ctrl + Mouse wheel"
-#~ msgstr "Ctrl + pelės ratukas"
-
-#~ msgid "Shift + Left mouse button"
-#~ msgstr "Shift + kairys pelės mygtukas"
-
-#~ msgid "Alt + Shift + Enter"
-#~ msgstr "Alt + Shift + Enter"
-
-#~ msgid "Shift + Mouse move up or down"
-#~ msgstr "Shift + pelės judėjimas aukštyn arba žemyn"
-
-#~ msgid "Left mouse button:"
-#~ msgstr "Kairysis pelės mygtukas:"
-
-#~ msgid "Right mouse button:"
-#~ msgstr "Dešinysis pelės mygtukas:"
-
-#~ msgid "Shift + Left mouse button:"
-#~ msgstr "Shift + kairysis pelės mygtukas:"
-
-#~ msgid "Shift + Right mouse button:"
-#~ msgstr "Shift + dešinysis pelės mygtukas:"
-
-#~ msgid "Recent projects"
-#~ msgstr "Naujausi projektai"
-
-#~ msgid "Maximum recent projects"
-#~ msgstr "Daugiausia buvusių projektų"
-
-#~ msgid "Maximum count of recent projects"
-#~ msgstr "Didžiausias skaičius buvusių projektų"
-
-#~ msgid "⌘+Shift+G"
-#~ msgstr "⌘+Shift+G"
-
-#~ msgid "Ctrl+Shift+G"
-#~ msgstr "Ctrl+Shift+G"
-
-#~ msgid "Shift+A"
-#~ msgstr "Shift+A"
-
-#~ msgid "Shift+Tab"
-#~ msgstr "Shift+Tab"
-
-#~ msgid "⌘+Any arrow"
-#~ msgstr "⌘+Bet kokia rodyklė"
-
-#~ msgid "⌥+Left mouse button"
-#~ msgstr "⌥+ kairysis pelės mygtukas"
-
-#~ msgid "⌘+Left mouse button"
-#~ msgstr "⌘+ kairysis pelės mygtukas"
-
-#~ msgid "Ctrl+Any arrow"
-#~ msgstr "Ctrl + bet kokia rodyklė"
-
-#~ msgid "Alt+Left mouse button"
-#~ msgstr "Alt + kairysis pelės mygtukas"
-
-#~ msgid "Ctrl+Left mouse button"
-#~ msgstr "Ctrl + kairysis pelės mygtukas"
-
-#~ msgid "Shift+Left mouse button"
-#~ msgstr "Shift + kairysis pelės mygtukas"
-
-#~ msgid "Shift+Any arrow"
-#~ msgstr "Shift + bet kuri rodyklė"
-
-#~ msgid "⌘+Mouse wheel"
-#~ msgstr "⌘+Pelės ratukas"
-
-#~ msgid "⌥+Mouse wheel"
-#~ msgstr "⌥+Pelės ratukas"
-
-#~ msgid "Ctrl+Mouse wheel"
-#~ msgstr "Ctrl + pelės ratukas"
-
-#~ msgid "Alt+Mouse wheel"
-#~ msgstr "Alt + pelės ratukas"
-
-#~ msgid "Shift+Mouse wheel"
-#~ msgstr "Shift + pelės ratukas"
-
 #~ msgid "Set Position"
 #~ msgstr "Nustatyti padėtį"
 
@@ -19102,6 +19035,16 @@ msgstr ""
 #~ msgid "Enable this option to use classic mode."
 #~ msgstr "Įjunkite šią parinktį, jei norite naudoti klasikinį režimą"
 
+#~ msgid ""
+#~ "The geometry will be decimated before detecting sharp angles. This "
+#~ "parameter indicates the minimum length of the deviation for the "
+#~ "decimation.\n"
+#~ "0 to deactivate."
+#~ msgstr ""
+#~ "Prieš aptikdami aštrius kampus, geometrija bus išskaidyta. Šis parametras "
+#~ "nurodo mažiausią nuokrypio ilgį decimavimui.\n"
+#~ "0 - išjungti"
+
 #~ msgid "Compatible machine"
 #~ msgstr "Suderinamas įrenginys"
 
@@ -19192,6 +19135,9 @@ msgstr ""
 #~ msgid "Enable this option to add EXCLUDE OBJECT command in G-code"
 #~ msgstr ""
 #~ "Įjunkite šią parinktį, jei norite į G-kodą įtraukti komandą EXCLUDE OBJECT"
+
+#~ msgid "Print speed of ironing lines."
+#~ msgstr "Lyginimo linijų spausdinimo greitis"
 
 #~ msgid "This G-code part is inserted at every layer change after lift z"
 #~ msgstr ""
@@ -19392,7 +19338,7 @@ msgstr ""
 #~ msgid "Load custom G-code from json"
 #~ msgstr "Įkelti pasirinktinį G-kodą iš json"
 
-#~ msgid "Load filament IDs for each object"
+#~ msgid "Load filament ids for each object"
 #~ msgstr "Įkelti kiekvieno objekto gijų ID"
 
 #~ msgid "Skip the modified G-code in 3mf from Printer or filament Presets"
@@ -19445,6 +19391,9 @@ msgstr ""
 
 #~ msgid "Refresh Printers"
 #~ msgstr "Atnaujinti spausdintuvus"
+
+#~ msgid "Note: Repetier version 0.90.0 or higher is required."
+#~ msgstr "Pastaba: reikalinga bent 0.90.0 Repetier versija."
 
 #~ msgid ""
 #~ "Compared with the default profile of a 0.2 mm nozzle, it has a smaller "

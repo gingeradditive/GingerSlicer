@@ -2789,8 +2789,8 @@ msgstr "下載中"
 msgid "Download failed"
 msgstr "下載失敗"
 
-msgid "Canceled"
-msgstr "已取消"
+msgid "Cancelled"
+msgstr ""
 
 msgid "Installed successfully"
 msgstr "安裝成功。"
@@ -3711,6 +3711,24 @@ msgid ""
 msgstr ""
 "seam_slope_start_height 必須小於 layer_height。\n"
 "重設為 0。"
+
+#, c-format, boost-format
+msgid ""
+"lock depth should smaller than skin depth.\n"
+"Reset to 50% of skin depth"
+msgstr ""
+
+msgid ""
+"Both [Extrusion] and [Combined] modes of Fuzzy Skin require the Arachne Wall "
+"Generator to be enabled."
+msgstr ""
+
+msgid ""
+"Change these settings automatically?\n"
+"Yes - Enable Arachne Wall Generator\n"
+"No  - Disable Arachne Wall Generator and set [Displacement] mode of the "
+"Fuzzy Skin"
+msgstr ""
 
 msgid ""
 "Lock depth should smaller than skin depth.\n"
@@ -5159,6 +5177,11 @@ msgstr "從列印機重新載入檔案清單。"
 
 msgid "No printers."
 msgstr "未選擇列印設備。"
+
+msgid ""
+"Please check the network and try again, You can restart or update the "
+"printer if the issue persists."
+msgstr ""
 
 msgid "Loading file list..."
 msgstr "載入檔案清單..."
@@ -8419,6 +8442,15 @@ msgstr "體積"
 msgid "Ramming line"
 msgstr "擠出線"
 
+msgid "Total ramming"
+msgstr ""
+
+msgid "Volume"
+msgstr ""
+
+msgid "Ramming line"
+msgstr ""
+
 msgid "Auto-Calc"
 msgstr "自動計算"
 
@@ -8553,6 +8585,9 @@ msgstr ""
 "自动调整选定零件/所有零件的方向,\n"
 "有选定零件时调整选定零件的朝向,\n"
 "没有选择零件时调整当项目所有零件的朝向"
+
+msgid "Shift+Q"
+msgstr ""
 
 msgid "Auto orients all objects on the active plate."
 msgstr "自动调整活动板上的所有物体的方向。"
@@ -10229,11 +10264,9 @@ msgstr "耳狀 Brim 偵測半徑"
 
 msgid ""
 "The geometry will be decimated before detecting sharp angles. This parameter "
-"indicates the minimum length of the deviation for the decimation.\n"
+"indicates the minimum length of the deviation for the decimation. \n"
 "0 to deactivate."
 msgstr ""
-"在偵測尖銳角度之前，幾何形狀將被簡化。此參數表示簡化的最小偏差長度。\n"
-"設為 0 以停用"
 
 msgid "Select printers"
 msgstr ""
@@ -12362,8 +12395,8 @@ msgstr "與邊緣保持的距離。設定為 0 時，距離將自動設為噴嘴
 msgid "Ironing speed"
 msgstr "熨燙速度"
 
-msgid "Print speed of ironing lines."
-msgstr "熨燙的列印速度"
+msgid "Print speed of ironing lines"
+msgstr ""
 
 msgid "Ironing angle"
 msgstr "熨燙角度"
@@ -15252,6 +15285,9 @@ msgstr "檔案格式未知。輸入的檔案必須是 .stl、.obj 或 .amf(.xml)
 msgid "Unknown file format. Input file must have .3mf or .zip.amf extension."
 msgstr "未知的檔案格式。輸入檔案的副檔名必須為 .3mf 或 .zip .amf。"
 
+msgid "Canceled"
+msgstr "已取消"
+
 msgid "load_obj: failed to parse"
 msgstr "載入物件：解析失敗"
 
@@ -16832,8 +16868,8 @@ msgstr "與 Repetier 的連接工作正常。"
 msgid "Could not connect to Repetier"
 msgstr "無法連接到 Repetier"
 
-msgid "Note: Repetier version 0.90.0 or higher is required."
-msgstr "注意：Repetier 版本至少需要 0.90.0。"
+msgid "Note: Repetier version 0.90.0 ir higher is required."
+msgstr ""
 
 #, boost-format
 msgid ""
@@ -17523,6 +17559,394 @@ msgstr ""
 "避免翹曲\n"
 "您知道嗎？當列印容易翹曲的材料（如 ABS）時，適當提高熱床溫度\n"
 "可以降低翹曲的機率。"
+
+#~ msgid "Set Position"
+#~ msgstr "設定位置"
+
+#~ msgid "%"
+#~ msgstr "%"
+
+#, boost-format
+#~ msgid "%1%"
+#~ msgstr "%1%"
+
+#~ msgid "Right click the icon to fix model object"
+#~ msgstr "滑鼠右鍵點擊此圖示修復物件模型"
+
+#~ msgid "The target object contains only one part and cannot be split."
+#~ msgstr "目標物件僅包含一個零件，無法被拆分。"
+
+#~ msgid "?"
+#~ msgstr "?"
+
+#~ msgid "/"
+#~ msgstr "/"
+
+#~ msgid "℃"
+#~ msgstr "℃"
+
+#~ msgid "mm³"
+#~ msgstr "mm³"
+
+#~ msgid "Color Scheme"
+#~ msgstr "顏色方案"
+
+#~ msgid "Percent"
+#~ msgstr "百分比"
+
+#~ msgid "Used filament"
+#~ msgstr "使用的線材"
+
+#~ msgid "720p"
+#~ msgstr "720p"
+
+#~ msgid "1080p"
+#~ msgstr "1080p"
+
+# SoftFever
+#~ msgid "More..."
+#~ msgstr "更多…"
+
+#~ msgid "More calibrations"
+#~ msgstr "更多校正"
+
+#~ msgid "0"
+#~ msgstr "0"
+
+#~ msgid "SD Card"
+#~ msgstr "SD 記憶卡"
+
+#~ msgid "100%"
+#~ msgstr "100%"
+
+#~ msgid "No SD Card"
+#~ msgstr "無 SD 記憶卡"
+
+#~ msgid "SD Card Abnormal"
+#~ msgstr "SD 記憶卡異常"
+
+#, c-format, boost-format
+#~ msgid "Ejecting of device %s(%s) has failed."
+#~ msgstr "退出設備 %s（%s）失敗。"
+
+#~ msgid "mm/s²"
+#~ msgstr "mm/s²"
+
+#~ msgid "mm/s"
+#~ msgstr "mm/s"
+
+#~ msgid ""
+#~ "This option can be changed later in preferences, under 'Load Behaviour'."
+#~ msgstr "可以稍後在偏好設定的「載入方式」中變更此選項。"
+
+#~ msgid "Invalid number"
+#~ msgstr "無效數字"
+
+#~ msgid "Publish was canceled"
+#~ msgstr "發布已取消"
+
+#~ msgid "Search"
+#~ msgstr "搜尋"
+
+#~ msgid "My Device"
+#~ msgstr "我的設備"
+
+#~ msgid "Other Device"
+#~ msgstr "其他設備"
+
+#~ msgid "Can't find my devices?"
+#~ msgstr "無法找到我的設備？"
+
+#, c-format, boost-format
+#~ msgid "nozzle memorized: %.2f %s"
+#~ msgstr "記憶中的噴嘴：%.2f %s"
+
+#~ msgid "Modifying the device name"
+#~ msgstr "修改列印設備名稱"
+
+#~ msgid "Bind with Access Code"
+#~ msgstr "透過存取碼綁定"
+
+#~ msgid ""
+#~ "When using support material for the support interface, we recommend the "
+#~ "following settings:\n"
+#~ "0 top z distance, 0 interface spacing, interlaced rectilinear pattern and "
+#~ "disable independent support layer height"
+#~ msgstr ""
+#~ "當使用支撐材質作為支撐界面時，我們建議使用以下設定：\n"
+#~ "•頂部 Z 距離：0\n"
+#~ "•接觸面間距：0\n"
+#~ "•交錯直線填充模式\n"
+#~ "•停用獨立支撐層高"
+
+#~ msgid ""
+#~ "Bed temperature when the Cool Plate Supertack is installed. A value of 0 "
+#~ "means the filament does not support printing on the Cool Plate SuperTack."
+#~ msgstr ""
+#~ "使用低溫增穩列印板時，熱床設定溫度其值為 0 ，表示該線材不適用於低溫增穩列"
+#~ "印板"
+
+#~ msgid "Ramming settings"
+#~ msgstr "尖端成型設定"
+
+#~ msgid "Profile dependencies"
+#~ msgstr "設定檔相依項目"
+
+#~ msgid "the Configuration package is incompatible with the current APP."
+#~ msgstr "設定檔與目前(手機應用程式)?不相容。"
+
+#~ msgid "Total ramming time"
+#~ msgstr "尖端成型總時間"
+
+#~ msgid "s"
+#~ msgstr "秒"
+
+#~ msgid "Total rammed volume"
+#~ msgstr "尖端成型總體積"
+
+#~ msgid "Ramming line width"
+#~ msgstr "尖端成型線寬"
+
+#~ msgid "Ramming line spacing"
+#~ msgstr "尖端成型線間距"
+
+#~ msgid "Shift+R"
+#~ msgstr "Shift+R"
+
+#~ msgid "resume"
+#~ msgstr "繼續"
+
+#~ msgid "°C"
+#~ msgstr "°C"
+
+#~ msgid "Classic mode"
+#~ msgstr "經典模式"
+
+#~ msgid "Enable this option to use classic mode."
+#~ msgstr "開啟此選項以使用經典模式"
+
+#~ msgid ""
+#~ "The geometry will be decimated before detecting sharp angles. This "
+#~ "parameter indicates the minimum length of the deviation for the "
+#~ "decimation.\n"
+#~ "0 to deactivate."
+#~ msgstr ""
+#~ "在偵測尖銳角度之前，幾何形狀將被簡化。此參數表示簡化的最小偏差長度。\n"
+#~ "設為 0 以停用"
+
+#~ msgid "Compatible machine"
+#~ msgstr "相容的設備"
+
+#~ msgid "Compatible machine condition"
+#~ msgstr "相容的設備條件"
+
+#~ msgid "Compatible process profiles condition"
+#~ msgstr "相容的切片設定條件"
+
+#~ msgid "Default filament color"
+#~ msgstr "預設線材顏色"
+
+#~ msgid "mm³/s"
+#~ msgstr "mm³/s"
+
+#~ msgid "g/cm³"
+#~ msgstr "g/cm³"
+
+#~ msgid "Rotate solid infill direction"
+#~ msgstr "旋轉實心填充方向"
+
+#~ msgid "Rotate the solid infill direction by 90° for each layer."
+#~ msgstr "每層實心填充的列印方向旋轉 90°。"
+
+#~ msgid "Print speed of ironing lines."
+#~ msgstr "熨燙的列印速度"
+
+#~ msgid ""
+#~ "Flow Compensation Model, used to adjust the flow for small infill areas. "
+#~ "The model is expressed as a comma separated pair of values for extrusion "
+#~ "length and flow correction factors, one per line, in the following "
+#~ "format: \"1.234,5.678\""
+#~ msgstr ""
+#~ "流量補償模型，用於在小面積填充區域中調整擠出流量。模型格式為以逗號分隔的擠"
+#~ "出長度和流量補償係數，每行輸入一組，格式示例如下：1.234,5.678。\n"
+#~ "譯者補充：此參數允許根據不同的擠出長度動態調整流量補償，以提升小區域列印的"
+#~ "精確度和品質。"
+
+#~ msgid ""
+#~ "The highest printable layer height for the extruder. Used to limit the "
+#~ "maximum layer height when adaptive layer height is enabled."
+#~ msgstr "擠出頭最大可列印的層高。用於限制開啟自適應層高時的最大層高"
+
+#~ msgid "mm³/s²"
+#~ msgstr "mm³/s²"
+
+#~ msgid ""
+#~ "The lowest printable layer height for the extruder. Used to limit the "
+#~ "minimum layer height when adaptive layer height is enabled."
+#~ msgstr "擠出頭最小可列印的層高。用於限制開啟自適應層高時的最小層高"
+
+#~ msgid "mm²"
+#~ msgstr "mm²"
+
+#~ msgid "Retract on top layer"
+#~ msgstr "頂層回抽"
+
+#~ msgid ""
+#~ "Force a retraction on top layer. Disabling could prevent clog on very "
+#~ "slow patterns with small movements, like Hilbert curve."
+#~ msgstr ""
+#~ "在頂層強制執行回抽操作。停用此功能可能有助於避免在非常緩慢且移動距離較小的"
+#~ "模式（例如希爾伯特曲線）中出現堵塞"
+
+#~ msgid ""
+#~ "Some amount of material in extruder is pulled back to avoid ooze during "
+#~ "long travel. Set zero to disable retraction"
+#~ msgstr ""
+#~ "擠出機將材料拉回指定長度，避免空駛較長時軟化的線材滲出。設定為 0 表示關閉"
+#~ "回抽"
+
+#~ msgid "Speed of retractions."
+#~ msgstr "回抽速度"
+
+#~ msgid ""
+#~ "Speed for reloading filament into extruder. Zero means same speed of "
+#~ "retraction."
+#~ msgstr "線材裝填的速度，0 表示和回抽速度一致"
+
+#~ msgid "Single loop draft shield"
+#~ msgstr "單圈防風罩"
+
+#~ msgid ""
+#~ "Limits the draft shield loops to one wall after the first layer. This is "
+#~ "useful, on occasion, to conserve filament but may cause the draft shield "
+#~ "to warp / crack."
+#~ msgstr ""
+#~ "將防風罩的迴圈數限制為第一層後只有一層壁。這樣做有時能節省耗材，但可能會導"
+#~ "致防風罩變形或裂開。"
+
+#~ msgid "Spacing of interface lines. Zero means solid interface."
+#~ msgstr "接觸面的線距。0 代表實心接觸面"
+
+#, fuzzy
+#~ msgid ""
+#~ "Minimum thickness of thin features. Model features that are thinner than "
+#~ "this value will not be printed, while features thicker than this value "
+#~ "will be widened to the minimum wall width. It's expressed as a percentage "
+#~ "over nozzle diameter."
+#~ msgstr ""
+#~ "薄壁特徵的最小厚度。比這個數值還薄的特徵將不被列印，而比最小特徵厚度還厚的"
+#~ "特征將被加寬到牆最小寬度。參數值表示為相對噴嘴直徑的百分比"
+
+#~ msgid "Load uptodate process/machine settings when using uptodate."
+#~ msgstr "使用最新版本時，載入最新的參數與機器設定"
+
+#~ msgid "Load uptodate filament settings when using uptodate."
+#~ msgstr "使用最新版本時，載入最新的列印耗材設定"
+
+#~ msgid "Downward machines settings"
+#~ msgstr "相容機器設定"
+
+#~ msgid "Load filament ids for each object"
+#~ msgstr "載入每個物件的耗材識別碼"
+
+#~ msgid ""
+#~ "We now have added the auto-calibration for different filaments, which is "
+#~ "fully automated and the result will be saved into the printer for future "
+#~ "use. You only need to do the calibration in the following limited cases:\n"
+#~ "1. If you introduce a new filament of different brands/models or the "
+#~ "filament is damp\n"
+#~ "2. If the nozzle is worn out or replaced with a new one\n"
+#~ "3. If the max volumetric speed or print temperature is changed in the "
+#~ "filament setting"
+#~ msgstr ""
+#~ "我們現在已經為不同的列印線材新增了自動校正功能，該功能是完全自動化的，並且"
+#~ "結果將儲存在列印設備中以供將來使用。您只需要在以下有限情況下進行校正：\n"
+#~ "1. 如果您引入了不同品牌/型號的新列印線材，或者列印線材受潮；\n"
+#~ "2. 如果噴嘴磨損或更換了新的噴嘴；\n"
+#~ "3. 如果您在列印線材設定中更改了最大體積速度或列印溫度。"
+
+#~ msgid "step: "
+#~ msgstr "步距："
+
+#~ msgid "mm/mm"
+#~ msgstr "mm/mm"
+
+#~ msgid "Load stl"
+#~ msgstr "載入 STL"
+
+#~ msgid "Load svg"
+#~ msgstr "載入 SVG"
+
+#~ msgid "Back Page 1"
+#~ msgstr "返回第一頁"
+
+#~ msgid "Delete Filament"
+#~ msgstr "刪除線材"
+
+#~ msgid "Refresh Printers"
+#~ msgstr "重新整理列印設備"
+
+#~ msgid "Note: Repetier version 0.90.0 or higher is required."
+#~ msgstr "注意：Repetier 版本至少需要 0.90.0。"
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.2 mm nozzle, it has a smaller "
+#~ "layer height. This results in almost invisible layer lines and higher "
+#~ "print quality but shorter print time."
+#~ msgstr ""
+#~ "與 0.2 毫米噴嘴的預設配置相比，該配置具有較小的層高，產生幾乎不可見的層線"
+#~ "並提高列印品質，但列印時間較短。"
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.2 mm nozzle, it has a smaller "
+#~ "layer height. This results in minimal layer lines and higher print "
+#~ "quality, but shorter print time."
+#~ msgstr ""
+#~ "與 0.2 毫米噴嘴的預設配置相比，該配置具有較小的層高，產生最小的層線並提高"
+#~ "列印品質，但列印時間較短。"
+
+#~ msgid ""
+#~ "It has a very big layer height. This results in very apparent layer "
+#~ "lines, low print quality and general print time."
+#~ msgstr ""
+#~ "與0.8mm噴嘴的預設配置相比，該配置具有較大的層高，產生非常明顯的層線並顯著"
+#~ "降低列印品質，但在某些情況下會縮短列印時間。"
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a bigger "
+#~ "layer height. This results in very apparent layer lines and much lower "
+#~ "print quality but shorter print time in some cases."
+#~ msgstr ""
+#~ "與0.8mm噴嘴的預設配置相比，該配置具有更大的層高，產生極為明顯的層線並顯著"
+#~ "降低列印品質，但在某些情況下會大幅縮短列印時間。"
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a much "
+#~ "bigger layer height. This results in extremely apparent layer lines and "
+#~ "much lower print quality but much shorter print time in some cases."
+#~ msgstr ""
+#~ "與0.8mm噴嘴的預設配置相比，該配置具有略小的層高，產生略少但仍明顯的層線，"
+#~ "並略微提高列印品質，但在某些情況下會延長列印時間。"
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a smaller "
+#~ "layer height. This results in less but still apparent layer lines and "
+#~ "slightly higher print quality, but longer print time in some cases."
+#~ msgstr ""
+#~ "與0.8mm噴嘴的預設配置相比，該配置具有較少的層高，產生較少但仍明顯的層線，"
+#~ "並略微提高列印品質，但在某些情況下會延長列印時間。"
+
+#~ msgid "Connection to Flashforge is working correctly."
+#~ msgstr "成功連接到 Flashforge。"
+
+#~ msgid "Could not connect to Flashforge"
+#~ msgstr "無法連接到 Flashforge"
+
+#~ msgid "User canceled."
+#~ msgstr "使用者取消。"
+
+#~ msgid "Set the brim type to \"painted\""
+#~ msgstr "將邊緣類型設置為「上色」。"
 
 #~ msgid ""
 #~ "Improve shell precision by adjusting outer wall spacing. This also "

@@ -2914,8 +2914,8 @@ msgstr "Téléchargement"
 msgid "Download failed"
 msgstr "Échec du téléchargement"
 
-msgid "Canceled"
-msgstr "Annulé"
+msgid "Cancelled"
+msgstr ""
 
 msgid "Installed successfully"
 msgstr "Installé avec succès."
@@ -3917,6 +3917,24 @@ msgid ""
 msgstr ""
 "seam_slope_start_height doit être inférieur à la hauteur de couche.\n"
 "Remise à 0."
+
+#, c-format, boost-format
+msgid ""
+"lock depth should smaller than skin depth.\n"
+"Reset to 50% of skin depth"
+msgstr ""
+
+msgid ""
+"Both [Extrusion] and [Combined] modes of Fuzzy Skin require the Arachne Wall "
+"Generator to be enabled."
+msgstr ""
+
+msgid ""
+"Change these settings automatically?\n"
+"Yes - Enable Arachne Wall Generator\n"
+"No  - Disable Arachne Wall Generator and set [Displacement] mode of the "
+"Fuzzy Skin"
+msgstr ""
 
 msgid ""
 "Lock depth should smaller than skin depth.\n"
@@ -5414,6 +5432,11 @@ msgstr "Recharger la liste des fichiers de l’imprimante."
 
 msgid "No printers."
 msgstr "Aucune imprimante."
+
+msgid ""
+"Please check the network and try again, You can restart or update the "
+"printer if the issue persists."
+msgstr ""
 
 msgid "Loading file list..."
 msgstr "Chargement de la liste des fichiers…"
@@ -9130,6 +9153,9 @@ msgstr ""
 "des objets sélectionnés, il oriente uniquement ceux qui sont sélectionnés. "
 "Sinon, il oriente tous les objets du projet en cours."
 
+msgid "Shift+Q"
+msgstr ""
+
 msgid "Auto orients all objects on the active plate."
 msgstr "Oriente automatiquement tous les objets du plaque actuelle."
 
@@ -11051,12 +11077,9 @@ msgstr "Rayon de détection de la bordure à oreilles"
 
 msgid ""
 "The geometry will be decimated before detecting sharp angles. This parameter "
-"indicates the minimum length of the deviation for the decimation.\n"
+"indicates the minimum length of the deviation for the decimation. \n"
 "0 to deactivate."
 msgstr ""
-"La géométrie sera décimée avant de détecter les angles vifs. Ce paramètre "
-"indique la longueur minimale de l’écart pour la décimation.\n"
-"0 pour désactiver"
 
 msgid "Select printers"
 msgstr ""
@@ -13498,8 +13521,8 @@ msgstr ""
 msgid "Ironing speed"
 msgstr "Vitesse de lissage"
 
-msgid "Print speed of ironing lines."
-msgstr "Vitesse d'impression des lignes de lissage."
+msgid "Print speed of ironing lines"
+msgstr ""
 
 msgid "Ironing angle"
 msgstr "Angle de lissage"
@@ -16808,6 +16831,9 @@ msgstr ""
 "Format de fichier inconnu : le fichier d'entrée doit porter l'extension "
 ".3mf, .zip ou .amf."
 
+msgid "Canceled"
+msgstr "Annulé"
+
 msgid "load_obj: failed to parse"
 msgstr "load_obj : échec de l'analyse"
 
@@ -18548,8 +18574,8 @@ msgstr "La connexion à Repetier fonctionne correctement."
 msgid "Could not connect to Repetier"
 msgstr "Impossible de se connecter à Repetier"
 
-msgid "Note: Repetier version 0.90.0 or higher is required."
-msgstr "Note : La version 0.90.0 de Repetier est requise."
+msgid "Note: Repetier version 0.90.0 ir higher is required."
+msgstr ""
 
 #, boost-format
 msgid ""
@@ -19321,6 +19347,429 @@ msgstr ""
 "Saviez-vous que lors de l’impression de matériaux susceptibles de se "
 "déformer, tels que l’ABS, une augmentation appropriée de la température du "
 "plateau chauffant peut réduire la probabilité de déformation?"
+
+#~ msgid "Set Position"
+#~ msgstr "Définir la Position"
+
+#~ msgid "%"
+#~ msgstr "%"
+
+#, boost-format
+#~ msgid "%1%"
+#~ msgstr "%1%"
+
+#~ msgid "Right click the icon to fix model object"
+#~ msgstr "Cliquez avec le bouton droit sur l'icône pour fixer l'objet modèle"
+
+#~ msgid "The target object contains only one part and cannot be split."
+#~ msgstr ""
+#~ "L'objet cible ne contient qu'une seule partie et ne peut pas être divisé."
+
+#~ msgid "?"
+#~ msgstr "?"
+
+#~ msgid "/"
+#~ msgstr "/"
+
+#~ msgid "℃"
+#~ msgstr "℃"
+
+#~ msgid "mm³"
+#~ msgstr "mm³"
+
+#~ msgid "Failed to start printing job"
+#~ msgstr "Échec du lancement de la tâche d'impression"
+
+#~ msgid "Color Scheme"
+#~ msgstr "Schéma de couleur"
+
+#~ msgid "Percent"
+#~ msgstr "Pour cent"
+
+#~ msgid "Used filament"
+#~ msgstr "Filament utilisé"
+
+#~ msgid "720p"
+#~ msgstr "720p"
+
+#~ msgid "1080p"
+#~ msgstr "1080p"
+
+#~ msgid "More..."
+#~ msgstr "Plus…"
+
+#~ msgid "More calibrations"
+#~ msgstr "Plus de calibrations"
+
+#~ msgid "0"
+#~ msgstr "0"
+
+#~ msgid "SD Card"
+#~ msgstr "Carte SD"
+
+#~ msgid "100%"
+#~ msgstr "100%"
+
+#~ msgid "No SD Card"
+#~ msgstr "Pas de carte SD"
+
+#~ msgid "SD Card Abnormal"
+#~ msgstr "Carte SD anormale"
+
+#, c-format, boost-format
+#~ msgid "Ejecting of device %s(%s) has failed."
+#~ msgstr "L'éjection du périphérique %s(%s) a échoué."
+
+#~ msgid "mm/s²"
+#~ msgstr "mm/s²"
+
+#~ msgid "mm/s"
+#~ msgstr "mm/s"
+
+#~ msgid ""
+#~ "This option can be changed later in preferences, under 'Load Behaviour'."
+#~ msgstr ""
+#~ "Cette option peut être modifiée ultérieurement dans les préférences, sous "
+#~ "« Comportement du chargement »."
+
+#~ msgid "Invalid number"
+#~ msgstr "Numéro invalide"
+
+#~ msgid "Publish was canceled"
+#~ msgstr "La publication a été annulée"
+
+#~ msgid "Search"
+#~ msgstr "Rechercher"
+
+#~ msgid "My Device"
+#~ msgstr "Mon appareil"
+
+#~ msgid "Other Device"
+#~ msgstr "Autre appareil"
+
+#~ msgid "Can't find my devices?"
+#~ msgstr "Vous ne trouvez pas d'appareils ?"
+
+#, c-format, boost-format
+#~ msgid "nozzle memorized: %.2f %s"
+#~ msgstr "buse mémorisée : %.2f %s"
+
+#~ msgid "Modifying the device name"
+#~ msgstr "Modification du nom de l'appareil"
+
+#~ msgid "Bind with Access Code"
+#~ msgstr "Relier avec un code d’accès"
+
+#~ msgid ""
+#~ "Bed temperature when the Cool Plate Supertack is installed. A value of 0 "
+#~ "means the filament does not support printing on the Cool Plate SuperTack."
+#~ msgstr ""
+#~ "Température du plateau lorsque la Cool Plate est installée. La valeur 0 "
+#~ "signifie que le filament ne peut pas être imprimé sur la plaque Cool "
+#~ "Plate SuperTack"
+
+#~ msgid "Ramming settings"
+#~ msgstr "Paramètres de pilonnage"
+
+#~ msgid "Profile dependencies"
+#~ msgstr "Dépendances du profil"
+
+#~ msgid "the Configuration package is incompatible with the current APP."
+#~ msgstr ""
+#~ "le package de configuration est incompatible avec l'application actuelle."
+
+#~ msgid "Total ramming time"
+#~ msgstr "Durée totale de pilonnage"
+
+#~ msgid "s"
+#~ msgstr "s"
+
+#~ msgid "Total rammed volume"
+#~ msgstr "Volume total de pilonnage"
+
+#~ msgid "Ramming line width"
+#~ msgstr "Largeur de ligne du pilonnage"
+
+#~ msgid "Ramming line spacing"
+#~ msgstr "Espacement des lignes du pilonnage"
+
+#~ msgid "Shift+R"
+#~ msgstr "Maj+R"
+
+#~ msgid "resume"
+#~ msgstr "reprendre"
+
+#~ msgid "°C"
+#~ msgstr "°C"
+
+#~ msgid "Classic mode"
+#~ msgstr "Classique"
+
+#~ msgid "Enable this option to use classic mode."
+#~ msgstr "Activer cette option pour utiliser le mode classique"
+
+#~ msgid ""
+#~ "The geometry will be decimated before detecting sharp angles. This "
+#~ "parameter indicates the minimum length of the deviation for the "
+#~ "decimation.\n"
+#~ "0 to deactivate."
+#~ msgstr ""
+#~ "La géométrie sera décimée avant de détecter les angles vifs. Ce paramètre "
+#~ "indique la longueur minimale de l’écart pour la décimation.\n"
+#~ "0 pour désactiver"
+
+#~ msgid "Compatible machine"
+#~ msgstr "Appareils compatibles"
+
+#~ msgid "Compatible machine condition"
+#~ msgstr "État de la machine compatible"
+
+#~ msgid "Compatible process profiles condition"
+#~ msgstr "Condition de profils de traitement compatibles"
+
+#~ msgid "Default filament color"
+#~ msgstr "Couleur du filament par défaut"
+
+#~ msgid "mm³/s"
+#~ msgstr "mm³/s"
+
+#~ msgid "g/cm³"
+#~ msgstr "g/cm³"
+
+#~ msgid "Rotate solid infill direction"
+#~ msgstr "Faire pivoter la direction du remplissage solide"
+
+#~ msgid "Rotate the solid infill direction by 90° for each layer."
+#~ msgstr ""
+#~ "Faire pivoter la direction du remplissage solide de 90° pour chaque "
+#~ "couche."
+
+#~ msgid "Print speed of ironing lines."
+#~ msgstr "Vitesse d'impression des lignes de lissage."
+
+#~ msgid ""
+#~ "Flow Compensation Model, used to adjust the flow for small infill areas. "
+#~ "The model is expressed as a comma separated pair of values for extrusion "
+#~ "length and flow correction factors, one per line, in the following "
+#~ "format: \"1.234,5.678\""
+#~ msgstr ""
+#~ "Modèle de compensation du débit, utilisé pour ajuster le débit pour les "
+#~ "petites zones de remplissage. Le modèle est exprimé sous la forme d’une "
+#~ "paire de valeurs séparées par des virgules pour la longueur d’extrusion "
+#~ "et les facteurs de correction du débit, une par ligne, dans le format "
+#~ "suivant : « 1.234,5.678 »"
+
+#~ msgid ""
+#~ "The highest printable layer height for the extruder. Used to limit the "
+#~ "maximum layer height when adaptive layer height is enabled."
+#~ msgstr ""
+#~ "La plus grande hauteur de couche imprimable pour l'extrudeur. Utilisé tp "
+#~ "limite la hauteur de couche maximale lorsque la hauteur de couche "
+#~ "adaptative est activée"
+
+#~ msgid "mm³/s²"
+#~ msgstr "mm³/s²"
+
+#~ msgid ""
+#~ "The lowest printable layer height for the extruder. Used to limit the "
+#~ "minimum layer height when adaptive layer height is enabled."
+#~ msgstr ""
+#~ "La hauteur de couche imprimable la plus basse pour l'extrudeur. Utilisé "
+#~ "tp limite la hauteur de couche minimale lorsque la hauteur de couche "
+#~ "adaptative est activée"
+
+#~ msgid "mm²"
+#~ msgstr "mm²"
+
+#~ msgid "Retract on top layer"
+#~ msgstr "Rétracter sur la couche supérieure"
+
+#~ msgid ""
+#~ "Force a retraction on top layer. Disabling could prevent clog on very "
+#~ "slow patterns with small movements, like Hilbert curve."
+#~ msgstr ""
+#~ "Force la rétraction de la couche supérieure. La désactivation pourrait "
+#~ "empêcher le bouchage des motifs très lents avec de petits mouvements, "
+#~ "comme la courbe de Hilbert"
+
+#~ msgid ""
+#~ "Some amount of material in extruder is pulled back to avoid ooze during "
+#~ "long travel. Set zero to disable retraction"
+#~ msgstr ""
+#~ "Une certaine quantité de matériau dans l'extrudeur est retirée pour "
+#~ "éviter le suintement pendant les longs trajets. Définir zéro pour "
+#~ "désactiver la rétraction"
+
+#~ msgid "Speed of retractions."
+#~ msgstr "Vitesse de rétraction"
+
+#~ msgid ""
+#~ "Speed for reloading filament into extruder. Zero means same speed of "
+#~ "retraction."
+#~ msgstr ""
+#~ "Vitesse de rechargement du filament dans l'extrudeur. Zéro signifie même "
+#~ "vitesse avec rétraction"
+
+#~ msgid "Single loop draft shield"
+#~ msgstr "Paravent à simple boucle"
+
+#~ msgid ""
+#~ "Limits the draft shield loops to one wall after the first layer. This is "
+#~ "useful, on occasion, to conserve filament but may cause the draft shield "
+#~ "to warp / crack."
+#~ msgstr ""
+#~ "Limite les boucles du paravent à une seule paroi après la première "
+#~ "couche. Ceci est utile, dans certains cas, pour économiser du filament, "
+#~ "mais peut entraîner la déformation ou la fissuration du paravent."
+
+#~ msgid "Spacing of interface lines. Zero means solid interface."
+#~ msgstr ""
+#~ "Espacement des lignes d'interface. Zéro signifie une interface solide"
+
+#, fuzzy
+#~ msgid ""
+#~ "Minimum thickness of thin features. Model features that are thinner than "
+#~ "this value will not be printed, while features thicker than this value "
+#~ "will be widened to the minimum wall width. It's expressed as a percentage "
+#~ "over nozzle diameter."
+#~ msgstr ""
+#~ "Épaisseur minimale des éléments fins. Les caractéristiques du modèle qui "
+#~ "sont plus fines que cette valeur ne seront pas imprimées, tandis que les "
+#~ "entités plus épaisses que la taille minimale seront élargies jusqu'à la "
+#~ "largeur de paroi minimale. Exprimée en pourcentage par rapport au "
+#~ "diamètre de la buse"
+
+#~ msgid "Load uptodate process/machine settings when using uptodate."
+#~ msgstr ""
+#~ "charger les paramètres actualisés du processus/de la machine lors de "
+#~ "l'utilisation de la mise à jour automatique"
+
+#~ msgid "Load uptodate filament settings when using uptodate."
+#~ msgstr ""
+#~ "charger les réglages du filament actualisés lors de l’utilisation d’un "
+#~ "filament actualisé"
+
+#~ msgid "Downward machines settings"
+#~ msgstr "réglages des machines descendantes"
+
+#~ msgid "Load filament ids for each object"
+#~ msgstr "Chargement des identifiants de filaments pour chaque objet"
+
+#~ msgid ""
+#~ "We now have added the auto-calibration for different filaments, which is "
+#~ "fully automated and the result will be saved into the printer for future "
+#~ "use. You only need to do the calibration in the following limited cases:\n"
+#~ "1. If you introduce a new filament of different brands/models or the "
+#~ "filament is damp\n"
+#~ "2. If the nozzle is worn out or replaced with a new one\n"
+#~ "3. If the max volumetric speed or print temperature is changed in the "
+#~ "filament setting"
+#~ msgstr ""
+#~ "Nous avons maintenant ajouté l'auto-calibration pour différents "
+#~ "filaments, qui est entièrement automatisée et le résultat sera enregistré "
+#~ "dans l'imprimante pour une utilisation future. Vous n'avez besoin "
+#~ "d'effectuer la calibration que dans les cas limités suivants :\n"
+#~ "1. Si vous utilisez un nouveau filament de marques/modèles différents ou "
+#~ "si le filament est humide\n"
+#~ "2. Si la buse est usée ou remplacée par une neuve\n"
+#~ "3. Si la vitesse volumétrique maximale ou la température d'impression est "
+#~ "modifiée dans les préréglages du filament."
+
+#~ msgid "step: "
+#~ msgstr "intervalle: "
+
+#~ msgid "mm/mm"
+#~ msgstr "mm/mm"
+
+#~ msgid "Load stl"
+#~ msgstr "Charger stl"
+
+#~ msgid "Load svg"
+#~ msgstr "Charger le svp"
+
+#~ msgid "Back Page 1"
+#~ msgstr "Retour à la page 1"
+
+#~ msgid "Delete Filament"
+#~ msgstr "Supprimer le filament"
+
+#~ msgid "Refresh Printers"
+#~ msgstr "Actualiser les imprimantes"
+
+#~ msgid "Note: Repetier version 0.90.0 or higher is required."
+#~ msgstr "Note : La version 0.90.0 de Repetier est requise."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.2 mm nozzle, it has a smaller "
+#~ "layer height. This results in almost invisible layer lines and higher "
+#~ "print quality but shorter print time."
+#~ msgstr ""
+#~ "Par rapport au profil par défaut d’une buse de 0,2 mm, il présente une "
+#~ "hauteur de couche plus petite, ce qui permet d’obtenir des lignes de "
+#~ "couche presque invisibles et une qualité d’impression supérieure, mais "
+#~ "aussi un temps d’impression plus court."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.2 mm nozzle, it has a smaller "
+#~ "layer height. This results in minimal layer lines and higher print "
+#~ "quality, but shorter print time."
+#~ msgstr ""
+#~ "Par rapport au profil par défaut de la buse de 0,2 mm, il présente une "
+#~ "hauteur de couche plus petite, ce qui se traduit par des lignes de couche "
+#~ "minimales et une qualité d’impression supérieure, mais aussi par un temps "
+#~ "d’impression plus court."
+
+#~ msgid ""
+#~ "It has a very big layer height. This results in very apparent layer "
+#~ "lines, low print quality and general print time."
+#~ msgstr ""
+#~ "La hauteur des couches est très importante, ce qui se traduit par des "
+#~ "lignes de couche très apparentes, une qualité d’impression médiocre et un "
+#~ "temps d’impression général."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a bigger "
+#~ "layer height. This results in very apparent layer lines and much lower "
+#~ "print quality but shorter print time in some cases."
+#~ msgstr ""
+#~ "Par rapport au profil par défaut d’une buse de 0,8 mm, il présente une "
+#~ "hauteur de couche plus importante, ce qui se traduit par des lignes de "
+#~ "couche très apparentes et une qualité d’impression nettement inférieure, "
+#~ "mais un temps d’impression plus court dans certains cas d’impression."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a much "
+#~ "bigger layer height. This results in extremely apparent layer lines and "
+#~ "much lower print quality but much shorter print time in some cases."
+#~ msgstr ""
+#~ "Par rapport au profil par défaut d’une buse de 0,8 mm, il présente une "
+#~ "hauteur de couche beaucoup plus importante, ce qui se traduit par des "
+#~ "lignes de couche extrêmement apparentes et une qualité d’impression "
+#~ "beaucoup plus faible, mais un temps d’impression beaucoup plus court dans "
+#~ "certains cas d’impression."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a smaller "
+#~ "layer height. This results in less but still apparent layer lines and "
+#~ "slightly higher print quality, but longer print time in some cases."
+#~ msgstr ""
+#~ "Par rapport au profil par défaut d’une buse de 0,8 mm, il présente une "
+#~ "hauteur de couche plus petite, ce qui se traduit par des lignes de couche "
+#~ "moins nombreuses mais toujours apparentes et une qualité d’impression "
+#~ "légèrement supérieure, mais un temps d’impression plus long dans certains "
+#~ "cas d’impression."
+
+#~ msgid "Connection to Flashforge is working correctly."
+#~ msgstr "La connexion à Flashforge fonctionne correctement."
+
+#~ msgid "Could not connect to Flashforge"
+#~ msgstr "Impossible de se connecter à Flashforge"
+
+#~ msgid "User canceled."
+#~ msgstr "L’utilisateur a annulé."
+
+#~ msgid "Set the brim type to \"painted\""
+#~ msgstr "Régler le type de bordure sur « peint »"
 
 #~ msgid ""
 #~ "Improve shell precision by adjusting outer wall spacing. This also "

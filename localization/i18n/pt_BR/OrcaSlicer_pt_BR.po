@@ -2882,8 +2882,8 @@ msgstr "Baixando"
 msgid "Download failed"
 msgstr "Falha ao baixar"
 
-msgid "Canceled"
-msgstr "Cancelado"
+msgid "Cancelled"
+msgstr ""
 
 msgid "Installed successfully"
 msgstr "Instalação concluída com sucesso"
@@ -3884,6 +3884,24 @@ msgid ""
 msgstr ""
 "seam_slope_start_height precisa ser menor que layer_height.\n"
 "Redefinir para 0."
+
+#, c-format, boost-format
+msgid ""
+"lock depth should smaller than skin depth.\n"
+"Reset to 50% of skin depth"
+msgstr ""
+
+msgid ""
+"Both [Extrusion] and [Combined] modes of Fuzzy Skin require the Arachne Wall "
+"Generator to be enabled."
+msgstr ""
+
+msgid ""
+"Change these settings automatically?\n"
+"Yes - Enable Arachne Wall Generator\n"
+"No  - Disable Arachne Wall Generator and set [Displacement] mode of the "
+"Fuzzy Skin"
+msgstr ""
 
 msgid ""
 "Lock depth should smaller than skin depth.\n"
@@ -5375,6 +5393,11 @@ msgstr "Recarregar lista de arquivos da impressora."
 
 msgid "No printers."
 msgstr "Nenhuma impressora."
+
+msgid ""
+"Please check the network and try again, You can restart or update the "
+"printer if the issue persists."
+msgstr ""
 
 msgid "Loading file list..."
 msgstr "Carregando lista de arquivos…"
@@ -7893,6 +7916,11 @@ msgstr ""
 "tamanho da torre de preparo aumente. Deseja habilitar mesmo assim?"
 
 msgid ""
+"Enabling both precise Z height and the prime tower may cause the size of "
+"prime tower to increase. Do you still want to enable?"
+msgstr ""
+
+msgid ""
 "A prime tower is required for smooth timelapse. There may be flaws on the "
 "model without prime tower. Do you want to enable prime tower?"
 msgstr ""
@@ -7908,10 +7936,6 @@ msgid ""
 "0 top Z distance, 0 interface spacing, interlaced rectilinear pattern and "
 "disable independent support layer height"
 msgstr ""
-"Ao usar material de suporte para a interface de suporte, recomendamos as "
-"seguintes configurações:\n"
-"distância Z superior 0, espaçamento de interface 0, padrão retilíneo "
-"entrelaçado e desabilitar altura da camada de suporte independente"
 
 msgid ""
 "Change these settings automatically?\n"
@@ -8249,8 +8273,6 @@ msgid ""
 "Bed temperature when the Cool Plate SuperTack is installed. A value of 0 "
 "means the filament does not support printing on the Cool Plate SuperTack."
 msgstr ""
-"Temperatura da mesa quando a Placa Fria SuperTack está instalada. O valor 0 "
-"significa que o filamento não suporta impressão na Placa Fria SuperTack."
 
 msgid "Cool Plate"
 msgstr "Placa Fria"
@@ -8558,9 +8580,6 @@ msgid ""
 "If the preset corresponds to a filament currently in use on your printer, "
 "please reset the filament information for that slot."
 msgstr ""
-"Tem certeza de que deseja excluir a predefinição selecionada?\n"
-"Se a predefinição corresponde a um filamento atualmente em uso em sua "
-"impressora, redefina as informações do filamento para esse slot."
 
 #, boost-format
 msgid "Are you sure to %1% the selected preset?"
@@ -8898,6 +8917,15 @@ msgstr "Volume"
 msgid "Ramming line"
 msgstr "Linha de moldeamento"
 
+msgid "Total ramming"
+msgstr ""
+
+msgid "Volume"
+msgstr ""
+
+msgid "Ramming line"
+msgstr ""
+
 msgid "Auto-Calc"
 msgstr "Auto-Calc"
 
@@ -9038,6 +9066,9 @@ msgstr ""
 "houver objetos selecionados, ele apenas orientará os selecionados. Caso "
 "contrário, ele orientará todos os objetos do projeto atual."
 
+msgid "Shift+Q"
+msgstr ""
+
 msgid "Auto orients all objects on the active plate."
 msgstr "Orienta automaticamente todos os objetos na placa atual."
 
@@ -9127,6 +9158,9 @@ msgstr "Gizmo posicionar face na mesa"
 
 msgid "Gizmo cut"
 msgstr "Gizmo cortar"
+
+msgid "Gizmo cut"
+msgstr "Cortar gizmo"
 
 msgid "Gizmo mesh boolean"
 msgstr "Gizmo malha booleana"
@@ -10929,12 +10963,9 @@ msgstr "Raio de detecção da orelha da borda"
 
 msgid ""
 "The geometry will be decimated before detecting sharp angles. This parameter "
-"indicates the minimum length of the deviation for the decimation.\n"
+"indicates the minimum length of the deviation for the decimation. \n"
 "0 to deactivate."
 msgstr ""
-"A geometria será decimada antes de detectar ângulos agudos. Este parâmetro "
-"indica o comprimento mínimo da divergência para a decimação.\n"
-"0 para desativar."
 
 msgid "Select printers"
 msgstr "Selecionar impressoras"
@@ -12609,6 +12640,16 @@ msgstr ""
 "tornando a interface mais suave.\n"
 "Defina como -1 para desabilitá-lo."
 
+msgid "Ironing fan speed"
+msgstr ""
+
+msgid ""
+"This part cooling fan speed is applied when ironing. Setting this parameter "
+"to a lower than regular speed reduces possible nozzle clogging due to the "
+"low volumetric flow rate, making the interface smoother.\n"
+"Set to -1 to disable it."
+msgstr ""
+
 msgid ""
 "Randomly jitter while printing the wall, so that the surface has a rough "
 "look. This setting controls the fuzzy position."
@@ -13413,8 +13454,8 @@ msgstr ""
 msgid "Ironing speed"
 msgstr "Velocidade do passar a ferro"
 
-msgid "Print speed of ironing lines."
-msgstr "Velocidade de impressão das linhas do passar a ferro."
+msgid "Print speed of ironing lines"
+msgstr ""
 
 msgid "Ironing angle"
 msgstr "Ângulo do passar a ferro"
@@ -15529,6 +15570,9 @@ msgstr "Ângulo de rotação da torre de limpeza em relação ao eixo X."
 msgid "Width of the brim."
 msgstr "Largura da borda."
 
+msgid "Width of the brim."
+msgstr ""
+
 msgid "Stabilization cone apex angle"
 msgstr "Ângulo do ápice do cone de estabilização"
 
@@ -16313,6 +16357,9 @@ msgstr "lista de valores de metadados adicionada ao 3mf."
 msgid "Allow 3mf with newer version to be sliced"
 msgstr "Permitir que 3mf com versão mais recente seja fatiado"
 
+msgid "Allow 3mf with newer version to be sliced"
+msgstr ""
+
 msgid "Allow 3mf with newer version to be sliced."
 msgstr "Permitir que 3mf com versão mais recente seja fatiado."
 
@@ -16707,6 +16754,9 @@ msgid "Unknown file format. Input file must have .3mf or .zip.amf extension."
 msgstr ""
 "Formato de arquivo desconhecido. O arquivo de entrada deve ter extensão .3mf "
 "ou .zip.amf."
+
+msgid "Canceled"
+msgstr "Cancelado"
 
 msgid "load_obj: failed to parse"
 msgstr "load_obj: falha ao analisar"
@@ -18439,8 +18489,8 @@ msgstr "A conexão com o Repetier funciona corretamente."
 msgid "Could not connect to Repetier"
 msgstr "Não foi possível conectar-se ao Repetier"
 
-msgid "Note: Repetier version 0.90.0 or higher is required."
-msgstr "Nota: Repetier versão 0.90.0 ou maior é necessário."
+msgid "Note: Repetier version 0.90.0 ir higher is required."
+msgstr ""
 
 #, boost-format
 msgid ""

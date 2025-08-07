@@ -2887,8 +2887,8 @@ msgstr "Завантаження"
 msgid "Download failed"
 msgstr "Помилка завантаження"
 
-msgid "Canceled"
-msgstr "Скасовано"
+msgid "Cancelled"
+msgstr ""
 
 msgid "Installed successfully"
 msgstr "Успішне встановлення."
@@ -3883,6 +3883,24 @@ msgid ""
 msgstr ""
 "seam_slope_start_height має бути менше висоти шару.\n"
 "Значення скинуто на 0."
+
+#, c-format, boost-format
+msgid ""
+"lock depth should smaller than skin depth.\n"
+"Reset to 50% of skin depth"
+msgstr ""
+
+msgid ""
+"Both [Extrusion] and [Combined] modes of Fuzzy Skin require the Arachne Wall "
+"Generator to be enabled."
+msgstr ""
+
+msgid ""
+"Change these settings automatically?\n"
+"Yes - Enable Arachne Wall Generator\n"
+"No  - Disable Arachne Wall Generator and set [Displacement] mode of the "
+"Fuzzy Skin"
+msgstr ""
 
 msgid ""
 "Lock depth should smaller than skin depth.\n"
@@ -5371,6 +5389,11 @@ msgstr "Перезавантажте список файлів з принтер
 
 msgid "No printers."
 msgstr "Ніяких принтерів."
+
+msgid ""
+"Please check the network and try again, You can restart or update the "
+"printer if the issue persists."
+msgstr ""
 
 msgid "Loading file list..."
 msgstr "Завантаження списку файлів..."
@@ -9001,6 +9024,9 @@ msgstr ""
 "він просто орієнтує обрані. В іншому випадку він будеОрієнтувати всі об'єкти "
 "на поточному проєкт."
 
+msgid "Shift+Q"
+msgstr ""
+
 msgid "Auto orients all objects on the active plate."
 msgstr "Автоматично орієнтує всі об'єкти на поточному диску."
 
@@ -10864,12 +10890,9 @@ msgstr "Радіус виявлення вушка кайма"
 
 msgid ""
 "The geometry will be decimated before detecting sharp angles. This parameter "
-"indicates the minimum length of the deviation for the decimation.\n"
+"indicates the minimum length of the deviation for the decimation. \n"
 "0 to deactivate."
 msgstr ""
-"Геометрія буде оброблена перед детектуванням гострих кутів. Цей параметр "
-"вказує мінімальну довжину відхилення для обробки.\n"
-"0 для вимкнення"
 
 msgid "Select printers"
 msgstr ""
@@ -13257,8 +13280,8 @@ msgstr ""
 msgid "Ironing speed"
 msgstr "Швидкість розглажування"
 
-msgid "Print speed of ironing lines."
-msgstr "Швидкість друку прасувальних ліній"
+msgid "Print speed of ironing lines"
+msgstr ""
 
 msgid "Ironing angle"
 msgstr "Кут прасування"
@@ -16451,6 +16474,9 @@ msgstr ""
 "Невідомий формат файлу: вхідний файл повинен мати розширення .3mf "
 "або .zip.amf."
 
+msgid "Canceled"
+msgstr "Скасовано"
+
 msgid "load_obj: failed to parse"
 msgstr "помилка завантаження файлу OBJ: не вдалося розпізнати формат"
 
@@ -18157,8 +18183,8 @@ msgstr "Підключення до Repetier працює правильно."
 msgid "Could not connect to Repetier"
 msgstr "Не вдалося підключитися до Repetier"
 
-msgid "Note: Repetier version 0.90.0 or higher is required."
-msgstr "Примітка: потрібна версія Repetier принаймні 0.90.0."
+msgid "Note: Repetier version 0.90.0 ir higher is required."
+msgstr ""
 
 #, boost-format
 msgid ""

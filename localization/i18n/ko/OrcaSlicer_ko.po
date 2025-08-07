@@ -2826,8 +2826,8 @@ msgstr "다운로드 중"
 msgid "Download failed"
 msgstr "다운로드 실패"
 
-msgid "Canceled"
-msgstr "취소됨"
+msgid "Cancelled"
+msgstr ""
 
 msgid "Installed successfully"
 msgstr "성공적으로 설치하였습니다."
@@ -3778,6 +3778,24 @@ msgid ""
 msgstr ""
 "심_경사_시작_높이는 레이어_높이보다 작아야 합니다.\n"
 "0으로 재설정합니다."
+
+#, c-format, boost-format
+msgid ""
+"lock depth should smaller than skin depth.\n"
+"Reset to 50% of skin depth"
+msgstr ""
+
+msgid ""
+"Both [Extrusion] and [Combined] modes of Fuzzy Skin require the Arachne Wall "
+"Generator to be enabled."
+msgstr ""
+
+msgid ""
+"Change these settings automatically?\n"
+"Yes - Enable Arachne Wall Generator\n"
+"No  - Disable Arachne Wall Generator and set [Displacement] mode of the "
+"Fuzzy Skin"
+msgstr ""
 
 msgid ""
 "Lock depth should smaller than skin depth.\n"
@@ -5231,6 +5249,11 @@ msgstr "프린터에서 파일 목록을 다시 로드합니다."
 
 msgid "No printers."
 msgstr "프린터 없음."
+
+msgid ""
+"Please check the network and try again, You can restart or update the "
+"printer if the issue persists."
+msgstr ""
 
 msgid "Loading file list..."
 msgstr "파일 목록 로드 중..."
@@ -10508,12 +10531,9 @@ msgstr "브림 귀 감지 반경"
 
 msgid ""
 "The geometry will be decimated before detecting sharp angles. This parameter "
-"indicates the minimum length of the deviation for the decimation.\n"
+"indicates the minimum length of the deviation for the decimation. \n"
 "0 to deactivate."
 msgstr ""
-"날카로운 각도를 감지하기 전에 형상이 무시됩니다. 이 매개변수는 무시하는 형상"
-"의 최소 길이를 나타냅니다.\n"
-"0으로 비활성화합니다"
 
 msgid "Select printers"
 msgstr ""
@@ -12766,8 +12786,8 @@ msgstr ""
 msgid "Ironing speed"
 msgstr "다림질 속도"
 
-msgid "Print speed of ironing lines."
-msgstr "다림질 선의 출력 속도"
+msgid "Print speed of ironing lines"
+msgstr ""
 
 msgid "Ironing angle"
 msgstr "다림질 각도"
@@ -17465,8 +17485,8 @@ msgstr "Repetier에 대한 연결이 올바르게 작동합니다."
 msgid "Could not connect to Repetier"
 msgstr "Repetier에 연결할 수 없습니다"
 
-msgid "Note: Repetier version 0.90.0 or higher is required."
-msgstr "참고: 최소 0.90.0 이상의 반복 버전이 필요합니다."
+msgid "Note: Repetier version 0.90.0 ir higher is required."
+msgstr ""
 
 #, boost-format
 msgid ""
@@ -18182,6 +18202,464 @@ msgstr ""
 "뒤틀림 방지\n"
 "ABS와 같이 뒤틀림이 발생하기 쉬운 소재를 출력할 때, 히트베드 온도를 적절하게 "
 "높이면 뒤틀림 가능성을 줄일 수 있다는 사실을 알고 계셨나요?"
+
+#~ msgid "Set Position"
+#~ msgstr "위치 설정"
+
+#~ msgid "%"
+#~ msgstr "%"
+
+#, boost-format
+#~ msgid "%1%"
+#~ msgstr "%1%"
+
+#~ msgid "Right click the icon to fix model object"
+#~ msgstr "아이콘을 마우스 우클릭하여 모델 객체를 고칩니다"
+
+#~ msgid "The target object contains only one part and cannot be split."
+#~ msgstr "대상 객체는 한 부품만 포함하고 있어 분할할 수 없습니다."
+
+#~ msgid "?"
+#~ msgstr "?"
+
+#~ msgid "/"
+#~ msgstr "/"
+
+#~ msgid "℃"
+#~ msgstr "℃"
+
+#~ msgid "mm³"
+#~ msgstr "mm³"
+
+#~ msgid "Color Scheme"
+#~ msgstr "색 구성표"
+
+#~ msgid "Percent"
+#~ msgstr "퍼센트"
+
+#~ msgid "Used filament"
+#~ msgstr "사용된 필라멘트"
+
+#~ msgid "720p"
+#~ msgstr "720p"
+
+#~ msgid "1080p"
+#~ msgstr "1080p"
+
+#~ msgid "More..."
+#~ msgstr "더보기..."
+
+#~ msgid "More calibrations"
+#~ msgstr "추가 교정"
+
+#~ msgid "0"
+#~ msgstr "0"
+
+#~ msgid "SD Card"
+#~ msgstr "SD 카드"
+
+#~ msgid "100%"
+#~ msgstr "100%"
+
+#~ msgid "No SD Card"
+#~ msgstr "SD 카드 없음"
+
+#~ msgid "SD Card Abnormal"
+#~ msgstr "SD 카드 이상"
+
+#, c-format, boost-format
+#~ msgid "Ejecting of device %s(%s) has failed."
+#~ msgstr "%s(%s) 장치를 꺼내지 못했습니다."
+
+#~ msgid "mm/s²"
+#~ msgstr "mm/s²"
+
+#~ msgid "mm/s"
+#~ msgstr "mm/s"
+
+#~ msgid ""
+#~ "This option can be changed later in preferences, under 'Load Behaviour'."
+#~ msgstr "이 옵션은 나중에 환경설정에서 '로드 동작'에서 변경할 수 있습니다."
+
+#~ msgid "Invalid number"
+#~ msgstr "잘못된 번호"
+
+#~ msgid "Publish was canceled"
+#~ msgstr "게시가 취소되었습니다"
+
+#~ msgid "Search"
+#~ msgstr "검색"
+
+#~ msgid "My Device"
+#~ msgstr "내 장치"
+
+#~ msgid "Other Device"
+#~ msgstr "다른 장치"
+
+#~ msgid "Can't find my devices?"
+#~ msgstr "내 장치를 찾을 수 없습니까?"
+
+#, c-format, boost-format
+#~ msgid "nozzle memorized: %.2f %s"
+#~ msgstr "기억된 노즐: %.2f %s"
+
+#~ msgid "Modifying the device name"
+#~ msgstr "장치 이름 수정"
+
+#~ msgid "Bind with Access Code"
+#~ msgstr "액세스 코드로 바인딩"
+
+#~ msgid ""
+#~ "When using support material for the support interface, we recommend the "
+#~ "following settings:\n"
+#~ "0 top z distance, 0 interface spacing, interlaced rectilinear pattern and "
+#~ "disable independent support layer height"
+#~ msgstr ""
+#~ "지원 인터페이스에 대한 지원 자료를 사용할 때 다음 설정을 권장합니다.\n"
+#~ "0 상단 z 거리, 0 인터페이스 간격, 인터레이스된 직선 패턴 및 독립 지지 레이"
+#~ "어 높이 비활성화"
+
+#~ msgid ""
+#~ "Bed temperature when the Cool Plate Supertack is installed. A value of 0 "
+#~ "means the filament does not support printing on the Cool Plate SuperTack."
+#~ msgstr ""
+#~ "냉각판 설치 시 베드 온도. 값 0은 필라멘트가 쿨 플레이트(슈퍼택)에 출력할 "
+#~ "수 없음을 의미합니다."
+
+#~ msgid "Ramming settings"
+#~ msgstr "채워넣기 설정"
+
+#~ msgid "Profile dependencies"
+#~ msgstr "프로필 종속성"
+
+#~ msgid "the Configuration package is incompatible with the current APP."
+#~ msgstr "구성 패키지가 현재 애플리케이션과 호환되지 않습니다."
+
+#~ msgid "Total ramming time"
+#~ msgstr "총 채워넣기 시간"
+
+#~ msgid "s"
+#~ msgstr "s"
+
+#~ msgid "Total rammed volume"
+#~ msgstr "총 채워넣은 부피"
+
+#~ msgid "Ramming line width"
+#~ msgstr "채워넣기 선 너비"
+
+#~ msgid "Ramming line spacing"
+#~ msgstr "채워넣기 선 간격"
+
+#~ msgid "Shift+R"
+#~ msgstr "Shift+R"
+
+#~ msgid "resume"
+#~ msgstr "재개"
+
+#~ msgid "°C"
+#~ msgstr "°C"
+
+#~ msgid "Classic mode"
+#~ msgstr "클래식 모드"
+
+#~ msgid "Enable this option to use classic mode."
+#~ msgstr "클래식 모드를 사용하려면 이 옵션을 활성화합니다"
+
+#, no-c-format, no-boost-format
+#~ msgid ""
+#~ "Enable this option to slow down printing in areas where perimeters may "
+#~ "have curled upwards.For example, additional slowdown will be applied when "
+#~ "printing overhangs on sharp corners like the front of the Benchy hull, "
+#~ "reducing curling which compounds over multiple layers.\n"
+#~ "\n"
+#~ "It is generally recommended to have this option switched on unless your "
+#~ "printer cooling is powerful enough or the print speed slow enough that "
+#~ "perimeter curling does not happen. If printing with a high external "
+#~ "perimeter speed, this parameter may introduce slight artifacts when "
+#~ "slowing down due to the large variance in print speeds. If you notice "
+#~ "artifacts, ensure your pressure advance is tuned correctly.\n"
+#~ "\n"
+#~ "Note: When this option is enabled, overhang perimeters are treated like "
+#~ "overhangs, meaning the overhang speed is applied even if the overhanging "
+#~ "perimeter is part of a bridge. For example, when the perimeters are 100% "
+#~ "overhanging, with no wall supporting them from underneath, the 100% "
+#~ "overhang speed will be applied."
+#~ msgstr ""
+#~ "주변이 위쪽으로 말릴 수 있는 영역에서 출력 속도를 늦추려면 이 옵션을 활성"
+#~ "화합니다. 예를 들어 벤치 선체 전면과 같이 날카로운 모서리에 오버행를 출력"
+#~ "할 때 추가 속도 저하가 적용되어 여러 레이어에 걸쳐 합성되는 말림을 줄입니"
+#~ "다.\n"
+#~ "\n"
+#~ " 프린터 냉각 성능이 충분히 강력하거나 출력 속도가 느려 주변 말림이 발생하"
+#~ "지 않는 한 일반적으로 이 옵션을 켜는 것이 좋습니다. 높은 외부 주변 속도로 "
+#~ "출력하는 경우 이 매개변수는 출력 속도의 큰 차이로 인해 속도가 느려질 때 약"
+#~ "간의 아티팩트가 발생할 수 있습니다. 아티팩트가 발견되면 압력 진행이 올바르"
+#~ "게 조정되었는지 확인하십시오.\n"
+#~ "\n"
+#~ "참고: 이 옵션을 활성화하면 오버행 둘레가 오버행처럼 처리됩니다. 즉, 오버"
+#~ "행 둘레가 교량의 일부인 경우에도 오버행 속도가 적용됩니다. 예를 들어, 둘레"
+#~ "가 100% 돌출되어 있고 아래에서 이를 지지하는 벽이 없으면 100% 돌출 속도가 "
+#~ "적용됩니다."
+
+#~ msgid ""
+#~ "The geometry will be decimated before detecting sharp angles. This "
+#~ "parameter indicates the minimum length of the deviation for the "
+#~ "decimation.\n"
+#~ "0 to deactivate."
+#~ msgstr ""
+#~ "날카로운 각도를 감지하기 전에 형상이 무시됩니다. 이 매개변수는 무시하는 형"
+#~ "상의 최소 길이를 나타냅니다.\n"
+#~ "0으로 비활성화합니다"
+
+#~ msgid "Compatible machine"
+#~ msgstr "호환 장치"
+
+#~ msgid "Compatible machine condition"
+#~ msgstr "호환 장치 상태"
+
+#~ msgid "Compatible process profiles condition"
+#~ msgstr "호환 프로세스 사전설정 상태"
+
+#~ msgid "Default filament color"
+#~ msgstr "기본 필라멘트 색상"
+
+#~ msgid "mm³/s"
+#~ msgstr "mm³/s"
+
+#~ msgid "g/cm³"
+#~ msgstr "g/cm³"
+
+#~ msgid "Rotate solid infill direction"
+#~ msgstr "솔리드 채우기 방향 회전"
+
+#~ msgid "Rotate the solid infill direction by 90° for each layer."
+#~ msgstr "각 레이어에 대해 솔리드 채우기 방향을 90° 회전합니다."
+
+#~ msgid "Print speed of ironing lines."
+#~ msgstr "다림질 선의 출력 속도"
+
+#~ msgid ""
+#~ "Flow Compensation Model, used to adjust the flow for small infill areas. "
+#~ "The model is expressed as a comma separated pair of values for extrusion "
+#~ "length and flow correction factors, one per line, in the following "
+#~ "format: \"1.234,5.678\""
+#~ msgstr ""
+#~ "작은 채우기 영역의 압출량을 조정하는 데 사용되는 압출량 보상 모델. 모델은 "
+#~ "\"1.234,5.678\" 형식으로 한 줄에 하나씩 압출 길이 및 압출량 수정 계수에 대"
+#~ "한 쉼표로 구분된 값 쌍으로 표현됩니다."
+
+#~ msgid ""
+#~ "The highest printable layer height for the extruder. Used to limit the "
+#~ "maximum layer height when adaptive layer height is enabled."
+#~ msgstr ""
+#~ "압출기의 출력 가능한 최대 레이어 높이입니다. 사용된 값은 적응형 레이어 높"
+#~ "이를 활성화할 때 최대 레이어 높이를 제한합니다"
+
+#~ msgid "mm³/s²"
+#~ msgstr "mm³/s²"
+
+#~ msgid ""
+#~ "The lowest printable layer height for the extruder. Used to limit the "
+#~ "minimum layer height when adaptive layer height is enabled."
+#~ msgstr ""
+#~ "압출기의 출력 가능한 최저 레이어 높이입니다. 사용된 값은 적응형 레이어 높"
+#~ "이를 활성화할 때 최소 레이어 높이를 제한합니다"
+
+#~ msgid "mm²"
+#~ msgstr "mm²"
+
+#~ msgid "Retract on top layer"
+#~ msgstr "상단 레이어에서 후퇴"
+
+#~ msgid ""
+#~ "Force a retraction on top layer. Disabling could prevent clog on very "
+#~ "slow patterns with small movements, like Hilbert curve."
+#~ msgstr ""
+#~ "상단 레이어에 강제 후퇴를 적용합니다. 비활성화하면 힐버트 곡선과 같이 작"
+#~ "은 움직임이 있는 매우 느린 패턴에서 막힘을 방지할 수 있습니다."
+
+#~ msgid ""
+#~ "Some amount of material in extruder is pulled back to avoid ooze during "
+#~ "long travel. Set zero to disable retraction"
+#~ msgstr ""
+#~ "긴 이동 중에 필라멘트가 흘러나오는 것을 방지하기 위해 압출기의 일정량의 재"
+#~ "료를 뒤로 당깁니다. 후퇴를 비활성화하려면 0을 설정하세요"
+
+#~ msgid "Speed of retractions."
+#~ msgstr "후퇴 속도"
+
+#~ msgid ""
+#~ "Speed for reloading filament into extruder. Zero means same speed of "
+#~ "retraction."
+#~ msgstr ""
+#~ "필라멘트를 압출기에 다시 로드하는 속도입니다. 0은 후퇴와 동일한 속도를 의"
+#~ "미합니다"
+
+#~ msgid "Single loop draft shield"
+#~ msgstr "단일 루프 드래프트 실드"
+
+#~ msgid ""
+#~ "Limits the draft shield loops to one wall after the first layer. This is "
+#~ "useful, on occasion, to conserve filament but may cause the draft shield "
+#~ "to warp / crack."
+#~ msgstr ""
+#~ "드래프트 실드 루프를 첫 번째 레이어 뒤의 한 벽으로 제한합니다. 이 방법은 "
+#~ "필라멘트를 보존하는 데 유용하지만 드래프트 실드가 휘어지거나 갈라질 수 있"
+#~ "습니다."
+
+#~ msgid "Spacing of interface lines. Zero means solid interface."
+#~ msgstr "상단 접점 선의 간격. 0은 꽉찬 접점을 의미합니다"
+
+#~ msgid ""
+#~ "Prevent transitioning back and forth between one extra wall and one less. "
+#~ "This margin extends the range of extrusion widths which follow to "
+#~ "[Minimum wall width - margin, 2 * Minimum wall width + margin]. "
+#~ "Increasing this margin reduces the number of transitions, which reduces "
+#~ "the number of extrusion starts/stops and travel time. However, large "
+#~ "extrusion width variation can lead to under- or overextrusion problems. "
+#~ "It's expressed as a percentage over nozzle diameter"
+#~ msgstr ""
+#~ "출력물의 벽 두께를 한 번 두껍게 한 다음 다시 한 번 더 얇게 하는 것을 방지"
+#~ "합니다. 이 마진은 다음의 범위로 압출 너비를 확장합니다: [최소 벽 너비 - 마"
+#~ "진, 2 * 최소 벽 너비 + 마진]. 이 마진이 증가하면 변환 횟수가 줄어들어 압"
+#~ "출 시작/중지 횟수와 이동 시간이 줄어듭니다. 그러나, 큰 압출 너비 변동은 압"
+#~ "출 과다 또는 압출 과소 문제를 일으킬 수 있습니다. 노즐 직경을 기준으로 백"
+#~ "분율로 표시됩니다"
+
+#, fuzzy
+#~ msgid ""
+#~ "Minimum thickness of thin features. Model features that are thinner than "
+#~ "this value will not be printed, while features thicker than this value "
+#~ "will be widened to the minimum wall width. It's expressed as a percentage "
+#~ "over nozzle diameter."
+#~ msgstr ""
+#~ "얇은 형상의 최소 두께. 이 값보다 얇은 모델 형상은 출력되지 않으며, 최소 형"
+#~ "상 크기보다 두꺼운 형상은 최소 벽 너비로 확대됩니다. 노즐 직경에 대한 백분"
+#~ "율로 표시됩니다"
+
+#~ msgid "Load uptodate process/machine settings when using uptodate."
+#~ msgstr "uptodate 사용 시 최신 프로세스/프린터 설정 로드"
+
+#~ msgid "Load uptodate filament settings when using uptodate."
+#~ msgstr "최신 필라멘트 설정 사용 시 최신 필라멘트 설정 로드"
+
+#~ msgid "Downward machines settings"
+#~ msgstr "하향 머신 설정"
+
+#~ msgid "Load filament ids for each object"
+#~ msgstr "각 객체에 대한 필라멘트 ID 로드"
+
+#~ msgid ""
+#~ "We now have added the auto-calibration for different filaments, which is "
+#~ "fully automated and the result will be saved into the printer for future "
+#~ "use. You only need to do the calibration in the following limited cases:\n"
+#~ "1. If you introduce a new filament of different brands/models or the "
+#~ "filament is damp;\n"
+#~ "2. If the nozzle is worn out or replaced with a new one\n"
+#~ "3. If the max volumetric speed or print temperature is changed in the "
+#~ "filament setting"
+#~ msgstr ""
+#~ "이제 다양한 필라멘트에 대한 자동 교정 기능이 추가되었습니다. 이 기능은 완"
+#~ "전히 자동화되었으며 결과는 나중에 사용할 수 있도록 프린터에 저장됩니다. 다"
+#~ "음과 같은 제한된 경우에만 보정을 수행해야 합니다.\n"
+#~ "1. 다른 브랜드/모델의 새로운 필라멘트를 도입하거나 필라멘트가 습기에 노출"
+#~ "된 경우;\n"
+#~ "2. 노즐이 낡았거나 새것으로 교체한 경우\n"
+#~ "3. 필라멘트 설정에서 최대 압출 속도나 출력 온도가 변경된 경우."
+
+#~ msgid "step: "
+#~ msgstr "단계: "
+
+#~ msgid "mm/mm"
+#~ msgstr "mm/mm"
+
+#~ msgid ""
+#~ "We would rename the presets as \"Vendor Type Serial @printer you "
+#~ "selected\".\n"
+#~ "To add preset for more printers, Please go to printer selection"
+#~ msgstr ""
+#~ "사전 설정의 이름을 \"선택한 공급업체 유형 직렬 @프린터\"로 변경합니다.\n"
+#~ "더 많은 프린터에 대한 사전 설정을 추가하려면 프린터 선택으로 이동하세요"
+
+#~ msgid "Load stl"
+#~ msgstr "STL 불러오기"
+
+#~ msgid "Load svg"
+#~ msgstr "SVG 불러오기"
+
+#~ msgid "Back Page 1"
+#~ msgstr "뒤 페이지 1"
+
+#~ msgid "Delete Filament"
+#~ msgstr "필라멘트 삭제"
+
+#~ msgid "Refresh Printers"
+#~ msgstr "프린터 새로 고침"
+
+#~ msgid "Note: Repetier version 0.90.0 or higher is required."
+#~ msgstr "참고: 최소 0.90.0 이상의 반복 버전이 필요합니다."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.2 mm nozzle, it has a smaller "
+#~ "layer height. This results in almost invisible layer lines and higher "
+#~ "print quality but shorter print time."
+#~ msgstr ""
+#~ "0.2mm 노즐의 기본 프로파일과 비교하면 레이어 높이가 더 작아서 레이어 라인"
+#~ "이 거의 보이지 않고 출력 품질이 높아지지만 출력 시간은 단축됩니다."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.2 mm nozzle, it has a smaller "
+#~ "layer height. This results in minimal layer lines and higher print "
+#~ "quality, but shorter print time."
+#~ msgstr ""
+#~ "0.2mm 노즐의 기본 프로파일과 비교하면 레이어 높이가 더 작아서 레이어 라인"
+#~ "이 최소화되고 출력 품질이 높아지지만 출력 시간은 단축됩니다."
+
+#~ msgid ""
+#~ "It has a very big layer height. This results in very apparent layer "
+#~ "lines, low print quality and general print time."
+#~ msgstr ""
+#~ "레이어 높이가 매우 커서 레이어 선이 매우 뚜렷하고 출력 품질이 낮으며 일반"
+#~ "적인 출력 시간이 소요됩니다."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a bigger "
+#~ "layer height. This results in very apparent layer lines and much lower "
+#~ "print quality but shorter print time in some cases."
+#~ msgstr ""
+#~ "0.8mm 노즐의 기본 프로파일과 비교하면 레이어 높이가 더 크고 레이어 라인이 "
+#~ "매우 뚜렷해지고 출력 품질이 훨씬 낮아지지만 일부 출력의 경우 출력 시간이 "
+#~ "짧아집니다."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a much "
+#~ "bigger layer height. This results in extremely apparent layer lines and "
+#~ "much lower print quality but much shorter print time in some cases."
+#~ msgstr ""
+#~ "0.8mm 노즐의 기본 프로파일과 비교하면 레이어 높이가 훨씬 더 크고 레이어 라"
+#~ "인이 매우 뚜렷해지고 출력 품질이 훨씬 낮아지지만 일부 출력의 경우 출력 시"
+#~ "간이 훨씬 짧아집니다."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a smaller "
+#~ "layer height. This results in less but still apparent layer lines and "
+#~ "slightly higher print quality, but longer print time in some cases."
+#~ msgstr ""
+#~ "0.8mm 노즐의 기본 프로파일과 비교하면 레이어 높이가 더 작아서 레이어 선은 "
+#~ "적지만 여전히 뚜렷하고 출력 품질은 약간 높지만 일부 출력의 경우 출력 시간"
+#~ "이 길어집니다."
+
+#~ msgid "Connection to Flashforge is working correctly."
+#~ msgstr "플래시포지 연결이 정상적으로 작동합니다."
+
+#~ msgid "Could not connect to Flashforge"
+#~ msgstr "플래시포지 연결할 수 없음"
+
+#~ msgid "User canceled."
+#~ msgstr "사용자가 취소했습니다."
+
+#~ msgid "Set the brim type to \"painted\""
+#~ msgstr "브림 유형을 “페인트”로 설정합니다."
 
 #~ msgid ""
 #~ "Improve shell precision by adjusting outer wall spacing. This also "

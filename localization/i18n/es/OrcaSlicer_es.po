@@ -2902,8 +2902,8 @@ msgstr "Descargando"
 msgid "Download failed"
 msgstr "Descarga fallida"
 
-msgid "Canceled"
-msgstr "Cancelado"
+msgid "Cancelled"
+msgstr ""
 
 msgid "Installed successfully"
 msgstr "Instalación exitosa."
@@ -3908,6 +3908,24 @@ msgid ""
 msgstr ""
 "seam_slope_start_height debe ser menor que layer_height.\n"
 "Restableciendo a 0."
+
+#, c-format, boost-format
+msgid ""
+"lock depth should smaller than skin depth.\n"
+"Reset to 50% of skin depth"
+msgstr ""
+
+msgid ""
+"Both [Extrusion] and [Combined] modes of Fuzzy Skin require the Arachne Wall "
+"Generator to be enabled."
+msgstr ""
+
+msgid ""
+"Change these settings automatically?\n"
+"Yes - Enable Arachne Wall Generator\n"
+"No  - Disable Arachne Wall Generator and set [Displacement] mode of the "
+"Fuzzy Skin"
+msgstr ""
 
 msgid ""
 "Lock depth should smaller than skin depth.\n"
@@ -5399,6 +5417,11 @@ msgstr "Recarga la lista de archivos desde la impresora."
 
 msgid "No printers."
 msgstr "No hay impresoras."
+
+msgid ""
+"Please check the network and try again, You can restart or update the "
+"printer if the issue persists."
+msgstr ""
 
 msgid "Loading file list..."
 msgstr "Cargando lista de archivos..."
@@ -9033,6 +9056,9 @@ msgstr ""
 "hay objetos seleccionados, sólo orienta los seleccionados. En caso "
 "contrario, orientará todos los objetos del proyecto actual."
 
+msgid "Shift+Q"
+msgstr ""
+
 #, fuzzy
 msgid "Auto orients all objects on the active plate."
 msgstr "Orienta automáticamente todos los objetos de la placa actual."
@@ -10876,12 +10902,9 @@ msgstr "Radio de detección de Orejas de borde"
 
 msgid ""
 "The geometry will be decimated before detecting sharp angles. This parameter "
-"indicates the minimum length of the deviation for the decimation.\n"
+"indicates the minimum length of the deviation for the decimation. \n"
 "0 to deactivate."
 msgstr ""
-"La geometría se verá diezmada antes de detectar angulos agudos. Este "
-"parámetro indica la longitud mínima de desviación para el diezmado\n"
-"0 para desactivar"
 
 msgid "Select printers"
 msgstr ""
@@ -12214,6 +12237,13 @@ msgid ""
 "The angle of the infill angled lines. 60° will result in a pure honeycomb."
 msgstr ""
 
+msgid "Infill overhang angle"
+msgstr ""
+
+msgid ""
+"The angle of the infill angled lines. 60° will result in a pure honeycomb."
+msgstr ""
+
 msgid "Sparse infill anchor length"
 msgstr "Longitud del anclaje de relleno de baja densidad"
 
@@ -13209,8 +13239,8 @@ msgstr ""
 msgid "Ironing speed"
 msgstr "Velocidad de alisado"
 
-msgid "Print speed of ironing lines."
-msgstr "Velocidad de impresión de las líneas de alisado."
+msgid "Print speed of ironing lines"
+msgstr ""
 
 msgid "Ironing angle"
 msgstr "Ángulo de alisado"
@@ -16052,6 +16082,9 @@ msgstr ""
 msgid "Allow 3mf with newer version to be sliced"
 msgstr ""
 
+msgid "Allow 3mf with newer version to be sliced"
+msgstr ""
+
 msgid "Allow 3mf with newer version to be sliced."
 msgstr ""
 
@@ -16448,6 +16481,9 @@ msgid "Unknown file format. Input file must have .3mf or .zip.amf extension."
 msgstr ""
 "Formato de archivo desconocido: el archivo de entrada debe tener extensión "
 ".3mf o .zip.amf."
+
+msgid "Canceled"
+msgstr "Cancelado"
 
 msgid "load_obj: failed to parse"
 msgstr "load_obj: fallo al parsear"
@@ -18173,8 +18209,8 @@ msgstr "La conexión con Repetier funciona correctamente."
 msgid "Could not connect to Repetier"
 msgstr "No se ha podido conectar con Repetier"
 
-msgid "Note: Repetier version 0.90.0 or higher is required."
-msgstr "Nota: Se requiere la versión 0.90.0 de Repetier como mínimo."
+msgid "Note: Repetier version 0.90.0 ir higher is required."
+msgstr ""
 
 #, boost-format
 msgid ""
@@ -18930,6 +18966,385 @@ msgstr ""
 "¿Sabías que al imprimir materiales propensos a la deformación como el ABS, "
 "aumentar adecuadamente la temperatura de la cama térmica puede reducir la "
 "probabilidad de deformaciones?"
+
+#~ msgid "Set Position"
+#~ msgstr "Establecer Posición"
+
+#~ msgid "%"
+#~ msgstr "%"
+
+#, boost-format
+#~ msgid "%1%"
+#~ msgstr "%1%"
+
+#~ msgid "Right click the icon to fix model object"
+#~ msgstr ""
+#~ "Haga clic con el botón derecho del ratón en el icono para reparar el "
+#~ "objeto"
+
+#~ msgid "The target object contains only one part and cannot be split."
+#~ msgstr "El objeto de destino sólo contiene una pieza y no se puede dividir."
+
+#~ msgid "?"
+#~ msgstr "?"
+
+#~ msgid "/"
+#~ msgstr "/"
+
+#~ msgid "℃"
+#~ msgstr "℃"
+
+#~ msgid "mm³"
+#~ msgstr "mm³"
+
+#~ msgid "Color Scheme"
+#~ msgstr "Esquema de colores"
+
+#~ msgid "Percent"
+#~ msgstr "Porcentaje"
+
+#~ msgid "Used filament"
+#~ msgstr "Filamento usado"
+
+#~ msgid "720p"
+#~ msgstr "720p"
+
+#~ msgid "1080p"
+#~ msgstr "1080p"
+
+#~ msgid "More..."
+#~ msgstr "Más..."
+
+#~ msgid "More calibrations"
+#~ msgstr "Más calibraciones"
+
+#~ msgid "0"
+#~ msgstr "0"
+
+#~ msgid "SD Card"
+#~ msgstr "Tarjeta SD"
+
+#~ msgid "100%"
+#~ msgstr "100%"
+
+#~ msgid "No SD Card"
+#~ msgstr "Sin tarjeta SD"
+
+#~ msgid "SD Card Abnormal"
+#~ msgstr "Tarjeta SD Anormal"
+
+#, c-format, boost-format
+#~ msgid "Ejecting of device %s(%s) has failed."
+#~ msgstr "La expulsión del dispositivo %s(%s) ha fallado."
+
+#~ msgid "mm/s²"
+#~ msgstr "mm/s²"
+
+#~ msgid "mm/s"
+#~ msgstr "mm/s"
+
+#~ msgid "Invalid number"
+#~ msgstr "Número inválido"
+
+#~ msgid "Publish was canceled"
+#~ msgstr "La publicación fue cancelada"
+
+#~ msgid "Search"
+#~ msgstr "Buscar"
+
+#~ msgid "My Device"
+#~ msgstr "Mi dispositivo"
+
+#~ msgid "Other Device"
+#~ msgstr "Otro dispositivo"
+
+#~ msgid "Can't find my devices?"
+#~ msgstr "¿No puedo encontrar mis dispositivos?"
+
+#, c-format, boost-format
+#~ msgid "nozzle memorized: %.2f %s"
+#~ msgstr "Boquilla memorizada: %.2f %s"
+
+#~ msgid "Modifying the device name"
+#~ msgstr "Modificar el nombre del dispositivo"
+
+#~ msgid ""
+#~ "Bed temperature when the Cool Plate Supertack is installed. A value of 0 "
+#~ "means the filament does not support printing on the Cool Plate SuperTack."
+#~ msgstr ""
+#~ "Temperatura de cama cuando la bandeja fría está instalada. Valor 0 "
+#~ "significa que el filamento no es compatible para imprimir en la bandeja "
+#~ "fría SuperTack"
+
+#~ msgid "Ramming settings"
+#~ msgstr "Parámetros de Moldeado de Extremo"
+
+#~ msgid "Profile dependencies"
+#~ msgstr "Dependencias de perfil"
+
+#~ msgid "the Configuration package is incompatible with the current APP."
+#~ msgstr "el paquete de configuración es incompatible con la APP actual."
+
+#~ msgid "Total ramming time"
+#~ msgstr "Tiempo total de Moldeado de Extremo"
+
+#~ msgid "s"
+#~ msgstr "s"
+
+#~ msgid "Total rammed volume"
+#~ msgstr "Volumen de moldeado de extremo total"
+
+#~ msgid "Ramming line width"
+#~ msgstr "Ancho de línea de Moldeado de Extremo"
+
+#~ msgid "Ramming line spacing"
+#~ msgstr "Separación de línea de moldeado de extremo"
+
+#~ msgid "Shift+R"
+#~ msgstr "Shift+R"
+
+#~ msgid "resume"
+#~ msgstr "Continuar"
+
+#~ msgid "°C"
+#~ msgstr "°C"
+
+#~ msgid "Classic mode"
+#~ msgstr "Modo clásico"
+
+#~ msgid "Enable this option to use classic mode."
+#~ msgstr "Activar esta opción para usar el modo clásico"
+
+#~ msgid ""
+#~ "The geometry will be decimated before detecting sharp angles. This "
+#~ "parameter indicates the minimum length of the deviation for the "
+#~ "decimation.\n"
+#~ "0 to deactivate."
+#~ msgstr ""
+#~ "La geometría se verá diezmada antes de detectar angulos agudos. Este "
+#~ "parámetro indica la longitud mínima de desviación para el diezmado\n"
+#~ "0 para desactivar"
+
+#~ msgid "Compatible machine"
+#~ msgstr "Máquina compatible"
+
+#~ msgid "Compatible machine condition"
+#~ msgstr "Condición compatibilidad de máquina"
+
+#~ msgid "Compatible process profiles condition"
+#~ msgstr "Condición de compatibilidad de los perfiles de proceso"
+
+#~ msgid "Default filament color"
+#~ msgstr "Color de filamento por defecto"
+
+#~ msgid "mm³/s"
+#~ msgstr "mm³/s"
+
+#~ msgid "g/cm³"
+#~ msgstr "g/cm³"
+
+#~ msgid "Rotate solid infill direction"
+#~ msgstr "Rotar la dirección del relleno sólido"
+
+#~ msgid "Rotate the solid infill direction by 90° for each layer."
+#~ msgstr "Rotar 90° la dirección del relleno sólido en cada capa."
+
+#~ msgid "Print speed of ironing lines."
+#~ msgstr "Velocidad de impresión de las líneas de alisado."
+
+#~ msgid ""
+#~ "Flow Compensation Model, used to adjust the flow for small infill areas. "
+#~ "The model is expressed as a comma separated pair of values for extrusion "
+#~ "length and flow correction factors, one per line, in the following "
+#~ "format: \"1.234,5.678\""
+#~ msgstr ""
+#~ "Modelo de compensación del flujo, utilizado para ajustar el flujo en "
+#~ "zonas de relleno pequeñas. El modelo se expresa como una serie de parejas "
+#~ "de valores separados por comas para las longitudes de extrusión y los "
+#~ "factores  de corrección del flujo, una pareja por línea, con el siguiente "
+#~ "formato: \"1.234,5.678\""
+
+#~ msgid ""
+#~ "The highest printable layer height for the extruder. Used to limit the "
+#~ "maximum layer height when adaptive layer height is enabled."
+#~ msgstr ""
+#~ "La altura de capa máxima imprimible por el extrusor. Se utiliza para "
+#~ "limitar la altura máxima de capa cuando se habilita la altura de capa "
+#~ "adaptativa"
+
+#~ msgid "mm³/s²"
+#~ msgstr "mm³/s²"
+
+#~ msgid ""
+#~ "The lowest printable layer height for the extruder. Used to limit the "
+#~ "minimum layer height when adaptive layer height is enabled."
+#~ msgstr ""
+#~ "La menor altura de capa imprimible para el extrusor. Se utiliza para "
+#~ "limitar la altura mínima de la capa cuando se activa la altura de capa "
+#~ "adaptativa."
+
+#~ msgid "mm²"
+#~ msgstr "mm²"
+
+#~ msgid "Retract on top layer"
+#~ msgstr "Retracción en la capa superior"
+
+#~ msgid ""
+#~ "Force a retraction on top layer. Disabling could prevent clog on very "
+#~ "slow patterns with small movements, like Hilbert curve."
+#~ msgstr ""
+#~ "Forzar una retracción en la capa superior. Desactivarlo podría evitar "
+#~ "atascos en patrones muy lentos con movimientos pequeños, como la curva de "
+#~ "Hilbert"
+
+#~ msgid ""
+#~ "Some amount of material in extruder is pulled back to avoid ooze during "
+#~ "long travel. Set zero to disable retraction"
+#~ msgstr ""
+#~ "Una pequeña cantidad de material se retrae del extrusor para evitar el "
+#~ "rezumado durante desplazamientos largos. Ajustar a cero para desactivar "
+#~ "la retracción"
+
+#~ msgid "Speed of retractions."
+#~ msgstr "Velocidad de las retracciones"
+
+#~ msgid ""
+#~ "Speed for reloading filament into extruder. Zero means same speed of "
+#~ "retraction."
+#~ msgstr ""
+#~ "Velocidad de recarga del filamento en el extrusor. Cero significa la "
+#~ "misma velocidad que la retracción"
+
+#~ msgid "Spacing of interface lines. Zero means solid interface."
+#~ msgstr ""
+#~ "Espaciado de las líneas de interfaz. Cero significa que la interfaz es "
+#~ "sólida"
+
+#, fuzzy
+#~ msgid ""
+#~ "Minimum thickness of thin features. Model features that are thinner than "
+#~ "this value will not be printed, while features thicker than this value "
+#~ "will be widened to the minimum wall width. It's expressed as a percentage "
+#~ "over nozzle diameter."
+#~ msgstr ""
+#~ "Espesor mínimo de los detalles finos. Las características del modelo que "
+#~ "sean más finas que este valor no se imprimirán, mientras que las "
+#~ "características más gruesas que el Tamaño mínimo de la característica se "
+#~ "ensancharán hasta el Ancho mínimo de perímetro. Se expresa en porcentaje "
+#~ "sobre el diámetro de la boquilla"
+
+#~ msgid "Load uptodate process/machine settings when using uptodate."
+#~ msgstr ""
+#~ "carga los ajustes actualizados de proceso/máquina cuando se usa actualizar"
+
+#~ msgid ""
+#~ "We now have added the auto-calibration for different filaments, which is "
+#~ "fully automated and the result will be saved into the printer for future "
+#~ "use. You only need to do the calibration in the following limited cases:\n"
+#~ "1. If you introduce a new filament of different brands/models or the "
+#~ "filament is damp\n"
+#~ "2. If the nozzle is worn out or replaced with a new one\n"
+#~ "3. If the max volumetric speed or print temperature is changed in the "
+#~ "filament setting"
+#~ msgstr ""
+#~ "Hemos añadido la auto-calibración para diferentes filamentos, los cuales "
+#~ "están totalmente automatizados, y los resultados se guardarán en la "
+#~ "impresora para futuros usos. Solo necesita calibrar en los siguientes "
+#~ "casos:\n"
+#~ "1. Sí introduce un nuevo filamento, o de diferentes marcas/modelos, o el "
+#~ "filamento está húmedo; \n"
+#~ "2. Sí la boquilla está desgastada o se sustituye por otra nueva;\n"
+#~ "3. Si la velocidad volumétrica máxima o la temperatura de impresión se "
+#~ "cambia en los ajustes de filamento."
+
+#~ msgid "step: "
+#~ msgstr "Incremento: "
+
+#~ msgid "mm/mm"
+#~ msgstr "mm/mm"
+
+#~ msgid "Load stl"
+#~ msgstr "Cargar stl"
+
+#~ msgid "Load svg"
+#~ msgstr "Cargar svg"
+
+#~ msgid "Back Page 1"
+#~ msgstr "Volver a la Página 1"
+
+#~ msgid "Delete Filament"
+#~ msgstr "Borrar Filamento"
+
+#~ msgid "Refresh Printers"
+#~ msgstr "Refrescar Impresoras"
+
+#~ msgid "Note: Repetier version 0.90.0 or higher is required."
+#~ msgstr "Nota: Se requiere la versión 0.90.0 de Repetier como mínimo."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.2 mm nozzle, it has a smaller "
+#~ "layer height. This results in almost invisible layer lines and higher "
+#~ "print quality but shorter print time."
+#~ msgstr ""
+#~ "En comparación con el perfil predeterminado de una boquilla de 0,2 mm, "
+#~ "tiene una altura de capa menor. Esto da como resultado líneas de capa "
+#~ "casi invisibles y una mayor calidad de impresión, pero un tiempo de "
+#~ "impresión más corto."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.2 mm nozzle, it has a smaller "
+#~ "layer height. This results in minimal layer lines and higher print "
+#~ "quality, but shorter print time."
+#~ msgstr ""
+#~ "En comparación con el perfil predeterminado de boquilla de 0,2 mm, tiene "
+#~ "una altura de capa menor, y da como resultado líneas de capa mínimas y "
+#~ "una mayor calidad de impresión, pero un tiempo de impresión más corto."
+
+#~ msgid ""
+#~ "It has a very big layer height. This results in very apparent layer "
+#~ "lines, low print quality and general print time."
+#~ msgstr ""
+#~ "Tiene una altura de capa muy grande, y da lugar a líneas de capa muy "
+#~ "visibles, baja calidad de impresión y menor tiempo de impresión."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a bigger "
+#~ "layer height. This results in very apparent layer lines and much lower "
+#~ "print quality but shorter print time in some cases."
+#~ msgstr ""
+#~ "En comparación con el perfil predeterminado de una boquilla de 0,8 mm, "
+#~ "tiene una mayor altura de capa. Esto da lugar a líneas de capa muy "
+#~ "visibles y a una calidad de impresión mucho menor, pero un tiempo de "
+#~ "impresión más corto en algunos casos."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a much "
+#~ "bigger layer height. This results in extremely apparent layer lines and "
+#~ "much lower print quality but much shorter print time in some cases."
+#~ msgstr ""
+#~ "En comparación con el perfil predeterminado de una boquilla de 0,8 mm, "
+#~ "tiene una altura de capa mucho mayor. Esto da lugar a líneas de capa "
+#~ "extremadamente visibles y a una calidad de impresión mucho menor, pero un "
+#~ "tiempo de impresión mucho más corto en algunos casos."
+
+#~ msgid ""
+#~ "Compared with the default profile of a 0.8 mm nozzle, it has a smaller "
+#~ "layer height. This results in less but still apparent layer lines and "
+#~ "slightly higher print quality, but longer print time in some cases."
+#~ msgstr ""
+#~ "En comparación con el perfil predeterminado de una boquilla de 0,8 mm, "
+#~ "tiene una altura de capa menor. Esto se traduce en menos líneas de capa, "
+#~ "aunque visibles, y en una calidad de impresión ligeramente superior, pero "
+#~ "con un tiempo de impresión más largo en algunos casos."
+
+#~ msgid "Connection to Flashforge is working correctly."
+#~ msgstr "La conexión con Flashforge funciona correctamente."
+
+#~ msgid "Could not connect to Flashforge"
+#~ msgstr "No se ha podido conectar a Flashforge"
+
+#~ msgid "User canceled."
+#~ msgstr "Cancelador por el usuario."
 
 #~ msgid ""
 #~ "Improve shell precision by adjusting outer wall spacing. This also "

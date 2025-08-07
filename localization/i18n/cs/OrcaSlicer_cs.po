@@ -2862,8 +2862,8 @@ msgstr "Stahování"
 msgid "Download failed"
 msgstr "Stahování se nezdařilo"
 
-msgid "Canceled"
-msgstr "Zrušeno"
+msgid "Cancelled"
+msgstr ""
 
 msgid "Installed successfully"
 msgstr "Instalace proběhla úspěšně."
@@ -3816,6 +3816,24 @@ msgstr ""
 msgid ""
 "seam_slope_start_height need to be smaller than layer_height.\n"
 "Reset to 0."
+msgstr ""
+
+#, c-format, boost-format
+msgid ""
+"lock depth should smaller than skin depth.\n"
+"Reset to 50% of skin depth"
+msgstr ""
+
+msgid ""
+"Both [Extrusion] and [Combined] modes of Fuzzy Skin require the Arachne Wall "
+"Generator to be enabled."
+msgstr ""
+
+msgid ""
+"Change these settings automatically?\n"
+"Yes - Enable Arachne Wall Generator\n"
+"No  - Disable Arachne Wall Generator and set [Displacement] mode of the "
+"Fuzzy Skin"
 msgstr ""
 
 msgid ""
@@ -5278,6 +5296,11 @@ msgstr ""
 
 msgid "No printers."
 msgstr "Žádné tiskárny."
+
+msgid ""
+"Please check the network and try again, You can restart or update the "
+"printer if the issue persists."
+msgstr ""
 
 msgid "Loading file list..."
 msgstr "Načítání seznamu souborů..."
@@ -8762,6 +8785,9 @@ msgstr ""
 "vybrány objekty, pouze zorientuje vybrané. Jinak zorientuje všechny objekty "
 "v aktuálním projektu."
 
+msgid "Shift+Q"
+msgstr ""
+
 msgid "Auto orients all objects on the active plate."
 msgstr ""
 
@@ -10413,12 +10439,9 @@ msgstr "Poloměr detekce uší límce"
 
 msgid ""
 "The geometry will be decimated before detecting sharp angles. This parameter "
-"indicates the minimum length of the deviation for the decimation.\n"
+"indicates the minimum length of the deviation for the decimation. \n"
 "0 to deactivate."
 msgstr ""
-"Geometrie bude zredukována před detekcí ostrých úhlů. Tento parametr udává "
-"minimální délku odchylky pro redukci.\n"
-"0 pro deaktivaci"
 
 msgid "Select printers"
 msgstr ""
@@ -11539,6 +11562,13 @@ msgid ""
 "The angle of the infill angled lines. 60° will result in a pure honeycomb."
 msgstr ""
 
+msgid "Infill overhang angle"
+msgstr ""
+
+msgid ""
+"The angle of the infill angled lines. 60° will result in a pure honeycomb."
+msgstr ""
+
 msgid "Sparse infill anchor length"
 msgstr "Délka kotvy vnitřní výplně"
 
@@ -12476,8 +12506,8 @@ msgstr ""
 msgid "Ironing speed"
 msgstr "Rychlost žehlení"
 
-msgid "Print speed of ironing lines."
-msgstr "Rychlost tisku žehlících linek"
+msgid "Print speed of ironing lines"
+msgstr ""
 
 msgid "Ironing angle"
 msgstr "Úhel žehlení"
@@ -15065,6 +15095,9 @@ msgstr ""
 msgid "Allow 3mf with newer version to be sliced"
 msgstr ""
 
+msgid "Allow 3mf with newer version to be sliced"
+msgstr ""
+
 msgid "Allow 3mf with newer version to be sliced."
 msgstr ""
 
@@ -15434,6 +15467,9 @@ msgstr ""
 msgid "Unknown file format. Input file must have .3mf or .zip.amf extension."
 msgstr ""
 "Neznámý formát souboru. Vstupní soubor musí mít příponu .3mf nebo .zip.amf."
+
+msgid "Canceled"
+msgstr "Zrušeno"
 
 msgid "load_obj: failed to parse"
 msgstr "load_obj: nepodařilo se zpracovat"
@@ -17000,8 +17036,8 @@ msgstr "Připojení k Repetieru funguje správně."
 msgid "Could not connect to Repetier"
 msgstr "Nelze se připojit k Repetieru"
 
-msgid "Note: Repetier version 0.90.0 or higher is required."
-msgstr "Poznámka: Je vyžadována verze Repetier alespoň 0.90.0."
+msgid "Note: Repetier version 0.90.0 ir higher is required."
+msgstr ""
 
 #, boost-format
 msgid ""
@@ -17634,6 +17670,255 @@ msgid ""
 "ABS, appropriately increasing the heatbed temperature can reduce the "
 "probability of warping?"
 msgstr ""
+
+#~ msgid "Set Position"
+#~ msgstr "Nastavení pozice"
+
+#~ msgid "%"
+#~ msgstr "%"
+
+#, boost-format
+#~ msgid "%1%"
+#~ msgstr "%1%"
+
+#~ msgid "Right click the icon to fix model object"
+#~ msgstr "Kliknutím pravým tlačítkem na ikonu opravíte objekt modelu"
+
+#~ msgid "The target object contains only one part and cannot be split."
+#~ msgstr "Cílový objekt obsahuje pouze jednu část a nelze jej rozdělit."
+
+#~ msgid "?"
+#~ msgstr "?"
+
+#~ msgid "/"
+#~ msgstr "/"
+
+#~ msgid "℃"
+#~ msgstr "℃"
+
+#~ msgid "mm³"
+#~ msgstr "mm³"
+
+#~ msgid "Color Scheme"
+#~ msgstr "Barevné schéma"
+
+#~ msgid "Percent"
+#~ msgstr "Procento"
+
+#~ msgid "Used filament"
+#~ msgstr "Použito filamentu"
+
+#~ msgid "720p"
+#~ msgstr "720p"
+
+#~ msgid "1080p"
+#~ msgstr "1080p"
+
+#~ msgid "More..."
+#~ msgstr "Více..."
+
+#~ msgid "More calibrations"
+#~ msgstr "Další kalibrace"
+
+#~ msgid "0"
+#~ msgstr "0"
+
+#~ msgid "SD Card"
+#~ msgstr "SD karta"
+
+#~ msgid "100%"
+#~ msgstr "100%"
+
+#~ msgid "No SD Card"
+#~ msgstr "Žádná SD karta"
+
+#~ msgid "SD Card Abnormal"
+#~ msgstr "SD karta Abnormální"
+
+#, c-format, boost-format
+#~ msgid "Ejecting of device %s(%s) has failed."
+#~ msgstr "Vysunutí zařízení  %s(%s) se nezdařilo."
+
+#~ msgid "mm/s²"
+#~ msgstr "mm/s²"
+
+#~ msgid "mm/s"
+#~ msgstr "mm/s"
+
+#~ msgid "Invalid number"
+#~ msgstr "Neplatné číslo"
+
+#~ msgid "Publish was canceled"
+#~ msgstr "Publikování bylo zrušeno"
+
+#~ msgid "Search"
+#~ msgstr "Vyhledávání"
+
+#~ msgid "My Device"
+#~ msgstr "Moje zařízení"
+
+#~ msgid "Other Device"
+#~ msgstr "Jiné zařízení"
+
+#~ msgid "Can't find my devices?"
+#~ msgstr "Nemohu najít moje zařízení?"
+
+#~ msgid "Modifying the device name"
+#~ msgstr "Úprava názvu zařízení"
+
+#~ msgid "Ramming settings"
+#~ msgstr "Nastavení rapidní extruze"
+
+#~ msgid "Profile dependencies"
+#~ msgstr "Profilové závislosti"
+
+#~ msgid "the Configuration package is incompatible with the current APP."
+#~ msgstr "konfigurační balíček je nekompatibilní s aktuální aplikací."
+
+#~ msgid "Total ramming time"
+#~ msgstr "Celkový čas rapidní extruze"
+
+#~ msgid "s"
+#~ msgstr "s"
+
+#~ msgid "Total rammed volume"
+#~ msgstr "Celkový objem rapidní extruze"
+
+#~ msgid "Ramming line width"
+#~ msgstr "Šířka linky při rapidní extruzi"
+
+#~ msgid "Ramming line spacing"
+#~ msgstr "Rozestup linek při rapidní extruzi"
+
+#~ msgid "Shift+R"
+#~ msgstr "Shift+R"
+
+#~ msgid "°C"
+#~ msgstr "°C"
+
+#~ msgid "Classic mode"
+#~ msgstr "Klasický režim"
+
+#~ msgid "Enable this option to use classic mode."
+#~ msgstr "Povolte tuto možnost pro použití klasického režimu"
+
+#~ msgid ""
+#~ "The geometry will be decimated before detecting sharp angles. This "
+#~ "parameter indicates the minimum length of the deviation for the "
+#~ "decimation.\n"
+#~ "0 to deactivate."
+#~ msgstr ""
+#~ "Geometrie bude zredukována před detekcí ostrých úhlů. Tento parametr "
+#~ "udává minimální délku odchylky pro redukci.\n"
+#~ "0 pro deaktivaci"
+
+#~ msgid "Compatible machine"
+#~ msgstr "Kompatibilní stroj"
+
+#~ msgid "Compatible machine condition"
+#~ msgstr "Stav kompatibilního stroje"
+
+#~ msgid "Compatible process profiles condition"
+#~ msgstr "Podmínka kompatibilních procesních profilů"
+
+#~ msgid "Default filament color"
+#~ msgstr "Výchozí barva filamentu"
+
+#~ msgid "mm³/s"
+#~ msgstr "mm³/s"
+
+#~ msgid "g/cm³"
+#~ msgstr "g/cm³"
+
+#~ msgid "Print speed of ironing lines."
+#~ msgstr "Rychlost tisku žehlících linek"
+
+#~ msgid ""
+#~ "The highest printable layer height for the extruder. Used to limit the "
+#~ "maximum layer height when adaptive layer height is enabled."
+#~ msgstr ""
+#~ "Největší výška tisknutelné vrstvy pro extruder. Používá se k omezení "
+#~ "maximální výšky vrstvy při povolení adaptivní výšky vrstvy"
+
+#~ msgid "mm³/s²"
+#~ msgstr "mm³/s²"
+
+#~ msgid ""
+#~ "The lowest printable layer height for the extruder. Used to limit the "
+#~ "minimum layer height when adaptive layer height is enabled."
+#~ msgstr ""
+#~ "Nejnižší výška tisknutelné vrstvy pro extruder. Používá se k omezení "
+#~ "minimální výšky vrstvy při povolení adaptivní výšky vrstvy"
+
+#~ msgid "mm²"
+#~ msgstr "mm²"
+
+#~ msgid ""
+#~ "Some amount of material in extruder is pulled back to avoid ooze during "
+#~ "long travel. Set zero to disable retraction"
+#~ msgstr ""
+#~ "Některé množství materiálu v extruderu je staženo zpět, aby se zabránilo "
+#~ "slizu při dlouhém pohybu. Nastavte nulu, abyste zablokovali retrakce"
+
+#~ msgid "Speed of retractions."
+#~ msgstr "Rychlost Retrakce"
+
+#~ msgid ""
+#~ "Speed for reloading filament into extruder. Zero means same speed of "
+#~ "retraction."
+#~ msgstr ""
+#~ "Rychlost pro opětovné vkládání filamentu do extruderu. Nula znamená "
+#~ "stejnou rychlost jako pro retrakce"
+
+#~ msgid "Spacing of interface lines. Zero means solid interface."
+#~ msgstr "Rozestup linek. Nula znamená pevné rozhraní"
+
+#, fuzzy
+#~ msgid ""
+#~ "Minimum thickness of thin features. Model features that are thinner than "
+#~ "this value will not be printed, while features thicker than this value "
+#~ "will be widened to the minimum wall width. It's expressed as a percentage "
+#~ "over nozzle diameter."
+#~ msgstr ""
+#~ "Minimální tloušťka tenkých prvků. Prvky modelu, které jsou tenčí než tato "
+#~ "hodnota, nebudou vytištěny, zatímco prvky tlustší než minimální velikost "
+#~ "prvku budou rozšířeny na minimální šířku stěny. Vyjadřuje se jako "
+#~ "procento průměru trysky"
+
+#~ msgid "Load uptodate process/machine settings when using uptodate."
+#~ msgstr "Načítat aktuální nastavení procesu/stroje při použití aktuálního"
+
+#~ msgid ""
+#~ "We now have added the auto-calibration for different filaments, which is "
+#~ "fully automated and the result will be saved into the printer for future "
+#~ "use. You only need to do the calibration in the following limited cases:\n"
+#~ "1. If you introduce a new filament of different brands/models or the "
+#~ "filament is damp\n"
+#~ "2. If the nozzle is worn out or replaced with a new one\n"
+#~ "3. If the max volumetric speed or print temperature is changed in the "
+#~ "filament setting"
+#~ msgstr ""
+#~ "Nyní jsme přidali automatickou kalibraci pro různé filamenty, která je "
+#~ "plně automatizovaná a výsledek bude uložen do tiskárny pro budoucí "
+#~ "použití. Kalibraci musíte provést pouze v následujících omezených "
+#~ "případech:\n"
+#~ "1. Pokud použijete nový filament jiné značky/modelu nebo je filament "
+#~ "vlhký;\n"
+#~ "2. Pokud je tryska opotřebená nebo nahrazena novou;\n"
+#~ "3. Pokud je maximální objemová rychlost nebo tisková teplota změněna v "
+#~ "nastavení filamentu."
+
+#~ msgid "step: "
+#~ msgstr "krok: "
+
+#~ msgid "mm/mm"
+#~ msgstr "mm/mm"
+
+#~ msgid "Refresh Printers"
+#~ msgstr "Obnovit tiskárny"
+
+#~ msgid "Note: Repetier version 0.90.0 or higher is required."
+#~ msgstr "Poznámka: Je vyžadována verze Repetier alespoň 0.90.0."
 
 #~ msgid ""
 #~ "Improve shell precision by adjusting outer wall spacing. This also "
