@@ -95,6 +95,7 @@ void DialogButtons::SetPrimaryButton(wxString translated_label) {
     // apply focus only if there is no focused element exist. this prevents stealing focus from input boxes
     if(m_parent->FindFocus() == nullptr)
         btn->SetFocus();
+ 
     btn->SetStyle(ButtonStyle::Confirm, ButtonType::Choice);
 }
 

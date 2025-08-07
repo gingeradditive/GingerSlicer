@@ -60,8 +60,7 @@ enum class InfoItemType
     Undef,
     CustomSupports,
     //CustomSeam,
-    MmSegmentation,
-    FuzzySkin,
+    MmuSegmentation,
     //Sinking
     CutConnectors,
 };

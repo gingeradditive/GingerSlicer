@@ -6,8 +6,8 @@
 
 #include <functional>
 
-#include "libslic3r/Polygon.hpp"
-#include "libslic3r/ExPolygon.hpp"
+#include "../Polygon.hpp"
+#include "../ExPolygon.hpp"
 
 namespace Slic3r
 {

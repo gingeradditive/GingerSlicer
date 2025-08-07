@@ -49,16 +49,16 @@ def topological_sort(filaments):
 
     return result
 
-def update_profile_library(vendor="OrcaFilamentLibrary",profile_type="filament"):
+def update_filament_library(vendor="OrcaFilamentLibrary"):
     # change current working directory to the relative path(..\resources\profiles) compare to script location
     os.chdir(os.path.join(os.path.dirname(__file__), '..', 'resources', 'profiles'))
 
-    # Collect current profile entries
-    current_profiles = []
+    # Collect current filament entries
+    current_filaments = []
     base_dir = vendor
-    profile_dir = os.path.join(base_dir, profile_type)
+    filament_dir = os.path.join(base_dir, 'filament')
     
-    for root, dirs, files in os.walk(profile_dir):
+    for root, dirs, files in os.walk(filament_dir):
         for file in files:
             if file.lower().endswith('.json'):
                 full_path = os.path.join(root, file)
@@ -79,34 +79,32 @@ def update_profile_library(vendor="OrcaFilamentLibrary",profile_type="filament")
                             }
                             if inherits:
                                 entry['inherits'] = inherits
-                            current_profiles.append(entry)
+                            current_filaments.append(entry)
                         else:
                             print(f"Warning: Missing 'name' in {full_path}")
                 except Exception as e:
                     print(f"Error reading {full_path}: {str(e)}")
                     continue
 
-    # Sort profiles based on inheritance
-    sorted_profiles = topological_sort(current_profiles)
+    # Sort filaments based on inheritance
+    sorted_filaments = topological_sort(current_filaments)
     
     # Remove the inherits field as it's not needed in the final JSON
-    for p in sorted_profiles:
-        p.pop('inherits', None)
+    for filament in sorted_filaments:
+        filament.pop('inherits', None)
 
     # Update library file
     lib_path = f'{vendor}.json'
-
-    profile_section = profile_type+'_list'
     
     try:
         with open(lib_path, 'r+', encoding='utf-8') as f:
             library = json.load(f)
-            library[profile_section] = sorted_profiles
+            library['filament_list'] = sorted_filaments
             f.seek(0)
             json.dump(library, f, indent=4, ensure_ascii=False)
             f.truncate()
             
-        print(f"Profile library for {vendor} updated successfully!")
+        print(f"Filament library for {vendor} updated successfully!")
     except Exception as e:
         print(f"Error updating library file: {str(e)}")
 
@@ -163,7 +161,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     if args.mode == 'update':
-        update_profile_library(args.vendor, 'filament')
-        update_profile_library(args.vendor, 'process')
+        update_filament_library(args.vendor)
     else:
         rename_filament_system(args.vendor)
