@@ -1,0 +1,21 @@
+name: Check Notarization Status
+
+on:
+  workflow_dispatch: # lo lanci a mano da GitHub Actions
+    inputs:
+      submission_id:
+        description: "Submission ID da controllare"
+        required: true
+
+jobs:
+  check-status:
+    runs-on: macos-latest
+
+    steps:
+      - name: Check notarization status
+        run: |
+          xcrun notarytool status ${{ github.event.inputs.submission_id }} \
+            --apple-id "${{ secrets.APPLE_ID }}" \
+            --team-id "${{ secrets.APPLE_TEAM_ID }}" \
+            --password "${{ secrets.APPLE_APP_PASSWORD }}" \
+            --output-format json
