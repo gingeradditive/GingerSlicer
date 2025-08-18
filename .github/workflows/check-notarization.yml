@@ -12,23 +12,11 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Verify secrets exist
-        run: |
-          if [ -z "${{ secrets.APPLE_DEV_ACCOUNT }}" ] || [ -z "${{ secrets.TEAM_ID }}" ] || [ -z "${{ secrets.APP_PWD }}" ]; then
-            echo "❌ Missing one or more Apple secrets (APPLE_DEV_ACCOUNT, TEAM_ID, APP_PWD)"
-            exit 1
-          fi
-
-      - name: Store credentials in temporary keychain profile
-        run: |
-          xcrun notarytool store-credentials "ci-profile" \
-            --apple-id "${{ secrets.APPLE_DEV_ACCOUNT }}" \
-            --team-id "${{ secrets.TEAM_ID }}" \
-            --password "${{ secrets.APP_PWD }}"
-
       - name: Check notarization status
         run: |
           xcrun notarytool status \
             ${{ github.event.inputs.submission_id }} \
-            --keychain-profile "ci-profile" \
+            --apple-id "${{ secrets.APPLE_DEV_ACCOUNT }}" \
+            --team-id "${{ secrets.TEAM_ID }}" \
+            --password "${{ secrets.APP_PWD }}" \
             --output-format json
