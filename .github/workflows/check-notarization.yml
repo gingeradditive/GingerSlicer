@@ -1,7 +1,7 @@
 name: Check Notarization Status
 
 on:
-  workflow_dispatch: # lo lanci a mano da GitHub Actions
+  workflow_dispatch:
     inputs:
       submission_id:
         description: "Submission ID da controllare"
@@ -12,10 +12,16 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Check notarization status
+      - name: Store credentials in temporary keychain profile
         run: |
-          xcrun notarytool status ${{ github.event.inputs.submission_id }} \
+          xcrun notarytool store-credentials "ci-profile" \
             --apple-id "${{ secrets.APPLE_ID }}" \
             --team-id "${{ secrets.APPLE_TEAM_ID }}" \
-            --password "${{ secrets.APPLE_APP_PASSWORD }}" \
+            --password "${{ secrets.APPLE_APP_PASSWORD }}"
+
+      - name: Check notarization status
+        run: |
+          xcrun notarytool status \
+            ${{ github.event.inputs.submission_id }} \
+            --keychain-profile "ci-profile" \
             --output-format json
