@@ -124,5 +124,5 @@
   "multi_zone": "1",
   "multi_zone_number": "3",
   "active_feeder_motor_name": ["mixing_stepper"],
-  "version":"2.3.1.1"
+  "version":"2.3.1.2"
 }

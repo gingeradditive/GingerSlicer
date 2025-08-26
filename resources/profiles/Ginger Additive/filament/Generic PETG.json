@@ -2,7 +2,7 @@
   "from": "system",
   "type": "filament",
   "instantiation": "true",
-  "version":"2.3.1.1",
+  "version":"2.3.1.2",
   "filament_vendor": ["Generic"],
   "inherits": "fdm_filament_common",
   "name": "Generic PETG",
