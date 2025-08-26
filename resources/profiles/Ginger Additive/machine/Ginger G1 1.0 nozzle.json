@@ -17,5 +17,5 @@
   "z_hop": ["0.5"],
   "retraction_length": ["25"],
   "retract_restart_extra": ["25"],
-  "version":"2.3.1.1"
+  "version":"2.3.1.2"
 }

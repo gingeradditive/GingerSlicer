@@ -1,86 +1,36 @@
 {
-    "extruder_rotation_volume": [
-        "420"
-    ],
-    "fan_max_speed": [
-        "60"
-    ],
-    "fan_min_speed": [
-        "50"
-    ],
-    "filament_deretraction_speed": [
-        "150"
-    ],
-    "filament_max_volumetric_speed": [
-        "300"
-    ],
-    "filament_retract_before_wipe": [
-        "0%"
-    ],
-    "filament_retract_restart_extra": [
-        "10"
-    ],
-    "filament_retract_when_changing_layer": [
-        "0"
-    ],
-    "filament_retraction_length": [
-        "30"
-    ],
-    "filament_retraction_speed": [
-        "200"
-    ],
-    "filament_settings_id": [
-        "Ginger rPLA"
-    ],
-    "filament_start_gcode": [
-        "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.55"
-    ],
-    "filament_vendor": [
-        "Ginger"
-    ],
-    "filament_wipe": [
-        "1"
-    ],
-    "filament_wipe_distance": [
-        "8"
-    ],
-    "filament_z_hop": [
-        "0.5"
-    ],
-    "filament_z_hop_types": [
-        "Spiral Lift"
-    ],
+    "extruder_rotation_volume": ["520"],
+    "fan_max_speed": ["60"],
+    "fan_min_speed": ["50"],
+    "filament_deretraction_speed": ["150"],
+    "filament_max_volumetric_speed": ["180"],
+    "filament_retract_before_wipe": ["0%"],
+    "filament_retract_restart_extra": ["10"],
+    "filament_retract_when_changing_layer": ["0"],
+    "filament_retraction_length": ["30"],
+    "filament_retraction_speed": ["200"],
+    "filament_settings_id": ["Ginger rPLA"],
+    "filament_start_gcode": ["SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.55"],
+    "filament_vendor": ["Ginger"],
+    "filament_wipe": ["1"],
+    "filament_wipe_distance": ["8"],
+    "filament_z_hop": ["0.5"],
+    "filament_z_hop_types": ["Spiral Lift"],
     "from": "system",
-    "hot_plate_temp": [
-        "55"
-    ],
-    "hot_plate_temp_initial_layer": [
-        "55"
-    ],
+    "hot_plate_temp": ["55"],
+    "hot_plate_temp_initial_layer": ["55"],
     "inherits": "Generic PLA",
     "is_custom_defined": "0",
-    "mixing_stepper_rotation_volume": [
-        "2000"
-    ],
-    "multi_zone_1_initial_layer": [
-        "198"
-    ],
-    "multi_zone_1_temperature": [
-        "198"
-    ],
-    "multi_zone_2_initial_layer": [
-        "195"
-    ],
-    "multi_zone_2_temperature": [
-        "195"
-    ],
+    "mixing_stepper_rotation_volume": ["8000"],
+    "multi_zone_1_initial_layer": ["205"],
+    "multi_zone_1_temperature": ["205"],
+    "multi_zone_2_initial_layer": ["200"],
+    "multi_zone_2_temperature": ["200"],
+    "multi_zone_3_initial_layer": ["200"],
+    "multi_zone_3_temperature": ["200"],
     "name": "Ginger rPLA",
-    "reduce_fan_stop_start_freq": [
-        "1"
-    ],
-    "slow_down_layer_time": [
-        "80"
-    ],
-    "version":"2.3.1.1",
+    "reduce_fan_stop_start_freq": ["1"],
+    "slow_down_layer_time": ["80"],
+    "version":"2.3.1.2",
     "instantiation": "true"
 }
