@@ -9,7 +9,7 @@
     "brim_width": "0",
     "calib_flowrate_topinfill_special_order": "0",
     "compatible_printers": [
-        "Ginger G1 1.2 nozzle"
+        "Ginger G1 1.0 nozzle"
     ],
     "default_acceleration": "3000",
     "default_jerk": "5",
@@ -137,7 +137,7 @@
     "tree_support_tip_diameter": "5",
     "tree_support_top_rate": "30%",
     "type": "process",
-    "version": "2.3.1.2",
+    "version": "2.3.2.0",
     "wipe_on_loops": "1",
     "wipe_speed": "8",
     "wipe_tower_cone_angle": "30",

@@ -1,6 +1,6 @@
 {
   "name": "Ginger Additive",
-  "version":"2.3.1.2",
+  "version":"2.3.2.0",
   "force_update": "1",
   "description": "Ginger configuration",
   "machine_model_list": [
@@ -17,10 +17,6 @@
     {
       "name": "ginger G1 1.0 nozzle",
       "sub_path": "machine/Ginger G1 1.0 nozzle.json"
-    },
-    {
-      "name": "ginger G1 1.2 nozzle",
-      "sub_path": "machine/Ginger G1 1.2 nozzle.json"
     },
     {
       "name": "ginger G1 3.0 nozzle",
