@@ -30,6 +30,6 @@
     "top_surface_jerk": "3",
     "travel_acceleration": "1500",
     "travel_jerk": "3",
-    "version": "2.3.2.0",
+    "version": "2.3.2.1",
     "wipe_speed": "8"
 }

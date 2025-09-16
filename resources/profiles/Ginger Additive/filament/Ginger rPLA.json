@@ -31,6 +31,6 @@
     "name": "Ginger rPLA",
     "reduce_fan_stop_start_freq": ["1"],
     "slow_down_layer_time": ["80"],
-    "version":"2.3.2.0",
+    "version":"2.3.2.1",
     "instantiation": "true"
 }
