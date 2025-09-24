@@ -2883,7 +2883,7 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("The width within which to jitter. It's advised to be below outer wall line width.");
     def->sidetext = "mm";	// milimeters, don't need translation
     def->min = 0;
-    def->max = 1;
+    //def->max = 1;
     def->mode = comSimple;
     def->set_default_value(new ConfigOptionFloat(0.2));
 
@@ -2893,7 +2893,7 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("The average distance between the random points introduced on each line segment.");
     def->sidetext = "mm";	// milimeters, don't need translation
     def->min = 0;
-    def->max = 5;
+    //def->max = 5;
     def->mode = comSimple;
     def->set_default_value(new ConfigOptionFloat(0.3));
 
@@ -2974,7 +2974,7 @@ void PrintConfigDef::init_fff_params()
     def->category = L("Others");
     def->tooltip = L("The decay rate for higher octaves of the coherent noise. Lower values will result in smoother noise.");
     def->min = 0.01;
-    def->max = 1;
+    //def->max = 1;
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(0.5));
 
