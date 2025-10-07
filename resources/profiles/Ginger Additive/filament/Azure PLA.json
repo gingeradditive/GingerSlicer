@@ -45,6 +45,6 @@
         "210"
     ],
     "name": "Azure PLA",
-    "version":"2.3.2.1",
+    "version":"2.3.3.0",
     "instantiation": "true"
 }
