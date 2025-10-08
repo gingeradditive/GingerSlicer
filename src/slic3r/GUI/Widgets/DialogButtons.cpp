@@ -95,6 +95,7 @@ void DialogButtons::SetPrimaryButton(wxString translated_label) {
     // apply focus only if there is no focused element exist. this prevents stealing focus from input boxes
     if(m_parent->FindFocus() == nullptr)
         btn->SetFocus();
+ 
     btn->SetStyle(ButtonStyle::Confirm, ButtonType::Choice);
 }
 
@@ -114,6 +115,11 @@ void DialogButtons::SetAlertButton(wxString translated_label) {
     m_alert = translated_label;
 
     btn->SetStyle(ButtonStyle::Alert, ButtonType::Choice);
+}
+
+void DialogButtons::UpdateButtons() {
+    m_sizer->Clear();
+    SetBackgroundColour(StateColor::darkModeColorFor(wxColour("#FFFFFF")));
 
     // Apply standard style to all
     for (Button* btn : m_buttons) {
