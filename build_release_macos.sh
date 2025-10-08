@@ -123,7 +123,7 @@ function build_deps() {
 
             PROJECT_BUILD_DIR="$PROJECT_DIR/build/$_ARCH"
             DEPS_BUILD_DIR="$DEPS_DIR/build/$_ARCH"
-            DEPS="$DEPS_BUILD_DIR/OrcaSlicer_deps"
+            DEPS="$DEPS_BUILD_DIR/OrcaSlicer_dep"
 
             echo "Building deps..."
             (
@@ -150,7 +150,7 @@ function pack_deps() {
     (
         set -x
         cd "$DEPS_DIR"
-        tar -zcvf "OrcaSlicer_deps_mac_${ARCH}_$(date +"%Y%m%d").tar.gz" "build"
+        tar -zcvf "OrcaSlicer_dep_mac_${ARCH}_$(date +"%Y%m%d").tar.gz" "build"
     )
 }
 
@@ -162,7 +162,7 @@ function build_slicer() {
 
             PROJECT_BUILD_DIR="$PROJECT_DIR/build/$_ARCH"
             DEPS_BUILD_DIR="$DEPS_DIR/build/$_ARCH"
-            DEPS="$DEPS_BUILD_DIR/OrcaSlicer_deps"
+            DEPS="$DEPS_BUILD_DIR/OrcaSlicer_dep"
 
             echo "Building slicer for $_ARCH..."
             (

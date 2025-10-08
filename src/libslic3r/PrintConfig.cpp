@@ -3809,7 +3809,7 @@ void PrintConfigDef::init_fff_params()
     def->sidetext = u8"mm/s²";	// milimeters per second per second, don't need translation
     def->min = 0;
     def->readonly = false;
-    def->mode       = comAdvanced;
+    def->mode = comSimple;
     def->set_default_value(new ConfigOptionFloats{ 1500., 1250. });
 
     // M204 T... [mm/sec^2]
@@ -5526,7 +5526,6 @@ void PrintConfigDef::init_fff_params()
     def->full_label = L("Chamber temperature");
     def->min = 0;
     def->max = max_temp;
-    def->mode       = comAdvanced;
     def->set_default_value(new ConfigOptionInts{0});
 
     def = this->add("nozzle_temperature", coInts);

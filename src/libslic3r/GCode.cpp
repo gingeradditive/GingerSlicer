@@ -3234,10 +3234,10 @@ void GCode::_print_first_layer_extruder_temperatures(GCodeOutputStream &file, Pr
                 }
             }
             else {
-                // Set temperature of the first printing extruder only.
-                int temp = print.config().nozzle_temperature_initial_layer.get_at(first_printing_extruder_id);
-                if (temp > 0)
-                    file.write(m_writer.set_temperature(temp, wait, first_printing_extruder_id));
+            // Set temperature of the first printing extruder only.
+            int temp = print.config().nozzle_temperature_initial_layer.get_at(first_printing_extruder_id);
+            if (temp > 0)
+                file.write(m_writer.set_temperature(temp, wait, first_printing_extruder_id));
             }
         } else {
             // Set temperatures of all the printing extruders.
@@ -3892,8 +3892,8 @@ LayerResult GCode::process_layer(
       }
 
         if (print.config().multi_zone.value) {
-            // Transition from 1st to 2nd layer. Adjust nozzle temperatures as prescribed by the nozzle dependent
-            // nozzle_temperature_initial_layer vs. temperature settings.
+        // Transition from 1st to 2nd layer. Adjust nozzle temperatures as prescribed by the nozzle dependent
+        // nozzle_temperature_initial_layer vs. temperature settings.
             for (const Extruder& extruder : m_writer.extruders()) {
                 if ((print.config().single_extruder_multi_material.value || m_ooze_prevention.enable) &&
                     extruder.id() != m_writer.extruder()->id())
@@ -3958,16 +3958,16 @@ LayerResult GCode::process_layer(
             // Transition from 1st to 2nd layer. Adjust nozzle temperatures as prescribed by the nozzle dependent
             // nozzle_temperature_initial_layer vs. temperature settings.
             for (const Extruder& extruder : m_writer.extruders()) {
-                if ((print.config().single_extruder_multi_material.value || m_ooze_prevention.enable) &&
-                    extruder.id() != m_writer.extruder()->id())
-                    // In single extruder multi material mode, set the temperature for the current extruder only.
-                    continue;
-                int temperature = print.config().nozzle_temperature.get_at(extruder.id());
-                if (temperature > 0 && temperature != print.config().nozzle_temperature_initial_layer.get_at(extruder.id()))
-                    gcode += m_writer.set_temperature(temperature, false, extruder.id());
-            }
+            if ((print.config().single_extruder_multi_material.value || m_ooze_prevention.enable) &&
+                extruder.id() != m_writer.extruder()->id())
+                // In single extruder multi material mode, set the temperature for the current extruder only.
+                continue;
+            int temperature = print.config().nozzle_temperature.get_at(extruder.id());
+            if (temperature > 0 && temperature != print.config().nozzle_temperature_initial_layer.get_at(extruder.id()))
+                gcode += m_writer.set_temperature(temperature, false, extruder.id());
         }
-        
+        }
+
         // BBS
         int bed_temp = get_bed_temperature(first_extruder_id, false, print.config().curr_bed_type);
         gcode += m_writer.set_bed_temperature(bed_temp);

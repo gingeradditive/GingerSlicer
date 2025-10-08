@@ -968,7 +968,6 @@ void UnsavedChangesDialog::build(Preset::Type type, PresetCollection *dependent_
 
         (*btn)->SetStyle(focus ? ButtonStyle::Confirm : ButtonStyle::Regular, ButtonType::Choice);
 
-
         (*btn)->Bind(wxEVT_BUTTON, [this, close_act, dependent_presets](wxEvent &) {
             bool save_names_and_types = close_act == Action::Save || (close_act == Action::Transfer && ActionButtons::KEEP & m_buttons);
             if (save_names_and_types && !save(dependent_presets, close_act == Action::Save)) return;

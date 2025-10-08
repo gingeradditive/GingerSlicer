@@ -1560,7 +1560,8 @@ void GCodeProcessor::process_gcode_line(const GCodeReader::GCodeLine& line, bool
             process_SET_VELOCITY_LIMIT(line);
             return;
         }
-
+        
+        // GINGERSLICER: costum for fixing preview 
         if (boost::iequals(cmd, "START_PRINT"))
         {
             process_START_PRINT(line);
@@ -4036,6 +4037,7 @@ void GCodeProcessor::process_SET_VELOCITY_LIMIT(const GCodeReader::GCodeLine& li
                 set_option_value(m_time_processor.machine_limits.machine_max_speed_y, i, _speed);
         }
     }
+
 }
 
 void GCodeProcessor::process_M221(const GCodeReader::GCodeLine& line)
