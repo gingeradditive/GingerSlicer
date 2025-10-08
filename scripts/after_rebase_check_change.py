@@ -18,19 +18,24 @@ EXCLUDE_PATTERNS = [
 ]
 
 
+def run_git_command(args):
+    """Esegue un comando git e ritorna l'output come lista di righe."""
+    result = subprocess.run(
+        ["git"] + args,
+        cwd=BASE_DIR,
+        capture_output=True,
+        text=True
+    )
+    if result.returncode != 0:
+        return []
+    return result.stdout.strip().splitlines()
+
+
 def get_changed_files():
-    """Restituisce la lista dei file modificati rispetto a upstream/main, esclusi i pattern."""
     print("📋 Recupero elenco file modificati rispetto a upstream/main...")
     try:
-        result = subprocess.run(
-            ["git", "diff", "upstream/main", "--name-only"],
-            cwd=BASE_DIR,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        changed = result.stdout.strip().splitlines()
-    except subprocess.CalledProcessError as e:
+        changed = run_git_command(["diff", "upstream/main", "--name-only"])
+    except Exception as e:
         print("⚠️ Errore eseguendo git diff:", e)
         return []
 
@@ -44,7 +49,6 @@ def get_changed_files():
 
 
 def write_changed_files(changed_files):
-    """Scrive i file modificati su changed_files.txt."""
     try:
         with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
             for fname in changed_files:
@@ -55,7 +59,6 @@ def write_changed_files(changed_files):
 
 
 def restore_files_from_upstream():
-    """Ripristina i file elencati in changed_files.txt alla versione di upstream/main (senza commit)."""
     if not os.path.exists(OUTPUT_FILE):
         print("⚠️ Il file changed_files.txt non esiste. Esegui prima il diff.")
         return
@@ -67,10 +70,28 @@ def restore_files_from_upstream():
         print("ℹ️ Nessun file da ripristinare.")
         return
 
-    print(f"🔄 Ripristino {len(files_to_restore)} file da upstream/main...")
+    print(f"🔍 Verifica esistenza file in upstream/main...")
+
+    # Ottiene l'elenco dei file esistenti in upstream/main
+    existing_files = set(run_git_command(["ls-tree", "-r", "--name-only", "upstream/main"]))
+
+    # Filtra solo quelli effettivamente presenti
+    valid_files = [f for f in files_to_restore if f in existing_files]
+    missing_files = [f for f in files_to_restore if f not in existing_files]
+
+    print(f"🔄 Ripristino {len(valid_files)} file da upstream/main...")
+    if missing_files:
+        print(f"⚠️ {len(missing_files)} file non esistono in upstream/main e saranno ignorati.")
+        for f in missing_files[:10]:  # Mostra solo i primi 10 per non inondare la console
+            print(f"   └─ {f}")
+
+    if not valid_files:
+        print("ℹ️ Nessun file valido da ripristinare.")
+        return
+
     try:
         subprocess.run(
-            ["git", "checkout", "upstream/main", "--"] + files_to_restore,
+            ["git", "checkout", "upstream/main", "--"] + valid_files,
             cwd=BASE_DIR,
             check=True
         )
