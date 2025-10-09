@@ -119,59 +119,59 @@ jobs:
           security import $CERTIFICATE_PATH -P $P12_PASSWORD -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
           security list-keychain -d user -s $KEYCHAIN_PATH
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k $P12_PASSWORD $KEYCHAIN_PATH
-          codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer.app
+          codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" ${{ github.workspace }}/build/universal/GingerSlicer/GingerSlicer.app
           # Sign OrcaSlicer_profile_validator.app if it exists
-          if [ -f "${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
-            codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app
-          fi
+          # if [ -f "${{ github.workspace }}/build/universal/GingerSlicer/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
+          #   codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" ${{ github.workspace }}/build/universal/GingerSlicer/OrcaSlicer_profile_validator.app
+          # fi
           
-          # Create main OrcaSlicer DMG without the profile validator helper
-          mkdir -p ${{ github.workspace }}/build/universal/OrcaSlicer_dmg
-          rm -rf ${{ github.workspace }}/build/universal/OrcaSlicer_dmg/*
-          cp -R ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer.app ${{ github.workspace }}/build/universal/OrcaSlicer_dmg/
-          ln -sfn /Applications ${{ github.workspace }}/build/universal/OrcaSlicer_dmg/Applications
-          hdiutil create -volname "OrcaSlicer" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_dmg -ov -format UDZO OrcaSlicer_Mac_universal_${{ env.ver }}.dmg
-          codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" OrcaSlicer_Mac_universal_${{ env.ver }}.dmg
+          # Create main GingerSlicer DMG without the profile validator helper
+          mkdir -p ${{ github.workspace }}/build/universal/GingerSlicer_dmg
+          rm -rf ${{ github.workspace }}/build/universal/GingerSlicer_dmg/*
+          cp -R ${{ github.workspace }}/build/universal/GingerSlicer/GingerSlicer.app ${{ github.workspace }}/build/universal/GingerSlicer_dmg/
+          ln -sfn /Applications ${{ github.workspace }}/build/universal/GingerSlicer_dmg/Applications
+          hdiutil create -volname "GingerSlicer" -srcfolder ${{ github.workspace }}/build/universal/GingerSlicer_dmg -ov -format UDZO GingerSlicer_Mac_universal_${{ env.ver }}.dmg
+          codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" GingerSlicer_Mac_universal_${{ env.ver }}.dmg
           
           # Create separate OrcaSlicer_profile_validator DMG if the app exists
-          if [ -f "${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
-            mkdir -p ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg
-            rm -rf ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/*
-            cp -R ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/
-            ln -sfn /Applications ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/Applications
-            hdiutil create -volname "OrcaSlicer Profile Validator" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg -ov -format UDZO OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
-            codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
-          fi
+          # if [ -f "${{ github.workspace }}/build/universal/GingerSlicer/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
+          #   mkdir -p ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg
+          #   rm -rf ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/*
+          #   cp -R ${{ github.workspace }}/build/universal/GingerSlicer/OrcaSlicer_profile_validator.app ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/
+          #   ln -sfn /Applications ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/Applications
+          #   hdiutil create -volname "GingerSlicer Profile Validator" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg -ov -format UDZO OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
+          #   codesign --deep --force --verbose --options runtime --timestamp --entitlements ${{ github.workspace }}/scripts/disable_validation.entitlements --sign "$CERTIFICATE_ID" OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
+          # fi
           
           # Notarize main DMG
           xcrun notarytool store-credentials "notarytool-profile" --apple-id "${{ secrets.APPLE_DEV_ACCOUNT }}" --team-id "${{ secrets.TEAM_ID }}" --password "${{ secrets.APP_PWD }}"
-          xcrun notarytool submit "OrcaSlicer_Mac_universal_${{ env.ver }}.dmg" --keychain-profile "notarytool-profile" --wait
-          xcrun stapler staple OrcaSlicer_Mac_universal_${{ env.ver }}.dmg
+          xcrun notarytool submit "GingerSlicer_Mac_universal_${{ env.ver }}.dmg" --keychain-profile "notarytool-profile" --wait
+          xcrun stapler staple GingerSlicer_Mac_universal_${{ env.ver }}.dmg
           
           # Notarize profile validator DMG if it exists
-          if [ -f "OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg" ]; then
-            xcrun notarytool submit "OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg" --keychain-profile "notarytool-profile" --wait
-            xcrun stapler staple OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
-          fi
+          # if [ -f "OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg" ]; then
+          #   xcrun notarytool submit "OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg" --keychain-profile "notarytool-profile" --wait
+          #   xcrun stapler staple OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
+          # fi
 
       - name: Create DMG without notary
         if: github.ref != 'refs/heads/main' && inputs.os == 'macos-14'
         working-directory: ${{ github.workspace }}
         run: |
-          mkdir -p ${{ github.workspace }}/build/universal/OrcaSlicer_dmg
-          rm -rf ${{ github.workspace }}/build/universal/OrcaSlicer_dmg/*
-          cp -R ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer.app ${{ github.workspace }}/build/universal/OrcaSlicer_dmg/
-          ln -sfn /Applications ${{ github.workspace }}/build/universal/OrcaSlicer_dmg/Applications
-          hdiutil create -volname "OrcaSlicer" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_dmg -ov -format UDZO OrcaSlicer_Mac_universal_${{ env.ver }}.dmg
+          mkdir -p ${{ github.workspace }}/build/universal/GingerSlicer_dmg
+          rm -rf ${{ github.workspace }}/build/universal/GingerSlicer_dmg/*
+          cp -R ${{ github.workspace }}/build/universal/GingerSlicer/GingerSlicer.app ${{ github.workspace }}/build/universal/GingerSlicer_dmg/
+          ln -sfn /Applications ${{ github.workspace }}/build/universal/GingerSlicer_dmg/Applications
+          hdiutil create -volname "GingerSlicer" -srcfolder ${{ github.workspace }}/build/universal/GingerSlicer_dmg -ov -format UDZO GingerSlicer_Mac_universal_${{ env.ver }}.dmg
           
           # Create separate OrcaSlicer_profile_validator DMG if the app exists
-          if [ -f "${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
-            mkdir -p ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg
-            rm -rf ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/*
-            cp -R ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/
-            ln -sfn /Applications ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/Applications
-            hdiutil create -volname "OrcaSlicer Profile Validator" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg -ov -format UDZO OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
-          fi
+          # if [ -f "${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app/Contents/MacOS/OrcaSlicer_profile_validator" ]; then
+          #   mkdir -p ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg
+          #   rm -rf ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/*
+          #   cp -R ${{ github.workspace }}/build/universal/OrcaSlicer/OrcaSlicer_profile_validator.app ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/
+          #   ln -sfn /Applications ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg/Applications
+          #   hdiutil create -volname "OrcaSlicer Profile Validator" -srcfolder ${{ github.workspace }}/build/universal/OrcaSlicer_profile_validator_dmg -ov -format UDZO OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
+          # fi
 
       - name: Upload artifacts mac
         if: inputs.os == 'macos-14'
@@ -192,23 +192,23 @@ jobs:
         if: github.ref == 'refs/heads/main' && inputs.os == 'macos-14'
         uses: WebFreak001/deploy-nightly@v3.2.0
         with:
-          upload_url: https://uploads.github.com/repos/gingeradditive/OrcaSlicer/releases/296760087/assets{?name,label}
+          upload_url: https://uploads.github.com/repos/gingeradditive/GingerSlicer/releases/296760087/assets{?name,label}
           release_id: 137995723
-          asset_path: ${{ github.workspace }}/OrcaSlicer_Mac_universal_${{ env.ver }}.dmg
-          asset_name: OrcaSlicer_Mac_universal_nightly.dmg
+          asset_path: ${{ github.workspace }}/GingerSlicer_Mac_universal_${{ env.ver }}.dmg
+          asset_name: GingerSlicer_Mac_universal_nightly.dmg
           asset_content_type: application/octet-stream
           max_releases: 1 # optional, if there are more releases than this matching the asset_name, the oldest ones are going to be deleted
 
-      - name: Deploy Mac OrcaSlicer_profile_validator DMG release
-        if: github.ref == 'refs/heads/main' && inputs.os == 'macos-14'
-        uses: WebFreak001/deploy-nightly@v3.2.0
-        with:
-          upload_url: https://uploads.github.com/repos/SoftFever/OrcaSlicer/releases/137995723/assets{?name,label}
-          release_id: 137995723
-          asset_path: ${{ github.workspace }}/OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
-          asset_name: OrcaSlicer_profile_validator_Mac_universal_nightly.dmg
-          asset_content_type: application/octet-stream
-          max_releases: 1
+      # - name: Deploy Mac OrcaSlicer_profile_validator DMG release
+      #   if: github.ref == 'refs/heads/main' && inputs.os == 'macos-14'
+      #   uses: WebFreak001/deploy-nightly@v3.2.0
+      #   with:
+      #     upload_url: https://uploads.github.com/repos/SoftFever/OrcaSlicer/releases/137995723/assets{?name,label}
+      #     release_id: 137995723
+      #     asset_path: ${{ github.workspace }}/OrcaSlicer_profile_validator_Mac_universal_${{ env.ver }}.dmg
+      #     asset_name: OrcaSlicer_profile_validator_Mac_universal_nightly.dmg
+      #     asset_content_type: application/octet-stream
+      #     max_releases: 1
 
 # Windows
       - name: setup MSVC
@@ -279,10 +279,10 @@ jobs:
         if: github.ref == 'refs/heads/main' && inputs.os == 'windows-latest'
         uses: WebFreak001/deploy-nightly@v3.2.0
         with:
-          upload_url: https://uploads.github.com/repos/gingeradditive/OrcaSlicer/releases/296760087/assets{?name,label}
+          upload_url: https://uploads.github.com/repos/gingeradditive/GingerSlicer/releases/296760087/assets{?name,label}
           release_id: 137995723
-          asset_path: ${{ github.workspace }}/build/OrcaSlicer_Windows_${{ env.ver }}_portable.zip
-          asset_name: OrcaSlicer_Windows_nightly_portable.zip
+          asset_path: ${{ github.workspace }}/build/GingerSlicer_Windows_${{ env.ver }}_portable.zip
+          asset_name: GingerSlicer_Windows_nightly_portable.zip
           asset_content_type: application/x-zip-compressed
           max_releases: 1
 
@@ -290,23 +290,23 @@ jobs:
         if: github.ref == 'refs/heads/main' && inputs.os == 'windows-latest'
         uses: WebFreak001/deploy-nightly@v3.2.0
         with:
-          upload_url: https://uploads.github.com/repos/gingeradditive/OrcaSlicer/releases/296760087/assets{?name,label}
+          upload_url: https://uploads.github.com/repos/gingeradditive/GingerSlicer/releases/296760087/assets{?name,label}
           release_id: 137995723
-          asset_path: ${{ github.workspace }}/build/OrcaSlicer_Windows_Installer_${{ env.ver }}.exe
-          asset_name: OrcaSlicer_Windows_Installer_nightly.exe
+          asset_path: ${{ github.workspace }}/build/GingerSlicer_Windows_Installer_${{ env.ver }}.exe
+          asset_name: GingerSlicer_Windows_Installer_nightly.exe
           asset_content_type: application/x-msdownload
           max_releases: 1
 
-      - name: Deploy Windows OrcaSlicer_profile_validator release
-        if: github.ref == 'refs/heads/main' && inputs.os == 'windows-latest'
-        uses: WebFreak001/deploy-nightly@v3.2.0
-        with:
-          upload_url: https://uploads.github.com/repos/SoftFever/OrcaSlicer/releases/137995723/assets{?name,label}
-          release_id: 137995723
-          asset_path: ${{ github.workspace }}/build/src/Release/OrcaSlicer_profile_validator.exe
-          asset_name: OrcaSlicer_profile_validator_Windows_nightly.exe
-          asset_content_type: application/x-msdownload
-          max_releases: 1
+      # - name: Deploy Windows OrcaSlicer_profile_validator release
+      #   if: github.ref == 'refs/heads/main' && inputs.os == 'windows-latest'
+      #   uses: WebFreak001/deploy-nightly@v3.2.0
+      #   with:
+      #     upload_url: https://uploads.github.com/repos/SoftFever/OrcaSlicer/releases/137995723/assets{?name,label}
+      #     release_id: 137995723
+      #     asset_path: ${{ github.workspace }}/build/src/Release/OrcaSlicer_profile_validator.exe
+      #     asset_name: OrcaSlicer_profile_validator_Windows_nightly.exe
+      #     asset_content_type: application/x-msdownload
+      #     max_releases: 1
 
 # Ubuntu
       - name: Install dependencies
@@ -362,14 +362,14 @@ jobs:
           name: GingerSlicer_Linux_ubuntu_${{ env.ubuntu-ver }}_${{ env.ver }}
           path: './build/GingerSlicer_Linux_AppImage${{ env.ubuntu-ver-str }}_${{ env.ver }}.AppImage'
 
-      - name: Upload OrcaSlicer_profile_validator Ubuntu
-        if: ${{ ! env.ACT && inputs.os == 'ubuntu-20.04' || inputs.os == 'ubuntu-24.04' }}
-        env:
-          ubuntu-ver: ${{ (inputs.os == 'ubuntu-20.04' && '2004') || (inputs.os == 'ubuntu-24.04' && '2404') || '' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: OrcaSlicer_profile_validator_Linux_ubuntu_${{ env.ubuntu-ver }}_${{ env.ver }}
-          path: './build/src/Release/OrcaSlicer_profile_validator'
+      # - name: Upload OrcaSlicer_profile_validator Ubuntu
+      #   if: ${{ ! env.ACT && inputs.os == 'ubuntu-20.04' || inputs.os == 'ubuntu-24.04' }}
+      #   env:
+      #     ubuntu-ver: ${{ (inputs.os == 'ubuntu-20.04' && '2004') || (inputs.os == 'ubuntu-24.04' && '2404') || '' }}
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: OrcaSlicer_profile_validator_Linux_ubuntu_${{ env.ubuntu-ver }}_${{ env.ver }}
+      #     path: './build/src/Release/OrcaSlicer_profile_validator'
 
       - name: Deploy Ubuntu release
         if: ${{ ! env.ACT && github.ref == 'refs/heads/main' && (inputs.os == 'ubuntu-20.04' || inputs.os == 'ubuntu-24.04') }}
@@ -377,10 +377,10 @@ jobs:
           ubuntu-ver-str: ${{ (inputs.os == 'ubuntu-24.04' && '_Ubuntu2404') || '' }}
         uses: WebFreak001/deploy-nightly@v3.2.0
         with:
-          upload_url: https://uploads.github.com/repos/gingeradditive/OrcaSlicer/releases/296760087/assets{?name,label}
+          upload_url: https://uploads.github.com/repos/gingeradditive/GingerSlicer/releases/296760087/assets{?name,label}
           release_id: 137995723
-          asset_path: ./build/OrcaSlicer_Linux_AppImage${{ env.ubuntu-ver-str }}_${{ env.ver }}.AppImage
-          asset_name: OrcaSlicer_Linux_AppImage${{ env.ubuntu-ver-str }}_nightly.AppImage
+          asset_path: ./build/GingerSlicer_Linux_AppImage${{ env.ubuntu-ver-str }}_${{ env.ver }}.AppImage
+          asset_name: GingerSlicer_Linux_AppImage${{ env.ubuntu-ver-str }}_nightly.AppImage
           asset_content_type: application/octet-stream
           max_releases: 1 # optional, if there are more releases than this matching the asset_name, the oldest ones are going to be deleted
       - name: Deploy Ubuntu release
@@ -392,18 +392,18 @@ jobs:
           force_push_tag: true
           message: "nightly-builds"
 
-      - name: Deploy Ubuntu OrcaSlicer_profile_validator release
-        if: ${{ ! env.ACT && github.ref == 'refs/heads/main' && (inputs.os == 'ubuntu-20.04' || inputs.os == 'ubuntu-24.04') }}
-        env:
-          ubuntu-ver-str: ${{ (inputs.os == 'ubuntu-24.04' && '_Ubuntu2404') || '' }}
-        uses: WebFreak001/deploy-nightly@v3.2.0
-        with:
-          upload_url: https://uploads.github.com/repos/SoftFever/OrcaSlicer/releases/137995723/assets{?name,label}
-          release_id: 137995723
-          asset_path: ./build/src/Release/OrcaSlicer_profile_validator
-          asset_name: OrcaSlicer_profile_validator_Linux${{ env.ubuntu-ver-str }}_nightly
-          asset_content_type: application/octet-stream
-          max_releases: 1
+      # - name: Deploy Ubuntu OrcaSlicer_profile_validator release
+      #   if: ${{ ! env.ACT && github.ref == 'refs/heads/main' && (inputs.os == 'ubuntu-20.04' || inputs.os == 'ubuntu-24.04') }}
+      #   env:
+      #     ubuntu-ver-str: ${{ (inputs.os == 'ubuntu-24.04' && '_Ubuntu2404') || '' }}
+      #   uses: WebFreak001/deploy-nightly@v3.2.0
+      #   with:
+      #     upload_url: https://uploads.github.com/repos/SoftFever/OrcaSlicer/releases/137995723/assets{?name,label}
+      #     release_id: 137995723
+      #     asset_path: ./build/src/Release/OrcaSlicer_profile_validator
+      #     asset_name: OrcaSlicer_profile_validator_Linux${{ env.ubuntu-ver-str }}_nightly
+      #     asset_content_type: application/octet-stream
+      #     max_releases: 1
 
       # - name: Deploy orca_custom_preset_tests
       #   if: ${{ ! env.ACT && github.ref == 'refs/heads/main' && inputs.os == 'ubuntu-24.04' }}
