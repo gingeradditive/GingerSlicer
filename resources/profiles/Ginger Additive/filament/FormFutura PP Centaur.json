@@ -1,80 +1,73 @@
 {
     "extruder_rotation_volume": [
-        "640"
+        "650"
     ],
-    "filament_cost": [
-        "7"
+    "fan_max_speed": [
+        "99"
+    ],
+    "fan_min_speed": [
+        "55"
+    ],
+    "filament_density": [
+        "0.9"
     ],
     "filament_deretraction_speed": [
-        "250"
-    ],
-    "filament_retract_before_wipe": [
-        "0%"
+        "150"
     ],
     "filament_retract_restart_extra": [
-        "5"
-    ],
-    "filament_retract_when_changing_layer": [
-        "0"
+        "3"
     ],
     "filament_retraction_length": [
-        "10"
-    ],
-    "filament_retraction_minimum_travel": [
-        "0"
+        "8"
     ],
     "filament_retraction_speed": [
-        "250"
+        "150"
     ],
     "filament_settings_id": [
-        "FormFutura rPETG"
+        "FormFutura PP Centaur"
     ],
     "filament_start_gcode": [
         "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.4"
     ],
-    "filament_vendor": [
-        "FormFutura"
-    ],
-    "filament_wipe": [
-        "1"
+    "filament_type": [
+        "PP"
     ],
     "filament_wipe_distance": [
-        "7"
+        "5"
     ],
     "filament_z_hop": [
-        "0.5"
+        "0"
     ],
     "filament_z_hop_types": [
         "Normal Lift"
     ],
     "from": "system",
-    "inherits": "Generic PETG",
+    "inherits": "FormFutura rPETG 10GF",
     "is_custom_defined": "0",
     "multi_zone_1_initial_layer": [
-        "215"
+        "170"
     ],
     "multi_zone_1_temperature": [
-        "215"
+        "170"
     ],
     "multi_zone_2_initial_layer": [
-        "235"
+        "240"
     ],
     "multi_zone_2_temperature": [
-        "235"
+        "240"
     ],
     "multi_zone_3_initial_layer": [
-        "235"
+        "230"
     ],
     "multi_zone_3_temperature": [
-        "235"
+        "230"
     ],
-    "name": "FormFutura rPETG",
+    "name": "FormFutura PP Centaur",
     "pressure_advance": [
-        "0.25"
+        "0.2"
     ],
     "slow_down_layer_time": [
-        "50"
+        "30"
     ],
-    "version":"2.3.3.1",
-    "instantiation": "true"
+    "version": "2.3.3.1"
 }

@@ -1,9 +1,5 @@
 {
     "type": "filament",
-    "name": "fdm_filament_common",
-    "from": "system",
-    "filament_id": "P510eff9",
-    "instantiation": "false",
     "activate_air_filtration": [
         "0"
     ],
@@ -21,7 +17,6 @@
     ],
     "compatible_printers": [
         "Ginger G1 1.0 nozzle",
-        "Ginger G1 1.2 nozzle",
         "Ginger G1 3.0 nozzle",
         "Ginger G1 5.0 nozzle",
         "Ginger G1 8.0 nozzle"
@@ -92,6 +87,7 @@
     "filament_flow_ratio": [
         "1"
     ],
+    "filament_id": "P510eff9",
     "filament_is_support": [
         "0"
     ],
@@ -191,6 +187,7 @@
     "filament_z_hop_types": [
         "nil"
     ],
+    "from": "system",
     "full_fan_speed_layer": [
         "0"
     ],
@@ -200,6 +197,8 @@
     "hot_plate_temp_initial_layer": [
         "60"
     ],
+    "is_custom_defined": "0",
+    "name": "fdm_filament_common",
     "nozzle_temperature": [
         "220"
     ],
@@ -248,7 +247,9 @@
     "textured_plate_temp_initial_layer": [
         "55"
     ],
+    "version":"2.3.3.1",
     "pellet_flow_coefficient": [
         "1"
-    ]
+    ],
+    "instantiation": "false"
 }

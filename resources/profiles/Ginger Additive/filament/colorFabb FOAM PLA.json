@@ -6,16 +6,37 @@
         "1800"
     ],
     "fan_max_speed": [
-        "70"
+        "60"
     ],
     "fan_min_speed": [
-        "70"
+        "60"
     ],
     "filament_density": [
         "0.5"
     ],
     "filament_max_volumetric_speed": [
-        "1500"
+        "500"
+    ],
+    "filament_retract_restart_extra": [
+        "0"
+    ],
+    "filament_retract_when_changing_layer": [
+        "0"
+    ],
+    "filament_retraction_length": [
+        "0.01"
+    ],
+    "filament_wipe": [
+        "1"
+    ],
+    "filament_wipe_distance": [
+        "0"
+    ],
+    "filament_z_hop": [
+        "0"
+    ],
+    "filament_z_hop_types": [
+        "Normal Lift"
     ],
     "filament_settings_id": [
         "colorFabb FOAM PLA"
@@ -60,6 +81,6 @@
     "slow_down_layer_time": [
         "30"
     ],
-    "version":"2.3.3.0",
+    "version":"2.3.3.1",
     "instantiation": "true"
 }

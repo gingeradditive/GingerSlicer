@@ -1,0 +1,10 @@
+{
+    "filament_settings_id": [
+        "Generic HIPS"
+    ],
+    "from": "system",
+    "inherits": "Generic PETG",
+    "is_custom_defined": "0",
+    "name": "Generic HIPS",
+    "version": "2.3.3.1"
+}

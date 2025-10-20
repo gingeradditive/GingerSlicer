@@ -1,78 +1,138 @@
 {
-    "name": "Ginger Additive",
-    "version":"2.3.3.0",
-    "force_update": "1",
-    "description": "Ginger configuration",
-    "machine_model_list": [
-        {
-            "name": "Ginger G1",
-            "sub_path": "machine/Ginger G1.json"
-        }
-    ],
-    "machine_list": [
-        {
-            "name": "fdm_machine_common",
-            "sub_path": "machine/fdm_machine_common.json"
-        },
-        {
-            "name": "Ginger_G1_common",
-            "sub_path": "machine/Ginger_G1_common.json"
-        },
-        {
-            "name": "Ginger G1 1.2 nozzle",
-            "sub_path": "machine/Ginger G1 1.2 nozzle.json"
-        },
-        {
-            "name": "Ginger G1 3.0 nozzle",
-            "sub_path": "machine/Ginger G1 3.0 nozzle.json"
-        },
-        {
-            "name": "Ginger G1 5.0 nozzle",
-            "sub_path": "machine/Ginger G1 5.0 nozzle.json"
-        },
-        {
-            "name": "Ginger G1 8.0 nozzle",
-            "sub_path": "machine/Ginger G1 8.0 nozzle.json"
-        }
-    ],
-    "process_list": [
-        {
-            "name": "fdm_process_common",
-            "sub_path": "process/fdm_process_common.json"
-        },
-        {
-            "name": "0.60mm Standard",
-            "sub_path": "process/0.60mm Standard.json"
-        },
-        {
-            "name": "1.50mm Standard",
-            "sub_path": "process/1.50mm Standard.json"
-        },
-        {
-            "name": "1.80mm Vasemode",
-            "sub_path": "process/1.80mm Vasemode.json"
-        },
-        {
-            "name": "2.50mm Standard",
-            "sub_path": "process/2.50mm Standard.json"
-        },
-        {
-            "name": "4.00mm Standard",
-            "sub_path": "process/4.00mm Standard.json"
-        }
-    ],
-    "filament_list": [
-        {
-            "name": "fdm_filament_common",
-            "sub_path": "filament/fdm_filament_common.json"
-        },
-        {
-            "name": "Ginger Generic PETG",
-            "sub_path": "filament/Ginger Generic PETG.json"
-        },
-        {
-            "name": "Ginger Generic PLA",
-            "sub_path": "filament/Ginger Generic PLA.json"
-        }
-    ]
+  "name": "Ginger Additive",
+  "version":"2.3.3.1",
+  "force_update": "1",
+  "description": "Ginger configuration",
+  "machine_model_list": [
+    {
+      "name": "ginger G1",
+      "sub_path": "machine/Ginger G1.json"
+    }
+  ],
+  "machine_list": [
+    {
+      "name": "fdm_machine_common",
+      "sub_path": "machine/fdm_machine_common.json"
+    },
+    {
+      "name": "ginger G1 1.0 nozzle",
+      "sub_path": "machine/Ginger G1 1.0 nozzle.json"
+    },
+    {
+      "name": "ginger G1 3.0 nozzle",
+      "sub_path": "machine/Ginger G1 3.0 nozzle.json"
+    },
+    {
+      "name": "ginger G1 5.0 nozzle",
+      "sub_path": "machine/Ginger G1 5.0 nozzle.json"
+    },
+    {
+      "name": "ginger G1 8.0 nozzle",
+      "sub_path": "machine/Ginger G1 8.0 nozzle.json"
+    }
+  ],
+  "process_list": [
+    {
+      "name": "fdm_process_common",
+      "sub_path": "process/fdm_process_common.json"
+    },
+    {
+      "name": "0.60mm Standard",
+      "sub_path": "process/0.60mm Standard.json"
+    },
+    {
+      "name": "1.30mm Standard",
+      "sub_path": "process/1.30mm Standard.json"
+    },
+    {
+      "name": "1.50mm Standard",
+      "sub_path": "process/1.50mm Standard.json"
+    },
+    {
+      "name": "1.50mm Vasemode",
+      "sub_path": "process/1.50mm Vasemode.json"
+    },
+    {
+      "name": "1.80mm Vasemode",
+      "sub_path": "process/1.80mm Vasemode.json"
+    },
+    {
+      "name": "2.50mm Standard",
+      "sub_path": "process/2.50mm Standard.json"
+    },
+    {
+      "name": "4.00mm Standard",
+      "sub_path": "process/4.00mm Standard.json"
+    }
+  ],
+  "filament_list": [
+    {
+      "name": "fdm_filament_common",
+      "sub_path": "filament/fdm_filament_common.json"
+    },
+    {
+      "name": "Generic HIPS",
+      "sub_path": "filament/Generic HIPS.json"
+    },
+    {
+      "name": "Generic PETG",
+      "sub_path": "filament/Generic PETG.json"
+    },
+    {
+      "name": "Generic PLA",
+      "sub_path": "filament/Generic PLA.json"
+    },
+    {
+      "name": "Azure PETG",
+      "sub_path": "filament/Azure PETG.json"
+    },
+    {
+      "name": "Azure PLA",
+      "sub_path": "filament/Azure PLA.json"
+    },
+    {
+      "name": "Azure PETG",
+      "sub_path": "filament/Azure PETG.json"
+    },
+    {
+      "name": "colorFabb FOAM PLA",
+      "sub_path": "filament/colorFabb FOAM PLA.json"
+    },
+    {
+      "name": "FormFutura PP Centaur",
+      "sub_path": "filament/FormFutura PP Centaur.json"
+    },
+    {
+      "name": "FormFutura rPETG 10GF",
+      "sub_path": "filament/FormFutura rPETG 10GF.json"
+    },
+    {
+      "name": "FormFutura rPETG 20GF",
+      "sub_path": "filament/FormFutura rPETG 20GF.json"
+    },
+    {
+      "name": "FormFutura rPETG",
+      "sub_path": "filament/FormFutura rPETG.json"
+    },
+    {
+      "name": "Ginger rPLA",
+      "sub_path": "filament/Ginger rPLA.json"
+    },
+    {
+      "name": "MAIP ASA 5GF",
+      "sub_path": "filament/MAIP ASA 5GF.json"
+    },
+    {
+      "name": "polymaker PETG 20GF",
+      "sub_path": "filament/polymaker PETG 20GF.json"
+    },
+    {
+      "name": "SmartMaterials PLA olive",
+      "sub_path": "filament/SmartMaterials PLA olive.json"
+    },
+    {
+      "name": "SmartMaterials PLA oyster",
+      "sub_path": "filament/SmartMaterials PLA oyster.json"
+    }
+  ]
 }

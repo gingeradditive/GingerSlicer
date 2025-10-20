@@ -1,0 +1,55 @@
+{
+    "extruder_rotation_volume": [
+        "910"
+    ],
+    "fan_max_speed": [
+        "0"
+    ],
+    "fan_min_speed": [
+        "0"
+    ],
+    "filament_deretraction_speed": [
+        "200"
+    ],
+    "filament_retract_restart_extra": [
+        "30"
+    ],
+    "filament_retraction_length": [
+        "30"
+    ],
+    "filament_retraction_speed": [
+        "200"
+    ],
+    "filament_settings_id": [
+        "polymaker PETG 20GF"
+    ],
+    "filament_start_gcode": [
+        "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.2"
+    ],
+    "filament_wipe_distance": [
+        "10"
+    ],
+    "filament_z_hop_types": [
+        "Normal Lift"
+    ],
+    "from": "system",
+    "inherits": "FormFutura rPETG 10GF",
+    "is_custom_defined": "0",
+    "multi_zone_2_initial_layer": [
+        "230"
+    ],
+    "multi_zone_2_temperature": [
+        "230"
+    ],
+    "multi_zone_3_initial_layer": [
+        "240"
+    ],
+    "multi_zone_3_temperature": [
+        "240"
+    ],
+    "name": "polymaker PETG 20GF",
+    "pressure_advance": [
+        "0.7"
+    ],
+    "version": "2.3.3.1"
+}

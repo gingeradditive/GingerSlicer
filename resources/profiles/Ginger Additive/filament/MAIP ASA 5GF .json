@@ -1,0 +1,55 @@
+{
+    "extruder_rotation_volume": [
+        "730"
+    ],
+    "fan_max_speed": [
+        "70"
+    ],
+    "fan_min_speed": [
+        "0"
+    ],
+    "filament_density": [
+        "1.07"
+    ],
+    "filament_settings_id": [
+        "MAIP ASA 5GF "
+    ],
+    "filament_type": [
+        "ASA-GF"
+    ],
+    "filament_vendor": [
+        "MAIP"
+    ],
+    "from": "system",
+    "inherits": "FormFutura rPETG 10GF",
+    "is_custom_defined": "0",
+    "mixing_stepper_rotation_volume": [
+        "6000"
+    ],
+    "multi_zone_1_initial_layer": [
+        "220"
+    ],
+    "multi_zone_1_temperature": [
+        "220"
+    ],
+    "multi_zone_2_initial_layer": [
+        "240"
+    ],
+    "multi_zone_2_temperature": [
+        "240"
+    ],
+    "multi_zone_3_initial_layer": [
+        "260"
+    ],
+    "multi_zone_3_temperature": [
+        "260"
+    ],
+    "name": "MAIP ASA 5GF ",
+    "pressure_advance": [
+        "0.4"
+    ],
+    "slow_down_layer_time": [
+        "30"
+    ],
+    "version": "2.3.3.1"
+}
