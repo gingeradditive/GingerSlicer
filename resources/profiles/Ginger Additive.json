@@ -1,11 +1,11 @@
 {
   "name": "Ginger Additive",
-  "version":"2.3.3.1",
+  "version": "2.3.3.2",
   "force_update": "1",
   "description": "Ginger configuration",
   "machine_model_list": [
     {
-      "name": "ginger G1",
+      "name": "Ginger G1",
       "sub_path": "machine/Ginger G1.json"
     }
   ],
@@ -15,19 +15,19 @@
       "sub_path": "machine/fdm_machine_common.json"
     },
     {
-      "name": "ginger G1 1.0 nozzle",
+      "name": "Ginger G1 1.0 nozzle",
       "sub_path": "machine/Ginger G1 1.0 nozzle.json"
     },
     {
-      "name": "ginger G1 3.0 nozzle",
+      "name": "Ginger G1 3.0 nozzle",
       "sub_path": "machine/Ginger G1 3.0 nozzle.json"
     },
     {
-      "name": "ginger G1 5.0 nozzle",
+      "name": "Ginger G1 5.0 nozzle",
       "sub_path": "machine/Ginger G1 5.0 nozzle.json"
     },
     {
-      "name": "ginger G1 8.0 nozzle",
+      "name": "Ginger G1 8.0 nozzle",
       "sub_path": "machine/Ginger G1 8.0 nozzle.json"
     }
   ],
@@ -71,16 +71,16 @@
       "sub_path": "filament/fdm_filament_common.json"
     },
     {
-      "name": "Generic HIPS",
-      "sub_path": "filament/Generic HIPS.json"
-    },
-    {
       "name": "Generic PETG",
       "sub_path": "filament/Generic PETG.json"
     },
     {
       "name": "Generic PLA",
       "sub_path": "filament/Generic PLA.json"
+    },
+    {
+      "name": "Generic HIPS",
+      "sub_path": "filament/Generic HIPS.json"
     },
     {
       "name": "Azure PETG",
@@ -91,16 +91,8 @@
       "sub_path": "filament/Azure PLA.json"
     },
     {
-      "name": "Azure PETG",
-      "sub_path": "filament/Azure PETG.json"
-    },
-    {
       "name": "colorFabb FOAM PLA",
       "sub_path": "filament/colorFabb FOAM PLA.json"
-    },
-    {
-      "name": "FormFutura PP Centaur",
-      "sub_path": "filament/FormFutura PP Centaur.json"
     },
     {
       "name": "FormFutura rPETG 10GF",
@@ -109,6 +101,10 @@
     {
       "name": "FormFutura rPETG 20GF",
       "sub_path": "filament/FormFutura rPETG 20GF.json"
+    },
+    {
+      "name": "FormFutura PP Centaur",
+      "sub_path": "filament/FormFutura PP Centaur.json"
     },
     {
       "name": "FormFutura rPETG",

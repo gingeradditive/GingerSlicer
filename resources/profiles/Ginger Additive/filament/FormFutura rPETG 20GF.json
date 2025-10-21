@@ -1,55 +1,52 @@
 {
    "extruder_rotation_volume": [
-      "910"
+      "730"
    ],
    "fan_max_speed": [
-      "0"
+      "70"
    ],
    "fan_min_speed": [
       "0"
    ],
-   "filament_deretraction_speed": [
-      "200"
-   ],
-   "filament_retract_restart_extra": [
-      "30"
-   ],
    "filament_retraction_length": [
       "30"
    ],
-   "filament_retraction_speed": [
-      "200"
-   ],
    "filament_settings_id": [
-      "polymaker PETG 20GF"
+      "FormFutura rPETG 20GF"
    ],
    "filament_start_gcode": [
-      "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.2"
-   ],
-   "filament_wipe_distance": [
-      "10"
-   ],
-   "filament_z_hop_types": [
-      "Normal Lift"
+      "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.7"
    ],
    "from": "system",
    "inherits": "FormFutura rPETG 10GF",
    "is_custom_defined": "0",
+   "mixing_stepper_rotation_volume": [
+      "6000"
+   ],
+   "multi_zone_1_initial_layer": [
+      "220"
+   ],
+   "multi_zone_1_temperature": [
+      "220"
+   ],
    "multi_zone_2_initial_layer": [
-      "230"
+      "235"
    ],
    "multi_zone_2_temperature": [
-      "230"
+      "235"
    ],
    "multi_zone_3_initial_layer": [
-      "240"
+      "245"
    ],
    "multi_zone_3_temperature": [
-      "240"
+      "245"
    ],
-   "name": "polymaker PETG 20GF",
+   "name": "FormFutura rPETG 20GF",
    "pressure_advance": [
-      "0.7"
+      "0.6"
+   ],
+   "slow_down_layer_time": [
+      "30"
    ],
    "compatible_printers": [
       "Ginger G1 1.0 nozzle",

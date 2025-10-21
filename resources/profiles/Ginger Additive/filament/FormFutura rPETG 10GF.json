@@ -1,98 +1,104 @@
 {
-    "extruder_rotation_volume": [
-        "640"
-    ],
-    "fan_max_speed": [
-        "58"
-    ],
-    "fan_min_speed": [
-        "40"
-    ],
-    "filament_cost": [
-        "7"
-    ],
-    "filament_density": [
-        "1.25"
-    ],
-    "filament_deretraction_speed": [
-        "250"
-    ],
-    "filament_retract_before_wipe": [
-        "0%"
-    ],
-    "filament_retract_restart_extra": [
-        "15"
-    ],
-    "filament_retract_when_changing_layer": [
-        "0"
-    ],
-    "filament_retraction_length": [
-        "20"
-    ],
-    "filament_retraction_minimum_travel": [
-        "3"
-    ],
-    "filament_retraction_speed": [
-        "250"
-    ],
-    "filament_settings_id": [
-        "FormFutura rPETG 10GF"
-    ],
-    "filament_start_gcode": [
-        "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.6"
-    ],
-    "filament_type": [
-        "PETG-GF"
-    ],
-    "filament_vendor": [
-        "FormFutura"
-    ],
-    "filament_wipe": [
-        "1"
-    ],
-    "filament_wipe_distance": [
-        "7"
-    ],
-    "filament_z_hop": [
-        "1"
-    ],
-    "filament_z_hop_types": [
-        "Slope Lift"
-    ],
-    "from": "system",
-    "full_fan_speed_layer": [
-        "8"
-    ],
-    "hot_plate_temp_initial_layer": [
-        "80"
-    ],
-    "inherits": "Generic PETG",
-    "is_custom_defined": "0",
-    "multi_zone_1_initial_layer": [
-        "205"
-    ],
-    "multi_zone_1_temperature": [
-        "205"
-    ],
-    "multi_zone_2_initial_layer": [
-        "225"
-    ],
-    "multi_zone_2_temperature": [
-        "225"
-    ],
-    "multi_zone_3_initial_layer": [
-        "225"
-    ],
-    "multi_zone_3_temperature": [
-        "225"
-    ],
-    "name": "FormFutura rPETG 10GF",
-    "pressure_advance": [
-        "0.5"
-    ],
-    "slow_down_layer_time": [
-        "40"
-    ],
-    "version":"2.3.3.1",
-    "instantiation": "true"
+   "extruder_rotation_volume": [
+      "640"
+   ],
+   "fan_max_speed": [
+      "58"
+   ],
+   "fan_min_speed": [
+      "40"
+   ],
+   "filament_cost": [
+      "7"
+   ],
+   "filament_density": [
+      "1.25"
+   ],
+   "filament_deretraction_speed": [
+      "250"
+   ],
+   "filament_retract_before_wipe": [
+      "0%"
+   ],
+   "filament_retract_restart_extra": [
+      "15"
+   ],
+   "filament_retract_when_changing_layer": [
+      "0"
+   ],
+   "filament_retraction_length": [
+      "20"
+   ],
+   "filament_retraction_minimum_travel": [
+      "3"
+   ],
+   "filament_retraction_speed": [
+      "250"
+   ],
+   "filament_settings_id": [
+      "FormFutura rPETG 10GF"
+   ],
+   "filament_start_gcode": [
+      "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.6"
+   ],
+   "filament_type": [
+      "PETG-GF"
+   ],
+   "filament_vendor": [
+      "FormFutura"
+   ],
+   "filament_wipe": [
+      "1"
+   ],
+   "filament_wipe_distance": [
+      "7"
+   ],
+   "filament_z_hop": [
+      "1"
+   ],
+   "filament_z_hop_types": [
+      "Slope Lift"
+   ],
+   "from": "system",
+   "full_fan_speed_layer": [
+      "8"
+   ],
+   "hot_plate_temp_initial_layer": [
+      "80"
+   ],
+   "inherits": "Generic PETG",
+   "is_custom_defined": "0",
+   "multi_zone_1_initial_layer": [
+      "205"
+   ],
+   "multi_zone_1_temperature": [
+      "205"
+   ],
+   "multi_zone_2_initial_layer": [
+      "225"
+   ],
+   "multi_zone_2_temperature": [
+      "225"
+   ],
+   "multi_zone_3_initial_layer": [
+      "225"
+   ],
+   "multi_zone_3_temperature": [
+      "225"
+   ],
+   "name": "FormFutura rPETG 10GF",
+   "pressure_advance": [
+      "0.5"
+   ],
+   "slow_down_layer_time": [
+      "40"
+   ],
+   "version": "2.3.3.2",
+   "compatible_printers": [
+      "Ginger G1 1.0 nozzle",
+      "Ginger G1 3.0 nozzle",
+      "Ginger G1 5.0 nozzle",
+      "Ginger G1 8.0 nozzle"
+   ],
+   "instantiation": "true"
 }

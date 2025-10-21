@@ -1,58 +1,65 @@
 {
-    "extruder_rotation_volume": [
-        "600"
-    ],
-    "filament_deretraction_speed": [
-        "250"
-    ],
-    "filament_retract_restart_extra": [
-        "15"
-    ],
-    "filament_retraction_length": [
-        "20"
-    ],
-    "filament_retraction_minimum_travel": [
-        "3"
-    ],
-    "filament_retraction_speed": [
-        "250"
-    ],
-    "filament_settings_id": [
-        "SmartMaterials PLA oyster"
-    ],
-    "filament_vendor": [
-        "SmartMaterials"
-    ],
-    "filament_wipe_distance": [
-        "7"
-    ],
-    "filament_z_hop": [
-        "1"
-    ],
-    "filament_z_hop_types": [
-        "Slope Lift"
-    ],
-    "from": "system",
-    "inherits": "Ginger rPLA",
-    "is_custom_defined": "0",
-    "multi_zone_1_initial_layer": [
-        "185"
-    ],
-    "multi_zone_1_temperature": [
-        "185"
-    ],
-    "multi_zone_2_initial_layer": [
-        "185"
-    ],
-    "multi_zone_2_temperature": [
-        "185"
-    ],
-    "multi_zone_3_initial_layer": [
-        "185"
-    ],
-    "multi_zone_3_temperature": [
-        "185"
-    ],
-    "name": "SmartMaterials PLA oyster",
-    "version": "2.3.3.1"
+   "extruder_rotation_volume": [
+      "600"
+   ],
+   "filament_deretraction_speed": [
+      "250"
+   ],
+   "filament_retract_restart_extra": [
+      "15"
+   ],
+   "filament_retraction_length": [
+      "20"
+   ],
+   "filament_retraction_minimum_travel": [
+      "3"
+   ],
+   "filament_retraction_speed": [
+      "250"
+   ],
+   "filament_settings_id": [
+      "SmartMaterials PLA oyster"
+   ],
+   "filament_vendor": [
+      "SmartMaterials"
+   ],
+   "filament_wipe_distance": [
+      "7"
+   ],
+   "filament_z_hop": [
+      "1"
+   ],
+   "filament_z_hop_types": [
+      "Slope Lift"
+   ],
+   "from": "system",
+   "inherits": "Ginger rPLA",
+   "is_custom_defined": "0",
+   "multi_zone_1_initial_layer": [
+      "185"
+   ],
+   "multi_zone_1_temperature": [
+      "185"
+   ],
+   "multi_zone_2_initial_layer": [
+      "185"
+   ],
+   "multi_zone_2_temperature": [
+      "185"
+   ],
+   "multi_zone_3_initial_layer": [
+      "185"
+   ],
+   "multi_zone_3_temperature": [
+      "185"
+   ],
+   "name": "SmartMaterials PLA oyster",
+   "compatible_printers": [
+      "Ginger G1 1.0 nozzle",
+      "Ginger G1 3.0 nozzle",
+      "Ginger G1 5.0 nozzle",
+      "Ginger G1 8.0 nozzle"
+   ],
+   "version": "2.3.3.2",
+   "instantiation": "true"
 }

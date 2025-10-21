@@ -1,86 +1,92 @@
 {
-    "enable_pressure_advance": [
-        "0"
-    ],
-    "extruder_rotation_volume": [
-        "1800"
-    ],
-    "fan_max_speed": [
-        "60"
-    ],
-    "fan_min_speed": [
-        "60"
-    ],
-    "filament_density": [
-        "0.5"
-    ],
-    "filament_max_volumetric_speed": [
-        "500"
-    ],
-    "filament_retract_restart_extra": [
-        "0"
-    ],
-    "filament_retract_when_changing_layer": [
-        "0"
-    ],
-    "filament_retraction_length": [
-        "0.01"
-    ],
-    "filament_wipe": [
-        "1"
-    ],
-    "filament_wipe_distance": [
-        "0"
-    ],
-    "filament_z_hop": [
-        "0"
-    ],
-    "filament_z_hop_types": [
-        "Normal Lift"
-    ],
-    "filament_settings_id": [
-        "colorFabb FOAM PLA"
-    ],
-    "filament_start_gcode": [
-        "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.6"
-    ],
-    "filament_vendor": [
-        "colorFabb"
-    ],
-    "from": "system",
-    "hot_plate_temp": [
-        "70"
-    ],
-    "hot_plate_temp_initial_layer": [
-        "70"
-    ],
-    "inherits": "Generic PLA",
-    "is_custom_defined": "0",
-    "mixing_stepper_rotation_volume": [
-        "15000"
-    ],
-    "multi_zone_1_initial_layer": [
-        "185"
-    ],
-    "multi_zone_1_temperature": [
-        "185"
-    ],
-    "multi_zone_2_initial_layer": [
-        "210"
-    ],
-    "multi_zone_2_temperature": [
-        "210"
-    ],
-    "multi_zone_3_initial_layer": [
-        "210"
-    ],
-    "multi_zone_3_temperature": [
-        "210"
-    ],
-    "name": "colorFabb FOAM PLA",
-    "slow_down_layer_time": [
-        "30"
-    ],
-    "version":"2.3.3.1",
-    "instantiation": "true"
+   "enable_pressure_advance": [
+      "0"
+   ],
+   "extruder_rotation_volume": [
+      "1800"
+   ],
+   "fan_max_speed": [
+      "60"
+   ],
+   "fan_min_speed": [
+      "60"
+   ],
+   "filament_density": [
+      "0.5"
+   ],
+   "filament_max_volumetric_speed": [
+      "500"
+   ],
+   "filament_retract_restart_extra": [
+      "0"
+   ],
+   "filament_retract_when_changing_layer": [
+      "0"
+   ],
+   "filament_retraction_length": [
+      "0.01"
+   ],
+   "filament_wipe": [
+      "1"
+   ],
+   "filament_wipe_distance": [
+      "0"
+   ],
+   "filament_z_hop": [
+      "0"
+   ],
+   "filament_z_hop_types": [
+      "Normal Lift"
+   ],
+   "filament_settings_id": [
+      "colorFabb FOAM PLA"
+   ],
+   "filament_start_gcode": [
+      "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.6"
+   ],
+   "filament_vendor": [
+      "colorFabb"
+   ],
+   "from": "system",
+   "hot_plate_temp": [
+      "70"
+   ],
+   "hot_plate_temp_initial_layer": [
+      "70"
+   ],
+   "inherits": "Generic PLA",
+   "is_custom_defined": "0",
+   "mixing_stepper_rotation_volume": [
+      "15000"
+   ],
+   "multi_zone_1_initial_layer": [
+      "185"
+   ],
+   "multi_zone_1_temperature": [
+      "185"
+   ],
+   "multi_zone_2_initial_layer": [
+      "210"
+   ],
+   "multi_zone_2_temperature": [
+      "210"
+   ],
+   "multi_zone_3_initial_layer": [
+      "210"
+   ],
+   "multi_zone_3_temperature": [
+      "210"
+   ],
+   "name": "colorFabb FOAM PLA",
+   "slow_down_layer_time": [
+      "30"
+   ],
+   "version": "2.3.3.2",
+   "compatible_printers": [
+      "Ginger G1 1.0 nozzle",
+      "Ginger G1 3.0 nozzle",
+      "Ginger G1 5.0 nozzle",
+      "Ginger G1 8.0 nozzle"
+   ],
+   "instantiation": "true"
 }

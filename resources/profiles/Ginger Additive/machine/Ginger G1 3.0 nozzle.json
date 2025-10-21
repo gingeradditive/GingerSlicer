@@ -41,15 +41,14 @@
   "travel_slope": [
     "3"
   ],
-  "version":"2.3.3.1",
+  "version": "2.3.3.2",
   "z_hop": [
     "1"
   ],
   "type": "machine",
   "name": "Ginger G1 3.0 nozzle",
-  "renamed_from":"ginger G1 3.0 nozzle",
   "printer_settings_id": "Ginger G1 3.0 nozzle",
   "instantiation": "true",
   "inherits": "fdm_machine_common",
-  "printer_model": "ginger G1"
+  "printer_model": "Ginger G1"
 }

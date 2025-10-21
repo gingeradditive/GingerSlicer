@@ -1,50 +1,56 @@
 {
-    "extruder_rotation_volume": [
-        "460"
-    ],
-    "filament_max_volumetric_speed": [
-        "200"
-    ],
-    "filament_settings_id": [
-        "Azure PLA"
-    ],
-    "filament_start_gcode": [
-        "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.6"
-    ],
-    "filament_vendor": [
-        "Azure"
-    ],
-    "from": "system",
-    "hot_plate_temp": [
-        "60"
-    ],
-    "hot_plate_temp_initial_layer": [
-        "60"
-    ],
-    "inherits": "Generic PLA",
-    "is_custom_defined": "0",
-    "mixing_stepper_rotation_volume": [
-        "5000"
-    ],
-    "multi_zone_1_initial_layer": [
-        "215"
-    ],
-    "multi_zone_1_temperature": [
-        "215"
-    ],
-    "multi_zone_2_initial_layer": [
-        "210"
-    ],
-    "multi_zone_2_temperature": [
-        "210"
-    ],
-    "multi_zone_3_initial_layer": [
-        "210"
-    ],
-    "multi_zone_3_temperature": [
-        "210"
-    ],
-    "name": "Azure PLA",
-    "version":"2.3.3.1",
-    "instantiation": "true"
+   "extruder_rotation_volume": [
+      "460"
+   ],
+   "filament_max_volumetric_speed": [
+      "200"
+   ],
+   "filament_settings_id": [
+      "Azure PLA"
+   ],
+   "filament_start_gcode": [
+      "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.6"
+   ],
+   "filament_vendor": [
+      "Azure"
+   ],
+   "from": "system",
+   "hot_plate_temp": [
+      "60"
+   ],
+   "hot_plate_temp_initial_layer": [
+      "60"
+   ],
+   "inherits": "Generic PLA",
+   "is_custom_defined": "0",
+   "mixing_stepper_rotation_volume": [
+      "5000"
+   ],
+   "multi_zone_1_initial_layer": [
+      "215"
+   ],
+   "multi_zone_1_temperature": [
+      "215"
+   ],
+   "multi_zone_2_initial_layer": [
+      "210"
+   ],
+   "multi_zone_2_temperature": [
+      "210"
+   ],
+   "multi_zone_3_initial_layer": [
+      "210"
+   ],
+   "multi_zone_3_temperature": [
+      "210"
+   ],
+   "name": "Azure PLA",
+   "version": "2.3.3.2",
+   "compatible_printers": [
+      "Ginger G1 1.0 nozzle",
+      "Ginger G1 3.0 nozzle",
+      "Ginger G1 5.0 nozzle",
+      "Ginger G1 8.0 nozzle"
+   ],
+   "instantiation": "true"
 }
