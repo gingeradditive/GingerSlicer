@@ -4729,20 +4729,8 @@ void TabPrinter::toggle_options()
             toggle_line(el, is_BBL_printer);
 
         // SoftFever: hide non-BBL settings
-        for (auto el : {"use_firmware_retraction", "use_relative_e_distances", "support_multi_bed_types", "pellet_modded_printer",
-            "multi_zone", "multi_zone_number", "use_extruder_rotation_volume", "use_active_pellet_feeding", "bed_mesh_max",
-            "bed_mesh_min", "bed_mesh_probe_distance", "adaptive_bed_mesh_margin", "thumbnails"})
+        for (auto el : {"use_firmware_retraction", "use_relative_e_distances", "support_multi_bed_types", "pellet_modded_printer", "bed_mesh_max", "bed_mesh_min", "bed_mesh_probe_distance", "adaptive_bed_mesh_margin", "thumbnails"})
           toggle_line(el, !is_BBL_printer);
-
-
-        bool is_pellet_printer = m_config->opt_bool("pellet_modded_printer");
-        auto gcf               = m_config->option<ConfigOptionEnum<GCodeFlavor>>("gcode_flavor")->value;
-        toggle_line("use_active_pellet_feeding", is_pellet_printer && gcf == gcfKlipper);
-        toggle_line("use_extruder_rotation_volume", is_pellet_printer && gcf == gcfKlipper);
-
-        auto cfg           = m_preset_bundle->printers.get_edited_preset().config;
-        bool is_multi_zone = cfg.opt_bool("multi_zone");
-        toggle_line("multi_zone_number", is_multi_zone);
     }
 
     if (m_active_page->title() == L("Multimaterial")) {
