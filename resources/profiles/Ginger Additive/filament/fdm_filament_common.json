@@ -179,7 +179,7 @@
       "nil"
    ],
    "filament_z_hop_types": [
-      "nil"
+      "Normal Lift"
    ],
    "from": "system",
    "full_fan_speed_layer": [
@@ -241,7 +241,7 @@
    "textured_plate_temp_initial_layer": [
       "55"
    ],
-   "version": "2.3.3.2",
+   "version": "2.3.3.3",
    "pellet_flow_coefficient": [
       "1"
    ],

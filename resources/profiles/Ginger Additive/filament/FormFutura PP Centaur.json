@@ -38,9 +38,6 @@
    "filament_z_hop": [
       "0"
    ],
-   "filament_z_hop_types": [
-      "Normal Lift"
-   ],
    "from": "system",
    "inherits": "FormFutura rPETG 10GF",
    "is_custom_defined": "0",
@@ -75,6 +72,6 @@
       "Ginger G1 5.0 nozzle",
       "Ginger G1 8.0 nozzle"
    ],
-   "version": "2.3.3.2",
+   "version": "2.3.3.3",
    "instantiation": "true"
 }

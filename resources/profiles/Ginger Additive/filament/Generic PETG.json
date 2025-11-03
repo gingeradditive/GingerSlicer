@@ -2,7 +2,7 @@
    "from": "system",
    "type": "filament",
    "instantiation": "true",
-   "version": "2.3.3.2",
+   "version": "2.3.3.3",
    "filament_vendor": [
       "Generic"
    ],
@@ -84,9 +84,6 @@
    "filament_z_hop": [
       "nil"
    ],
-   "filament_z_hop_types": [
-      "nil"
-   ],
    "hot_plate_temp": [
       "80"
    ],
@@ -95,12 +92,12 @@
    ],
    "is_custom_defined": "0",
    "mixing_stepper_rotation_volume": "8000",
-   "multi_zone_1_initial_layer": "240",
-   "multi_zone_1_temperature": "240",
+   "multi_zone_1_initial_layer": "220",
+   "multi_zone_1_temperature": "220",
    "multi_zone_2_initial_layer": "240",
    "multi_zone_2_temperature": "240",
-   "multi_zone_3_initial_layer": "220",
-   "multi_zone_3_temperature": "220",
+   "multi_zone_3_initial_layer": "240",
+   "multi_zone_3_temperature": "240",
    "nozzle_temperature_range_high": [
       "260"
    ],

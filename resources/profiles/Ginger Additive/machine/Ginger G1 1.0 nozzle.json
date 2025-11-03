@@ -5,7 +5,7 @@
     "instantiation": "true",
     "inherits": "fdm_machine_common",
     "max_layer_height": [
-        "1"
+        "1.8"
     ],
     "nozzle_diameter": [
         "1.0"
@@ -34,5 +34,5 @@
     "retract_restart_extra": [
         "25"
     ],
-    "version": "2.3.3.2"
+    "version": "2.3.3.3"
 }

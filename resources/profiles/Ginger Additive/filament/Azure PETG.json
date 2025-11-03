@@ -47,9 +47,6 @@
    "filament_z_hop": [
       "0.5"
    ],
-   "filament_z_hop_types": [
-      "Normal Lift"
-   ],
    "from": "system",
    "full_fan_speed_layer": [
       "8"
@@ -84,7 +81,7 @@
    "slow_down_layer_time": [
       "50"
    ],
-   "version": "2.3.3.2",
+   "version": "2.3.3.3",
    "compatible_printers": [
       "Ginger G1 1.0 nozzle",
       "Ginger G1 3.0 nozzle",

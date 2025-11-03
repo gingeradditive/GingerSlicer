@@ -21,7 +21,7 @@
       "200"
    ],
    "filament_settings_id": [
-      "polymaker PETG 20GF"
+      "Polymaker PETG 20GF"
    ],
    "filament_start_gcode": [
       "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.2"
@@ -29,11 +29,8 @@
    "filament_wipe_distance": [
       "10"
    ],
-   "filament_z_hop_types": [
-      "Normal Lift"
-   ],
    "from": "system",
-   "inherits": "FormFutura rPETG 10GF",
+   "inherits": "Polymaker rPETG 10GF",
    "is_custom_defined": "0",
    "multi_zone_2_initial_layer": [
       "230"
@@ -47,7 +44,7 @@
    "multi_zone_3_temperature": [
       "240"
    ],
-   "name": "polymaker PETG 20GF",
+   "name": "Polymaker PETG 20GF",
    "pressure_advance": [
       "0.7"
    ],
@@ -57,6 +54,6 @@
       "Ginger G1 5.0 nozzle",
       "Ginger G1 8.0 nozzle"
    ],
-   "version": "2.3.3.2",
+   "version": "2.3.3.3",
    "instantiation": "true"
 }

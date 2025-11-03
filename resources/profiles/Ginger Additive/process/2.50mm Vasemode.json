@@ -1,0 +1,25 @@
+{
+	"bottom_shell_layers": "2",
+	"brim_type": "outer_only",
+	"brim_width": "0",
+	"compatible_printers": [
+		"Ginger G1 5.0 nozzle"
+	],
+	"from": "system",
+	"inherits": "fdm_process_vasemode_common",
+	"initial_layer_line_width": "6",
+	"initial_layer_print_height": "2.5",
+	"instantiation": "true",
+	"internal_solid_infill_line_width": "6",
+	"is_custom_defined": "0",
+	"layer_height": "2.5",
+	"line_width": "6",
+	"name": "2.50mm Vasemode",
+	"outer_wall_line_width": "6",
+	"outer_wall_speed": "120",
+	"print_settings_id": "2.50mm Vasemode",
+	"skirt_distance": "10",
+	"sparse_infill_line_width": "6",
+	"type": "process",
+	"version": "2.3.3.3"
+}

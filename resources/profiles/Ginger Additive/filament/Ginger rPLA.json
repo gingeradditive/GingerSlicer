@@ -47,9 +47,6 @@
    "filament_z_hop": [
       "0.5"
    ],
-   "filament_z_hop_types": [
-      "Spiral Lift"
-   ],
    "from": "system",
    "hot_plate_temp": [
       "55"
@@ -60,7 +57,7 @@
    "inherits": "Generic PLA",
    "is_custom_defined": "0",
    "mixing_stepper_rotation_volume": [
-      "8000"
+      "4000"
    ],
    "multi_zone_1_initial_layer": [
       "205"
@@ -87,7 +84,7 @@
    "slow_down_layer_time": [
       "80"
    ],
-   "version": "2.3.3.2",
+   "version": "2.3.3.3",
    "compatible_printers": [
       "Ginger G1 1.0 nozzle",
       "Ginger G1 3.0 nozzle",
