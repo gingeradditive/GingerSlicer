@@ -1,13 +1,9 @@
 {
-   "from": "system",
    "type": "filament",
-   "instantiation": "true",
-   "version": "2.3.3.3",
    "filament_vendor": [
       "Generic"
    ],
    "inherits": "fdm_filament_common",
-   "name": "Generic PLA",
    "close_fan_the_first_x_layers": [
       "4"
    ],
@@ -16,10 +12,6 @@
    ],
    "enable_pressure_advance": [
       "1"
-   ],
-   "extruder_rotation_volume": "456",
-   "fan_cooling_layer_time": [
-      "100"
    ],
    "fan_max_speed": [
       "0"
@@ -31,16 +23,10 @@
       "6"
    ],
    "filament_density": [
-      "1.24"
-   ],
-   "filament_deretraction_speed": [
-      "nil"
+      "1.23"
    ],
    "filament_max_volumetric_speed": [
-      "250"
-   ],
-   "filament_retract_before_wipe": [
-      "nil"
+      "200"
    ],
    "filament_retract_lift_above": [
       "nil"
@@ -51,20 +37,58 @@
    "filament_retract_lift_enforce": [
       "nil"
    ],
+   "overhang_fan_speed": [
+      "100"
+   ],
+   "overhang_fan_threshold": [
+      "50%"
+   ],
+   "reduce_fan_stop_start_freq": [
+      "0"
+   ],
+   "slow_down_min_speed": [
+      "1"
+   ],
+   "filament_deretraction_speed": [
+      "150"
+   ],
+   "filament_retract_before_wipe": [
+      "0%"
+   ],
    "filament_retract_restart_extra": [
-      "nil"
+      "10"
    ],
    "filament_retract_when_changing_layer": [
-      "nil"
+      "0"
    ],
    "filament_retraction_length": [
-      "nil"
+      "30"
    ],
    "filament_retraction_minimum_travel": [
-      "nil"
+      "5"
    ],
    "filament_retraction_speed": [
-      "nil"
+      "150"
+   ],
+   "filament_wipe": [
+      "1"
+   ],
+   "filament_wipe_distance": [
+      "10"
+   ],
+   "filament_z_hop": [
+      "1"
+   ],
+   "from": "system",
+   "full_fan_speed_layer": [
+      "8"
+   ],
+   "version": "2.3.3.3",
+   "instantiation": "true",
+   "name": "Generic PLA",
+   "extruder_rotation_volume": "456",
+   "fan_cooling_layer_time": [
+      "100"
    ],
    "filament_settings_id": [
       "PLA"
@@ -74,15 +98,6 @@
    ],
    "filament_type": [
       "PLA"
-   ],
-   "filament_wipe": [
-      "nil"
-   ],
-   "filament_wipe_distance": [
-      "nil"
-   ],
-   "filament_z_hop": [
-      "nil"
    ],
    "hot_plate_temp": [
       "50"
@@ -104,26 +119,15 @@
    "nozzle_temperature_range_low": [
       "180"
    ],
-   "overhang_fan_speed": [
-      "100"
-   ],
-   "overhang_fan_threshold": [
-      "50%"
-   ],
    "pressure_advance": [
       "0.3"
-   ],
-   "reduce_fan_stop_start_freq": [
-      "0"
    ],
    "slow_down_layer_time": [
       "50"
    ],
-   "slow_down_min_speed": [
-      "1"
-   ],
    "compatible_printers": [
       "Ginger G1 1.0 nozzle",
+      "Ginger G1 1.8 nozzle",
       "Ginger G1 3.0 nozzle",
       "Ginger G1 5.0 nozzle",
       "Ginger G1 8.0 nozzle"

@@ -91,6 +91,22 @@
       "sub_path": "filament/fdm_filament_common.json"
     },
     {
+      "name": "Generic ABS",
+      "sub_path": "filament/Generic ABS.json"
+    },
+    {
+      "name": "Generic ASA",
+      "sub_path": "filament/Generic ASA.json"
+    },
+    {
+      "name": "Generic HIPS",
+      "sub_path": "filament/Generic HIPS.json"
+    },
+    {
+      "name": "Generic PETG GF",
+      "sub_path": "filament/Generic PETG GF.json"
+    },
+    {
       "name": "Generic PETG",
       "sub_path": "filament/Generic PETG.json"
     },
@@ -99,8 +115,8 @@
       "sub_path": "filament/Generic PLA.json"
     },
     {
-      "name": "Generic HIPS",
-      "sub_path": "filament/Generic HIPS.json"
+      "name": "Generic PP",
+      "sub_path": "filament/Generic PP.json"
     },
     {
       "name": "Azure PETG",
@@ -115,16 +131,16 @@
       "sub_path": "filament/colorFabb FOAM PLA.json"
     },
     {
+      "name": "FormFutura PP Centaur",
+      "sub_path": "filament/FormFutura PP Centaur.json"
+    },
+    {
       "name": "FormFutura rPETG 10GF",
       "sub_path": "filament/FormFutura rPETG 10GF.json"
     },
     {
       "name": "FormFutura rPETG 20GF",
       "sub_path": "filament/FormFutura rPETG 20GF.json"
-    },
-    {
-      "name": "FormFutura PP Centaur",
-      "sub_path": "filament/FormFutura PP Centaur.json"
     },
     {
       "name": "FormFutura rPETG",
@@ -137,6 +153,10 @@
     {
       "name": "MAIP ASA 5GF",
       "sub_path": "filament/MAIP ASA 5GF.json"
+    },
+    {
+      "name": "Polymaker PETG 10GF",
+      "sub_path": "filament/Polymaker PETG 10GF.json"
     },
     {
       "name": "Polymaker PETG 20GF",

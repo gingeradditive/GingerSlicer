@@ -30,7 +30,7 @@
       "1"
    ],
    "from": "system",
-   "inherits": "Ginger rPLA",
+   "inherits": "Generic PLA",
    "is_custom_defined": "0",
    "multi_zone_1_initial_layer": [
       "185"
@@ -51,12 +51,13 @@
       "185"
    ],
    "name": "SmartMaterials PLA olive",
+   "version": "2.3.3.3",
    "compatible_printers": [
       "Ginger G1 1.0 nozzle",
+      "Ginger G1 1.8 nozzle",
       "Ginger G1 3.0 nozzle",
       "Ginger G1 5.0 nozzle",
       "Ginger G1 8.0 nozzle"
    ],
-   "version": "2.3.3.3",
    "instantiation": "true"
 }

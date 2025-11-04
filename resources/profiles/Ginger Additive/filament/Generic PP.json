@@ -4,7 +4,7 @@
       "Generic"
    ],
    "inherits": "fdm_filament_common",
-   "name": "Generic PETG",
+   "name": "Generic PP",
    "close_fan_the_first_x_layers": [
       "4"
    ],
@@ -14,21 +14,11 @@
    "enable_pressure_advance": [
       "1"
    ],
-   "extruder_rotation_volume": "624",
    "fan_cooling_layer_time": [
       "100"
    ],
-   "fan_max_speed": [
-      "0"
-   ],
-   "fan_min_speed": [
-      "0"
-   ],
    "filament_cost": [
       "6"
-   ],
-   "filament_density": [
-      "1.23"
    ],
    "filament_max_volumetric_speed": [
       "200"
@@ -43,13 +33,10 @@
       "nil"
    ],
    "filament_settings_id": [
-      "PETG"
-   ],
-   "filament_start_gcode": [
-      "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.5"
+      "PP"
    ],
    "filament_type": [
-      "PETG"
+      "PP"
    ],
    "hot_plate_temp": [
       "80"
@@ -59,24 +46,6 @@
    ],
    "is_custom_defined": "0",
    "mixing_stepper_rotation_volume": "8000",
-   "multi_zone_1_initial_layer": [
-      "220"
-   ],
-   "multi_zone_1_temperature": [
-      "220"
-   ],
-   "multi_zone_2_initial_layer": [
-      "240"
-   ],
-   "multi_zone_2_temperature": [
-      "240"
-   ],
-   "multi_zone_3_initial_layer": [
-      "240"
-   ],
-   "multi_zone_3_temperature": [
-      "240"
-   ],
    "nozzle_temperature_range_high": [
       "260"
    ],
@@ -89,14 +58,8 @@
    "overhang_fan_threshold": [
       "50%"
    ],
-   "pressure_advance": [
-      "0.3"
-   ],
    "reduce_fan_stop_start_freq": [
       "0"
-   ],
-   "slow_down_layer_time": [
-      "30"
    ],
    "slow_down_min_speed": [
       "1"
@@ -104,34 +67,16 @@
    "temperature_vitrification": [
       "75"
    ],
-   "filament_deretraction_speed": [
-      "150"
-   ],
    "filament_retract_before_wipe": [
       "0%"
-   ],
-   "filament_retract_restart_extra": [
-      "10"
    ],
    "filament_retract_when_changing_layer": [
       "0"
    ],
-   "filament_retraction_length": [
-      "30"
-   ],
    "filament_retraction_minimum_travel": [
       "5"
    ],
-   "filament_retraction_speed": [
-      "150"
-   ],
    "filament_wipe": [
-      "1"
-   ],
-   "filament_wipe_distance": [
-      "10"
-   ],
-   "filament_z_hop": [
       "1"
    ],
    "from": "system",
@@ -139,6 +84,61 @@
       "8"
    ],
    "version": "2.3.3.3",
+   "instantiation": "true",
+   "extruder_rotation_volume": [
+      "650"
+   ],
+   "fan_max_speed": [
+      "99"
+   ],
+   "fan_min_speed": [
+      "55"
+   ],
+   "filament_density": [
+      "0.9"
+   ],
+   "filament_deretraction_speed": [
+      "150"
+   ],
+   "filament_retract_restart_extra": [
+      "3"
+   ],
+   "filament_retraction_length": [
+      "8"
+   ],
+   "filament_retraction_speed": [
+      "150"
+   ],
+   "filament_start_gcode": [
+      "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.4"
+   ],
+   "filament_wipe_distance": [
+      "5"
+   ],
+   "filament_z_hop": [
+      "0"
+   ],
+   "multi_zone_1_initial_layer": [
+      "170"
+   ],
+   "multi_zone_1_temperature": [
+      "170"
+   ],
+   "multi_zone_2_initial_layer": [
+      "240"
+   ],
+   "multi_zone_2_temperature": [
+      "240"
+   ],
+   "multi_zone_3_initial_layer": [
+      "230"
+   ],
+   "multi_zone_3_temperature": [
+      "230"
+   ],
+   "pressure_advance": [
+      "0.2"
+   ],
    "compatible_printers": [
       "Ginger G1 1.0 nozzle",
       "Ginger G1 1.8 nozzle",
@@ -146,5 +146,7 @@
       "Ginger G1 5.0 nozzle",
       "Ginger G1 8.0 nozzle"
    ],
-   "instantiation": "true"
+   "slow_down_layer_time": [
+      "30"
+   ]
 }

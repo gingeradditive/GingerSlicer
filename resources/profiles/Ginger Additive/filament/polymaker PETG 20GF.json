@@ -29,8 +29,11 @@
    "filament_wipe_distance": [
       "10"
    ],
+   "filament_vendor": [
+      "Polymaker"
+   ],
    "from": "system",
-   "inherits": "Polymaker rPETG 10GF",
+   "inherits": "Generic PETG GF",
    "is_custom_defined": "0",
    "multi_zone_2_initial_layer": [
       "230"
@@ -48,12 +51,13 @@
    "pressure_advance": [
       "0.7"
    ],
+   "version": "2.3.3.3",
    "compatible_printers": [
       "Ginger G1 1.0 nozzle",
+      "Ginger G1 1.8 nozzle",
       "Ginger G1 3.0 nozzle",
       "Ginger G1 5.0 nozzle",
       "Ginger G1 8.0 nozzle"
    ],
-   "version": "2.3.3.3",
    "instantiation": "true"
 }

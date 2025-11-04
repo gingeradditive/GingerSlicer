@@ -4,7 +4,7 @@
       "Generic"
    ],
    "inherits": "fdm_filament_common",
-   "name": "Generic PETG",
+   "name": "Generic PETG GF",
    "close_fan_the_first_x_layers": [
       "4"
    ],
@@ -14,15 +14,8 @@
    "enable_pressure_advance": [
       "1"
    ],
-   "extruder_rotation_volume": "624",
    "fan_cooling_layer_time": [
       "100"
-   ],
-   "fan_max_speed": [
-      "0"
-   ],
-   "fan_min_speed": [
-      "0"
    ],
    "filament_cost": [
       "6"
@@ -43,13 +36,10 @@
       "nil"
    ],
    "filament_settings_id": [
-      "PETG"
-   ],
-   "filament_start_gcode": [
-      "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.5"
+      "PETG GF"
    ],
    "filament_type": [
-      "PETG"
+      "PETG GF"
    ],
    "hot_plate_temp": [
       "80"
@@ -59,24 +49,6 @@
    ],
    "is_custom_defined": "0",
    "mixing_stepper_rotation_volume": "8000",
-   "multi_zone_1_initial_layer": [
-      "220"
-   ],
-   "multi_zone_1_temperature": [
-      "220"
-   ],
-   "multi_zone_2_initial_layer": [
-      "240"
-   ],
-   "multi_zone_2_temperature": [
-      "240"
-   ],
-   "multi_zone_3_initial_layer": [
-      "240"
-   ],
-   "multi_zone_3_temperature": [
-      "240"
-   ],
    "nozzle_temperature_range_high": [
       "260"
    ],
@@ -89,14 +61,8 @@
    "overhang_fan_threshold": [
       "50%"
    ],
-   "pressure_advance": [
-      "0.3"
-   ],
    "reduce_fan_stop_start_freq": [
       "0"
-   ],
-   "slow_down_layer_time": [
-      "30"
    ],
    "slow_down_min_speed": [
       "1"
@@ -115,9 +81,6 @@
    ],
    "filament_retract_when_changing_layer": [
       "0"
-   ],
-   "filament_retraction_length": [
-      "30"
    ],
    "filament_retraction_minimum_travel": [
       "5"
@@ -139,6 +102,46 @@
       "8"
    ],
    "version": "2.3.3.3",
+   "instantiation": "true",
+   "extruder_rotation_volume": [
+      "730"
+   ],
+   "fan_max_speed": [
+      "70"
+   ],
+   "fan_min_speed": [
+      "0"
+   ],
+   "filament_retraction_length": [
+      "30"
+   ],
+   "filament_start_gcode": [
+      "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.7"
+   ],
+   "multi_zone_1_initial_layer": [
+      "220"
+   ],
+   "multi_zone_1_temperature": [
+      "220"
+   ],
+   "multi_zone_2_initial_layer": [
+      "235"
+   ],
+   "multi_zone_2_temperature": [
+      "235"
+   ],
+   "multi_zone_3_initial_layer": [
+      "245"
+   ],
+   "multi_zone_3_temperature": [
+      "245"
+   ],
+   "pressure_advance": [
+      "0.6"
+   ],
+   "slow_down_layer_time": [
+      "50"
+   ],
    "compatible_printers": [
       "Ginger G1 1.0 nozzle",
       "Ginger G1 1.8 nozzle",
@@ -146,5 +149,7 @@
       "Ginger G1 5.0 nozzle",
       "Ginger G1 8.0 nozzle"
    ],
-   "instantiation": "true"
+   "support_material_interface_fan_speed": [
+      "70"
+   ]
 }
