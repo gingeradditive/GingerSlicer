@@ -1,0 +1,21 @@
+{
+   "filament_settings_id": [
+      "FormFutura PLA"
+   ],
+   "filament_vendor": [
+      "FormFutura"
+   ],
+   "from": "system",
+   "inherits": "Generic PLA",
+   "is_custom_defined": "0",
+   "name": "FormFutura PLA",
+   "version": "2.3.3.3",
+   "compatible_printers": [
+      "Ginger G1 1.0 nozzle",
+      "Ginger G1 1.8 nozzle",
+      "Ginger G1 3.0 nozzle",
+      "Ginger G1 5.0 nozzle",
+      "Ginger G1 8.0 nozzle"
+   ],
+   "instantiation": "true"
+}

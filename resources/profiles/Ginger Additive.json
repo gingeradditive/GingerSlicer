@@ -52,6 +52,10 @@
       "name": "0.60mm Vasemode",
       "sub_path": "process/0.60mm Vasemode.json"
     },
+        {
+      "name": "0.90mm Standard",
+      "sub_path": "process/0.90mm Standard.json"
+    },
     {
       "name": "1.30mm Standard",
       "sub_path": "process/1.30mm Standard.json"
@@ -129,6 +133,10 @@
     {
       "name": "colorFabb FOAM PLA",
       "sub_path": "filament/colorFabb FOAM PLA.json"
+    },
+    {
+      "name": "FormFutura PLA",
+      "sub_path": "filament/FormFutura PLA.json"
     },
     {
       "name": "FormFutura PP Centaur",
