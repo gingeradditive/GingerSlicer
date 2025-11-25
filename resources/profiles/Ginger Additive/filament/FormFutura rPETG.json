@@ -6,13 +6,13 @@
       "7"
    ],
    "filament_deretraction_speed": [
-      "250"
+      "150"
    ],
    "filament_retract_before_wipe": [
       "0%"
    ],
    "filament_retract_restart_extra": [
-      "5"
+      "7"
    ],
    "filament_retract_when_changing_layer": [
       "0"
@@ -24,7 +24,7 @@
       "0"
    ],
    "filament_retraction_speed": [
-      "250"
+      "150"
    ],
    "filament_settings_id": [
       "FormFutura rPETG"
@@ -40,9 +40,6 @@
    ],
    "filament_wipe_distance": [
       "7"
-   ],
-   "filament_z_hop": [
-      "0.5"
    ],
    "from": "system",
    "inherits": "Generic PETG",

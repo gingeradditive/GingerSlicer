@@ -103,9 +103,6 @@
    "filament_wipe_distance": [
       "10"
    ],
-   "filament_z_hop": [
-      "1"
-   ],
    "from": "system",
    "full_fan_speed_layer": [
       "8"

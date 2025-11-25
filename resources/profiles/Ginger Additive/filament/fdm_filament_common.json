@@ -177,7 +177,7 @@
       "nil"
    ],
    "filament_z_hop": [
-      "nil"
+      "1"
    ],
    "filament_z_hop_types": [
       "Normal Lift"

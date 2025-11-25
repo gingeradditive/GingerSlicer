@@ -35,9 +35,6 @@
    "filament_wipe_distance": [
       "5"
    ],
-   "filament_z_hop": [
-      "0"
-   ],
    "from": "system",
    "inherits": "Generic PP",
    "is_custom_defined": "0",

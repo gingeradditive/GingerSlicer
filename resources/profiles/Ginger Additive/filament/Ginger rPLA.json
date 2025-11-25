@@ -44,9 +44,6 @@
    "filament_wipe_distance": [
       "8"
    ],
-   "filament_z_hop": [
-      "0.5"
-   ],
    "from": "system",
    "hot_plate_temp": [
       "55"

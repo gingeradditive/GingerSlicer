@@ -26,9 +26,6 @@
    "filament_wipe_distance": [
       "7"
    ],
-   "filament_z_hop": [
-      "1"
-   ],
    "from": "system",
    "inherits": "Generic PLA",
    "is_custom_defined": "0",
