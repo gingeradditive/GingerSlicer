@@ -213,4 +213,46 @@ float SlicingAdaptive::horizontal_facet_distance(float z)
 		std::max((float)m_slicing_params.object_print_z_height() - z, 0.f) : (float)m_slicing_params.max_layer_height;
 }
 
+// Adaptive layer height based on overhang angle: h = max_surface_dist * sin(angle)
+// Uses sweep-line algorithm for O(N log N) performance on large meshes.
+float SlicingAdaptive::next_layer_height_overhang(const float print_z, float max_surface_dist, float min_h, float max_h, size_t &current_facet)
+{
+	float height = max_h;
+
+	// Sweep-line: start from current_facet (m_faces sorted by min Z)
+	size_t ordered_id = current_facet;
+	bool first_hit = false;
+
+	for (; ordered_id < m_faces.size(); ++ordered_id) {
+		const std::pair<float, float> &zspan = m_faces[ordered_id].z_span;
+
+		// Facet's minimum is above current layer -> stop (sorted order guarantees no more intersections)
+		if (zspan.first >= print_z)
+			break;
+
+		// Facet intersects current layer (zspan.second > print_z)
+		if (zspan.second > print_z) {
+			// Update cursor to first intersecting facet for next iteration
+			if (!first_hit) {
+				first_hit = true;
+				current_facet = ordered_id;
+			}
+
+			// Skip nearly-touching facets to avoid numerical issues
+			if (zspan.second < print_z + EPSILON)
+				continue;
+
+			// Core formula: h = d * sin(alpha)
+			// n_sin is pre-computed as sqrt(nx^2 + ny^2), which equals sin(angle_from_horizontal)
+			float adaptive_h = max_surface_dist * m_faces[ordered_id].n_sin;
+
+			if (adaptive_h < height)
+				height = adaptive_h;
+		}
+	}
+
+	// Clamp to valid range
+	return std::max(min_h, std::min(height, max_h));
+}
+
 }; // namespace Slic3r

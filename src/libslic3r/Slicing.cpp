@@ -341,6 +341,80 @@ std::vector<double> layer_height_profile_adaptive(const SlicingParameters& slici
     return layer_height_profile;
 }
 
+// Adaptive layer height based on overhang angle: h = max_surface_dist * sin(angle)
+std::vector<double> layer_height_profile_from_overhang(
+    const SlicingParameters& slicing_params,
+    const ModelObject& object,
+    float max_surface_distance,
+    float min_layer_height)
+{
+    // Initialize SlicingAdaptive with mesh data (performs O(N log N) sort)
+    SlicingAdaptive as;
+    as.set_slicing_parameters(slicing_params);
+    as.prepare(object);
+
+    std::vector<double> layer_height_profile;
+    layer_height_profile.push_back(0.0);
+    layer_height_profile.push_back(slicing_params.first_object_layer_height);
+
+    // Handle fixed first layer (e.g., raft)
+    if (slicing_params.first_object_layer_height_fixed()) {
+        layer_height_profile.push_back(slicing_params.first_object_layer_height);
+        layer_height_profile.push_back(slicing_params.first_object_layer_height);
+    }
+
+    double print_z = slicing_params.first_object_layer_height;
+    size_t current_facet = 0;
+
+    // Use nominal layer_height as max, explicit min_layer_height as min
+    float max_h = static_cast<float>(slicing_params.layer_height);
+    float min_h = min_layer_height;
+
+    // Ensure min <= max
+    if (min_h > max_h)
+        min_h = max_h;
+
+    while (print_z + EPSILON < slicing_params.object_print_z_height()) {
+        // Get adaptive height using overhang-based formula
+        float height = as.next_layer_height_overhang(
+            static_cast<float>(print_z), 
+            max_surface_distance, 
+            min_h, 
+            max_h, 
+            current_facet);
+
+        // Gradual transition: avoid steep layer height changes
+        if (layer_height_profile.size() >= 2) {
+            double prev_height = layer_height_profile.back();
+            if (prev_height < height && height - prev_height > LAYER_HEIGHT_CHANGE_STEP)
+                height = static_cast<float>(prev_height + LAYER_HEIGHT_CHANGE_STEP);
+            else if (prev_height > height && prev_height - height > LAYER_HEIGHT_CHANGE_STEP)
+                height = static_cast<float>(prev_height - LAYER_HEIGHT_CHANGE_STEP);
+        }
+
+        // Respect manual layer config ranges (user overrides)
+        for (auto const& [range, options] : object.layer_config_ranges) {
+            if (print_z >= range.first && print_z <= range.second) {
+                height = static_cast<float>(options.opt_float("layer_height"));
+                break;
+            }
+        }
+
+        layer_height_profile.push_back(print_z);
+        layer_height_profile.push_back(height);
+        print_z += height;
+    }
+
+    // Close profile at object top
+    double z_gap = slicing_params.object_print_z_height() - *(layer_height_profile.end() - 2);
+    if (z_gap > 0.0) {
+        layer_height_profile.push_back(slicing_params.object_print_z_height());
+        layer_height_profile.push_back(std::clamp(z_gap, static_cast<double>(min_h), static_cast<double>(max_h)));
+    }
+
+    return layer_height_profile;
+}
+
 std::vector<double> smooth_height_profile(const std::vector<double>& profile, const SlicingParameters& slicing_params, const HeightProfileSmoothingParams& smoothing_params)
 {
     auto gauss_blur = [&slicing_params](const std::vector<double>& profile, const HeightProfileSmoothingParams& smoothing_params) -> std::vector<double> {
