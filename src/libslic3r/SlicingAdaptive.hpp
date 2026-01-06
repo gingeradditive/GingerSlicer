@@ -28,10 +28,12 @@ public:
 
 	struct FaceZ {
 		std::pair<float, float> z_span;
-		// Cosine of the normal vector towards the Z axis.
+		// Cosine of the normal vector towards the Z axis (absolute value for existing algorithms).
 		float					n_cos;
 		// Sine of the normal vector towards the Z axis.
 		float					n_sin;
+		// True if face normal points downward (n.z < 0), indicating overhang.
+		bool					is_overhang;
 	};
 
 protected:

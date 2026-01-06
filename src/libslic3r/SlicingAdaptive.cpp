@@ -89,7 +89,7 @@ void SlicingAdaptive::prepare(const ModelObject &object)
 			std::min(std::min(vertex[0].z(), vertex[1].z()), vertex[2].z()),
 			std::max(std::max(vertex[0].z(), vertex[1].z()), vertex[2].z())
 		};
-		m_faces.emplace_back(FaceZ({ face_z_span, std::abs(n.z()), std::sqrt(n.x() * n.x() + n.y() * n.y()) }));
+		m_faces.emplace_back(FaceZ({ face_z_span, std::abs(n.z()), std::sqrt(n.x() * n.x() + n.y() * n.y()), n.z() < 0 }));
     }
 
 	// 2) Sort faces lexicographically by their Z span.
@@ -240,6 +240,12 @@ float SlicingAdaptive::next_layer_height_overhang(const float print_z, float max
 
 			// Skip nearly-touching facets to avoid numerical issues
 			if (zspan.second < print_z + EPSILON)
+				continue;
+
+			// Skip nearly-horizontal surfaces (angle < ~10 degrees from horizontal)
+			// These don't benefit from reduced layer height - stair-stepping isn't visible
+			// n_sin < 0.17 corresponds to angle < ~10 degrees from horizontal
+			if (m_faces[ordered_id].n_sin < 0.17f)
 				continue;
 
 			// Core formula: h = d * sin(alpha)

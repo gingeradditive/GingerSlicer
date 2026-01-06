@@ -383,15 +383,6 @@ std::vector<double> layer_height_profile_from_overhang(
             max_h, 
             current_facet);
 
-        // Gradual transition: avoid steep layer height changes
-        if (layer_height_profile.size() >= 2) {
-            double prev_height = layer_height_profile.back();
-            if (prev_height < height && height - prev_height > LAYER_HEIGHT_CHANGE_STEP)
-                height = static_cast<float>(prev_height + LAYER_HEIGHT_CHANGE_STEP);
-            else if (prev_height > height && prev_height - height > LAYER_HEIGHT_CHANGE_STEP)
-                height = static_cast<float>(prev_height - LAYER_HEIGHT_CHANGE_STEP);
-        }
-
         // Respect manual layer config ranges (user overrides)
         for (auto const& [range, options] : object.layer_config_ranges) {
             if (print_z >= range.first && print_z <= range.second) {
@@ -405,7 +396,32 @@ std::vector<double> layer_height_profile_from_overhang(
         print_z += height;
     }
 
-    // Close profile at object top
+    // Bidirectional smoothing: smooth transitions around minima (overhang regions)
+    // This ensures gradual approach TO overhangs while keeping overhang layer heights intact
+    // Use proportional step (10% of max layer height) for faster transitions with large layer heights
+    double smooth_step = max_h * 0.1;
+    if (smooth_step < LAYER_HEIGHT_CHANGE_STEP)
+        smooth_step = LAYER_HEIGHT_CHANGE_STEP;
+    
+    if (layer_height_profile.size() >= 4) {
+        // Forward pass: limit increases from previous layer
+        for (size_t i = 2; i < layer_height_profile.size(); i += 2) {
+            double prev_h = layer_height_profile[i - 1];
+            double curr_h = layer_height_profile[i + 1];
+            if (curr_h > prev_h + smooth_step)
+                layer_height_profile[i + 1] = prev_h + smooth_step;
+        }
+        
+        // Backward pass: limit increases from next layer (anticipate overhangs)
+        for (size_t i = layer_height_profile.size() - 2; i >= 4; i -= 2) {
+            double curr_h = layer_height_profile[i - 1];
+            double next_h = layer_height_profile[i + 1];
+            if (curr_h > next_h + smooth_step)
+                layer_height_profile[i - 1] = next_h + smooth_step;
+        }
+    }
+
+    // Close profile at object top (after smoothing to avoid propagating small closing layer)
     double z_gap = slicing_params.object_print_z_height() - *(layer_height_profile.end() - 2);
     if (z_gap > 0.0) {
         layer_height_profile.push_back(slicing_params.object_print_z_height());
