@@ -89,6 +89,10 @@ public:
     std::vector<Polygons>       m_lower_polygons_series;
     std::vector<Polygons>       m_external_lower_polygons_series;
     std::vector<Polygons>       m_smaller_external_lower_polygons_series;
+    // Upper polygons series for upward-facing overhang detection (adaptive line width)
+    std::vector<Polygons>       m_upper_polygons_series;
+    std::vector<Polygons>       m_external_upper_polygons_series;
+    std::vector<Polygons>       m_smaller_external_upper_polygons_series;
 
     bool                                            has_fuzzy_skin = false;
     bool                                            has_fuzzy_hole = false;
@@ -138,6 +142,7 @@ public:
 
 private:
     std::vector<Polygons>     generate_lower_polygons_series(float width);
+    std::vector<Polygons>     generate_upper_polygons_series(float width);
     void split_top_surfaces(const ExPolygons &orig_polygons, ExPolygons &top_fills, ExPolygons &non_top_polygons, ExPolygons &fill_clip) const;
     void apply_extra_perimeters(ExPolygons& infill_area);
     void process_no_bridge(Surfaces& all_surfaces, coord_t perimeter_spacing, coord_t ext_perimeter_width);

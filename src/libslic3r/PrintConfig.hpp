@@ -826,6 +826,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionBool,                adaptive_layer_overhang))
     ((ConfigOptionFloat,               adaptive_max_surface_distance))
     ((ConfigOptionFloat,               adaptive_min_layer_height))
+    ((ConfigOptionBool,                adaptive_line_width))
     ((ConfigOptionFloat,               mmu_segmented_region_max_width))
     ((ConfigOptionFloat,               mmu_segmented_region_interlocking_depth))
     ((ConfigOptionFloat,               raft_contact_distance))

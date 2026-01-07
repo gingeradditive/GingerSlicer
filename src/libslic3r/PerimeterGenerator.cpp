@@ -20,6 +20,7 @@
 #include "libslic3r/AABBTreeLines.hpp"
 #include "Print.hpp"
 static const int overhang_sampling_number = 6;
+static const int adaptive_width_bands = 6;
 static const double narrow_loop_length_threshold = 10;
 //BBS: when the width of expolygon is smaller than
 //ext_perimeter_width + ext_perimeter_spacing  * (1 - SMALLER_EXT_INSET_OVERLAP_TOLERANCE),
@@ -124,25 +125,29 @@ static ExtrusionEntityCollection traverse_loops(const PerimeterGenerator &perime
             loop_role = loop.is_contour? elrDefault : elrHole;
         }
 
-        // BBS: get lower polygons series, width, mm3_per_mm
+        // BBS: get lower/upper polygons series, width, mm3_per_mm
         const std::vector<Polygons> *lower_polygons_series;
+        const std::vector<Polygons> *upper_polygons_series;
         double extrusion_mm3_per_mm;
         double extrusion_width;
         if (is_external) {
             if (is_small_width) {
                 //BBS: smaller width external perimeter
                 lower_polygons_series = &perimeter_generator.m_smaller_external_lower_polygons_series;
+                upper_polygons_series = &perimeter_generator.m_smaller_external_upper_polygons_series;
                 extrusion_mm3_per_mm = perimeter_generator.smaller_width_ext_mm3_per_mm();
                 extrusion_width = perimeter_generator.smaller_ext_perimeter_flow.width();
             } else {
                 //BBS: normal external perimeter
                 lower_polygons_series = &perimeter_generator.m_external_lower_polygons_series;
+                upper_polygons_series = &perimeter_generator.m_external_upper_polygons_series;
                 extrusion_mm3_per_mm = perimeter_generator.ext_mm3_per_mm();
                 extrusion_width = perimeter_generator.ext_perimeter_flow.width();
             }
         } else {
             //BBS: normal perimeter
             lower_polygons_series = &perimeter_generator.m_lower_polygons_series;
+            upper_polygons_series = &perimeter_generator.m_upper_polygons_series;
             extrusion_mm3_per_mm = perimeter_generator.mm3_per_mm();
             extrusion_width = perimeter_generator.perimeter_flow.width();
         }
@@ -177,30 +182,106 @@ static ExtrusionEntityCollection traverse_loops(const PerimeterGenerator &perime
 
             Polylines remain_polines;
 
-            Polygons lower_polygons_series_clipped = ClipperUtils::clip_clipper_polygons_with_subject_bbox(lower_polygons_series->back(), bbox);
+            // Adaptive line width: use multiple bands with compensated widths
+            // Works for both downward-facing overhangs (using lower_slices) and upward-facing overhangs (using upper_slices)
+            bool has_lower_bands = lower_polygons_series->size() > 2;
+            bool has_upper_bands = upper_polygons_series->size() > 2;
+            if (perimeter_generator.object_config->adaptive_line_width.value && (has_lower_bands || has_upper_bands)) {
+                // Multi-band adaptive width compensation
+                // Formula: W_new = W_base * sqrt(1 + (offset/h)^2)
+                // Bands are sorted from smallest offset (most supported) to largest offset (most overhang)
+                // We iterate in REVERSE order: from largest offset to smallest
+                // For each band, we use the INTERSECTION of lower and upper bands (if both exist)
+                // This means a part is "supported" only if it's supported from BOTH directions
+                float layer_h = (float)perimeter_generator.layer_height;
+                float nozzle_diameter = perimeter_generator.print_config->nozzle_diameter.get_at(perimeter_generator.config->wall_filament - 1);
+                float start_offset = -0.5f * extrusion_width;
+                float max_overhang = std::max(0.5f * nozzle_diameter, 5.0f * layer_h);
+                
+                Polylines current_remaining = {polygon.split_at_first_point()};
+                size_t num_bands = has_lower_bands ? lower_polygons_series->size() : upper_polygons_series->size();
+                
+                // Iterate from outermost band (largest offset, most overhang) to innermost (smallest offset, supported)
+                for (size_t i = 0; i < num_bands && !current_remaining.empty(); i++) {
+                    size_t band_idx = num_bands - 1 - i;  // Reverse order
+                    
+                    // Get the combined band: intersection of lower and upper bands (if both exist)
+                    // A part is "inside" the band only if it's inside BOTH lower and upper bands
+                    Polygons combined_band;
+                    if (has_lower_bands && has_upper_bands) {
+                        Polygons lower_band = ClipperUtils::clip_clipper_polygons_with_subject_bbox((*lower_polygons_series)[band_idx], bbox);
+                        Polygons upper_band = ClipperUtils::clip_clipper_polygons_with_subject_bbox((*upper_polygons_series)[band_idx], bbox);
+                        combined_band = intersection(lower_band, upper_band);
+                    } else if (has_lower_bands) {
+                        combined_band = ClipperUtils::clip_clipper_polygons_with_subject_bbox((*lower_polygons_series)[band_idx], bbox);
+                    } else {
+                        combined_band = ClipperUtils::clip_clipper_polygons_with_subject_bbox((*upper_polygons_series)[band_idx], bbox);
+                    }
+                    
+                    // Get polylines that fall OUTSIDE this band (in overhang relative to this band)
+                    Polylines outside_band = diff_pl(current_remaining, combined_band);
+                    
+                    if (!outside_band.empty()) {
+                        // Calculate the offset distance for this band boundary
+                        float t = (float)band_idx / (num_bands - 1);
+                        float band_offset = start_offset + t * (max_overhang - start_offset);
+                        
+                        // Compensated width: W_new = W_base * sqrt(1 + (offset/h)^2)
+                        // Only compensate for positive offsets (actual overhang)
+                        float compensated_width = extrusion_width;
+                        if (band_offset > 0 && layer_h > 0) {
+                            float ratio = band_offset / layer_h;
+                            compensated_width = extrusion_width * std::sqrt(1.0f + ratio * ratio);
+                            // Clamp to max multiplier
+                            float max_width = (float)(extrusion_width * MAX_LINE_WIDTH_MULTIPLIER);
+                            compensated_width = std::min(compensated_width, max_width);
+                        }
+                        
+                        // Calculate mm3_per_mm for compensated width
+                        double compensated_mm3_per_mm = extrusion_mm3_per_mm * (compensated_width / extrusion_width);
+                        
+                        ExtrusionRole path_role = (band_offset > 0.5f * nozzle_diameter) ? erOverhangPerimeter : role;
+                        extrusion_paths_append(paths, std::move(outside_band), path_role,
+                                               compensated_mm3_per_mm, compensated_width,
+                                               (float)perimeter_generator.layer_height);
+                    }
+                    
+                    // Update remaining to only what's inside this band
+                    current_remaining = intersection_pl(current_remaining, combined_band);
+                }
+                
+                // Any remaining polylines are fully supported (inside smallest band from both directions)
+                if (!current_remaining.empty()) {
+                    extrusion_paths_append(paths, std::move(current_remaining), role,
+                                           extrusion_mm3_per_mm, extrusion_width,
+                                           (float)perimeter_generator.layer_height);
+                }
+            } else {
+                // Original behavior: simple supported/overhang split
+                Polygons lower_polygons_series_clipped = ClipperUtils::clip_clipper_polygons_with_subject_bbox(lower_polygons_series->back(), bbox);
 
-            Polylines inside_polines = intersection_pl({polygon}, lower_polygons_series_clipped);
+                Polylines inside_polines = intersection_pl({polygon}, lower_polygons_series_clipped);
 
+                remain_polines = diff_pl({polygon}, lower_polygons_series_clipped);
 
-            remain_polines = diff_pl({polygon}, lower_polygons_series_clipped);
-
-            if (!inside_polines.empty())
-                extrusion_paths_append(
-                    paths,
-                    std::move(inside_polines),
-                    role,
-                    extrusion_mm3_per_mm,
-                    extrusion_width,
-                    (float)perimeter_generator.layer_height);
-            
-            // get 100% overhang paths by checking what parts of this loop fall
-            // outside the grown lower slices (thus where the distance between
-            // the loop centerline and original lower slices is >= half nozzle diameter
-            if (remain_polines.size() != 0) {
-                extrusion_paths_append(paths, std::move(remain_polines),
-                                       erOverhangPerimeter, perimeter_generator.mm3_per_mm_overhang(),
-                                       perimeter_generator.overhang_flow.width(),
-                                       perimeter_generator.overhang_flow.height());
+                if (!inside_polines.empty())
+                    extrusion_paths_append(
+                        paths,
+                        std::move(inside_polines),
+                        role,
+                        extrusion_mm3_per_mm,
+                        extrusion_width,
+                        (float)perimeter_generator.layer_height);
+                
+                // get 100% overhang paths by checking what parts of this loop fall
+                // outside the grown lower slices (thus where the distance between
+                // the loop centerline and original lower slices is >= half nozzle diameter
+                if (remain_polines.size() != 0) {
+                    extrusion_paths_append(paths, std::move(remain_polines),
+                                           erOverhangPerimeter, perimeter_generator.mm3_per_mm_overhang(),
+                                           perimeter_generator.overhang_flow.width(),
+                                           perimeter_generator.overhang_flow.height());
+                }
             }
 
             // Reapply the nearest point search for starting point.
@@ -1179,6 +1260,16 @@ void PerimeterGenerator::process_classic()
         m_external_lower_polygons_series = generate_lower_polygons_series(this->ext_perimeter_flow.width());
     }
     m_smaller_external_lower_polygons_series = generate_lower_polygons_series(this->smaller_ext_perimeter_flow.width());
+    
+    // Generate upper polygons series for upward-facing overhang detection (adaptive line width)
+    m_upper_polygons_series = generate_upper_polygons_series(this->perimeter_flow.width());
+    if (ext_perimeter_width == perimeter_width) {
+        m_external_upper_polygons_series = m_upper_polygons_series;
+    } else {
+        m_external_upper_polygons_series = generate_upper_polygons_series(this->ext_perimeter_flow.width());
+    }
+    m_smaller_external_upper_polygons_series = generate_upper_polygons_series(this->smaller_ext_perimeter_flow.width());
+    
     // we need to process each island separately because we might have different
     // extra perimeters for each one
     Surfaces all_surfaces = this->slices->surfaces;
@@ -2535,13 +2626,26 @@ std::vector<Polygons> PerimeterGenerator::generate_lower_polygons_series(float w
     float start_offset = -0.5 * width;
     float end_offset = 0.5 * nozzle_diameter;
 
-    assert(overhang_sampling_number >= 3);
-    // generate offsets
     std::vector<float> offset_series;
-    offset_series.reserve(2);
-
-     offset_series.push_back(start_offset + 0.5 * (end_offset - start_offset) / (overhang_sampling_number - 1));
-     offset_series.push_back(end_offset);
+    
+    // When adaptive_line_width is enabled, generate multiple bands for gradual width compensation
+    if (object_config->adaptive_line_width.value) {
+        // Generate bands from start_offset to a max overhang distance
+        // Max overhang = 5 * layer_height (corresponds to ~80 degree overhang)
+        float max_overhang = std::max(end_offset, (float)(5.0 * layer_height));
+        offset_series.reserve(adaptive_width_bands);
+        for (int i = 0; i < adaptive_width_bands; i++) {
+            float t = (float)i / (adaptive_width_bands - 1);
+            offset_series.push_back(start_offset + t * (max_overhang - start_offset));
+        }
+    } else {
+        // Original behavior: 2 bands for simple overhang detection
+        assert(overhang_sampling_number >= 3);
+        offset_series.reserve(2);
+        offset_series.push_back(start_offset + 0.5 * (end_offset - start_offset) / (overhang_sampling_number - 1));
+        offset_series.push_back(end_offset);
+    }
+    
     std::vector<Polygons> lower_polygons_series;
     if (this->lower_slices == NULL) {
         return lower_polygons_series;
@@ -2552,6 +2656,33 @@ std::vector<Polygons> PerimeterGenerator::generate_lower_polygons_series(float w
         lower_polygons_series.emplace_back(offset(*this->lower_slices, float(scale_(offset_series[i]))));
     }
     return lower_polygons_series;
+}
+
+std::vector<Polygons> PerimeterGenerator::generate_upper_polygons_series(float width)
+{
+    float nozzle_diameter = print_config->nozzle_diameter.get_at(config->wall_filament - 1);
+    float start_offset = -0.5 * width;
+    
+    std::vector<Polygons> upper_polygons_series;
+    if (this->upper_slices == NULL || !object_config->adaptive_line_width.value) {
+        return upper_polygons_series;
+    }
+
+    // Generate bands from start_offset to a max overhang distance
+    // Max overhang = 5 * layer_height (corresponds to ~80 degree overhang)
+    float max_overhang = std::max(0.5f * nozzle_diameter, (float)(5.0 * layer_height));
+    std::vector<float> offset_series;
+    offset_series.reserve(adaptive_width_bands);
+    for (int i = 0; i < adaptive_width_bands; i++) {
+        float t = (float)i / (adaptive_width_bands - 1);
+        offset_series.push_back(start_offset + t * (max_overhang - start_offset));
+    }
+
+    // offset expolygon to generate series of polygons
+    for (int i = 0; i < offset_series.size(); i++) {
+        upper_polygons_series.emplace_back(offset(*this->upper_slices, float(scale_(offset_series[i]))));
+    }
+    return upper_polygons_series;
 }
 
 }

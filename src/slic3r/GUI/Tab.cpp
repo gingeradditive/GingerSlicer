@@ -2114,6 +2114,7 @@ void TabPrint::build()
         optgroup->append_single_option_line("adaptive_layer_overhang","quality_settings_layer_height");
         optgroup->append_single_option_line("adaptive_max_surface_distance","quality_settings_layer_height");
         optgroup->append_single_option_line("adaptive_min_layer_height","quality_settings_layer_height");
+        optgroup->append_single_option_line("adaptive_line_width","quality_settings_layer_height");
 
         optgroup = page->new_optgroup(L("Line width"), L"param_line_width");
         optgroup->append_single_option_line("line_width","quality_settings_line_width");

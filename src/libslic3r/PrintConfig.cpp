@@ -2771,6 +2771,15 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(0.08));
 
+    def = this->add("adaptive_line_width", coBool);
+    def->label = L("Adaptive line width (Overhang)");
+    def->category = L("Quality");
+    def->tooltip = L("Adjusts wall line width on overhangs to maintain constant wall thickness "
+        "perpendicular to the surface. Wider lines compensate for the geometric effect "
+        "where angled walls become thinner than vertical ones.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("initial_layer_speed", coFloat);
     def->label = L("Initial layer");
     def->tooltip = L("Speed of initial layer except the solid infill part.");
