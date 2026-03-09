@@ -767,7 +767,7 @@ inline void PressureEqualizer::push_to_output(const char *text, const size_t len
 
 inline bool is_just_line_with_extrude_set_speed_tag(const std::string &line)
 {
-    if (line.empty() && !boost::starts_with(line, "G1 ") && !boost::ends_with(line, EXTRUDE_SET_SPEED_TAG))
+    if (line.empty() || !boost::starts_with(line, "G1 ") || !boost::ends_with(line, EXTRUDE_SET_SPEED_TAG))
         return false;
 
     const char       *p_line   = line.data() + 3;
