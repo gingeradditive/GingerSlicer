@@ -204,7 +204,13 @@ std::string SpiralVase::process_layer(const std::string &gcode, bool last_layer)
         }
         new_gcode += line.raw() + '\n';
         if(transition_out) {
-            transition_gcode += line.raw() + '\n';
+            // BUG-10 fix: Don't duplicate the layer-change tag into transition gcode.
+            // The transition circle is part of the same layer for CoolingBuffer,
+            // but a duplicated LAYER_CHANGE tag would cause GCodeProcessor to count
+            // it as a separate layer, splitting the layer time in half.
+            const std::string &raw = line.raw();
+            if (raw != ";LAYER_CHANGE" && raw != "; CHANGE_LAYER")
+                transition_gcode += raw + '\n';
         }
     });
 
