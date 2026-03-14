@@ -323,9 +323,12 @@ std::string CoolingBuffer::process_layer(std::string &&gcode, size_t layer_id, b
     if (flush) {
         // This is either an object layer or the very last print layer. Calculate cool down over the collected support layers
         // and one object layer.
+        m_cooling_debug.clear();
         std::vector<PerExtruderAdjustments> per_extruder_adjustments = this->parse_layer_gcode(m_gcode, m_current_pos);
         float layer_time_stretched = this->calculate_layer_slowdown(per_extruder_adjustments);
         out = this->apply_layer_cooldown(m_gcode, layer_id, layer_time_stretched, per_extruder_adjustments);
+        if (!m_cooling_debug.empty())
+            out = m_cooling_debug + "\n" + out;
         m_gcode.clear();
     }
     return out;
@@ -384,6 +387,11 @@ std::vector<PerExtruderAdjustments> CoolingBuffer::parse_layer_gcode(const std::
         if (line.type) {
             // G0, G1 or G92
             // Parse the G-code line.
+            // Reset extruder accumulator before copying to new_pos, so that
+            // lines without an E parameter (e.g. speed-only _EXTRUDE_SET_SPEED)
+            // don't inherit a phantom E delta from the previous extrusion.
+            if ((line.type & CoolingLine::TYPE_G92) == 0 && m_config.use_relative_e_distances.value)
+                current_pos[3] = 0.f;
             std::vector<float> new_pos(current_pos);
             const char *c = sline.data() + 3;
             for (;;) {
@@ -437,9 +445,7 @@ std::vector<PerExtruderAdjustments> CoolingBuffer::parse_layer_gcode(const std::
             }
             if ((line.type & CoolingLine::TYPE_G92) == 0) {
                 //BBS: G0, G1, G2, G3. Calculate the duration.
-                if (m_config.use_relative_e_distances.value)
-                    // Reset extruder accumulator.
-                    current_pos[3] = 0.f;
+                // Note: relative E reset was moved before new_pos initialization above.
                 float dif[4];
                 for (size_t i = 0; i < 4; ++ i)
                     dif[i] = new_pos[i] - current_pos[i];
@@ -653,6 +659,15 @@ float CoolingBuffer::calculate_layer_slowdown(std::vector<PerExtruderAdjustments
             by_slowdown_time.emplace_back(&adj);
             // sorts the lines, also sets adj.time_non_adjustable
             adj.sort_lines_by_decreasing_feedrate();
+            m_cooling_debug += ";DEBUG_COOLING extruder=" + std::to_string(adj.extruder_id)
+                + " time_total=" + std::to_string(adj.time_total)
+                + " time_maximum=" + std::to_string(adj.time_maximum)
+                + " time_non_adj=" + std::to_string(adj.time_non_adjustable)
+                + " n_adj=" + std::to_string(adj.n_lines_adjustable)
+                + " n_total=" + std::to_string(adj.lines.size())
+                + " slow_down_layer_time=" + std::to_string(adj.slow_down_layer_time)
+                + " slow_down_min_speed=" + std::to_string(adj.slow_down_min_speed)
+                + "\n";
         } else
             elapsed_time_total0 += adj.elapsed_time_total();
     }
@@ -670,6 +685,8 @@ float CoolingBuffer::calculate_layer_slowdown(std::vector<PerExtruderAdjustments
         float slow_down_layer_time = adj.slow_down_layer_time * 1.001f;
         if (total > slow_down_layer_time) {
             // The current total time is above the minimum threshold of the rest of the extruders, don't adjust anything.
+            m_cooling_debug += ";DEBUG_COOLING SKIP total=" + std::to_string(total)
+                + " > threshold=" + std::to_string(slow_down_layer_time) + "\n";
         } else {
             // Adjust this and all the following (higher m_config.slow_down_layer_time) extruders.
             // Sum maximum slow down time as if everything was slowed down including the external perimeters.
@@ -677,16 +694,49 @@ float CoolingBuffer::calculate_layer_slowdown(std::vector<PerExtruderAdjustments
             for (auto it = cur_begin; it != by_slowdown_time.end(); ++ it)
                 max_time += (*it)->time_maximum;
             if (max_time > slow_down_layer_time) {
+                m_cooling_debug += ";DEBUG_COOLING SLOWDOWN_NON_PROP total=" + std::to_string(total)
+                    + " target=" + std::to_string(slow_down_layer_time)
+                    + " stretch=" + std::to_string(slow_down_layer_time - total)
+                    + " max_time=" + std::to_string(max_time) + "\n";
                 extruder_range_slow_down_non_proportional(cur_begin, by_slowdown_time.end(), slow_down_layer_time - total);
             } else {
+                m_cooling_debug += ";DEBUG_COOLING SLOWDOWN_TO_MIN total=" + std::to_string(total)
+                    + " target=" + std::to_string(slow_down_layer_time)
+                    + " max_time=" + std::to_string(max_time)
+                    + " (CANNOT reach target)\n";
                 // Slow down to maximum possible.
                 for (auto it = cur_begin; it != by_slowdown_time.end(); ++ it)
                     (*it)->slowdown_to_minimum_feedrate(true);
             }
         }
-        elapsed_time_total0 += adj.elapsed_time_total();
+        float time_after = adj.elapsed_time_total();
+        // Diagnostic: compute time from length/feedrate (what output G-code actually produces)
+        float time_from_lf = 0.f;
+        int n_slowed = 0;
+        for (size_t i = 0; i < adj.n_lines_adjustable; ++i) {
+            const CoolingLine &cl = adj.lines[i];
+            if (cl.feedrate > 0.f && cl.length > 0.f)
+                time_from_lf += cl.length / cl.feedrate;
+            if (cl.slowdown)
+                ++n_slowed;
+        }
+        m_cooling_debug += ";DEBUG_COOLING RESULT time_after_slowdown=" + std::to_string(time_after)
+            + " time_from_length_feedrate=" + std::to_string(time_from_lf)
+            + " RATIO=" + std::to_string(time_after / std::max(0.001f, time_from_lf))
+            + " n_slowed=" + std::to_string(n_slowed) + "\n";
+        // Log first 5 adjustable lines details
+        for (size_t i = 0; i < std::min((size_t)5, adj.n_lines_adjustable); ++i) {
+            const CoolingLine &cl = adj.lines[i];
+            m_cooling_debug += ";DEBUG_COOLING LINE[" + std::to_string(i)
+                + "] feedrate=" + std::to_string(cl.feedrate)
+                + " length=" + std::to_string(cl.length)
+                + " time=" + std::to_string(cl.time)
+                + " slowdown=" + std::to_string(cl.slowdown) + "\n";
+        }
+        elapsed_time_total0 += time_after;
     }
 
+    m_cooling_debug += ";DEBUG_COOLING FINAL elapsed_time_total=" + std::to_string(elapsed_time_total0) + "\n";
     return elapsed_time_total0;
 }
 
@@ -816,6 +866,7 @@ std::string CoolingBuffer::apply_layer_cooldown(
 
     const char         *pos               = gcode.c_str();
     int                 current_feedrate  = 0;
+    int                 diag_gap_f_count  = 0;
     change_extruder_set_fan(true);
 
     // Orca: Reduce set fan commands by deferring the GCodeWriter::set_fan calls. Inspired by SuperSlicer
@@ -830,8 +881,17 @@ std::string CoolingBuffer::apply_layer_cooldown(
     for (const CoolingLine *line : lines) {
         const char *line_start  = gcode.c_str() + line->line_start;
         const char *line_end    = gcode.c_str() + line->line_end;
-        if (line_start > pos)
+        if (line_start > pos) {
+            // Diagnostic: scan gap for G1 F lines that override feedrate
+            const char *g = pos;
+            while (g < line_start) {
+                if (g[0] == 'G' && g[1] == '1' && g[2] == ' ' && g[3] == 'F')
+                    ++diag_gap_f_count;
+                while (g < line_start && *g != '\n') ++g;
+                if (g < line_start) ++g;
+            }
             new_gcode.append(pos, line_start - pos);
+        }
         if (line->type & CoolingLine::TYPE_SET_TOOL) {
             unsigned int new_extruder = 0;
             auto ret = std::from_chars(line_start + m_toolchange_prefix.size(), line_end, new_extruder);
@@ -1005,6 +1065,9 @@ std::string CoolingBuffer::apply_layer_cooldown(
     const char *gcode_end = gcode.c_str() + gcode.size();
     if (pos < gcode_end)
         new_gcode.append(pos, gcode_end - pos);
+
+    // Diagnostic summary
+    m_cooling_debug += ";DEBUG_COOLING APPLY gap_f_overrides=" + std::to_string(diag_gap_f_count) + "\n";
 
     return new_gcode;
 }
