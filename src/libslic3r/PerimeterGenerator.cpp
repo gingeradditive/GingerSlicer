@@ -21,6 +21,7 @@
 #include "Print.hpp"
 static const int overhang_sampling_number = 6;
 static const int adaptive_width_bands = 6;
+static constexpr float ADAPTIVE_MAX_WIDTH_MULTIPLIER = 2.0f;
 static const double narrow_loop_length_threshold = 10;
 //BBS: when the width of expolygon is smaller than
 //ext_perimeter_width + ext_perimeter_spacing  * (1 - SMALLER_EXT_INSET_OVERLAP_TOLERANCE),
@@ -232,9 +233,8 @@ static ExtrusionEntityCollection traverse_loops(const PerimeterGenerator &perime
                         if (band_offset > 0 && layer_h > 0) {
                             float ratio = band_offset / layer_h;
                             compensated_width = extrusion_width * std::sqrt(1.0f + ratio * ratio);
-                            // Clamp to max multiplier
-                            float max_width = (float)(extrusion_width * MAX_LINE_WIDTH_MULTIPLIER);
-                            compensated_width = std::min(compensated_width, max_width);
+                            // Clamp to max adaptive multiplier (physically realistic)
+                            compensated_width = std::min(compensated_width, (float)(extrusion_width * ADAPTIVE_MAX_WIDTH_MULTIPLIER));
                         }
                         
                         // Calculate mm3_per_mm for compensated width
@@ -465,27 +465,141 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
                 extrusion_path_bbox.merge(Point(ej.p.x(), ej.p.y()));
             }
 
-            ClipperLib_Z::Paths lower_slices_paths;
-            {
-                lower_slices_paths.reserve(perimeter_generator.lower_slices_polygons().size());
-                Points clipped;
-                extrusion_path_bbox.offset(SCALED_EPSILON);
-                for (const Polygon &poly : perimeter_generator.lower_slices_polygons()) {
-                    clipped.clear();
-                    ClipperUtils::clip_clipper_polygon_with_subject_bbox(poly.points, extrusion_path_bbox, clipped);
-                    if (!clipped.empty()) {
-                        lower_slices_paths.emplace_back();
-                        ClipperLib_Z::Path &out = lower_slices_paths.back();
-                        out.reserve(clipped.size());
-                        for (const Point &pt : clipped)
-                          out.emplace_back(pt.x(), pt.y(), 0);
-                    }
-                }
+            extrusion_path_bbox.offset(SCALED_EPSILON);
+
+            // Check for adaptive multi-band width compensation
+            const std::vector<Polygons>* lower_band_series = nullptr;
+            const std::vector<Polygons>* upper_band_series = nullptr;
+            bool use_adaptive_bands = false;
+            if (perimeter_generator.object_config->adaptive_line_width.value) {
+                lower_band_series = is_external ?
+                    &perimeter_generator.m_external_lower_polygons_series :
+                    &perimeter_generator.m_lower_polygons_series;
+                upper_band_series = is_external ?
+                    &perimeter_generator.m_external_upper_polygons_series :
+                    &perimeter_generator.m_upper_polygons_series;
+                use_adaptive_bands = (lower_band_series->size() > 2) || (upper_band_series->size() > 2);
             }
 
-            // get non-overhang paths by intersecting this loop with the grown lower slices
-            extrusion_paths_append(paths, clip_extrusion(extrusion_path, lower_slices_paths, ClipperLib_Z::ctIntersection), role,
-                                   is_external ? perimeter_generator.ext_perimeter_flow : perimeter_generator.perimeter_flow);
+            if (use_adaptive_bands) {
+                // Multi-band adaptive width compensation for Arachne
+                float layer_h = (float)perimeter_generator.layer_height;
+                float nozzle_diameter = perimeter_generator.print_config->nozzle_diameter.get_at(
+                    perimeter_generator.config->wall_filament - 1);
+                float base_width = is_external ?
+                    perimeter_generator.ext_perimeter_flow.width() :
+                    perimeter_generator.perimeter_flow.width();
+                float start_offset = -0.5f * base_width;
+                float max_overhang = std::max(0.5f * nozzle_diameter, 5.0f * layer_h);
+
+                bool has_lower_bands = lower_band_series->size() > 2;
+                bool has_upper_bands = upper_band_series->size() > 2;
+                size_t num_bands = has_lower_bands ? lower_band_series->size() : upper_band_series->size();
+
+                // Start with the full extrusion path
+                std::vector<ClipperLib_Z::Path> remaining_paths = {extrusion_path};
+
+                for (size_t i = 0; i < num_bands && !remaining_paths.empty(); i++) {
+                    size_t band_idx = num_bands - 1 - i;  // Reverse: outermost first
+
+                    // Get combined band polygons (intersection of lower and upper if both exist)
+                    Polygons combined_band;
+                    if (has_lower_bands && has_upper_bands) {
+                        Polygons lower_band = ClipperUtils::clip_clipper_polygons_with_subject_bbox(
+                            (*lower_band_series)[band_idx], extrusion_path_bbox);
+                        Polygons upper_band = ClipperUtils::clip_clipper_polygons_with_subject_bbox(
+                            (*upper_band_series)[band_idx], extrusion_path_bbox);
+                        combined_band = intersection(lower_band, upper_band);
+                    } else if (has_lower_bands) {
+                        combined_band = ClipperUtils::clip_clipper_polygons_with_subject_bbox(
+                            (*lower_band_series)[band_idx], extrusion_path_bbox);
+                    } else {
+                        combined_band = ClipperUtils::clip_clipper_polygons_with_subject_bbox(
+                            (*upper_band_series)[band_idx], extrusion_path_bbox);
+                    }
+
+                    // Convert to ClipperLib_Z::Paths (Z=0 for clip polygons)
+                    ClipperLib_Z::Paths band_paths_z;
+                    band_paths_z.reserve(combined_band.size());
+                    for (const Polygon& poly : combined_band) {
+                        ClipperLib_Z::Path zpath;
+                        zpath.reserve(poly.points.size());
+                        for (const Point& pt : poly.points)
+                            zpath.emplace_back(pt.x(), pt.y(), 0);
+                        band_paths_z.emplace_back(std::move(zpath));
+                    }
+
+                    // Calculate width compensation for this band boundary
+                    float t = (float)band_idx / (num_bands - 1);
+                    float band_offset = start_offset + t * (max_overhang - start_offset);
+                    float width_multiplier = 1.0f;
+                    if (band_offset > 0 && layer_h > 0) {
+                        float ratio = band_offset / layer_h;
+                        width_multiplier = std::sqrt(1.0f + ratio * ratio);
+                        width_multiplier = std::min(width_multiplier, ADAPTIVE_MAX_WIDTH_MULTIPLIER);
+                    }
+
+                    // For each remaining path segment, clip against this band
+                    std::vector<ClipperLib_Z::Path> new_remaining;
+                    for (const ClipperLib_Z::Path& rem_path : remaining_paths) {
+                        // Outside this band → apply compensation
+                        ClipperLib_Z::Paths outside = clip_extrusion(rem_path, band_paths_z, ClipperLib_Z::ctDifference);
+
+                        if (!outside.empty()) {
+                            // Scale Z (junction width) by compensation factor
+                            if (width_multiplier > 1.0f) {
+                                for (ClipperLib_Z::Path& opath : outside)
+                                    for (ClipperLib_Z::IntPoint& pt : opath)
+                                        pt.z() = coord_t(pt.z() * width_multiplier);
+                            }
+
+                            ExtrusionRole path_role = (band_offset > 0.5f * nozzle_diameter) ? erOverhangPerimeter : role;
+                            extrusion_paths_append(paths, outside, path_role,
+                                is_external ? perimeter_generator.ext_perimeter_flow : perimeter_generator.perimeter_flow);
+                        }
+
+                        // Inside this band → continue to next band
+                        ClipperLib_Z::Paths inside = clip_extrusion(rem_path, band_paths_z, ClipperLib_Z::ctIntersection);
+                        new_remaining.insert(new_remaining.end(), inside.begin(), inside.end());
+                    }
+                    remaining_paths = std::move(new_remaining);
+                }
+
+                // Remaining paths are fully supported — use base width
+                if (!remaining_paths.empty()) {
+                    ClipperLib_Z::Paths remaining_z(remaining_paths.begin(), remaining_paths.end());
+                    extrusion_paths_append(paths, remaining_z, role,
+                        is_external ? perimeter_generator.ext_perimeter_flow : perimeter_generator.perimeter_flow);
+                }
+            } else {
+                // Original binary overhang detection
+                ClipperLib_Z::Paths lower_slices_paths;
+                {
+                    lower_slices_paths.reserve(perimeter_generator.lower_slices_polygons().size());
+                    Points clipped;
+                    for (const Polygon &poly : perimeter_generator.lower_slices_polygons()) {
+                        clipped.clear();
+                        ClipperUtils::clip_clipper_polygon_with_subject_bbox(poly.points, extrusion_path_bbox, clipped);
+                        if (!clipped.empty()) {
+                            lower_slices_paths.emplace_back();
+                            ClipperLib_Z::Path &out = lower_slices_paths.back();
+                            out.reserve(clipped.size());
+                            for (const Point &pt : clipped)
+                              out.emplace_back(pt.x(), pt.y(), 0);
+                        }
+                    }
+                }
+
+                // get non-overhang paths by intersecting this loop with the grown lower slices
+                extrusion_paths_append(paths, clip_extrusion(extrusion_path, lower_slices_paths, ClipperLib_Z::ctIntersection), role,
+                                       is_external ? perimeter_generator.ext_perimeter_flow : perimeter_generator.perimeter_flow);
+
+                // get overhang paths by checking what parts of this loop fall
+                // outside the grown lower slices (thus where the distance between
+                // the loop centerline and original lower slices is >= half nozzle diameter
+                extrusion_paths_append(paths, clip_extrusion(extrusion_path, lower_slices_paths, ClipperLib_Z::ctDifference), erOverhangPerimeter,
+                    perimeter_generator.overhang_flow);
+            }
 
             // Always reverse extrusion if use fuzzy skin: https://github.com/SoftFever/OrcaSlicer/pull/2413#issuecomment-1769735357
             if (overhangs_reverse && perimeter_generator.has_fuzzy_skin) {
@@ -521,12 +635,6 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
                     }
                 }
             }
-
-            // get overhang paths by checking what parts of this loop fall
-            // outside the grown lower slices (thus where the distance between
-            // the loop centerline and original lower slices is >= half nozzle diameter
-            extrusion_paths_append(paths, clip_extrusion(extrusion_path, lower_slices_paths, ClipperLib_Z::ctDifference), erOverhangPerimeter,
-                perimeter_generator.overhang_flow);
 
             // Reapply the nearest point search for starting point.
             // We allow polyline reversal because Clipper may have randomly reversed polylines during clipping.
@@ -2188,6 +2296,22 @@ void PerimeterGenerator::process_arachne()
         // in the current layer
         double nozzle_diameter = this->print_config->nozzle_diameter.get_at(this->config->wall_filament - 1);
         m_lower_slices_polygons = offset(*this->lower_slices, float(scale_(+nozzle_diameter / 2)));
+    }
+
+    // Generate lower/upper polygons series for adaptive line width (multi-band compensation)
+    if (object_config->adaptive_line_width.value) {
+        m_lower_polygons_series = generate_lower_polygons_series(this->perimeter_flow.width());
+        if (ext_perimeter_width == this->perimeter_flow.scaled_width()) {
+            m_external_lower_polygons_series = m_lower_polygons_series;
+        } else {
+            m_external_lower_polygons_series = generate_lower_polygons_series(this->ext_perimeter_flow.width());
+        }
+        m_upper_polygons_series = generate_upper_polygons_series(this->perimeter_flow.width());
+        if (ext_perimeter_width == this->perimeter_flow.scaled_width()) {
+            m_external_upper_polygons_series = m_upper_polygons_series;
+        } else {
+            m_external_upper_polygons_series = generate_upper_polygons_series(this->ext_perimeter_flow.width());
+        }
     }
 
     Surfaces all_surfaces = this->slices->surfaces;
