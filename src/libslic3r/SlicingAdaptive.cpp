@@ -89,7 +89,11 @@ void SlicingAdaptive::prepare(const ModelObject &object)
 			std::min(std::min(vertex[0].z(), vertex[1].z()), vertex[2].z()),
 			std::max(std::max(vertex[0].z(), vertex[1].z()), vertex[2].z())
 		};
-		m_faces.emplace_back(FaceZ({ face_z_span, std::abs(n.z()), std::sqrt(n.x() * n.x() + n.y() * n.y()), n.z() < 0 }));
+		stl_vertex e1 = vertex[1] - vertex[0];
+		stl_vertex e2 = vertex[2] - vertex[0];
+		stl_vertex cross = e1.cross(e2);
+		float face_area = 0.5f * cross.norm();
+		m_faces.emplace_back(FaceZ({ face_z_span, std::abs(n.z()), std::sqrt(n.x() * n.x() + n.y() * n.y()), n.z() < 0, face_area }));
     }
 
 	// 2) Sort faces lexicographically by their Z span.
@@ -219,9 +223,13 @@ float SlicingAdaptive::next_layer_height_overhang(const float print_z, float max
 {
 	float height = max_h;
 
-	// Sweep-line: start from current_facet (m_faces sorted by min Z)
+	// First pass: find all facets intersecting the current slice plane.
+	// Use area-weighted average of n_sin instead of strict minimum to be robust
+	// against tessellation noise: small triangles with outlier normals don't dominate.
 	size_t ordered_id = current_facet;
 	bool first_hit = false;
+	float weighted_n_sin_sum = 0.f;
+	float weight_sum = 0.f;
 
 	for (; ordered_id < m_faces.size(); ++ordered_id) {
 		const std::pair<float, float> &zspan = m_faces[ordered_id].z_span;
@@ -243,21 +251,26 @@ float SlicingAdaptive::next_layer_height_overhang(const float print_z, float max
 				continue;
 
 			// Skip nearly-horizontal surfaces (angle < ~10 degrees from horizontal)
-			// These don't benefit from reduced layer height - stair-stepping isn't visible
-			// n_sin < 0.17 corresponds to angle < ~10 degrees from horizontal
+			// These are treated as bridges and don't benefit from reduced layer height
 			if (m_faces[ordered_id].n_sin < 0.17f)
 				continue;
 
-			// Core formula: h = d * sin(alpha)
-			// n_sin is pre-computed as sqrt(nx^2 + ny^2), which equals sin(angle_from_horizontal)
-			float adaptive_h = max_surface_dist * m_faces[ordered_id].n_sin;
-
-			if (adaptive_h < height)
-				height = adaptive_h;
+			// Accumulate area-weighted n_sin
+			float w = m_faces[ordered_id].area;
+			weighted_n_sin_sum += m_faces[ordered_id].n_sin * w;
+			weight_sum += w;
 		}
 	}
 
-	// Clamp to valid range
+	if (weight_sum > 0.f) {
+		float avg_n_sin = weighted_n_sin_sum / weight_sum;
+		height = max_surface_dist * avg_n_sin;
+	}
+
+	// Clamp to valid range.
+	// Look-ahead (faces starting above print_z) is handled by the bidirectional
+	// smoothing pass in layer_height_profile_from_overhang, which propagates
+	// thin layers backward without per-face tessellation sensitivity.
 	return std::max(min_h, std::min(height, max_h));
 }
 

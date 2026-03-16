@@ -34,6 +34,8 @@ public:
 		float					n_sin;
 		// True if face normal points downward (n.z < 0), indicating overhang.
 		bool					is_overhang;
+		// 3D area of the triangle face, used as weight for tessellation-robust averaging.
+		float					area;
 	};
 
 protected:

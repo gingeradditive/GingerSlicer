@@ -396,6 +396,36 @@ std::vector<double> layer_height_profile_from_overhang(
         print_z += height;
     }
 
+    // Median filter (window 5) to remove tessellation noise from the raw profile.
+    // On coarsely tessellated meshes, the set of active faces changes at triangle
+    // z_span boundaries, causing isolated layer height jumps. The median filter
+    // removes these outliers while preserving genuine sustained overhang regions.
+    if (layer_height_profile.size() >= 12) { // need at least 6 z/h pairs for window 5
+        std::vector<double> filtered = layer_height_profile;
+        // Profile format: [z0, h0, z1, h1, ...] — heights at odd indices
+        for (size_t i = 5; i < layer_height_profile.size() - 4; i += 2) {
+            double vals[5] = {
+                layer_height_profile[i - 4],
+                layer_height_profile[i - 2],
+                layer_height_profile[i],
+                layer_height_profile[i + 2],
+                layer_height_profile[i + 4]
+            };
+            // Sort 5 elements to find median (sorting network for 5 values)
+            if (vals[0] > vals[1]) std::swap(vals[0], vals[1]);
+            if (vals[3] > vals[4]) std::swap(vals[3], vals[4]);
+            if (vals[0] > vals[2]) std::swap(vals[0], vals[2]);
+            if (vals[1] > vals[2]) std::swap(vals[1], vals[2]);
+            if (vals[0] > vals[3]) std::swap(vals[0], vals[3]);
+            if (vals[2] > vals[3]) std::swap(vals[2], vals[3]);
+            if (vals[1] > vals[4]) std::swap(vals[1], vals[4]);
+            if (vals[1] > vals[2]) std::swap(vals[1], vals[2]);
+            if (vals[2] > vals[3]) std::swap(vals[2], vals[3]);
+            filtered[i] = vals[2]; // median
+        }
+        layer_height_profile = filtered;
+    }
+
     // Bidirectional smoothing: smooth transitions around minima (overhang regions)
     // This ensures gradual approach TO overhangs while keeping overhang layer heights intact
     // Use proportional step (10% of max layer height) for faster transitions with large layer heights
