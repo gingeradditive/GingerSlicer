@@ -2969,30 +2969,56 @@ void PrintConfigDef::init_fff_params()
                      "Perlin: Perlin noise, which gives a more consistent texture.\n"
                      "Billow: Similar to perlin noise, but clumpier.\n"
                      "Ridged Multifractal: Ridged noise with sharp, jagged features. Creates marble-like textures.\n"
-                     "Voronoi: Divides the surface into voronoi cells, and displaces each one by a random amount. Creates a patchwork texture.");
+                     "Voronoi: Divides the surface into voronoi cells, and displaces each one by a random amount. Creates a patchwork texture.\n"
+                     "PathWave: Deterministic path-following sine wave. Use for regular textures.\n"
+                     "PathWeave: Deterministic intersecting path-following waves. Use for braided/woven pellet textures.");
     def->enum_keys_map = &ConfigOptionEnum<NoiseType>::get_enum_values();
     def->enum_values.push_back("classic");
     def->enum_values.push_back("perlin");
     def->enum_values.push_back("billow");
     def->enum_values.push_back("ridgedmulti");
     def->enum_values.push_back("voronoi");
+    def->enum_values.push_back("pathwave");
+    def->enum_values.push_back("pathweave");
     def->enum_labels.push_back(L("Classic"));
     def->enum_labels.push_back(L("Perlin"));
     def->enum_labels.push_back(L("Billow"));
     def->enum_labels.push_back(L("Ridged Multifractal"));
     def->enum_labels.push_back(L("Voronoi"));
+    def->enum_labels.push_back(L("Path Wave"));
+    def->enum_labels.push_back(L("Path Weave"));
     def->mode = comSimple;
     def->set_default_value(new ConfigOptionEnum<NoiseType>(NoiseType::Classic));
 
     def = this->add("fuzzy_skin_scale", coFloat);
     def->label = L("Fuzzy skin feature size");
     def->category = L("Others");
-    def->tooltip = L("The base size of the coherent noise features, in mm. Higher values will result in larger features.");
+    def->tooltip = L("The base size of the coherent noise features, in mm. Higher values will result in larger features. For Wave/Weave, this acts as the XY wavelength.");
     def->sidetext = "mm";	// milimeters, don't need translation
     def->min = 0.1;
     def->max = 500;
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(1.0));
+
+    def = this->add("fuzzy_skin_wave_z_scale", coFloat);
+    def->label = L("Fuzzy skin Z wavelength");
+    def->category = L("Others");
+    def->tooltip = L("The distance in Z over which the Wave/Weave pattern repeats, in mm. A value of 0 means the pattern is identical on every layer (vertical stripes).");
+    def->sidetext = "mm";
+    def->min = 0.0;
+    def->max = 500;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(10.0));
+
+    def = this->add("fuzzy_skin_wave_angle", coFloat);
+    def->label = L("Fuzzy skin pattern angle");
+    def->category = L("Others");
+    def->tooltip = L("The angle offset for Wave/Weave patterns, in degrees.");
+    def->sidetext = "°";
+    def->min = -360;
+    def->max = 360;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(0.0));
 
     def = this->add("fuzzy_skin_octaves", coInt);
     def->label = L("Fuzzy Skin Noise Octaves");

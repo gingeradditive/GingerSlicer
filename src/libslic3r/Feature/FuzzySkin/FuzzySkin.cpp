@@ -37,6 +37,42 @@ class UniformNoise: public noise::module::Module {
         virtual double GetValue(double x, double y, double z) const { return random_value() * 2 - 1; }
 };
 
+class PathWaveNoise: public noise::module::Module {
+    public:
+        PathWaveNoise(double frequency, double z_frequency, double angle, bool weave)
+            : Module(GetSourceModuleCount()), m_freq(frequency), m_z_freq(z_frequency), m_angle(angle), m_weave(weave) {};
+
+        virtual int GetSourceModuleCount() const { return 0; }
+        virtual double GetValue(double distance, double z, double unused) const {
+            // For PathWave, X is distance along path, Y is Z height
+            // We apply the rotation angle to the 2D space of (distance, z)
+            double rad = m_angle * (M_PI / 180.0);
+            
+            // Handle zero frequency to avoid div by zero
+            double x_scale = m_freq > 0.001 ? 1.0 / m_freq : 0.0;
+            double y_scale = m_z_freq > 0.001 ? 1.0 / m_z_freq : 0.0;
+
+            double u = distance * x_scale;
+            double v = z * y_scale;
+
+            double rot_u = u * cos(rad) - v * sin(rad);
+            double rot_v = u * sin(rad) + v * cos(rad);
+
+            if (m_weave) {
+                // Intersecting sine waves for weave pattern
+                return sin(rot_u * 2.0 * M_PI) * cos(rot_v * 2.0 * M_PI);
+            } else {
+                // Single directional sine wave
+                return sin((rot_u + rot_v) * 2.0 * M_PI);
+            }
+        }
+    private:
+        double m_freq;
+        double m_z_freq;
+        double m_angle;
+        bool m_weave;
+};
+
 static std::unique_ptr<noise::module::Module> get_noise_module(const FuzzySkinConfig& cfg) {
     if (cfg.noise_type == NoiseType::Perlin) {
         auto perlin_noise = noise::module::Perlin();
@@ -60,6 +96,13 @@ static std::unique_ptr<noise::module::Module> get_noise_module(const FuzzySkinCo
         voronoi_noise.SetFrequency(1 / cfg.noise_scale);
         voronoi_noise.SetDisplacement(1.0);
         return std::make_unique<noise::module::Voronoi>(voronoi_noise);
+    } else if (cfg.noise_type == NoiseType::PathWave || cfg.noise_type == NoiseType::PathWeave) {
+        return std::make_unique<PathWaveNoise>(
+            cfg.noise_scale,
+            cfg.wave_z_scale,
+            cfg.wave_angle,
+            cfg.noise_type == NoiseType::PathWeave
+        );
     } else {
         return std::make_unique<UniformNoise>();
     }
@@ -69,10 +112,13 @@ static std::unique_ptr<noise::module::Module> get_noise_module(const FuzzySkinCo
 void fuzzy_polyline(Points& poly, bool closed, coordf_t slice_z, const FuzzySkinConfig& cfg)
 {
     std::unique_ptr<noise::module::Module> noise = get_noise_module(cfg);
+    bool use_path_dist = (cfg.noise_type == NoiseType::PathWave || cfg.noise_type == NoiseType::PathWeave);
 
     const double min_dist_between_points = cfg.point_distance * 3. / 4.; // hardcoded: the point distance may vary between 3/4 and 5/4 the supplied value
     const double range_random_point_dist = cfg.point_distance / 2.;
     double dist_left_over = random_value() * (min_dist_between_points / 2.); // the distance to be traversed on the line before making the first new point
+    double path_dist = dist_left_over; // accumulated path distance for wave/weave
+
     Point* p0 = &poly.back();
     Points out;
     out.reserve(poly.size());
@@ -92,8 +138,18 @@ void fuzzy_polyline(Points& poly, bool closed, coordf_t slice_z, const FuzzySkin
             p0pa_dist += min_dist_between_points + random_value() * range_random_point_dist)
         {
             Point pa = *p0 + (p0p1 * (p0pa_dist / p0p1_size)).cast<coord_t>();
-            double r = noise->GetValue(unscale_(pa.x()), unscale_(pa.y()), slice_z) * cfg.thickness;
+            double r;
+            if (use_path_dist) {
+                // For path wave/weave, pass accumulated unscaled path distance as X, and Z as Y
+                r = noise->GetValue(unscale_(path_dist), slice_z, 0.0) * cfg.thickness;
+            } else {
+                r = noise->GetValue(unscale_(pa.x()), unscale_(pa.y()), slice_z) * cfg.thickness;
+            }
             out.emplace_back(pa + (perp(p0p1).cast<double>().normalized() * r).cast<coord_t>());
+            
+            // Advance path distance by the segment length we just jumped
+            double next_step = min_dist_between_points + random_value() * range_random_point_dist;
+            path_dist += next_step;
         }
         dist_left_over = p0pa_dist - p0p1_size;
         p0 = &p1;
@@ -113,11 +169,13 @@ void fuzzy_polyline(Points& poly, bool closed, coordf_t slice_z, const FuzzySkin
 void fuzzy_extrusion_line(Arachne::ExtrusionJunctions& ext_lines, coordf_t slice_z, const FuzzySkinConfig& cfg)
 {
     std::unique_ptr<noise::module::Module> noise = get_noise_module(cfg);
+    bool use_path_dist = (cfg.noise_type == NoiseType::PathWave || cfg.noise_type == NoiseType::PathWeave);
 
     const double min_dist_between_points = cfg.point_distance * 3. / 4.; // hardcoded: the point distance may vary between 3/4 and 5/4 the supplied value
     const double range_random_point_dist = cfg.point_distance / 2.;
     const double min_extrusion_width = 0.01; // workaround for many print options. Need overwrite formula with the layer height parameter. The width must more than >>> layer_height * (1 - 0.25 * PI) * 1.05 <<< (last num is the coeff of overlay error case)
     double dist_left_over = random_value() * (min_dist_between_points / 2.); // the distance to be traversed on the line before making the first new point
+    double path_dist = dist_left_over; // accumulated path distance for wave/weave
 
     auto* p0 = &ext_lines.front();
     Arachne::ExtrusionJunctions out;
@@ -134,7 +192,13 @@ void fuzzy_extrusion_line(Arachne::ExtrusionJunctions& ext_lines, coordf_t slice
         double p0pa_dist = dist_left_over;
         for (; p0pa_dist < p0p1_size; p0pa_dist += min_dist_between_points + random_value() * range_random_point_dist) {
             Point pa = p0->p + (p0p1 * (p0pa_dist / p0p1_size)).cast<coord_t>();
-            double r = noise->GetValue(unscale_(pa.x()), unscale_(pa.y()), slice_z) * cfg.thickness;
+            double r;
+            if (use_path_dist) {
+                // For path wave/weave, pass accumulated unscaled path distance as X, and Z as Y
+                r = noise->GetValue(unscale_(path_dist), slice_z, 0.0) * cfg.thickness;
+            } else {
+                r = noise->GetValue(unscale_(pa.x()), unscale_(pa.y()), slice_z) * cfg.thickness;
+            }
             switch (cfg.mode) { //the curly code for testing
                 case FuzzySkinMode::Displacement :
                     out.emplace_back(pa + (perp(p0p1).cast<double>().normalized() * r).cast<coord_t>(), p1.w, p1.perimeter_index);
@@ -147,6 +211,10 @@ void fuzzy_extrusion_line(Arachne::ExtrusionJunctions& ext_lines, coordf_t slice
                     out.emplace_back(pa + (perp(p0p1).cast<double>().normalized() * ((rad  - p1.w) / 2)).cast<coord_t>(), rad, p1.perimeter_index); //0.05 - minimum width of extruded line
                     break;
             }
+            
+            // Advance path distance by the segment length we just jumped
+            double next_step = min_dist_between_points + random_value() * range_random_point_dist;
+            path_dist += next_step;
         }
         dist_left_over = p0pa_dist - p0p1_size;
         p0 = &p1;
@@ -186,7 +254,9 @@ void group_region_by_fuzzify(PerimeterGenerator& g)
                                   region_config.fuzzy_skin_scale,
                                   region_config.fuzzy_skin_octaves,
                                   region_config.fuzzy_skin_persistence,
-                                  region_config.fuzzy_skin_mode};
+                                  region_config.fuzzy_skin_mode,
+                                  region_config.fuzzy_skin_wave_z_scale,
+                                  region_config.fuzzy_skin_wave_angle};
         auto&                 surfaces = regions[cfg];
         for (const auto& surface : region->slices.surfaces) {
             surfaces.push_back(&surface);

@@ -54,6 +54,8 @@ enum class NoiseType {
     Billow,
     RidgedMulti,
     Voronoi,
+    PathWave,
+    PathWeave,
 };
 
 enum PrintHostType {
