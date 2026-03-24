@@ -57,8 +57,6 @@ private:
     unsigned int                m_current_extruder;
     //BBS: current fan speed
     int                         m_current_fan_speed;
-    // Debug: cooling buffer diagnostic output
-    std::string                 m_cooling_debug;
 };
 
 }

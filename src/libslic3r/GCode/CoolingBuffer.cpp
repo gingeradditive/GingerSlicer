@@ -323,12 +323,9 @@ std::string CoolingBuffer::process_layer(std::string &&gcode, size_t layer_id, b
     if (flush) {
         // This is either an object layer or the very last print layer. Calculate cool down over the collected support layers
         // and one object layer.
-        m_cooling_debug.clear();
         std::vector<PerExtruderAdjustments> per_extruder_adjustments = this->parse_layer_gcode(m_gcode, m_current_pos);
         float layer_time_stretched = this->calculate_layer_slowdown(per_extruder_adjustments);
         out = this->apply_layer_cooldown(m_gcode, layer_id, layer_time_stretched, per_extruder_adjustments);
-        if (!m_cooling_debug.empty())
-            out = m_cooling_debug + "\n" + out;
         m_gcode.clear();
     }
     return out;
@@ -659,15 +656,6 @@ float CoolingBuffer::calculate_layer_slowdown(std::vector<PerExtruderAdjustments
             by_slowdown_time.emplace_back(&adj);
             // sorts the lines, also sets adj.time_non_adjustable
             adj.sort_lines_by_decreasing_feedrate();
-            m_cooling_debug += ";DEBUG_COOLING extruder=" + std::to_string(adj.extruder_id)
-                + " time_total=" + std::to_string(adj.time_total)
-                + " time_maximum=" + std::to_string(adj.time_maximum)
-                + " time_non_adj=" + std::to_string(adj.time_non_adjustable)
-                + " n_adj=" + std::to_string(adj.n_lines_adjustable)
-                + " n_total=" + std::to_string(adj.lines.size())
-                + " slow_down_layer_time=" + std::to_string(adj.slow_down_layer_time)
-                + " slow_down_min_speed=" + std::to_string(adj.slow_down_min_speed)
-                + "\n";
         } else
             elapsed_time_total0 += adj.elapsed_time_total();
     }
@@ -683,27 +671,15 @@ float CoolingBuffer::calculate_layer_slowdown(std::vector<PerExtruderAdjustments
         for (auto it = cur_begin; it != by_slowdown_time.end(); ++ it)
             total += (*it)->time_total;
         float slow_down_layer_time = adj.slow_down_layer_time * 1.001f;
-        if (total > slow_down_layer_time) {
-            // The current total time is above the minimum threshold of the rest of the extruders, don't adjust anything.
-            m_cooling_debug += ";DEBUG_COOLING SKIP total=" + std::to_string(total)
-                + " > threshold=" + std::to_string(slow_down_layer_time) + "\n";
-        } else {
+        if (total <= slow_down_layer_time) {
             // Adjust this and all the following (higher m_config.slow_down_layer_time) extruders.
             // Sum maximum slow down time as if everything was slowed down including the external perimeters.
             float max_time = elapsed_time_total0;
             for (auto it = cur_begin; it != by_slowdown_time.end(); ++ it)
                 max_time += (*it)->time_maximum;
             if (max_time > slow_down_layer_time) {
-                m_cooling_debug += ";DEBUG_COOLING SLOWDOWN_NON_PROP total=" + std::to_string(total)
-                    + " target=" + std::to_string(slow_down_layer_time)
-                    + " stretch=" + std::to_string(slow_down_layer_time - total)
-                    + " max_time=" + std::to_string(max_time) + "\n";
                 extruder_range_slow_down_non_proportional(cur_begin, by_slowdown_time.end(), slow_down_layer_time - total);
             } else {
-                m_cooling_debug += ";DEBUG_COOLING SLOWDOWN_TO_MIN total=" + std::to_string(total)
-                    + " target=" + std::to_string(slow_down_layer_time)
-                    + " max_time=" + std::to_string(max_time)
-                    + " (CANNOT reach target)\n";
                 // Slow down to maximum possible.
                 for (auto it = cur_begin; it != by_slowdown_time.end(); ++ it)
                     (*it)->slowdown_to_minimum_feedrate(true);
@@ -720,23 +696,9 @@ float CoolingBuffer::calculate_layer_slowdown(std::vector<PerExtruderAdjustments
             if (cl.slowdown)
                 ++n_slowed;
         }
-        m_cooling_debug += ";DEBUG_COOLING RESULT time_after_slowdown=" + std::to_string(time_after)
-            + " time_from_length_feedrate=" + std::to_string(time_from_lf)
-            + " RATIO=" + std::to_string(time_after / std::max(0.001f, time_from_lf))
-            + " n_slowed=" + std::to_string(n_slowed) + "\n";
-        // Log first 5 adjustable lines details
-        for (size_t i = 0; i < std::min((size_t)5, adj.n_lines_adjustable); ++i) {
-            const CoolingLine &cl = adj.lines[i];
-            m_cooling_debug += ";DEBUG_COOLING LINE[" + std::to_string(i)
-                + "] feedrate=" + std::to_string(cl.feedrate)
-                + " length=" + std::to_string(cl.length)
-                + " time=" + std::to_string(cl.time)
-                + " slowdown=" + std::to_string(cl.slowdown) + "\n";
-        }
         elapsed_time_total0 += time_after;
     }
 
-    m_cooling_debug += ";DEBUG_COOLING FINAL elapsed_time_total=" + std::to_string(elapsed_time_total0) + "\n";
     return elapsed_time_total0;
 }
 
@@ -1065,9 +1027,6 @@ std::string CoolingBuffer::apply_layer_cooldown(
     const char *gcode_end = gcode.c_str() + gcode.size();
     if (pos < gcode_end)
         new_gcode.append(pos, gcode_end - pos);
-
-    // Diagnostic summary
-    m_cooling_debug += ";DEBUG_COOLING APPLY gap_f_overrides=" + std::to_string(diag_gap_f_count) + "\n";
 
     return new_gcode;
 }
