@@ -212,7 +212,7 @@ struct PerExtruderAdjustments
     // Used by non-proportional slow down.
     void slow_down_to_feedrate(float min_feedrate) {
         assert(this->slow_down_min_speed < min_feedrate + EPSILON);
-        float time_total = 0.f;
+        float time_total = time_non_adjustable;
         for (size_t i = 0; i < n_lines_adjustable; ++ i) {
             CoolingLine &line = lines[i];
             if (line.feedrate > min_feedrate) {
@@ -384,6 +384,11 @@ std::vector<PerExtruderAdjustments> CoolingBuffer::parse_layer_gcode(const std::
         if (line.type) {
             // G0, G1 or G92
             // Parse the G-code line.
+            // Reset extruder accumulator before copying to new_pos, so that
+            // lines without an E parameter (e.g. speed-only _EXTRUDE_SET_SPEED)
+            // don't inherit a phantom E delta from the previous extrusion.
+            if ((line.type & CoolingLine::TYPE_G92) == 0 && m_config.use_relative_e_distances.value)
+                current_pos[3] = 0.f;
             std::vector<float> new_pos(current_pos);
             const char *c = sline.data() + 3;
             for (;;) {
@@ -437,9 +442,7 @@ std::vector<PerExtruderAdjustments> CoolingBuffer::parse_layer_gcode(const std::
             }
             if ((line.type & CoolingLine::TYPE_G92) == 0) {
                 //BBS: G0, G1, G2, G3. Calculate the duration.
-                if (m_config.use_relative_e_distances.value)
-                    // Reset extruder accumulator.
-                    current_pos[3] = 0.f;
+                // Note: relative E reset was moved before new_pos initialization above.
                 float dif[4];
                 for (size_t i = 0; i < 4; ++ i)
                     dif[i] = new_pos[i] - current_pos[i];
@@ -668,9 +671,7 @@ float CoolingBuffer::calculate_layer_slowdown(std::vector<PerExtruderAdjustments
         for (auto it = cur_begin; it != by_slowdown_time.end(); ++ it)
             total += (*it)->time_total;
         float slow_down_layer_time = adj.slow_down_layer_time * 1.001f;
-        if (total > slow_down_layer_time) {
-            // The current total time is above the minimum threshold of the rest of the extruders, don't adjust anything.
-        } else {
+        if (total <= slow_down_layer_time) {
             // Adjust this and all the following (higher m_config.slow_down_layer_time) extruders.
             // Sum maximum slow down time as if everything was slowed down including the external perimeters.
             float max_time = elapsed_time_total0;
@@ -684,7 +685,18 @@ float CoolingBuffer::calculate_layer_slowdown(std::vector<PerExtruderAdjustments
                     (*it)->slowdown_to_minimum_feedrate(true);
             }
         }
-        elapsed_time_total0 += adj.elapsed_time_total();
+        float time_after = adj.elapsed_time_total();
+        // Diagnostic: compute time from length/feedrate (what output G-code actually produces)
+        float time_from_lf = 0.f;
+        int n_slowed = 0;
+        for (size_t i = 0; i < adj.n_lines_adjustable; ++i) {
+            const CoolingLine &cl = adj.lines[i];
+            if (cl.feedrate > 0.f && cl.length > 0.f)
+                time_from_lf += cl.length / cl.feedrate;
+            if (cl.slowdown)
+                ++n_slowed;
+        }
+        elapsed_time_total0 += time_after;
     }
 
     return elapsed_time_total0;
@@ -816,6 +828,7 @@ std::string CoolingBuffer::apply_layer_cooldown(
 
     const char         *pos               = gcode.c_str();
     int                 current_feedrate  = 0;
+    int                 diag_gap_f_count  = 0;
     change_extruder_set_fan(true);
 
     // Orca: Reduce set fan commands by deferring the GCodeWriter::set_fan calls. Inspired by SuperSlicer
@@ -830,8 +843,17 @@ std::string CoolingBuffer::apply_layer_cooldown(
     for (const CoolingLine *line : lines) {
         const char *line_start  = gcode.c_str() + line->line_start;
         const char *line_end    = gcode.c_str() + line->line_end;
-        if (line_start > pos)
+        if (line_start > pos) {
+            // Diagnostic: scan gap for G1 F lines that override feedrate
+            const char *g = pos;
+            while (g < line_start) {
+                if (g[0] == 'G' && g[1] == '1' && g[2] == ' ' && g[3] == 'F')
+                    ++diag_gap_f_count;
+                while (g < line_start && *g != '\n') ++g;
+                if (g < line_start) ++g;
+            }
             new_gcode.append(pos, line_start - pos);
+        }
         if (line->type & CoolingLine::TYPE_SET_TOOL) {
             unsigned int new_extruder = 0;
             auto ret = std::from_chars(line_start + m_toolchange_prefix.size(), line_end, new_extruder);
