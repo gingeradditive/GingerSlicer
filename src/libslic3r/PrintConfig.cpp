@@ -2738,13 +2738,38 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->set_default_value(new ConfigOptionFloat(0.2));
 
-    //def = this->add("adaptive_layer_height", coBool);
-    //def->label = L("Adaptive layer height");
-    //def->category = L("Quality");
-    //def->tooltip = L("Enabling this option means the height of every layer except the first will be automatically calculated "
-    //    "during slicing according to the slope of the model’s surface.\n"
-    //    "Note that this option only takes effect if no prime tower is generated in current plate.");
-    //def->set_default_value(new ConfigOptionBool(0));
+    def = this->add("adaptive_layer_overhang", coBool);
+    def->label = L("Adaptive layer height (Overhang)");
+    def->category = L("Quality");
+    def->tooltip = L("Enables adaptive layer height based on surface overhang angle. "
+        "Layer height is calculated as: h = max_surface_distance * sin(angle), "
+        "where angle is the surface slope from horizontal. "
+        "Steeper surfaces get thinner layers for better accuracy.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("adaptive_max_surface_distance", coFloat);
+    def->label = L("Max surface distance");
+    def->category = L("Quality");
+    def->tooltip = L("Maximum distance along the surface between layers. "
+        "This controls the step-down resolution on sloped surfaces. "
+        "Smaller values produce finer layers on overhangs.");
+    def->sidetext = "mm";
+    def->min = 0.01;
+    def->max = 10.0;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(1.0));
+
+    def = this->add("adaptive_min_layer_height", coFloat);
+    def->label = L("Adaptive min layer height");
+    def->category = L("Quality");
+    def->tooltip = L("Minimum layer height when using adaptive overhang slicing. "
+        "This overrides the default extruder minimum layer height for adaptive mode.");
+    def->sidetext = "mm";
+    def->min = 0.01;
+    def->max = 1.0;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(0.08));
 
     def = this->add("initial_layer_speed", coFloat);
     def->label = L("Initial layer");

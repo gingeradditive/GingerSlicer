@@ -341,6 +341,127 @@ std::vector<double> layer_height_profile_adaptive(const SlicingParameters& slici
     return layer_height_profile;
 }
 
+// Adaptive layer height based on overhang angle: h = max_surface_dist * sin(angle)
+std::vector<double> layer_height_profile_from_overhang(
+    const SlicingParameters& slicing_params,
+    const ModelObject& object,
+    float max_surface_distance,
+    float min_layer_height)
+{
+    // Initialize SlicingAdaptive with mesh data (performs O(N log N) sort)
+    SlicingAdaptive as;
+    as.set_slicing_parameters(slicing_params);
+    as.prepare(object);
+
+    std::vector<double> layer_height_profile;
+    layer_height_profile.push_back(0.0);
+    layer_height_profile.push_back(slicing_params.first_object_layer_height);
+
+    // Handle fixed first layer (e.g., raft)
+    if (slicing_params.first_object_layer_height_fixed()) {
+        layer_height_profile.push_back(slicing_params.first_object_layer_height);
+        layer_height_profile.push_back(slicing_params.first_object_layer_height);
+    }
+
+    double print_z = slicing_params.first_object_layer_height;
+    size_t current_facet = 0;
+
+    // Use nominal layer_height as max, explicit min_layer_height as min
+    float max_h = static_cast<float>(slicing_params.layer_height);
+    float min_h = min_layer_height;
+
+    // Ensure min <= max
+    if (min_h > max_h)
+        min_h = max_h;
+
+    while (print_z + EPSILON < slicing_params.object_print_z_height()) {
+        // Get adaptive height using overhang-based formula
+        float height = as.next_layer_height_overhang(
+            static_cast<float>(print_z), 
+            max_surface_distance, 
+            min_h, 
+            max_h, 
+            current_facet);
+
+        // Respect manual layer config ranges (user overrides)
+        for (auto const& [range, options] : object.layer_config_ranges) {
+            if (print_z >= range.first && print_z <= range.second) {
+                if (options.has("layer_height"))
+                    height = static_cast<float>(options.opt_float("layer_height"));
+                break;
+            }
+        }
+
+        layer_height_profile.push_back(print_z);
+        layer_height_profile.push_back(height);
+        print_z += height;
+    }
+
+    // Median filter (window 5) to remove tessellation noise from the raw profile.
+    // On coarsely tessellated meshes, the set of active faces changes at triangle
+    // z_span boundaries, causing isolated layer height jumps. The median filter
+    // removes these outliers while preserving genuine sustained overhang regions.
+    if (layer_height_profile.size() >= 12) { // need at least 6 z/h pairs for window 5
+        std::vector<double> filtered = layer_height_profile;
+        // Profile format: [z0, h0, z1, h1, ...] — heights at odd indices
+        for (size_t i = 5; i < layer_height_profile.size() - 4; i += 2) {
+            double vals[5] = {
+                layer_height_profile[i - 4],
+                layer_height_profile[i - 2],
+                layer_height_profile[i],
+                layer_height_profile[i + 2],
+                layer_height_profile[i + 4]
+            };
+            // Sort 5 elements to find median (sorting network for 5 values)
+            if (vals[0] > vals[1]) std::swap(vals[0], vals[1]);
+            if (vals[3] > vals[4]) std::swap(vals[3], vals[4]);
+            if (vals[0] > vals[2]) std::swap(vals[0], vals[2]);
+            if (vals[1] > vals[2]) std::swap(vals[1], vals[2]);
+            if (vals[0] > vals[3]) std::swap(vals[0], vals[3]);
+            if (vals[2] > vals[3]) std::swap(vals[2], vals[3]);
+            if (vals[1] > vals[4]) std::swap(vals[1], vals[4]);
+            if (vals[1] > vals[2]) std::swap(vals[1], vals[2]);
+            if (vals[2] > vals[3]) std::swap(vals[2], vals[3]);
+            filtered[i] = vals[2]; // median
+        }
+        layer_height_profile = filtered;
+    }
+
+    // Bidirectional smoothing: smooth transitions around minima (overhang regions)
+    // This ensures gradual approach TO overhangs while keeping overhang layer heights intact
+    // Use proportional step (10% of max layer height) for faster transitions with large layer heights
+    double smooth_step = max_h * 0.1;
+    if (smooth_step < LAYER_HEIGHT_CHANGE_STEP)
+        smooth_step = LAYER_HEIGHT_CHANGE_STEP;
+    
+    if (layer_height_profile.size() >= 4) {
+        // Forward pass: limit increases from previous layer
+        for (size_t i = 2; i < layer_height_profile.size(); i += 2) {
+            double prev_h = layer_height_profile[i - 1];
+            double curr_h = layer_height_profile[i + 1];
+            if (curr_h > prev_h + smooth_step)
+                layer_height_profile[i + 1] = prev_h + smooth_step;
+        }
+        
+        // Backward pass: limit increases from next layer (anticipate overhangs)
+        for (size_t i = layer_height_profile.size() - 2; i >= 4; i -= 2) {
+            double curr_h = layer_height_profile[i - 1];
+            double next_h = layer_height_profile[i + 1];
+            if (curr_h > next_h + smooth_step)
+                layer_height_profile[i - 1] = next_h + smooth_step;
+        }
+    }
+
+    // Close profile at object top (after smoothing to avoid propagating small closing layer)
+    double z_gap = slicing_params.object_print_z_height() - *(layer_height_profile.end() - 2);
+    if (z_gap > 0.0) {
+        layer_height_profile.push_back(slicing_params.object_print_z_height());
+        layer_height_profile.push_back(std::clamp(z_gap, static_cast<double>(min_h), static_cast<double>(max_h)));
+    }
+
+    return layer_height_profile;
+}
+
 std::vector<double> smooth_height_profile(const std::vector<double>& profile, const SlicingParameters& slicing_params, const HeightProfileSmoothingParams& smoothing_params)
 {
     auto gauss_blur = [&slicing_params](const std::vector<double>& profile, const HeightProfileSmoothingParams& smoothing_params) -> std::vector<double> {
