@@ -236,6 +236,11 @@ struct PerExtruderAdjustments
     
     bool                        dont_slow_down_outer_wall = false;
 
+    // Volume-based cooling
+    bool                        volume_based_cooling = false;
+    float                       cooling_time_per_volume = 0.f;
+    float                       filament_cross_section = 0.f;
+    float                       volume_extruded = 0.f;
 
     // Parsed lines.
     std::vector<CoolingLine>    lines;
@@ -346,6 +351,14 @@ std::vector<PerExtruderAdjustments> CoolingBuffer::parse_layer_gcode(const std::
         adj.slow_down_min_speed           = float(m_config.slow_down_min_speed.get_at(extruder_id));
         // ORCA: To enable dont slow down external perimeters feature per filament (extruder)
         adj.dont_slow_down_outer_wall   = m_config.dont_slow_down_outer_wall.get_at(extruder_id);
+        // Volume-based cooling
+        adj.volume_based_cooling    = m_config.volume_based_cooling.get_at(extruder_id);
+        adj.cooling_time_per_volume = float(m_config.cooling_time_per_volume.get_at(extruder_id));
+        {
+            float r = float(m_config.filament_diameter.get_at(extruder_id)) * 0.5f;
+            adj.filament_cross_section = float(M_PI) * r * r;
+        }
+        adj.volume_extruded = 0.f;
         map_extruder_to_per_extruder_adjustment[extruder_id] = i;
     }
 
@@ -459,6 +472,9 @@ std::vector<PerExtruderAdjustments> CoolingBuffer::parse_layer_gcode(const std::
                     dxy2 = dif[0] * dif[0] + dif[1] * dif[1];
                 }
                 float dxyz2 = dxy2 + dif[2] * dif[2];
+                // Accumulate extruded volume for volume-based cooling
+                if (dif[3] > 0.f)
+                    adjustment->volume_extruded += dif[3] * adjustment->filament_cross_section;
                 if (dxyz2 > 0.f) {
                     // Movement in xyz, calculate time from the xyz Euclidian distance.
                     line.length = sqrt(dxyz2);
@@ -648,6 +664,9 @@ float CoolingBuffer::calculate_layer_slowdown(std::vector<PerExtruderAdjustments
     // Collect total print time of non-adjustable extruders.
     float elapsed_time_total0 = 0.f;
     for (PerExtruderAdjustments &adj : per_extruder_adjustments) {
+        // Volume-based cooling: override slow_down_layer_time with computed value
+        if (adj.volume_based_cooling && adj.volume_extruded > 0.f)
+            adj.slow_down_layer_time = adj.volume_extruded * adj.cooling_time_per_volume;
         // Curren total time for this extruder.
         adj.time_total  = adj.elapsed_time_total();
         // Maximum time for this extruder, when all extrusion moves are slowed down to min_extrusion_speed.

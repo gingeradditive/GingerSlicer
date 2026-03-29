@@ -4836,6 +4836,26 @@ void PrintConfigDef::init_fff_params()
     def->mode = comSimple;
     def->set_default_value(new ConfigOptionFloats { 5.0f });
 
+    def = this->add("volume_based_cooling", coBools);
+    def->label = L("Volume-based cooling (Beta)");
+    def->tooltip = L("BETA: When enabled, the minimum layer time is computed from the total extruded volume "
+                     "instead of using a fixed time threshold. "
+                     "Required time = layer volume (mm³) × cooling time per volume (s/mm³). "
+                     "This replaces the fixed 'Layer time' slowdown setting.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBools { false });
+
+    def = this->add("cooling_time_per_volume", coFloats);
+    def->label = L("Cooling time per volume");
+    def->tooltip = L("Time in seconds required for 1 mm³ of extruded material to become mechanically stable. "
+                     "Higher values mean longer cooling per unit of material. "
+                     "This is material-dependent: PLA needs less, PETG/ABS need more.");
+    def->sidetext = "s/mm³";
+    def->min = 0.001;
+    def->max = 10.0;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloats { 0.05f });
+
     def = this->add("minimum_sparse_infill_area", coFloat);
     def->label = L("Minimum sparse infill threshold");
     def->category = L("Strength");
