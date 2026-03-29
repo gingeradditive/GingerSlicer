@@ -549,6 +549,10 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
         apply(config, &new_conf);
     }
 
+    bool have_adaptive_layer = config->opt_bool("adaptive_layer_height");
+    toggle_line("adaptive_layer_surface_step", have_adaptive_layer);
+    toggle_line("adaptive_layer_min_height", have_adaptive_layer);
+
     bool have_perimeters = config->opt_int("wall_loops") > 0;
     for (auto el : { "extra_perimeters_on_overhangs", "ensure_vertical_shell_thickness", "detect_thin_wall", "detect_overhang_wall",
         "seam_position", "staggered_inner_seams", "wall_sequence", "outer_wall_line_width",

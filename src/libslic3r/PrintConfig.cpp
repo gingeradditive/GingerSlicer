@@ -2738,21 +2738,19 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->set_default_value(new ConfigOptionFloat(0.2));
 
-    def = this->add("adaptive_layer_overhang", coBool);
-    def->label = L("Adaptive layer height (Overhang)");
+    def = this->add("adaptive_layer_height", coBool);
+    def->label = L("Adaptive layer height (Beta)");
     def->category = L("Quality");
-    def->tooltip = L("Enables adaptive layer height based on surface overhang angle. "
-        "Layer height is calculated as: h = max_surface_distance * sin(angle), "
-        "where angle is the surface slope from horizontal. "
-        "Steeper surfaces get thinner layers for better accuracy.");
+    def->tooltip = L("BETA: Automatically adjust layer height based on surface overhang angle. "
+        "Steeper overhangs get thinner layers for better quality. "
+        "This feature is experimental and may change in future versions.");
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
-    def = this->add("adaptive_max_surface_distance", coFloat);
-    def->label = L("Max surface distance");
+    def = this->add("adaptive_layer_surface_step", coFloat);
+    def->label = L("Surface step");
     def->category = L("Quality");
-    def->tooltip = L("Maximum distance along the surface between layers. "
-        "This controls the step-down resolution on sloped surfaces. "
+    def->tooltip = L("Maximum step height visible on sloped surfaces. "
         "Smaller values produce finer layers on overhangs.");
     def->sidetext = "mm";
     def->min = 0.01;
@@ -2760,11 +2758,10 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(1.0));
 
-    def = this->add("adaptive_min_layer_height", coFloat);
-    def->label = L("Adaptive min layer height");
+    def = this->add("adaptive_layer_min_height", coFloat);
+    def->label = L("Minimum layer height");
     def->category = L("Quality");
-    def->tooltip = L("Minimum layer height when using adaptive overhang slicing. "
-        "This overrides the default extruder minimum layer height for adaptive mode.");
+    def->tooltip = L("Minimum layer height when adaptive mode is active.");
     def->sidetext = "mm";
     def->min = 0.01;
     def->max = 1.0;

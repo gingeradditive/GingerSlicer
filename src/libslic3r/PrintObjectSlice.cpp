@@ -795,12 +795,12 @@ void PrintObject::slice()
     m_print->set_status(5, L("Slicing mesh"), PrintBase::SlicingStatus::RELOAD_SCENE);
     std::vector<coordf_t> layer_height_profile;
     // Use overhang-based adaptive layer height if enabled
-    if (m_config.adaptive_layer_overhang.value) {
+    if (m_config.adaptive_layer_height.value) {
         layer_height_profile = layer_height_profile_from_overhang(
             m_slicing_params,
             *this->model_object(),
-            static_cast<float>(m_config.adaptive_max_surface_distance.value),
-            static_cast<float>(m_config.adaptive_min_layer_height.value));
+            static_cast<float>(m_config.adaptive_layer_surface_step.value),
+            static_cast<float>(m_config.adaptive_layer_min_height.value));
     } else {
         this->update_layer_height_profile(*this->model_object(), m_slicing_params, layer_height_profile);
     }
