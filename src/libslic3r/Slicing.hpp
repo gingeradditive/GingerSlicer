@@ -155,6 +155,13 @@ std::vector<double> layer_height_profile_adaptive(
     const SlicingParameters& slicing_params,
     const ModelObject& object, float quality_factor);
 
+// Adaptive layer height based on overhang angle: h = max_surface_dist * sin(angle)
+std::vector<double> layer_height_profile_from_overhang(
+    const SlicingParameters& slicing_params,
+    const ModelObject& object,
+    float max_surface_distance,
+    float min_layer_height);
+
 struct HeightProfileSmoothingParams
 {
     unsigned int radius;

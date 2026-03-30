@@ -89,7 +89,11 @@ void SlicingAdaptive::prepare(const ModelObject &object)
 			std::min(std::min(vertex[0].z(), vertex[1].z()), vertex[2].z()),
 			std::max(std::max(vertex[0].z(), vertex[1].z()), vertex[2].z())
 		};
-		m_faces.emplace_back(FaceZ({ face_z_span, std::abs(n.z()), std::sqrt(n.x() * n.x() + n.y() * n.y()) }));
+		stl_vertex e1 = vertex[1] - vertex[0];
+		stl_vertex e2 = vertex[2] - vertex[0];
+		stl_vertex cross = e1.cross(e2);
+		float face_area = 0.5f * cross.norm();
+		m_faces.emplace_back(FaceZ({ face_z_span, std::abs(n.z()), std::sqrt(n.x() * n.x() + n.y() * n.y()), face_area }));
     }
 
 	// 2) Sort faces lexicographically by their Z span.
@@ -211,6 +215,63 @@ float SlicingAdaptive::horizontal_facet_distance(float z)
 	// objects maximum?
 	return (z + (float)m_slicing_params.max_layer_height > (float)m_slicing_params.object_print_z_height()) ? 
 		std::max((float)m_slicing_params.object_print_z_height() - z, 0.f) : (float)m_slicing_params.max_layer_height;
+}
+
+// Adaptive layer height based on overhang angle: h = max_surface_dist * sin(angle)
+// Uses sweep-line algorithm for O(N log N) performance on large meshes.
+float SlicingAdaptive::next_layer_height_overhang(const float print_z, float max_surface_dist, float min_h, float max_h, size_t &current_facet)
+{
+	float height = max_h;
+
+	// First pass: find all facets intersecting the current slice plane.
+	// Use area-weighted average of n_sin instead of strict minimum to be robust
+	// against tessellation noise: small triangles with outlier normals don't dominate.
+	size_t ordered_id = current_facet;
+	bool first_hit = false;
+	float weighted_n_sin_sum = 0.f;
+	float weight_sum = 0.f;
+
+	for (; ordered_id < m_faces.size(); ++ordered_id) {
+		const std::pair<float, float> &zspan = m_faces[ordered_id].z_span;
+
+		// Facet's minimum is above current layer -> stop (sorted order guarantees no more intersections)
+		if (zspan.first >= print_z)
+			break;
+
+		// Facet intersects current layer (zspan.second > print_z)
+		if (zspan.second > print_z) {
+			// Update cursor to first intersecting facet for next iteration
+			if (!first_hit) {
+				first_hit = true;
+				current_facet = ordered_id;
+			}
+
+			// Skip nearly-touching facets to avoid numerical issues
+			if (zspan.second < print_z + EPSILON)
+				continue;
+
+			// Skip nearly-horizontal surfaces (angle < ~10 degrees from horizontal)
+			// These are treated as bridges and don't benefit from reduced layer height
+			if (m_faces[ordered_id].n_sin < 0.17f)
+				continue;
+
+			// Accumulate area-weighted n_sin
+			float w = m_faces[ordered_id].area;
+			weighted_n_sin_sum += m_faces[ordered_id].n_sin * w;
+			weight_sum += w;
+		}
+	}
+
+	if (weight_sum > 0.f) {
+		float avg_n_sin = weighted_n_sin_sum / weight_sum;
+		height = max_surface_dist * avg_n_sin;
+	}
+
+	// Clamp to valid range.
+	// Look-ahead (faces starting above print_z) is handled by the bidirectional
+	// smoothing pass in layer_height_profile_from_overhang, which propagates
+	// thin layers backward without per-face tessellation sensitivity.
+	return std::max(min_h, std::min(height, max_h));
 }
 
 }; // namespace Slic3r

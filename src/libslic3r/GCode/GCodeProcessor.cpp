@@ -2711,9 +2711,6 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line, const std::o
         if (m_width == 0.0f)
             m_width = DEFAULT_TOOLPATH_WIDTH;
 
-        // clamp width to avoid artifacts which may arise from wrong values of m_height
-        m_width = std::min(m_width, std::max(2.0f, 4.0f * m_height));
-
 #if ENABLE_GCODE_VIEWER_DATA_CHECKING
         m_width_compare.update(m_width, m_extrusion_role);
 #endif // ENABLE_GCODE_VIEWER_DATA_CHECKING
@@ -3190,9 +3187,6 @@ void  GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line)
 
         if (m_width == 0.0f)
             m_width = DEFAULT_TOOLPATH_WIDTH;
-
-        //BBS: clamp width to avoid artifacts which may arise from wrong values of m_height
-        m_width = std::min(m_width, std::max(2.0f, 4.0f * m_height));
 
 #if ENABLE_GCODE_VIEWER_DATA_CHECKING
         m_width_compare.update(m_width, m_extrusion_role);

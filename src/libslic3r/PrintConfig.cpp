@@ -2738,13 +2738,35 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->set_default_value(new ConfigOptionFloat(0.2));
 
-    //def = this->add("adaptive_layer_height", coBool);
-    //def->label = L("Adaptive layer height");
-    //def->category = L("Quality");
-    //def->tooltip = L("Enabling this option means the height of every layer except the first will be automatically calculated "
-    //    "during slicing according to the slope of the model’s surface.\n"
-    //    "Note that this option only takes effect if no prime tower is generated in current plate.");
-    //def->set_default_value(new ConfigOptionBool(0));
+    def = this->add("adaptive_layer_height", coBool);
+    def->label = L("Adaptive layer height (Beta)");
+    def->category = L("Quality");
+    def->tooltip = L("BETA: Automatically adjust layer height based on surface overhang angle. "
+        "Steeper overhangs get thinner layers for better quality. "
+        "This feature is experimental and may change in future versions.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def = this->add("adaptive_layer_surface_step", coFloat);
+    def->label = L("Surface step");
+    def->category = L("Quality");
+    def->tooltip = L("Maximum step height visible on sloped surfaces. "
+        "Smaller values produce finer layers on overhangs.");
+    def->sidetext = "mm";
+    def->min = 0.01;
+    def->max = 10.0;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(1.0));
+
+    def = this->add("adaptive_layer_min_height", coFloat);
+    def->label = L("Minimum layer height");
+    def->category = L("Quality");
+    def->tooltip = L("Minimum layer height when adaptive mode is active.");
+    def->sidetext = "mm";
+    def->min = 0.01;
+    def->max = 1.0;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(0.08));
 
     def = this->add("initial_layer_speed", coFloat);
     def->label = L("Initial layer");
