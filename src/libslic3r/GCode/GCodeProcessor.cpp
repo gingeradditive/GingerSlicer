@@ -1171,6 +1171,8 @@ void GCodeProcessor::reset()
     m_processing_start_custom_gcode = false;
     m_g1_line_id = 0;
     m_layer_id = 0;
+    m_layer_volumes.clear();
+    m_layer_path_lengths.clear();
     m_cp_color.reset();
 
     m_producer = EProducer::Unknown;
@@ -2659,6 +2661,17 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line, const std::o
         float volume_extruded_filament = area_filament_cross_section * delta_pos[E];
         float area_toolpath_cross_section = volume_extruded_filament / delta_xyz;
 
+        // Accumulate per-layer volume and path length for debug display
+        if (m_layer_id > 0) {
+            if (m_layer_id > m_layer_volumes.size()) {
+                m_layer_volumes.resize(m_layer_id, 0.f);
+                m_layer_path_lengths.resize(m_layer_id, 0.f);
+            }
+            float delta_xy = std::sqrt(sqr(delta_pos[X]) + sqr(delta_pos[Y]));
+            m_layer_volumes[m_layer_id - 1] += volume_extruded_filament;
+            m_layer_path_lengths[m_layer_id - 1] += delta_xy;
+        }
+
         if(m_extrusion_role == ExtrusionRole::erSupportMaterial || m_extrusion_role == ExtrusionRole::erSupportMaterialInterface || m_extrusion_role ==ExtrusionRole::erSupportTransition)
             m_used_filaments.increase_support_caches(volume_extruded_filament);
         else if (m_extrusion_role==ExtrusionRole::erWipeTower) {
@@ -3134,6 +3147,16 @@ void  GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line)
     if (type == EMoveType::Extrude) {
         float volume_extruded_filament = area_filament_cross_section * delta_pos[E];
         float area_toolpath_cross_section = volume_extruded_filament / delta_xyz;
+
+        // Accumulate per-layer volume and path length for debug display (arc moves)
+        if (m_layer_id > 0) {
+            if (m_layer_id > m_layer_volumes.size()) {
+                m_layer_volumes.resize(m_layer_id, 0.f);
+                m_layer_path_lengths.resize(m_layer_id, 0.f);
+            }
+            m_layer_volumes[m_layer_id - 1] += volume_extruded_filament;
+            m_layer_path_lengths[m_layer_id - 1] += arc_length;
+        }
 
         if(m_extrusion_role == ExtrusionRole::erSupportMaterial || m_extrusion_role == ExtrusionRole::erSupportMaterialInterface || m_extrusion_role ==ExtrusionRole::erSupportTransition)
             m_used_filaments.increase_support_caches(volume_extruded_filament);
@@ -5169,6 +5192,12 @@ void GCodeProcessor::update_estimated_times_stats()
         update_mode(PrintEstimatedStatistics::ETimeMode::Stealth);
     else
         m_result.print_statistics.modes[static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Stealth)].reset();
+
+    // Per-layer volume and path length for debug display
+    for (auto& mode : m_result.print_statistics.modes) {
+        mode.layers_volumes = m_layer_volumes;
+        mode.layers_path_lengths = m_layer_path_lengths;
+    }
 
     m_result.print_statistics.volumes_per_color_change  = m_used_filaments.volumes_per_color_change;
     m_result.print_statistics.model_volumes_per_extruder      = m_used_filaments.model_volumes_per_extruder;

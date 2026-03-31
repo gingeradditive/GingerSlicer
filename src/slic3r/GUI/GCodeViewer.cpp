@@ -5695,6 +5695,39 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
             append_option_item(item, offsets);
     }
 
+    // Debug: per-layer volume, path length, and avg cross-section
+    {
+        unsigned int top_layer_idx = m_layers_z_range[1];
+        const auto& lv = time_mode.layers_volumes;
+        const auto& lp = time_mode.layers_path_lengths;
+        if (top_layer_idx < lv.size() && top_layer_idx < lp.size()) {
+            float vol  = lv[top_layer_idx];
+            float path = lp[top_layer_idx];
+            float xs   = (path > 0.f) ? vol / path : 0.f;
+
+            ImGui::Dummy(ImVec2(0.0f, ImGui::GetFontSize() * 0.1));
+            ImGui::Dummy({ window_padding, window_padding });
+            ImGui::SameLine();
+            imgui.title(_u8L("Layer Debug (Cross-Section Cooling)"));
+
+            char buf[128];
+            ImGui::Dummy({ window_padding, window_padding });
+            ImGui::SameLine();
+            ::sprintf(buf, "%.2f mm\xC2\xB3", vol);
+            imgui.text(_u8L("Layer volume") + ": " + std::string(buf));
+
+            ImGui::Dummy({ window_padding, window_padding });
+            ImGui::SameLine();
+            ::sprintf(buf, "%.2f mm", path);
+            imgui.text(_u8L("Layer path length") + ": " + std::string(buf));
+
+            ImGui::Dummy({ window_padding, window_padding });
+            ImGui::SameLine();
+            ::sprintf(buf, "%.4f mm\xC2\xB2", xs);
+            imgui.text(_u8L("Avg bead cross-section") + ": " + std::string(buf));
+        }
+    }
+
     legend_height = ImGui::GetCurrentWindow()->Size.y;
     ImGui::Dummy({ window_padding, window_padding});
     imgui.end();

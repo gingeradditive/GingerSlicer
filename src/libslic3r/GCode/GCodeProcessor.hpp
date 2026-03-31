@@ -59,6 +59,8 @@ class Print;
             std::vector<std::pair<EMoveType, float>> moves_times;
             std::vector<std::pair<ExtrusionRole, float>> roles_times;
             std::vector<float> layers_times;
+            std::vector<float> layers_volumes;
+            std::vector<float> layers_path_lengths;
 
             void reset() {
                 time = 0.0f;
@@ -71,6 +73,10 @@ class Print;
                 roles_times.shrink_to_fit();
                 layers_times.clear();
                 layers_times.shrink_to_fit();
+                layers_volumes.clear();
+                layers_volumes.shrink_to_fit();
+                layers_path_lengths.clear();
+                layers_path_lengths.shrink_to_fit();
             }
         };
 
@@ -721,6 +727,8 @@ class Print;
         bool m_processing_start_custom_gcode;
         unsigned int m_g1_line_id;
         unsigned int m_layer_id;
+        std::vector<float> m_layer_volumes;
+        std::vector<float> m_layer_path_lengths;
         CpColor m_cp_color;
         SeamsDetector m_seams_detector;
         OptionsZCorrector m_options_z_corrector;
