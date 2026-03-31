@@ -718,17 +718,22 @@ const std::vector<ColorRGBA> GCodeViewer::Travel_Colors{ {
 // Normal ranges
 // blue to red
 const std::vector<ColorRGBA> GCodeViewer::Range_Colors{ {
-    decode_color_to_float_array("#0b2c7a"),  // bluish
+    decode_color_to_float_array("#0b2c7a"),  // deep blue
+    decode_color_to_float_array("#0f4380"),
     decode_color_to_float_array("#135985"),
-    decode_color_to_float_array("#1c8891"),
-    decode_color_to_float_array("#04d60f"),
-    decode_color_to_float_array("#aaf200"),
-    decode_color_to_float_array("#fcf903"),
-    decode_color_to_float_array("#f5ce0a"),
-    //decode_color_to_float_array("#e38820"),
-    decode_color_to_float_array("#d16830"),
+    decode_color_to_float_array("#18708b"),
+    decode_color_to_float_array("#1c8891"),  // teal
+    decode_color_to_float_array("#10af50"),
+    decode_color_to_float_array("#04d60f"),  // green
+    decode_color_to_float_array("#57e408"),
+    decode_color_to_float_array("#aaf200"),  // yellow-green
+    decode_color_to_float_array("#d3f602"),
+    decode_color_to_float_array("#fcf903"),  // yellow
+    decode_color_to_float_array("#f5ce0a"),  // gold
+    decode_color_to_float_array("#e39b1d"),
+    decode_color_to_float_array("#d16830"),  // orange
     decode_color_to_float_array("#c2523c"),
-    decode_color_to_float_array("#942616")    // reddish
+    decode_color_to_float_array("#942616")   // dark red
 }};
 
 const ColorRGBA GCodeViewer::Wipe_Color    = ColorRGBA::YELLOW();
@@ -4996,8 +5001,8 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
         }
         break;
     }
-    case EViewType::Height:         { append_range(m_extrusions.ranges.height, 2); break; }
-    case EViewType::Width:          { append_range(m_extrusions.ranges.width, 2); break; }
+    case EViewType::Height:         { append_range(m_extrusions.ranges.height, 3); break; }
+    case EViewType::Width:          { append_range(m_extrusions.ranges.width, 3); break; }
     case EViewType::Feedrate:       {
         append_range(m_extrusions.ranges.feedrate, 0);
         ImGui::Spacing();
@@ -5019,8 +5024,8 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
     }
     case EViewType::FanSpeed:       { append_range(m_extrusions.ranges.fan_speed, 0); break; }
     case EViewType::Temperature:    { append_range(m_extrusions.ranges.temperature, 0); break; }
-    case EViewType::LayerTime:      { append_range(m_extrusions.ranges.layer_duration, true); break; }
-    case EViewType::LayerTimeLog:   { append_range(m_extrusions.ranges.layer_duration_log, true); break; }
+    case EViewType::LayerTime:      { append_range(m_extrusions.ranges.layer_duration, 2); break; }
+    case EViewType::LayerTimeLog:   { append_range(m_extrusions.ranges.layer_duration_log, 2); break; }
     case EViewType::VolumetricRate: { append_range(m_extrusions.ranges.volumetric_rate, 2); break; }
     case EViewType::Tool:
     {
@@ -5166,6 +5171,91 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
         break;
     }
     default: { break; }
+    }
+
+    // Show actual value for the currently viewed layer
+    {
+        unsigned int top_layer_idx = m_layers_z_range[1];
+        const auto& curr = m_sequential_view.marker.get_curr_move();
+        char val_buf[128];
+        bool show_value = false;
+        float value = 0.f;
+        std::string label;
+        std::string unit;
+        const Extrusions::Range* active_range = nullptr;
+
+        switch (m_view_type) {
+        case EViewType::Height:
+            value = curr.height;
+            label = _u8L("Current layer");
+            unit = " mm";
+            active_range = &m_extrusions.ranges.height;
+            show_value = value > 0.f;
+            break;
+        case EViewType::Width:
+            value = curr.width;
+            label = _u8L("Current layer");
+            unit = " mm";
+            active_range = &m_extrusions.ranges.width;
+            show_value = value > 0.f;
+            break;
+        case EViewType::Feedrate:
+            value = curr.feedrate;
+            label = _u8L("Current layer");
+            unit = " mm/s";
+            active_range = &m_extrusions.ranges.feedrate;
+            show_value = value > 0.f;
+            break;
+        case EViewType::FanSpeed:
+            value = curr.fan_speed;
+            label = _u8L("Current layer");
+            unit = " %";
+            active_range = &m_extrusions.ranges.fan_speed;
+            show_value = true;
+            break;
+        case EViewType::Temperature:
+            value = curr.temperature;
+            label = _u8L("Current layer");
+            unit = " \xC2\xB0""C";
+            active_range = &m_extrusions.ranges.temperature;
+            show_value = value > 0.f;
+            break;
+        case EViewType::VolumetricRate:
+            value = curr.volumetric_rate();
+            label = _u8L("Current layer");
+            unit = " mm\xC2\xB3/s";
+            active_range = &m_extrusions.ranges.volumetric_rate;
+            show_value = value > 0.f;
+            break;
+        case EViewType::LayerTime:
+            if (top_layer_idx < time_mode.layers_times.size()) {
+                value = time_mode.layers_times[top_layer_idx];
+                label = _u8L("Current layer");
+                unit = " s";
+                active_range = &m_extrusions.ranges.layer_duration;
+                show_value = value > 0.f;
+            }
+            break;
+        case EViewType::LayerTimeLog:
+            if (top_layer_idx < time_mode.layers_times.size()) {
+                value = time_mode.layers_times[top_layer_idx];
+                label = _u8L("Current layer");
+                unit = " s";
+                active_range = &m_extrusions.ranges.layer_duration_log;
+                show_value = value > 0.f;
+            }
+            break;
+        default: break;
+        }
+
+        if (show_value && active_range != nullptr) {
+            ColorRGBA val_color = active_range->get_color_at(value);
+            ImGui::Spacing();
+            ImGui::Dummy({ window_padding, window_padding });
+            ImGui::SameLine();
+            ::sprintf(val_buf, "%.2f%s", value, unit.c_str());
+            append_item(EItemType::Rect, val_color, { { label + ": " + std::string(val_buf), 0 } });
+        }
     }
 
     // partial estimated printing time section
