@@ -5250,9 +5250,6 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
 
         if (show_value && active_range != nullptr) {
             ColorRGBA val_color = active_range->get_color_at(value);
-            ImGui::Spacing();
-            ImGui::Dummy({ window_padding, window_padding });
-            ImGui::SameLine();
             ::sprintf(val_buf, "%.2f%s", value, unit.c_str());
             append_item(EItemType::Rect, val_color, { { label + ": " + std::string(val_buf), 0 } });
         }
