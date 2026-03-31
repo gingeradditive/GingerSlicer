@@ -1372,7 +1372,7 @@ PRINT_CONFIG_CLASS_DERIVED_DEFINE(
     ((ConfigOptionFloat,              min_skirt_length))
     ((ConfigOptionFloats,             slow_down_layer_time))
     ((ConfigOptionBools,              volume_based_cooling))
-    ((ConfigOptionFloats,             cooling_time_per_volume))
+    ((ConfigOptionFloats,             cooling_time_per_cross_section))
     ((ConfigOptionBool,               spiral_mode))
     ((ConfigOptionBool,               spiral_mode_smooth))
     ((ConfigOptionFloatOrPercent,     spiral_mode_max_xy_smoothing))

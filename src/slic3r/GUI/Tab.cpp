@@ -3562,7 +3562,7 @@ void TabFilament::build()
         optgroup->append_single_option_line("dont_slow_down_outer_wall");
         optgroup->append_single_option_line("slow_down_min_speed");
         optgroup->append_single_option_line("volume_based_cooling");
-        optgroup->append_single_option_line("cooling_time_per_volume");
+        optgroup->append_single_option_line("cooling_time_per_cross_section");
 
         optgroup->append_single_option_line("enable_overhang_bridge_fan");
         optgroup->append_single_option_line("overhang_fan_threshold");
@@ -3738,7 +3738,7 @@ void TabFilament::toggle_options()
       // Volume-based cooling: hide fixed layer time when volume-based is on, hide τ_v when off
       bool has_volume_based_cooling = m_config->opt_bool("volume_based_cooling", 0);
       toggle_option("slow_down_layer_time", !has_volume_based_cooling);
-      toggle_option("cooling_time_per_volume", has_volume_based_cooling);
+      toggle_option("cooling_time_per_cross_section", has_volume_based_cooling);
     }
     if (m_active_page->title() == L("Filament"))
     {
