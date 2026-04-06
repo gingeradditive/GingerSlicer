@@ -63,6 +63,7 @@ PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config) : m_use_
     	m_max_volumetric_extrusion_rate_slope_negative = float(config.max_volumetric_extrusion_rate_slope.value) * 60.f * 60.f;
     	m_max_segment_length = float(config.max_volumetric_extrusion_rate_slope_segment_length.value);
         m_extrusion_rate_smoothing_external_perimeter_only = bool(config.extrusion_rate_smoothing_external_perimeter_only.value);
+        m_pellet_ers_mode = bool(config.pellet_ers_mode.value);
     }
 
     for (ExtrusionRateSlope &extrusion_rate_slope : m_max_volumetric_extrusion_rate_slopes) {
@@ -112,40 +113,60 @@ void PressureEqualizer::process_layer(const std::string &gcode)
     // at this point, we have an entire layer of gcode lines loaded into m_gcode_lines
     // now we will split the mix of travels and extrudes into segments of continous extrusion and process those
     // We skip over large travels, and pretend small ones are part of a continous extrusion segment
-    long idx_end_current_extrusion = 0;
-    while (idx_end_current_extrusion < m_gcode_lines.size()) {
-        // find beginning of next extrusion segment from current pos
-        const long idx_begin_current_extrusion   = find_if(m_gcode_lines.begin() + idx_end_current_extrusion, m_gcode_lines.end(),
-                                                          [](GCodeLine line) { return line.extruding(); }) - m_gcode_lines.begin();
-        // (extrusion begin idx = extrusion end idx) here because we start with extrusion length of zero
-        idx_end_current_extrusion = idx_begin_current_extrusion;
 
-        // inner loop extends the extrusion segment over small travel moves
-        while (idx_end_current_extrusion < m_gcode_lines.size()) {
-            // find end of the current extrusion segment
-            const auto just_after_end_extrusion = find_if(m_gcode_lines.begin() + idx_end_current_extrusion, m_gcode_lines.end(),
-                                                          [](GCodeLine line) { return !line.extruding(); });
-            idx_end_current_extrusion = std::max<long>(0,(just_after_end_extrusion - m_gcode_lines.begin()) - 1);
-            const long idx_begin_segment_continuation = advance_segment_beyond_small_gap(idx_end_current_extrusion);
-            if (idx_begin_segment_continuation > idx_end_current_extrusion) {
-                // extend the continous line over the small gap
-                idx_end_current_extrusion = idx_begin_segment_continuation;
-                continue; // keep going, loop again to find new end of extrusion segment
-            } else {
-                // gap to next extrude is too big, stop looking forward. We've found end of this segment
-                break;
+    if (m_pellet_ers_mode) {
+        // Pellet mode: treat the entire layer as one continuous segment.
+        // No breaks at travel/retract gaps — pellet extruders maintain pressure through gaps.
+        long first_ext = -1, last_ext = -1;
+        for (long i = 0; i < (long)m_gcode_lines.size(); ++i) {
+            if (m_gcode_lines[i].extruding()) {
+                if (first_ext < 0) first_ext = i;
+                last_ext = i;
             }
         }
-
-        // now run the pressure equalizer across the segment like a streamroller
-        // it operates on a sliding window that moves forward across gcode line by line
-        for (int i = idx_begin_current_extrusion; i < idx_end_current_extrusion; ++i) {
-            // feed pressure equalizer past lines, going back to max_look_back_limit (or start of segment)
-            const auto start_idx = std::max<long>(idx_begin_current_extrusion, i - max_look_back_limit);
-            adjust_volumetric_rate(start_idx, i);
+        if (first_ext >= 0 && last_ext > first_ext) {
+            for (long i = first_ext; i <= last_ext; ++i) {
+                const long start_idx = std::max(first_ext, i - (long)max_look_back_limit);
+                adjust_volumetric_rate(start_idx, i);
+            }
         }
-        // current extrusion is all done processing so advance beyond it for next loop
-        idx_end_current_extrusion++;
+    } else {
+        // Standard filament mode: break at large travel gaps (> 3mm)
+        long idx_end_current_extrusion = 0;
+        while (idx_end_current_extrusion < m_gcode_lines.size()) {
+            // find beginning of next extrusion segment from current pos
+            const long idx_begin_current_extrusion   = find_if(m_gcode_lines.begin() + idx_end_current_extrusion, m_gcode_lines.end(),
+                                                              [](GCodeLine line) { return line.extruding(); }) - m_gcode_lines.begin();
+            // (extrusion begin idx = extrusion end idx) here because we start with extrusion length of zero
+            idx_end_current_extrusion = idx_begin_current_extrusion;
+
+            // inner loop extends the extrusion segment over small travel moves
+            while (idx_end_current_extrusion < m_gcode_lines.size()) {
+                // find end of the current extrusion segment
+                const auto just_after_end_extrusion = find_if(m_gcode_lines.begin() + idx_end_current_extrusion, m_gcode_lines.end(),
+                                                              [](GCodeLine line) { return !line.extruding(); });
+                idx_end_current_extrusion = std::max<long>(0,(just_after_end_extrusion - m_gcode_lines.begin()) - 1);
+                const long idx_begin_segment_continuation = advance_segment_beyond_small_gap(idx_end_current_extrusion);
+                if (idx_begin_segment_continuation > idx_end_current_extrusion) {
+                    // extend the continous line over the small gap
+                    idx_end_current_extrusion = idx_begin_segment_continuation;
+                    continue; // keep going, loop again to find new end of extrusion segment
+                } else {
+                    // gap to next extrude is too big, stop looking forward. We've found end of this segment
+                    break;
+                }
+            }
+
+            // now run the pressure equalizer across the segment like a streamroller
+            // it operates on a sliding window that moves forward across gcode line by line
+            for (int i = idx_begin_current_extrusion; i < idx_end_current_extrusion; ++i) {
+                // feed pressure equalizer past lines, going back to max_look_back_limit (or start of segment)
+                const auto start_idx = std::max<long>(idx_begin_current_extrusion, i - max_look_back_limit);
+                adjust_volumetric_rate(start_idx, i);
+            }
+            // current extrusion is all done processing so advance beyond it for next loop
+            idx_end_current_extrusion++;
+        }
     }
 }
 

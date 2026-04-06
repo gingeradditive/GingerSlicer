@@ -87,6 +87,9 @@ private:
     // Apply ERS only on external perimeters and overhangs
     bool                           m_extrusion_rate_smoothing_external_perimeter_only;
 
+    // Pellet extruder mode: apply ERS across all gaps (travel, retract, discontinuities)
+    bool                           m_pellet_ers_mode { false };
+
     // Indicate if extrude set speed block was opened using the tag ";_EXTRUDE_SET_SPEED"
     // or not (not opened, or it was closed using the tag ";_EXTRUDE_END").
     bool                            opened_extrude_set_speed_block = false;

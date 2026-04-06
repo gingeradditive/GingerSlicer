@@ -1186,6 +1186,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat,               max_volumetric_extrusion_rate_slope))
     ((ConfigOptionFloat,               max_volumetric_extrusion_rate_slope_segment_length))
     ((ConfigOptionBool,               extrusion_rate_smoothing_external_perimeter_only))
+    ((ConfigOptionBool,               pellet_ers_mode))
 
     
     ((ConfigOptionPercents,            retract_before_wipe))

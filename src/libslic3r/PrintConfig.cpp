@@ -3929,6 +3929,31 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
+    def = this->add("pellet_ers_mode", coBool);
+    def->label = L("Pellet extruder mode");
+    def->tooltip = L(
+        "Enable this for pellet/screw extruders.\n\n"
+        "When enabled, Extrusion Rate Smoothing is applied across ALL flow transitions, "
+        "including travel moves, retracts, and any discontinuity in the extrusion path. "
+        "The standard ERS only smooths within continuous extrusion segments and assumes "
+        "pressure drops to zero after a travel move > 3mm.\n\n"
+        "Pellet extruders have high mechanical inertia in the screw and molten material "
+        "in the barrel, so pressure persists through gaps. This mode removes the 3mm gap "
+        "limit and treats the entire layer as one continuous flow segment.\n\n"
+        "DEBUG GUIDE:\n"
+        "1. Slice a model with this OFF, then ON, and compare G-code around travel moves.\n"
+        "2. With this ON, you should see ;_EXTRUDE_SET_SPEED feedrate ramps on extrusion "
+        "segments immediately AFTER travel moves (not just within continuous extrusions).\n"
+        "3. Use the G-code viewer to check that feedrate transitions are smooth across "
+        "travel gaps, especially on multi-island layers.\n"
+        "4. If you see over-extrusion after travel (blobs), the slope value is too low — "
+        "increase 'Extrusion rate smoothing' to allow faster ramp-up.\n"
+        "5. If you see under-extrusion at segment starts, the slope value may be too high — "
+        "decrease it for a more gradual ramp.\n\n"
+        "Requires 'Extrusion rate smoothing' > 0 to have any effect."
+    );
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
 
     def = this->add("fan_min_speed", coFloats);
     def->label = L("Fan speed");

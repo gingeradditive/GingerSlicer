@@ -542,6 +542,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     toggle_field("enable_arc_fitting", !have_volumetric_extrusion_rate_slope);
     toggle_line("max_volumetric_extrusion_rate_slope_segment_length", have_volumetric_extrusion_rate_slope);
     toggle_line("extrusion_rate_smoothing_external_perimeter_only", have_volumetric_extrusion_rate_slope);
+    toggle_line("pellet_ers_mode", have_volumetric_extrusion_rate_slope);
     if(have_volumetric_extrusion_rate_slope) config->set_key_value("enable_arc_fitting", new ConfigOptionBool(false));
     if(have_volumetric_extrusion_rate_slope_segment_length < 0.5) {
         DynamicPrintConfig new_conf = *config;
