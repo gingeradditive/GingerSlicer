@@ -119,13 +119,17 @@ void PressureEqualizer::process_layer(const std::string &gcode)
         // Unlike filament mode, we don't break segments at gaps - we equalize pressure THROUGH gaps.
         for (long i = 0; i < (long)m_gcode_lines.size(); ++i) {
             if (m_gcode_lines[i].extruding()) {
+                // Detect boundary conditions: transition from/to zero flow (travel moves)
+                const bool is_segment_start = (i == 0) || !m_gcode_lines[i - 1].extruding();
+                const bool is_segment_end = (i == (long)m_gcode_lines.size() - 1) || !m_gcode_lines[i + 1].extruding();
+                
                 // For each extruding line, apply ERS on a local window that captures
                 // transitions to/from zero flow (travel/retract) in addition to A -> B changes.
                 const long start_idx = std::max(0L, i - (long)max_look_back_limit);
                 const long end_idx = std::min((long)m_gcode_lines.size() - 1, i + (long)max_look_back_limit);
                 // Ensure the range includes at least some context for transitions
                 if (end_idx > start_idx) {
-                    adjust_volumetric_rate(start_idx, end_idx);
+                    adjust_volumetric_rate(start_idx, end_idx, is_segment_start, is_segment_end);
                 }
             }
         }
@@ -610,7 +614,7 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
     }
 }
 
-void PressureEqualizer::adjust_volumetric_rate(const size_t fist_line_idx, const size_t last_line_idx)
+void PressureEqualizer::adjust_volumetric_rate(const size_t fist_line_idx, const size_t last_line_idx, const bool is_segment_start, const bool is_segment_end)
 {
     // don't bother adjusting volumetric rate if there's no gcode to adjust
     if (last_line_idx-fist_line_idx < 2)
@@ -620,6 +624,25 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t fist_line_idx, const
     if (line_idx == fist_line_idx || !m_gcode_lines[line_idx].extruding())
         // Nothing to do, the last move is not extruding.
         return;
+    
+    // Pellet mode boundary handling: limit last line's rate towards 0 when ending extrusion
+    if (m_pellet_ers_mode && is_segment_end) {
+        GCodeLine &last_line = m_gcode_lines[last_line_idx];
+        for (size_t iRole = 1; iRole < size_t(ExtrusionRole::erCount); ++iRole) {
+            const float &rate_slope = m_max_volumetric_extrusion_rate_slopes[iRole].negative;
+            if (rate_slope == 0 || last_line.extrusion_role != ExtrusionRole(iRole))
+                continue;
+            if (!last_line.adjustable_flow)
+                continue;
+            // Calculate rate_start limited by slope towards 0
+            float rate_start = sqrt(2 * last_line.volumetric_extrusion_rate * last_line.dist_xyz() * rate_slope / last_line.feedrate());
+            if (rate_start < last_line.volumetric_extrusion_rate_start) {
+                last_line.volumetric_extrusion_rate_start = rate_start;
+                last_line.max_volumetric_extrusion_rate_slope_negative = rate_slope;
+                last_line.modified = true;
+            }
+        }
+    }
     std::array<float, size_t(ExtrusionRole::erCount)> feedrate_per_extrusion_role{};
     feedrate_per_extrusion_role.fill(std::numeric_limits<float>::max());
     feedrate_per_extrusion_role[int(m_gcode_lines[line_idx].extrusion_role)] = m_gcode_lines[line_idx].volumetric_extrusion_rate_start;
@@ -634,7 +657,10 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t fist_line_idx, const
             continue;
         }
         // Volumetric extrusion rate at the start of the succeding segment.
-        float rate_succ = m_gcode_lines[line_idx].volumetric_extrusion_rate_start;
+        // In pellet mode at segment end, treat as 0 (transition to travel/non-extruding).
+        float rate_succ = (m_pellet_ers_mode && is_segment_end && line_idx == last_line_idx) 
+                          ? 0.f 
+                          : m_gcode_lines[line_idx].volumetric_extrusion_rate_start;
         // What is the gradient of the extrusion rate between idx_prev and idx?
         line_idx        = idx_prev;
         GCodeLine &line = m_gcode_lines[line_idx];
@@ -695,7 +721,10 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t fist_line_idx, const
             line_idx = idx_next;
             continue;
         }
-        float rate_prec = m_gcode_lines[line_idx].volumetric_extrusion_rate_end;
+        // In pellet mode at segment start, treat rate_prec as 0 (transition from travel/non-extruding).
+        float rate_prec = (m_pellet_ers_mode && is_segment_start && line_idx == fist_line_idx) 
+                          ? 0.f 
+                          : m_gcode_lines[line_idx].volumetric_extrusion_rate_end;
         // What is the gradient of the extrusion rate between idx_prev and idx?
         line_idx = idx_next;
         GCodeLine &line = m_gcode_lines[line_idx];

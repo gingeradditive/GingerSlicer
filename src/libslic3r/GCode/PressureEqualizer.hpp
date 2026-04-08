@@ -195,7 +195,8 @@ private:
 
     // Go back from the current circular_buffer_pos and lower the feedtrate to decrease the slope of the extrusion rate changes.
     // Then go forward and adjust the feedrate to decrease the slope of the extrusion rate changes.
-    void adjust_volumetric_rate(size_t first_line_idx, size_t last_line_idx);
+    // In pellet mode, is_segment_start/is_segment_end indicate transitions to/from zero flow (travel moves).
+    void adjust_volumetric_rate(size_t first_line_idx, size_t last_line_idx, bool is_segment_start = false, bool is_segment_end = false);
 
     // Push the text to the end of the output_buffer.
     inline void push_to_output(GCodeG1Formatter &formatter);
