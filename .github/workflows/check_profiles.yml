@@ -43,7 +43,7 @@ jobs:
   release_profiles:
     runs-on: ubuntu-24.04
     needs: check_profiles
-    
+    if: ${{github.ref == 'refs/heads/main'}}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
