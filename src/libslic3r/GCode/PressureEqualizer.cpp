@@ -138,25 +138,14 @@ void PressureEqualizer::process_layer(const std::string &gcode)
             const long seg_end = idx - 1;  // last extruding line
             
             if (seg_end >= seg_start) {
-                // Process each line in the segment for ERS transitions
-                for (long i = seg_start; i <= seg_end; ++i) {
-                    const bool is_first_line = (i == seg_start);
-                    const bool is_last_line = (i == seg_end);
-                    
-                    // Calculate local window for this line
-                    // For first/last line, extend window beyond segment to capture
-                    // transitions to/from non-extruding lines (F-only, travel)
-                    const long window_start = is_first_line 
-                        ? std::max(0L, i - (long)max_look_back_limit)  // Can look back before segment
-                        : std::max(seg_start, i - (long)max_look_back_limit);
-                    const long window_end = is_last_line
-                        ? std::min((long)m_gcode_lines.size() - 1, i + (long)max_look_back_limit)  // Can look forward after segment
-                        : std::min(seg_end, i + (long)max_look_back_limit);
-                    
-                    // Apply ERS with boundary flags for first/last line of segment
-                    // (transitions to/from 0 flow)
-                    adjust_volumetric_rate(window_start, window_end, is_first_line, is_last_line);
-                }
+                // Apply ERS once for the entire segment
+                // Extend window to capture transitions to/from non-extruding context
+                const long window_start = std::max(0L, seg_start - (long)max_look_back_limit);
+                const long window_end = std::min((long)m_gcode_lines.size() - 1, seg_end + (long)max_look_back_limit);
+                
+                // Apply ERS with boundary flags for segment start/end
+                // (transitions to/from 0 flow at travel moves)
+                adjust_volumetric_rate(window_start, window_end, true, true);
             }
         }
     } else {
@@ -527,6 +516,18 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
     }
 
     // The line was modified.
+    
+    // Special handling for non-extruding F-only lines (feedrate changes)
+    if (!line.extruding() && line.raw.find("G1 F") != std::string::npos) {
+        // Re-emit as simple F command with new feedrate
+        GCodeG1Formatter formatter;
+        formatter.emit_f(line.feedrate());
+        if (m_pellet_ers_mode)
+            formatter.emit_string(";_ERS");
+        push_to_output(formatter);
+        return;
+    }
+    
     // Find the comment.
     const char *comment = line.raw.data();
     while (*comment != ';' && *comment != 0) ++comment;
@@ -756,11 +757,37 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t fist_line_idx, const
             if (!first_line.adjustable_flow)
                 continue;
             // Calculate rate_start from 0 (transition from travel)
-            float rate_start_limit = sqrt(2 * first_line.volumetric_extrusion_rate * first_line.dist_xyz() * rate_slope / first_line.feedrate());
+            // Formula: rate_end^2 = rate_start^2 + 2*slope*distance
+            // With rate_start = 0: rate_end = sqrt(2*slope*distance) at the end of this line
+            // But we need rate_start for this line. 
+            // For the first line after travel, we want to start from near-zero flow.
+            float rate_end_target = first_line.volumetric_extrusion_rate;
+            float dist = first_line.dist_xyz();
+            // Maximum rate we can achieve at end of this line starting from 0
+            float max_rate_achievable = sqrt(2.0f * rate_slope * dist);
+            // Start from a small epsilon to avoid exact zero
+            float rate_start_from_zero = std::min(1.0f, max_rate_achievable * 0.1f);
+            // Use the lower of: calculated start-from-zero or current start
+            float rate_start_limit = std::min(rate_start_from_zero, 
+                sqrt(std::max(0.0f, rate_end_target * rate_end_target - 2.0f * rate_slope * dist)));
             if (rate_start_limit < first_line.volumetric_extrusion_rate_start) {
                 first_line.volumetric_extrusion_rate_start = rate_start_limit;
                 first_line.max_volumetric_extrusion_rate_slope_positive = rate_slope;
                 first_line.modified = true;
+            }
+        }
+        
+        // Also limit feedrate of non-extruding F-only lines immediately before segment
+        // These control the speed of the first extruding line
+        for (long i = (long)fist_line_idx; i < (long)first_extruding_idx; ++i) {
+            GCodeLine &line = m_gcode_lines[i];
+            if (line.raw.find("G1 F") != std::string::npos && !line.extruding()) {
+                // This is an F-only line - limit its feedrate for ramp-up
+                float max_feedrate = 60.0f;  // Start from low speed (1mm/s = 60mm/min)
+                if (line.feedrate() > max_feedrate) {
+                    line.pos_end[4] = max_feedrate;
+                    line.modified = true;
+                }
             }
         }
     }
@@ -822,6 +849,21 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t fist_line_idx, const
             // Don't store feed rate for ironing
             if (line.extrusion_role != ExtrusionRole::erIroning)
                 feedrate_per_extrusion_role[iRole] = line.volumetric_extrusion_rate_end;
+        }
+    }
+    
+    // Also limit feedrate of non-extruding F-only lines immediately after segment (ramp-down)
+    if (m_pellet_ers_mode && is_segment_end) {
+        for (size_t i = last_extruding_idx + 1; i <= last_line_idx; ++i) {
+            GCodeLine &line = m_gcode_lines[i];
+            if (line.raw.find("G1 F") != std::string::npos && !line.extruding()) {
+                // This is an F-only line - limit its feedrate for ramp-down
+                float max_feedrate = 60.0f;  // End with low speed (1mm/s = 60mm/min)
+                if (line.feedrate() > max_feedrate) {
+                    line.pos_end[4] = max_feedrate;
+                    line.modified = true;
+                }
+            }
         }
     }
 }
