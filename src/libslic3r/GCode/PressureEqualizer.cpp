@@ -746,6 +746,25 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t fist_line_idx, const
     feedrate_per_extrusion_role.fill(std::numeric_limits<float>::max());
     feedrate_per_extrusion_role[size_t(m_gcode_lines[line_idx].extrusion_role)] = m_gcode_lines[line_idx].volumetric_extrusion_rate_end;
 
+    // Pellet mode: process first line of segment with rate_prec = 0 for proper ramp-up
+    if (m_pellet_ers_mode && is_segment_start && first_extruding_idx == line_idx) {
+        GCodeLine &first_line = m_gcode_lines[first_extruding_idx];
+        for (size_t iRole = 1; iRole < size_t(ExtrusionRole::erCount); ++iRole) {
+            const float &rate_slope = m_max_volumetric_extrusion_rate_slopes[iRole].positive;
+            if (rate_slope == 0 || first_line.extrusion_role != ExtrusionRole(iRole))
+                continue;
+            if (!first_line.adjustable_flow)
+                continue;
+            // Calculate rate_start from 0 (transition from travel)
+            float rate_start_limit = sqrt(2 * first_line.volumetric_extrusion_rate * first_line.dist_xyz() * rate_slope / first_line.feedrate());
+            if (rate_start_limit < first_line.volumetric_extrusion_rate_start) {
+                first_line.volumetric_extrusion_rate_start = rate_start_limit;
+                first_line.max_volumetric_extrusion_rate_slope_positive = rate_slope;
+                first_line.modified = true;
+            }
+        }
+    }
+
     assert(m_gcode_lines[line_idx].extruding());
     while (line_idx != last_extruding_idx) {
         size_t idx_next = line_idx + 1;
