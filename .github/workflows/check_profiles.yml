@@ -1,18 +1,18 @@
 name: Check profiles
 
-on: 
+on:
   pull_request:
-    branches: 
-      - main 
+    branches:
+      - main
     paths:
-      - 'profiles/**'
+      - 'resources/profiles/**'
       - '.github/workflows/check_profiles.yml'
 
   push:
     branches:
       - main
     paths:
-      - 'profiles/**'
+      - 'resources/profiles/**'
       - 'scripts/pack_profiles.sh'
 
   workflow_dispatch:
@@ -68,7 +68,7 @@ jobs:
 
           gh release view "$RELEASE_TAG" --repo "$REPO" >/dev/null
 
-          for dir in ./profiles/*/; do
+          for dir in ./resources/profiles/*/; do
             VERSION=$(basename "$dir")
             NUMBER="$TIMESTAMP"
             ZIP_NAME="gingerslicer-profiles_ota_${VERSION}.${NUMBER}.zip"
