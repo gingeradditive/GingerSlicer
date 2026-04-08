@@ -63,14 +63,14 @@ for VENDOR in "${VENDORS[@]}"; do
 done
 
 # Create zip file
-cd "$TEMP_DIR"
+cd "$TEMP_DIR" || exit
 zip -r "$OUTPUT_FILE" profiles/
 
 # Move zip file to original directory
 mv "$OUTPUT_FILE" "$ORIGINAL_DIR/"
 
 # Return to original directory
-cd "$ORIGINAL_DIR"
+cd "$ORIGINAL_DIR" || exit
 
 # Clean up
 rm -rf "$TEMP_DIR"
