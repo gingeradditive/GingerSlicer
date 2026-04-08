@@ -129,8 +129,22 @@ void PressureEqualizer::process_layer(const std::string &gcode)
             if (idx >= (long)m_gcode_lines.size())
                 break;
             
-            // Found segment start
-            const long seg_start = idx;
+            // Found segment start (first line with XY+E)
+            long seg_start = idx;
+            
+            // Look back to include F-only lines that are part of this extrusion context
+            // These are lines like "G1 F2400" that set feedrate before extrusion begins
+            while (seg_start > 0) {
+                long prev = seg_start - 1;
+                GCodeLine &line = m_gcode_lines[prev];
+                std::string_view line_view(line.raw.data(), line.raw.size());
+                // Include if it's an F-only line (G1 F... without XY movement or E)
+                if (line_view.find("G1 F") != std::string_view::npos && !line.extruding()) {
+                    seg_start = prev;
+                } else {
+                    break;  // Stop at travel moves or other extrusions
+                }
+            }
             
             // Find segment end (last consecutive extruding line)
             while (idx < (long)m_gcode_lines.size() && m_gcode_lines[idx].extruding())
