@@ -713,12 +713,24 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
                 continue;
             if (!first_line.adjustable_flow)
                 continue;
-            // Calculate rate_end limited by slope from 0 (accelerating from zero flow)
-            float rate_end = sqrt(2 * first_line.volumetric_extrusion_rate * first_line.dist_xyz() * rate_slope / first_line.feedrate());
-            if (rate_end < first_line.volumetric_extrusion_rate_end) {
-                first_line.volumetric_extrusion_rate_end = rate_end;
-                first_line.max_volumetric_extrusion_rate_slope_positive = rate_slope;
-                first_line.modified = true;
+            // For ramp-up: we want to start from near-zero and accelerate to target rate_end
+            // Formula: rate_end^2 = rate_start^2 + 2*slope*distance
+            // Solving for rate_start: rate_start = sqrt(max(0, rate_end^2 - 2*slope*distance))
+            float rate_end_target = first_line.volumetric_extrusion_rate_end;
+            float dist = first_line.dist_xyz();
+            float feedrate = first_line.feedrate();
+            if (feedrate > 0 && dist > 0) {
+                // Calculate what rate_start should be to achieve rate_end with given slope
+                float rate_start_limit = sqrt(std::max(0.0f, 
+                    rate_end_target * rate_end_target - 2.0f * rate_slope * dist));
+                // Apply a minimum to avoid exact zero (numerical stability)
+                rate_start_limit = std::max(rate_start_limit, 1.0f);
+                // Only modify if we're reducing the start rate
+                if (rate_start_limit < first_line.volumetric_extrusion_rate_start) {
+                    first_line.volumetric_extrusion_rate_start = rate_start_limit;
+                    first_line.max_volumetric_extrusion_rate_slope_positive = rate_slope;
+                    first_line.modified = true;
+                }
             }
         }
     }
@@ -817,38 +829,8 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
     feedrate_per_extrusion_role.fill(std::numeric_limits<float>::max());
     feedrate_per_extrusion_role[size_t(m_gcode_lines[line_idx].extrusion_role)] = m_gcode_lines[line_idx].volumetric_extrusion_rate_end;
 
-    // Pellet mode: process first line of segment with rate_prec = 0 for proper ramp-up
-    if (m_pellet_ers_mode && is_segment_start && first_extruding_idx == line_idx) {
-        GCodeLine &first_line = m_gcode_lines[first_extruding_idx];
-        for (size_t iRole = 1; iRole < size_t(ExtrusionRole::erCount); ++iRole) {
-            const float &rate_slope = m_max_volumetric_extrusion_rate_slopes[iRole].positive;
-            if (rate_slope == 0 || first_line.extrusion_role != ExtrusionRole(iRole))
-                continue;
-            if (!first_line.adjustable_flow)
-                continue;
-            // Calculate rate_start from 0 (transition from travel)
-            // Formula: rate_end^2 = rate_start^2 + 2*slope*distance
-            // With rate_start = 0: rate_end = sqrt(2*slope*distance) at the end of this line
-            // But we need rate_start for this line. 
-            // For the first line after travel, we want to start from near-zero flow.
-            float rate_end_target = first_line.volumetric_extrusion_rate;
-            float dist = first_line.dist_xyz();
-            // Maximum rate we can achieve at end of this line starting from 0
-            float max_rate_achievable = sqrt(2.0f * rate_slope * dist);
-            // Start from a small epsilon to avoid exact zero
-            float rate_start_from_zero = std::min(1.0f, max_rate_achievable * 0.1f);
-            // Use the lower of: calculated start-from-zero or current start
-            float rate_start_limit = std::min(rate_start_from_zero, 
-                sqrt(std::max(0.0f, rate_end_target * rate_end_target - 2.0f * rate_slope * dist)));
-            if (rate_start_limit < first_line.volumetric_extrusion_rate_start) {
-                first_line.volumetric_extrusion_rate_start = rate_start_limit;
-                first_line.max_volumetric_extrusion_rate_slope_positive = rate_slope;
-                first_line.modified = true;
-            }
-        }
-        
-        // Also limit feedrate of non-extruding F-only lines immediately before segment
-        // These control the speed of the first extruding line
+    // Pellet mode: limit feedrate of F-only lines before segment start for proper ramp-up
+    if (m_pellet_ers_mode && is_segment_start) {
         for (long i = (long)first_line_idx; i < (long)first_extruding_idx; ++i) {
             GCodeLine &line = m_gcode_lines[i];
             std::string_view line_view(line.raw.data(), line.raw.size());
