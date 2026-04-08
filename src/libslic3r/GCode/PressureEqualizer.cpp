@@ -158,27 +158,12 @@ void PressureEqualizer::process_layer(const std::string &gcode)
             
             // Safety check: ensure we found valid extruding lines
             if (first_e_idx > (size_t)seg_end || last_e_idx < (size_t)seg_start || first_e_idx > last_e_idx) {
-                // No extruding lines in this segment - skip
                 continue;
             }
             
-            // Apply ERS for ramp-up: from seg_start to first_e_idx (includes F-only lines and first extruding)
-            // This creates the transition from 0 flow to the first extruding line
-            if (first_e_idx > (size_t)seg_start) {
-                adjust_volumetric_rate(seg_start, first_e_idx, true, false);
-            }
-            
-            // Apply ERS for internal segment: from first_e_idx to last_e_idx
-            // This handles normal flow changes within the continuous polyline
-            if (last_e_idx >= first_e_idx) {
-                adjust_volumetric_rate(first_e_idx, last_e_idx, false, false);
-            }
-            
-            // Apply ERS for ramp-down: from last_e_idx to seg_end (includes last extruding and F-only lines)
-            // This creates the transition from last extruding line to 0 flow
-            if (last_e_idx < (size_t)seg_end) {
-                adjust_volumetric_rate(last_e_idx, seg_end, false, true);
-            }
+            // Apply ERS for the entire polyline with ramp-up and ramp-down
+            // The function handles boundary transitions (from/to 0 flow) internally
+            adjust_volumetric_rate(seg_start, seg_end, true, true);
         }
     } else {
         // Standard filament mode: break at large travel gaps (> 3mm)
@@ -713,19 +698,22 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
                 continue;
             if (!first_line.adjustable_flow)
                 continue;
-            // For ramp-up: we want to start from near-zero and accelerate to target rate_end
-            // Formula: rate_end^2 = rate_start^2 + 2*slope*distance
-            // Solving for rate_start: rate_start = sqrt(max(0, rate_end^2 - 2*slope*distance))
-            float rate_end_target = first_line.volumetric_extrusion_rate_end;
+            // Ramp-up from 0: starting from zero volumetric rate
+            // Formula: rate_end^2 = rate_start^2 + 2 * slope * vol_rate * dist / feedrate
+            // With rate_start = 0: rate_end = sqrt(2 * slope * vol_rate * dist / feedrate)
             float dist = first_line.dist_xyz();
             float feedrate = first_line.feedrate();
             if (feedrate > 0 && dist > 0) {
-                // Calculate what rate_start should be to achieve rate_end with given slope
+                float rate_end_limit = sqrt(2.0f * rate_slope * first_line.volumetric_extrusion_rate * dist / feedrate);
+                if (rate_end_limit < first_line.volumetric_extrusion_rate_end) {
+                    first_line.volumetric_extrusion_rate_end = rate_end_limit;
+                    first_line.max_volumetric_extrusion_rate_slope_positive = rate_slope;
+                    first_line.modified = true;
+                }
+                // Also limit rate_start (should be near 0 for first line)
                 float rate_start_limit = sqrt(std::max(0.0f, 
-                    rate_end_target * rate_end_target - 2.0f * rate_slope * dist));
-                // Apply a minimum to avoid exact zero (numerical stability)
-                rate_start_limit = std::max(rate_start_limit, 1.0f);
-                // Only modify if we're reducing the start rate
+                    rate_end_limit * rate_end_limit - 2.0f * rate_slope * first_line.volumetric_extrusion_rate * dist / feedrate));
+                rate_start_limit = std::max(rate_start_limit, 0.5f);
                 if (rate_start_limit < first_line.volumetric_extrusion_rate_start) {
                     first_line.volumetric_extrusion_rate_start = rate_start_limit;
                     first_line.max_volumetric_extrusion_rate_slope_positive = rate_slope;
@@ -744,12 +732,27 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
                 continue;
             if (!last_line.adjustable_flow)
                 continue;
-            // Calculate rate_start limited by slope towards 0 (decelerating to zero flow)
-            float rate_start = sqrt(2 * last_line.volumetric_extrusion_rate * last_line.dist_xyz() * rate_slope / last_line.feedrate());
-            if (rate_start < last_line.volumetric_extrusion_rate_start) {
-                last_line.volumetric_extrusion_rate_start = rate_start;
-                last_line.max_volumetric_extrusion_rate_slope_negative = rate_slope;
-                last_line.modified = true;
+            // Ramp-down to 0: ending at zero volumetric rate
+            // Formula: rate_end^2 = rate_start^2 - 2 * slope * vol_rate * dist / feedrate
+            // With rate_end = 0: rate_start = sqrt(2 * slope * vol_rate * dist / feedrate)
+            float dist = last_line.dist_xyz();
+            float feedrate = last_line.feedrate();
+            if (feedrate > 0 && dist > 0) {
+                float rate_start_limit = sqrt(2.0f * rate_slope * last_line.volumetric_extrusion_rate * dist / feedrate);
+                if (rate_start_limit < last_line.volumetric_extrusion_rate_start) {
+                    last_line.volumetric_extrusion_rate_start = rate_start_limit;
+                    last_line.max_volumetric_extrusion_rate_slope_negative = rate_slope;
+                    last_line.modified = true;
+                }
+                // Also limit rate_end (should approach 0 for last line)
+                float rate_end_limit = sqrt(std::max(0.0f,
+                    rate_start_limit * rate_start_limit - 2.0f * rate_slope * last_line.volumetric_extrusion_rate * dist / feedrate));
+                rate_end_limit = std::max(rate_end_limit, 0.5f);
+                if (rate_end_limit < last_line.volumetric_extrusion_rate_end) {
+                    last_line.volumetric_extrusion_rate_end = rate_end_limit;
+                    last_line.max_volumetric_extrusion_rate_slope_negative = rate_slope;
+                    last_line.modified = true;
+                }
             }
         }
     }
@@ -772,14 +775,6 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
                           ? 0.f 
                           : m_gcode_lines[line_idx].volumetric_extrusion_rate_start;
         
-        // Pellet mode internal polyline: skip if change is minimal (avoid excessive smoothing)
-        if (m_pellet_ers_mode && !is_segment_start && !is_segment_end) {
-            float rate_diff = std::abs(rate_succ - m_gcode_lines[line_idx].volumetric_extrusion_rate_start);
-            if (rate_diff < 5.0f) {  // Less than 5mm3/min difference
-                line_idx = idx_prev;
-                continue;
-            }
-        }
         // What is the gradient of the extrusion rate between idx_prev and idx?
         line_idx        = idx_prev;
         GCodeLine &line = m_gcode_lines[line_idx];
@@ -860,15 +855,6 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
         float rate_prec = (m_pellet_ers_mode && is_segment_start && line_idx == first_extruding_idx) 
                           ? 0.f 
                           : m_gcode_lines[line_idx].volumetric_extrusion_rate_end;
-        
-        // Pellet mode internal polyline: skip if change is minimal (avoid excessive smoothing)
-        if (m_pellet_ers_mode && !is_segment_start && !is_segment_end) {
-            float rate_diff = std::abs(rate_prec - m_gcode_lines[line_idx].volumetric_extrusion_rate_end);
-            if (rate_diff < 5.0f) {  // Less than 5mm3/min difference
-                line_idx = idx_next;
-                continue;
-            }
-        }
         
         // What is the gradient of the extrusion rate between idx_prev and idx?
         line_idx = idx_next;
