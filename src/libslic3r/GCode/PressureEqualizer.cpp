@@ -115,19 +115,18 @@ void PressureEqualizer::process_layer(const std::string &gcode)
     // We skip over large travels, and pretend small ones are part of a continous extrusion segment
 
     if (m_pellet_ers_mode) {
-        // Pellet mode: treat the entire layer as one continuous segment.
-        // No breaks at travel/retract gaps — pellet extruders maintain pressure through gaps.
-        long first_ext = -1, last_ext = -1;
+        // Pellet mode: apply ERS to every flow transition including travel (X -> 0) and (0 -> X).
+        // Unlike filament mode, we don't break segments at gaps - we equalize pressure THROUGH gaps.
         for (long i = 0; i < (long)m_gcode_lines.size(); ++i) {
             if (m_gcode_lines[i].extruding()) {
-                if (first_ext < 0) first_ext = i;
-                last_ext = i;
-            }
-        }
-        if (first_ext >= 0 && last_ext > first_ext) {
-            for (long i = first_ext; i <= last_ext; ++i) {
-                const long start_idx = std::max(first_ext, i - (long)max_look_back_limit);
-                adjust_volumetric_rate(start_idx, i);
+                // For each extruding line, apply ERS on a local window that captures
+                // transitions to/from zero flow (travel/retract) in addition to A -> B changes.
+                const long start_idx = std::max(0L, i - (long)max_look_back_limit);
+                const long end_idx = std::min((long)m_gcode_lines.size() - 1, i + (long)max_look_back_limit);
+                // Ensure the range includes at least some context for transitions
+                if (end_idx > start_idx) {
+                    adjust_volumetric_rate(start_idx, end_idx);
+                }
             }
         }
     } else {
