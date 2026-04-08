@@ -115,21 +115,41 @@ void PressureEqualizer::process_layer(const std::string &gcode)
     // We skip over large travels, and pretend small ones are part of a continous extrusion segment
 
     if (m_pellet_ers_mode) {
-        // Pellet mode: apply ERS to every flow transition including travel (X -> 0) and (0 -> X).
-        // Unlike filament mode, we don't break segments at gaps - we equalize pressure THROUGH gaps.
-        for (long i = 0; i < (long)m_gcode_lines.size(); ++i) {
-            if (m_gcode_lines[i].extruding()) {
-                // Detect boundary conditions: transition from/to zero flow (travel moves)
-                const bool is_segment_start = (i == 0) || !m_gcode_lines[i - 1].extruding();
-                const bool is_segment_end = (i == (long)m_gcode_lines.size() - 1) || !m_gcode_lines[i + 1].extruding();
-                
-                // For each extruding line, apply ERS on a local window that captures
-                // transitions to/from zero flow (travel/retract) in addition to A -> B changes.
-                const long start_idx = std::max(0L, i - (long)max_look_back_limit);
-                const long end_idx = std::min((long)m_gcode_lines.size() - 1, i + (long)max_look_back_limit);
-                // Ensure the range includes at least some context for transitions
-                if (end_idx > start_idx) {
-                    adjust_volumetric_rate(start_idx, end_idx, is_segment_start, is_segment_end);
+        // Pellet mode: identify continuous extrusion segments and apply ERS at every flow transition.
+        // A continuous segment is a sequence of consecutive extruding lines (no travel in between).
+        // ERS is applied at:
+        //   - Segment start: transition from 0 flow to first extruding line
+        //   - Within segment: every flow rate change between consecutive extruding lines
+        //   - Segment end: transition from last extruding line to 0 flow
+        long idx = 0;
+        while (idx < (long)m_gcode_lines.size()) {
+            // Find start of next extrusion segment (skip non-extruding lines)
+            while (idx < (long)m_gcode_lines.size() && !m_gcode_lines[idx].extruding())
+                ++idx;
+            if (idx >= (long)m_gcode_lines.size())
+                break;
+            
+            // Found segment start
+            const long seg_start = idx;
+            
+            // Find segment end (last consecutive extruding line)
+            while (idx < (long)m_gcode_lines.size() && m_gcode_lines[idx].extruding())
+                ++idx;
+            const long seg_end = idx - 1;  // last extruding line
+            
+            if (seg_end >= seg_start) {
+                // Process each line in the segment for ERS transitions
+                for (long i = seg_start; i <= seg_end; ++i) {
+                    const bool is_first_line = (i == seg_start);
+                    const bool is_last_line = (i == seg_end);
+                    
+                    // Calculate local window for this line
+                    const long window_start = std::max(seg_start, i - (long)max_look_back_limit);
+                    const long window_end = std::min(seg_end, i + (long)max_look_back_limit);
+                    
+                    // Apply ERS with boundary flags for first/last line of segment
+                    // (transitions to/from 0 flow)
+                    adjust_volumetric_rate(window_start, window_end, is_first_line, is_last_line);
                 }
             }
         }
