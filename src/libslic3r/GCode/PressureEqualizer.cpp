@@ -146,20 +146,60 @@ void PressureEqualizer::process_layer(const std::string &gcode)
                 }
             }
             
-            // Find segment end (last consecutive extruding line)
-            while (idx < (long)m_gcode_lines.size() && m_gcode_lines[idx].extruding())
-                ++idx;
-            const long seg_end = idx - 1;  // last extruding line
+            // Find segment end (last consecutive extruding line or F-only lines)
+            // A F-only line (G1 F...) does NOT break the continuous polyline
+            // Only travel moves (XY without E) or Z changes break the polyline
+            while (idx < (long)m_gcode_lines.size()) {
+                if (m_gcode_lines[idx].extruding()) {
+                    // Extruding line - continue
+                    ++idx;
+                } else {
+                    // Check if it's an F-only line (G1 F... without XY movement)
+                    std::string_view line_view(m_gcode_lines[idx].raw.data(), m_gcode_lines[idx].raw.size());
+                    if (line_view.find("G1 F") != std::string_view::npos && !m_gcode_lines[idx].moving_xy()) {
+                        // F-only line - part of the polyline, continue
+                        ++idx;
+                    } else {
+                        // Travel move or other non-extruding - break the polyline
+                        break;
+                    }
+                }
+            }
+            const long seg_end = idx - 1;  // last line of the polyline (extruding or F-only)
             
             if (seg_end >= seg_start) {
-                // Apply ERS once for the entire segment
-                // Extend window to capture transitions to/from non-extruding context
-                const long window_start = std::max(0L, seg_start - (long)max_look_back_limit);
-                const long window_end = std::min((long)m_gcode_lines.size() - 1, seg_end + (long)max_look_back_limit);
+                // Find first and last actual extruding lines within the segment
+                size_t first_e_idx = seg_start;
+                while (first_e_idx < (size_t)seg_end && !m_gcode_lines[first_e_idx].extruding())
+                    ++first_e_idx;
+                size_t last_e_idx = seg_end;
+                while (last_e_idx > (size_t)seg_start && !m_gcode_lines[last_e_idx].extruding())
+                    --last_e_idx;
                 
-                // Apply ERS with boundary flags for segment start/end
-                // (transitions to/from 0 flow at travel moves)
-                adjust_volumetric_rate(window_start, window_end, true, true);
+                if (first_e_idx > (size_t)seg_start) {
+                    // There are F-only lines before first extruding line
+                    // Apply ERS for ramp-up from 0 (transition from F-only/travel to first extruding line)
+                    const long ramp_up_start = std::max(0L, (long)seg_start - (long)max_look_back_limit);
+                    adjust_volumetric_rate(ramp_up_start, first_e_idx, true, false);
+                }
+                
+                if (last_e_idx > first_e_idx) {
+                    // Internal segment: apply standard ERS for flow changes within the polyline
+                    // This handles normal speed changes like the original filament code
+                    adjust_volumetric_rate(first_e_idx, last_e_idx, false, false);
+                }
+                
+                if (last_e_idx < (size_t)seg_end) {
+                    // There are F-only lines after last extruding line
+                    // Apply ERS for ramp-down to 0 (transition from last extruding line to F-only/travel)
+                    const long ramp_down_end = std::min((long)m_gcode_lines.size() - 1, (long)seg_end + (long)max_look_back_limit);
+                    adjust_volumetric_rate(last_e_idx, ramp_down_end, false, true);
+                } else if (first_e_idx == last_e_idx && first_e_idx == (size_t)seg_start) {
+                    // Single extruding line segment - apply both ramp-up and ramp-down
+                    const long window_start = std::max(0L, seg_start - (long)max_look_back_limit);
+                    const long window_end = std::min((long)m_gcode_lines.size() - 1, seg_end + (long)max_look_back_limit);
+                    adjust_volumetric_rate(window_start, window_end, true, true);
+                }
             }
         }
     } else {
@@ -713,6 +753,15 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
         float rate_succ = (m_pellet_ers_mode && is_segment_end && line_idx == last_extruding_idx) 
                           ? 0.f 
                           : m_gcode_lines[line_idx].volumetric_extrusion_rate_start;
+        
+        // Pellet mode internal polyline: skip if change is minimal (avoid excessive smoothing)
+        if (m_pellet_ers_mode && !is_segment_start && !is_segment_end) {
+            float rate_diff = std::abs(rate_succ - m_gcode_lines[line_idx].volumetric_extrusion_rate_start);
+            if (rate_diff < 5.0f) {  // Less than 5mm3/min difference
+                line_idx = idx_prev;
+                continue;
+            }
+        }
         // What is the gradient of the extrusion rate between idx_prev and idx?
         line_idx        = idx_prev;
         GCodeLine &line = m_gcode_lines[line_idx];
@@ -823,6 +872,16 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
         float rate_prec = (m_pellet_ers_mode && is_segment_start && line_idx == first_extruding_idx) 
                           ? 0.f 
                           : m_gcode_lines[line_idx].volumetric_extrusion_rate_end;
+        
+        // Pellet mode internal polyline: skip if change is minimal (avoid excessive smoothing)
+        if (m_pellet_ers_mode && !is_segment_start && !is_segment_end) {
+            float rate_diff = std::abs(rate_prec - m_gcode_lines[line_idx].volumetric_extrusion_rate_end);
+            if (rate_diff < 5.0f) {  // Less than 5mm3/min difference
+                line_idx = idx_next;
+                continue;
+            }
+        }
+        
         // What is the gradient of the extrusion rate between idx_prev and idx?
         line_idx = idx_next;
         GCodeLine &line = m_gcode_lines[line_idx];
