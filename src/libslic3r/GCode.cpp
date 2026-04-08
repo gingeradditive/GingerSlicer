@@ -5294,6 +5294,12 @@ bool GCode::_needSAFC(const ExtrusionPath &path)
 std::string GCode::_extrude(const ExtrusionPath &path, std::string description, double speed)
 {
     std::string gcode;
+    
+    // Pellet ERS: Mark start of continuous polyline extrusion
+    static unsigned int polyline_id = 0;
+    if (m_config.pellet_ers_mode.value) {
+        gcode += std::string(";POLYLINE_START id=") + std::to_string(polyline_id++) + "\n";
+    }
 
     if (is_bridge(path.role()))
         description += " (bridge)";
@@ -6083,6 +6089,11 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
       m_last_notgapfill_extrusion_role = path.role();
     }
 
+    // Pellet ERS: Mark end of continuous polyline extrusion
+    if (m_config.pellet_ers_mode.value) {
+        gcode += ";POLYLINE_END\n";
+    }
+    
     this->set_last_pos(path.last_point());
     return gcode;
 }
