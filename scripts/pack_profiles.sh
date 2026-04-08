@@ -14,7 +14,7 @@ shift 2  # Remove first two arguments, leaving only vendor names
 
 # Set paths
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RESOURCES_DIR="$SCRIPT_DIR/../profiles/${VERSION}"
+RESOURCES_DIR="$SCRIPT_DIR/../resources/profiles/${VERSION}"
 ORIGINAL_DIR="$(pwd)"
 OUTPUT_FILE="gingerslicer-profiles_ota_${VERSION}.${NUMBER}.zip"
 TEMP_DIR="/tmp/orca_profiles_${VERSION}_$$"
