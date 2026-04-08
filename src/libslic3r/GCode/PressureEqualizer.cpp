@@ -518,7 +518,8 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
     // The line was modified.
     
     // Special handling for non-extruding F-only lines (feedrate changes)
-    if (!line.extruding() && line.raw.find("G1 F") != std::string::npos) {
+    std::string_view raw_view(line.raw.data(), line.raw.size());
+    if (!line.extruding() && raw_view.find("G1 F") != std::string_view::npos) {
         // Re-emit as simple F command with new feedrate
         GCodeG1Formatter formatter;
         formatter.emit_f(line.feedrate());
@@ -641,20 +642,20 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
     }
 }
 
-void PressureEqualizer::adjust_volumetric_rate(const size_t fist_line_idx, const size_t last_line_idx, const bool is_segment_start, const bool is_segment_end)
+void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, const size_t last_line_idx, const bool is_segment_start, const bool is_segment_end)
 {
     // don't bother adjusting volumetric rate if there's no gcode to adjust
-    if (last_line_idx-fist_line_idx < 2)
+    if (last_line_idx-first_line_idx < 2)
         return;
 
     // In pellet boundary mode, the range may include non-extruding lines at edges.
     // Find the actual first/last extruding lines within the range.
-    size_t first_extruding_idx = fist_line_idx;
+    size_t first_extruding_idx = first_line_idx;
     while (first_extruding_idx < last_line_idx && !m_gcode_lines[first_extruding_idx].extruding())
         ++first_extruding_idx;
     
     size_t last_extruding_idx = last_line_idx;
-    while (last_extruding_idx > fist_line_idx && !m_gcode_lines[last_extruding_idx].extruding())
+    while (last_extruding_idx > first_line_idx && !m_gcode_lines[last_extruding_idx].extruding())
         --last_extruding_idx;
     
     if (first_extruding_idx >= last_extruding_idx || !m_gcode_lines[first_extruding_idx].extruding() || !m_gcode_lines[last_extruding_idx].extruding())
@@ -779,9 +780,10 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t fist_line_idx, const
         
         // Also limit feedrate of non-extruding F-only lines immediately before segment
         // These control the speed of the first extruding line
-        for (long i = (long)fist_line_idx; i < (long)first_extruding_idx; ++i) {
+        for (long i = (long)first_line_idx; i < (long)first_extruding_idx; ++i) {
             GCodeLine &line = m_gcode_lines[i];
-            if (line.raw.find("G1 F") != std::string::npos && !line.extruding()) {
+            std::string_view line_view(line.raw.data(), line.raw.size());
+            if (line_view.find("G1 F") != std::string_view::npos && !line.extruding()) {
                 // This is an F-only line - limit its feedrate for ramp-up
                 float max_feedrate = 60.0f;  // Start from low speed (1mm/s = 60mm/min)
                 if (line.feedrate() > max_feedrate) {
@@ -856,7 +858,8 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t fist_line_idx, const
     if (m_pellet_ers_mode && is_segment_end) {
         for (size_t i = last_extruding_idx + 1; i <= last_line_idx; ++i) {
             GCodeLine &line = m_gcode_lines[i];
-            if (line.raw.find("G1 F") != std::string::npos && !line.extruding()) {
+            std::string_view line_view(line.raw.data(), line.raw.size());
+            if (line_view.find("G1 F") != std::string_view::npos && !line.extruding()) {
                 // This is an F-only line - limit its feedrate for ramp-down
                 float max_feedrate = 60.0f;  // End with low speed (1mm/s = 60mm/min)
                 if (line.feedrate() > max_feedrate) {
