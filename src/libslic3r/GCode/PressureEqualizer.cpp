@@ -144,8 +144,14 @@ void PressureEqualizer::process_layer(const std::string &gcode)
                     const bool is_last_line = (i == seg_end);
                     
                     // Calculate local window for this line
-                    const long window_start = std::max(seg_start, i - (long)max_look_back_limit);
-                    const long window_end = std::min(seg_end, i + (long)max_look_back_limit);
+                    // For first/last line, extend window beyond segment to capture
+                    // transitions to/from non-extruding lines (F-only, travel)
+                    const long window_start = is_first_line 
+                        ? std::max(0L, i - (long)max_look_back_limit)  // Can look back before segment
+                        : std::max(seg_start, i - (long)max_look_back_limit);
+                    const long window_end = is_last_line
+                        ? std::min((long)m_gcode_lines.size() - 1, i + (long)max_look_back_limit)  // Can look forward after segment
+                        : std::min(seg_end, i + (long)max_look_back_limit);
                     
                     // Apply ERS with boundary flags for first/last line of segment
                     // (transitions to/from 0 flow)
@@ -640,10 +646,20 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t fist_line_idx, const
     if (last_line_idx-fist_line_idx < 2)
         return;
 
-    size_t       line_idx      = last_line_idx;
-    if (line_idx == fist_line_idx || !m_gcode_lines[line_idx].extruding())
-        // Nothing to do, the last move is not extruding.
-        return;
+    // In pellet boundary mode, the range may include non-extruding lines at edges.
+    // Find the actual first/last extruding lines within the range.
+    size_t first_extruding_idx = fist_line_idx;
+    while (first_extruding_idx < last_line_idx && !m_gcode_lines[first_extruding_idx].extruding())
+        ++first_extruding_idx;
+    
+    size_t last_extruding_idx = last_line_idx;
+    while (last_extruding_idx > fist_line_idx && !m_gcode_lines[last_extruding_idx].extruding())
+        --last_extruding_idx;
+    
+    if (first_extruding_idx >= last_extruding_idx || !m_gcode_lines[first_extruding_idx].extruding() || !m_gcode_lines[last_extruding_idx].extruding())
+        return;  // No extruding lines in range
+
+    size_t       line_idx      = last_extruding_idx;
     
     // Pellet mode boundary handling: limit last line's rate towards 0 when ending extrusion
     if (m_pellet_ers_mode && is_segment_end) {
@@ -667,9 +683,9 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t fist_line_idx, const
     feedrate_per_extrusion_role.fill(std::numeric_limits<float>::max());
     feedrate_per_extrusion_role[int(m_gcode_lines[line_idx].extrusion_role)] = m_gcode_lines[line_idx].volumetric_extrusion_rate_start;
 
-    while (line_idx != fist_line_idx) {
+    while (line_idx != first_extruding_idx) {
         size_t idx_prev = line_idx - 1;
-        for (; !m_gcode_lines[idx_prev].extruding() && idx_prev != fist_line_idx; --idx_prev);
+        for (; !m_gcode_lines[idx_prev].extruding() && idx_prev != first_extruding_idx; --idx_prev);
         if (!m_gcode_lines[idx_prev].extruding())
             break;
         // Don't decelerate before ironing.
@@ -678,7 +694,7 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t fist_line_idx, const
         }
         // Volumetric extrusion rate at the start of the succeding segment.
         // In pellet mode at segment end, treat as 0 (transition to travel/non-extruding).
-        float rate_succ = (m_pellet_ers_mode && is_segment_end && line_idx == last_line_idx) 
+        float rate_succ = (m_pellet_ers_mode && is_segment_end && line_idx == last_extruding_idx) 
                           ? 0.f 
                           : m_gcode_lines[line_idx].volumetric_extrusion_rate_start;
         // What is the gradient of the extrusion rate between idx_prev and idx?
@@ -731,9 +747,9 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t fist_line_idx, const
     feedrate_per_extrusion_role[size_t(m_gcode_lines[line_idx].extrusion_role)] = m_gcode_lines[line_idx].volumetric_extrusion_rate_end;
 
     assert(m_gcode_lines[line_idx].extruding());
-    while (line_idx != last_line_idx) {
+    while (line_idx != last_extruding_idx) {
         size_t idx_next = line_idx + 1;
-        for (; !m_gcode_lines[idx_next].extruding() && idx_next != last_line_idx; ++idx_next);
+        for (; !m_gcode_lines[idx_next].extruding() && idx_next != last_extruding_idx; ++idx_next);
         if (!m_gcode_lines[idx_next].extruding())
             break;
         // Don't accelerate after ironing.
@@ -742,7 +758,7 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t fist_line_idx, const
             continue;
         }
         // In pellet mode at segment start, treat rate_prec as 0 (transition from travel/non-extruding).
-        float rate_prec = (m_pellet_ers_mode && is_segment_start && line_idx == fist_line_idx) 
+        float rate_prec = (m_pellet_ers_mode && is_segment_start && line_idx == first_extruding_idx) 
                           ? 0.f 
                           : m_gcode_lines[line_idx].volumetric_extrusion_rate_end;
         // What is the gradient of the extrusion rate between idx_prev and idx?
@@ -861,6 +877,8 @@ void PressureEqualizer::push_line_to_output(const size_t line_idx, float new_fee
     // Quantize speed changes to a minimum of 1mm/sec, to reduce gcode volume for trivial speed changes.
     new_feedrate = std::round(new_feedrate / 60.0) * 60.0;
     const GCodeLine &line = m_gcode_lines[line_idx];
+    // Add ERS debug comment when line was modified by pressure equalizer
+    const bool add_ers_comment = m_pellet_ers_mode && line.modified;
     if (line_idx > 0 && output_buffer_length > 0) {
         const std::string prev_line_str = std::string(output_buffer.begin() + int(this->output_buffer_prev_length),
                                                       output_buffer.begin() + int(this->output_buffer_length) + 1);
@@ -886,6 +904,9 @@ void PressureEqualizer::push_line_to_output(const size_t line_idx, float new_fee
 
     if (comment != nullptr)
         extrusion_formatter.emit_string(std::string(comment));
+    
+    if (add_ers_comment)
+        extrusion_formatter.emit_string(";_ERS");
 
     push_to_output(extrusion_formatter);
 }
