@@ -36,12 +36,9 @@ jobs:
 
       - name: Run validation for each profile version
         run: |
-          for dir in ./profiles/*/
-          do
-            echo "Validating profiles in $dir"
-            python3 ./scripts/orca_extra_profile_check.py --dir "$dir"
-            ./OrcaSlicer_profile_validator -p "$dir" -l 2
-          done
+          echo "Validating profiles in ./resources/profiles/"
+          python3 ./scripts/orca_extra_profile_check.py
+          ./OrcaSlicer_profile_validator -p ./resources/profiles/ -l 2
 
   release_profiles:
     runs-on: ubuntu-24.04
