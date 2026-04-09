@@ -257,7 +257,7 @@ void PresetUpdater::priv::set_download_prefs(AppConfig *app_config)
 	version_check_url = app_config->version_check_url();
 
 	auto profile_update_url = app_config->profile_update_url();
-	if (!profile_update_url.empty())
+	if (!.empty())
 		enabled_config_update = true;
 	else
 		enabled_config_update = false;
@@ -664,7 +664,7 @@ void PresetUpdater::priv::sync_config()
     }
     AppConfig *app_config = GUI::wxGetApp().app_config;
 
-    auto profile_update_url = app_config->profile_update_url() + "/" + SoftFever_VERSION;
+    auto profile_update_url = app_config->profile_update_url();
     // parse the assets section and get the latest asset by comparing the name
 
     Http::get(profile_update_url)
