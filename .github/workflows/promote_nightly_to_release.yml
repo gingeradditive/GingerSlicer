@@ -99,7 +99,7 @@ jobs:
       - name: Merge Pull Request
         run: |
           gh pr merge "${{ steps.create_pr.outputs.pr_number }}" \
-            --merge \
+            --squash \
             --delete-branch \
             --admin
           echo "PR #${{ steps.create_pr.outputs.pr_number }} merged — Build all will start automatically."
