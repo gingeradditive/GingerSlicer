@@ -15,10 +15,17 @@ on:
       - 'resources/profiles/**'
 
   workflow_dispatch:
+    inputs:
+      force_release:
+        description: Bypass profile checks and force release publication
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   check_profiles:
     runs-on: ubuntu-24.04
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.force_release != true }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -44,7 +51,7 @@ jobs:
   release_profiles:
     runs-on: ubuntu-24.04
     needs: check_profiles
-    if: ${{github.ref == 'refs/heads/main'}}
+    if: ${{ always() && ((github.ref == 'refs/heads/main' && needs.check_profiles.result == 'success') || (github.event_name == 'workflow_dispatch' && (needs.check_profiles.result == 'success' || inputs.force_release == true))) }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -79,12 +86,13 @@ jobs:
             mv "./gingerslicer-profiles_ota_${VERSION}.${NUMBER}.zip" ./output/
 
             echo "Replacing existing asset for $VERSION in $RELEASE_TAG (if present)"
-            EXISTING_ASSET_IDS=$(gh api "repos/$REPO/releases/tags/$RELEASE_TAG" --jq ".assets[] | select(.name | startswith(\"gingerslicer-profiles_ota_${VERSION}.\")) | select(.name | endswith(\".zip\")) | .id")
+            EXISTING_ASSET_NAMES=$(gh release view "$RELEASE_TAG" --repo "$REPO" --json assets --jq ".assets[] | select(.name | startswith(\"gingerslicer-profiles_ota_${VERSION}.\")) | select(.name | endswith(\".zip\")) | .name")
 
-            if [ -n "$EXISTING_ASSET_IDS" ]; then
-              for asset_id in $EXISTING_ASSET_IDS; do
-                gh api --method DELETE "repos/$REPO/releases/assets/$asset_id"
-              done
+            if [ -n "$EXISTING_ASSET_NAMES" ]; then
+              while IFS= read -r asset_name; do
+                [ -z "$asset_name" ] && continue
+                gh release delete-asset "$RELEASE_TAG" "$asset_name" --repo "$REPO" --yes
+              done <<< "$EXISTING_ASSET_NAMES"
             fi
 
             gh release upload "$RELEASE_TAG" "./output/$ZIP_NAME" --repo "$REPO"
