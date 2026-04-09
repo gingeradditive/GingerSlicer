@@ -98,10 +98,10 @@ jobs:
             fi
 
             mv "./$ZIP_NAME" ./output/
-            ASSET_PREFIX="${ZIP_NAME%.${NUMBER}.zip}"
+            ASSET_PREFIX="gingerslicer-profiles_ota_${DOT_VERSION}"
 
-            echo "Replacing existing asset(s) for $ASSET_PREFIX in $RELEASE_TAG (if present)"
-            EXISTING_ASSET_NAMES=$(gh release view "$RELEASE_TAG" --repo "$REPO" --json assets --jq ".assets[] | select(.name | startswith(\"${ASSET_PREFIX}.\")) | select(.name | endswith(\".zip\")) | .name")
+            echo "Replacing existing asset(s) matching '${ASSET_PREFIX}.*' in $RELEASE_TAG"
+            EXISTING_ASSET_NAMES=$(gh release view "$RELEASE_TAG" --repo "$REPO" --json assets --jq ".assets[].name" | grep "^${ASSET_PREFIX}\." | grep '\.zip$' || true)
 
             if [ -n "$EXISTING_ASSET_NAMES" ]; then
               echo "Assets to delete:"
