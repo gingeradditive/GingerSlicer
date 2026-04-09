@@ -37,8 +37,8 @@ using namespace nlohmann;
 
 namespace Slic3r {
 
-static const std::string VERSION_CHECK_URL = "https://api.github.com/repos/gingeradditive/OrcaSlicer/releases";
-static const std::string PROFILE_UPDATE_URL = "https://api.github.com/repos/gingeradditive/orcaslicer-profiles/releases/tags";
+static const std::string VERSION_CHECK_URL = "https://api.github.com/repos/gingeradditive/gingerslicer/releases";
+static const std::string PROFILE_UPDATE_URL = "https://api.github.com/repos/gingeradditive/gingerslicer/releases/tags/nightly-builds";
 static const std::string MODELS_STR = "models";
 
 const std::string AppConfig::SECTION_FILAMENTS = "filaments";

@@ -335,7 +335,7 @@ void NetworkTestDialog::on_close(wxCloseEvent& event)
 
 wxString NetworkTestDialog::get_studio_version()
 {
-	return wxString(SoftFever_VERSION);
+	return wxString(GingerSlicer_VERSION);
 }
 
 void NetworkTestDialog::set_default()

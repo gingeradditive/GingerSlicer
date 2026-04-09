@@ -1,0 +1,99 @@
+name: Create Release
+
+# Triggered automatically when "Build all" completes on main.
+# Only creates a release if the head commit is a version bump
+# (commit message starts with "release: bump GingerSlicer_VERSION to").
+
+on:
+  workflow_run:
+    workflows: ["Build all"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 5
+
+      - name: Check if triggered by a version bump
+        id: check
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%s "${{ github.event.workflow_run.head_sha }}")
+          echo "Head commit message: $COMMIT_MSG"
+
+          # Detect version bump commits in any of these formats:
+          #   - Squash merge:  "Release vX.Y.Z: bump GingerSlicer_VERSION to X.Y.Z (#N)"
+          #   - Merge commit:  "Merge pull request #N from .../release/bump-version-X.Y.Z"
+          #   - Direct commit: "release: bump GingerSlicer_VERSION to X.Y.Z"
+          if echo "$COMMIT_MSG" | grep -qiP 'bump GingerSlicer_VERSION to [0-9]+\.[0-9]+\.[0-9]+'; then
+            VERSION=$(grep -oP 'set\(GingerSlicer_VERSION\s+"\K[^"]+' version.inc)
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+            echo "Detected release version bump: $VERSION"
+          elif echo "$COMMIT_MSG" | grep -qP 'release/bump-version-'; then
+            VERSION=$(grep -oP 'set\(GingerSlicer_VERSION\s+"\K[^"]+' version.inc)
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+            echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+            echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+            echo "Detected release version bump: $VERSION"
+          else
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+            echo "Not a version bump commit, skipping release creation."
+          fi
+
+      - name: Download Nightly Artifacts
+        if: steps.check.outputs.is_release == 'true'
+        run: |
+          mkdir artifacts
+          gh release download nightly-builds -R ${{ github.repository }} -D ./artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clean and rename artifacts
+        if: steps.check.outputs.is_release == 'true'
+        run: |
+          # Remove OTA profile archives
+          rm -f ./artifacts/*profiles_ota*
+
+          # Replace 'nightly' with the actual version in every filename
+          VERSION="${{ steps.check.outputs.version }}"
+          for f in ./artifacts/*nightly*; do
+            [ -e "$f" ] || continue
+            mv "$f" "$(echo "$f" | sed "s/nightly/$VERSION/g")"
+          done
+
+          echo "Final artifacts:"
+          ls -lah ./artifacts
+
+      - name: Create tag ${{ steps.check.outputs.tag }}
+        if: steps.check.outputs.is_release == 'true'
+        uses: rickstaa/action-create-tag@v1
+        with:
+          tag: ${{ steps.check.outputs.tag }}
+          message: "Release ${{ steps.check.outputs.tag }}"
+          force_push_tag: false
+
+      - name: Create GitHub Release
+        if: steps.check.outputs.is_release == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.check.outputs.tag }}
+          name: Release ${{ steps.check.outputs.tag }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/*

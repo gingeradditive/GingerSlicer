@@ -104,13 +104,13 @@ def main():
         with open(VERSION_FILE, "r", encoding="utf-8") as f:
             content = f.read()
 
-        match = re.search(r'set\(SoftFever_VERSION\s+"(\d+)\.(\d+)\.(\d+)"\)', content)
+        match = re.search(r'set\(GingerSlicer_VERSION\s+"(\d+)\.(\d+)\.(\d+)"\)', content)
         if match:
             major, minor, patch = map(int, match.groups())
             patch += 1  # ✅ incrementa l'ULTIMA cifra
             new_version = f"{major}.{minor}.{patch}"
-            new_line = f'set(SoftFever_VERSION "{new_version}")'
-            content = re.sub(r'set\(SoftFever_VERSION\s+".*"\)', new_line, content)
+            new_line = f'set(GingerSlicer_VERSION "{new_version}")'
+            content = re.sub(r'set\(GingerSlicer_VERSION\s+".*"\)', new_line, content)
             with open(VERSION_FILE, "w", encoding="utf-8") as f:
                 f.write(content)
             print(f"  ✅ Versione aggiornata a {new_version}")
