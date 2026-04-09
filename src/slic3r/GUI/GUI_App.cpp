@@ -3496,21 +3496,8 @@ void GUI_App::keyboard_shortcuts()
 
 
 void GUI_App::ShowUserGuide() {
-    // BBS:Show NewUser Guide
-    try {
-        bool res = false;
-        GuideFrame GuideDlg(this);
-                //if (GuideDlg.IsFirstUse())
-        res = GuideDlg.run();
-if (res) {
-            load_current_presets();
-            update_publish_status();
-            mainframe->refresh_plugin_tips();
-            // BBS: remove SLA related message
-        }
-    } catch (std::exception &) {
-        // wxMessageBox(e.what(), "", MB_OK);
-    }
+    // Setup Wizard removed: auto-select all printers/nozzles/filaments
+    run_wizard(ConfigWizard::RR_USER);
 }
 
 void GUI_App::ShowDownNetPluginDlg() {
@@ -3550,20 +3537,8 @@ void GUI_App::ShowUserLogin(bool show)
 
 
 void GUI_App::ShowOnlyFilament() {
-    // BBS:Show NewUser Guide
-    try {
-        bool       res = false;
-        GuideFrame GuideDlg(this);
-        GuideDlg.SetStartPage(GuideFrame::GuidePage::BBL_FILAMENT_ONLY);
-        res = GuideDlg.run();
-        if (res) {
-            load_current_presets();
-
-            // BBS: remove SLA related message
-        }
-    } catch (std::exception &) {
-        // wxMessageBox(e.what(), "", MB_OK);
-    }
+    // Setup Wizard removed: auto-select all filaments
+    run_wizard(ConfigWizard::RR_USER, ConfigWizard::SP_FILAMENTS);
 }
 
 
@@ -6676,36 +6651,56 @@ bool GUI_App::run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage
 {
     wxCHECK_MSG(mainframe != nullptr, false, "Internal error: Main frame not created / null");
 
-    //if (reason == ConfigWizard::RR_USER) {
-    //    //TODO: turn off it currently, maybe need to turn on in the future
-    //    if (preset_updater->config_update(app_config->orig_version(), PresetUpdater::UpdateParams::FORCED_BEFORE_WIZARD) == PresetUpdater::R_ALL_CANCELED)
-    //        return false;
-    //}
+    BOOST_LOG_TRIVIAL(info) << "run_wizard: bypassing Setup Wizard, auto-selecting all printers/nozzles/filaments";
 
-    //auto wizard_t = new ConfigWizard(mainframe);
-    //const bool res = wizard_t->run(reason, start_page);
-
-    std::string strFinish = wxGetApp().app_config->get("firstguide", "finish");
-    long        pStyle    = wxCAPTION | wxCLOSE_BOX | wxSYSTEM_MENU;
-    if (strFinish == "false" || strFinish.empty())
-        pStyle = wxCAPTION | wxTAB_TRAVERSAL;
-
-    GuideFrame wizard(this, pStyle);
-    auto page = start_page == ConfigWizard::SP_WELCOME ? GuideFrame::BBL_WELCOME :
-                start_page == ConfigWizard::SP_FILAMENTS ? GuideFrame::BBL_FILAMENT_ONLY :
-                start_page == ConfigWizard::SP_PRINTERS ? GuideFrame::BBL_MODELS_ONLY :
-                GuideFrame::BBL_MODELS;
-    wizard.SetStartPage(page);
-    bool       res = wizard.run();
-
-    if (res) {
-        load_current_presets();
-        update_publish_status();
-        mainframe->refresh_plugin_tips();
-        // BBS: remove SLA related message
+    // Enable ALL printer models and ALL nozzle variants from every vendor
+    const auto vendor_dir = (boost::filesystem::path(Slic3r::data_dir()) / PRESET_SYSTEM_DIR).make_preferred();
+    std::vector<std::string> install_bundles;
+    for (const auto &vendor_pair : preset_bundle->vendors) {
+        const VendorProfile &vendor = vendor_pair.second;
+        // Check if the vendor bundle needs to be installed from resources
+        auto vendor_file = vendor_dir / (vendor.id + ".json");
+        if (!boost::filesystem::exists(vendor_file))
+            install_bundles.emplace_back(vendor.id);
+        for (const auto &model : vendor.models) {
+            for (const auto &variant : model.variants) {
+                app_config->set_variant(vendor.id, model.id, variant.name, true);
+                BOOST_LOG_TRIVIAL(info) << "  auto-select: vendor=" << vendor.id
+                    << " model=" << model.id << " variant=" << variant.name;
+            }
+        }
     }
 
-    return res;
+    // Install vendor bundles from resources if needed
+    if (!install_bundles.empty() && preset_updater) {
+        BOOST_LOG_TRIVIAL(info) << "run_wizard: installing " << install_bundles.size() << " vendor bundles from resources";
+        preset_updater->install_bundles_rsrc(std::move(install_bundles), false);
+    }
+
+    // Enable ALL system filament presets
+    std::map<std::string, std::string> filament_section;
+    if (app_config->has_section(AppConfig::SECTION_FILAMENTS))
+        filament_section = app_config->get_section(AppConfig::SECTION_FILAMENTS);
+    for (const auto &preset : preset_bundle->filaments) {
+        if (preset.is_system && !preset.name.empty())
+            filament_section[preset.name] = "true";
+    }
+    app_config->set_section(AppConfig::SECTION_FILAMENTS, filament_section);
+
+    // Mark the first-run guide as finished
+    app_config->set("firstguide", "finish", "1");
+    app_config->set_legacy_datadir(false);
+    app_config->save();
+
+    // Reload presets with the new selections
+    preset_bundle->load_presets(*app_config, ForwardCompatibilitySubstitutionRule::EnableSystemSilent);
+    load_current_presets();
+    update_publish_status();
+    mainframe->refresh_plugin_tips();
+    update_mode();
+
+    BOOST_LOG_TRIVIAL(info) << "run_wizard: auto-selection complete";
+    return true;
 }
 
 void GUI_App::show_desktop_integration_dialog()
