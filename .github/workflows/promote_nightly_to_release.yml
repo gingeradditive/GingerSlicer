@@ -4,44 +4,107 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version (e.g. v1.2.3) extracted from artifacts'
+        description: 'New version (e.g. 2.4.0) – must be greater than the current version in version.inc'
         required: true
 
 jobs:
-  promote:
-    name: Promote nightly to release
+  bump-version:
+    name: Bump version and merge
     runs-on: ubuntu-latest
-    env:
-      RELEASE_NAME: ${{ github.event.inputs.version }}
-
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
+      - name: Normalize version input
+        id: normalize
+        run: |
+          ver="${{ github.event.inputs.version }}"
+          # Strip leading 'v' or 'V' if present
+          ver="${ver#v}"
+          ver="${ver#V}"
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "tag=v$ver" >> "$GITHUB_OUTPUT"
+
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
-      - name: Download Nightly Artifacts
+      - name: Validate version is greater than current
+        id: validate
         run: |
-          mkdir artifacts
-          gh release download nightly-builds -R ${{ github.repository }} -D ./artifacts
+          NEW_VER="${{ steps.normalize.outputs.version }}"
+          CURRENT_VER=$(grep -oP 'set\(GingerSlicer_VERSION\s+"\K[^"]+' version.inc)
+          echo "Current version: $CURRENT_VER"
+          echo "New version:     $NEW_VER"
+
+          IFS='.' read -r CUR_MAJOR CUR_MINOR CUR_PATCH <<< "$CURRENT_VER"
+          IFS='.' read -r NEW_MAJOR NEW_MINOR NEW_PATCH <<< "$NEW_VER"
+          CUR_PATCH=${CUR_PATCH:-0}
+          NEW_PATCH=${NEW_PATCH:-0}
+
+          is_greater=false
+          if [ "$NEW_MAJOR" -gt "$CUR_MAJOR" ]; then
+            is_greater=true
+          elif [ "$NEW_MAJOR" -eq "$CUR_MAJOR" ] && [ "$NEW_MINOR" -gt "$CUR_MINOR" ]; then
+            is_greater=true
+          elif [ "$NEW_MAJOR" -eq "$CUR_MAJOR" ] && [ "$NEW_MINOR" -eq "$CUR_MINOR" ] && [ "$NEW_PATCH" -gt "$CUR_PATCH" ]; then
+            is_greater=true
+          fi
+
+          if [ "$is_greater" != "true" ]; then
+            echo "::error::New version $NEW_VER is NOT greater than current version $CURRENT_VER"
+            exit 1
+          fi
+
+          echo "current=$CURRENT_VER" >> "$GITHUB_OUTPUT"
+          echo "Version check passed: $NEW_VER > $CURRENT_VER"
+
+      - name: Update version.inc
+        run: |
+          NEW_VER="${{ steps.normalize.outputs.version }}"
+          sed -i "s/set(GingerSlicer_VERSION \"[^\"]*\")/set(GingerSlicer_VERSION \"$NEW_VER\")/" version.inc
+          echo "Updated version.inc:"
+          grep GingerSlicer_VERSION version.inc
+
+      - name: Push to temporary branch
+        id: branch
+        run: |
+          BRANCH="release/bump-version-${{ steps.normalize.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add version.inc
+          git commit -m "release: bump GingerSlicer_VERSION to ${{ steps.normalize.outputs.version }}"
+          git push origin "$BRANCH"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Create Pull Request
+        id: create_pr
+        run: |
+          PR_URL=$(gh pr create \
+            --base main \
+            --head "${{ steps.branch.outputs.branch }}" \
+            --title "Release ${{ steps.normalize.outputs.tag }}: bump GingerSlicer_VERSION to ${{ steps.normalize.outputs.version }}" \
+            --body "Automated version bump from \`${{ steps.validate.outputs.current }}\` to \`${{ steps.normalize.outputs.version }}\` triggered by promote-nightly-to-release workflow." \
+            --label "release")
+          PR_NUMBER=$(echo "$PR_URL" | grep -oP '\d+$')
+          echo "pr_url=$PR_URL" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          echo "Created PR #$PR_NUMBER: $PR_URL"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: List downloaded files
-        run: ls -lah ./artifacts
-
-      - name: Create tag ${{ env.RELEASE_NAME }}
-        uses: rickstaa/action-create-tag@v1
-        with:
-          tag: ${{ env.RELEASE_NAME }}
-          message: "Promoted release ${{ env.RELEASE_NAME }} from nightly"
-          force_push_tag: false
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.RELEASE_NAME }}
-          name: Release ${{ env.RELEASE_NAME }}
-          draft: false
-          prerelease: false
-          files: |
-            artifacts/*
+      - name: Merge Pull Request
+        run: |
+          gh pr merge "${{ steps.create_pr.outputs.pr_number }}" \
+            --squash \
+            --delete-branch \
+            --admin
+          echo "PR #${{ steps.create_pr.outputs.pr_number }} merged."
+          echo "Build all will start automatically (push event from PAT triggers workflows)."
+          echo "When Build all completes, create_release.yml will create the tag and GitHub Release."
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN }}
 

@@ -83,7 +83,7 @@
    "full_fan_speed_layer": [
       "8"
    ],
-   "version": "2.3.3.3",
+   "version": "2.3.4.2",
    "instantiation": "true",
    "extruder_rotation_volume": [
       "650"
