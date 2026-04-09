@@ -121,7 +121,7 @@
    "tree_support_tip_diameter": "5",
    "tree_support_top_rate": "30%",
    "type": "process",
-   "version": "2.3.4.0",
+   "version": "2.3.4.1",
    "wipe_on_loops": "1",
    "wipe_speed": "8",
    "wipe_tower_cone_angle": "30",
