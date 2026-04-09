@@ -8,6 +8,12 @@ on:
       - 'resources/profiles/**'
       - '.github/workflows/check_profiles.yml'
 
+  push:
+    branches:
+      - main
+    paths:
+      - 'resources/profiles/**'
+
   workflow_dispatch:
 
 jobs:
@@ -34,3 +40,52 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           python3 ./scripts/check_profile_version_bump.py --base origin/${{ github.base_ref }}
+
+  release_profiles:
+    runs-on: ubuntu-24.04
+    needs: check_profiles
+    if: ${{github.ref == 'refs/heads/main'}}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up GitHub CLI
+        run: |
+          sudo apt update
+          sudo apt install gh -y
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload profile packages to nightly-builds release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x ./scripts/pack_profiles.sh
+          mkdir -p output
+
+          RELEASE_TAG="nightly-builds"
+          REPO="gingeradditive/gingerslicer"
+          TIMESTAMP=$(date +%s)
+
+          gh release view "$RELEASE_TAG" --repo "$REPO" >/dev/null
+
+          for dir in ./resources/profiles/*/; do
+            VERSION=$(basename "$dir")
+            NUMBER="$TIMESTAMP"
+            ZIP_NAME="gingerslicer-profiles_ota_${VERSION}.${NUMBER}.zip"
+            echo "Packaging $VERSION"
+
+            ./scripts/pack_profiles.sh "$VERSION" "$NUMBER"
+            mv "./gingerslicer-profiles_ota_${VERSION}.${NUMBER}.zip" ./output/
+
+            echo "Replacing existing asset for $VERSION in $RELEASE_TAG (if present)"
+            EXISTING_ASSET_IDS=$(gh api "repos/$REPO/releases/tags/$RELEASE_TAG" --jq ".assets[] | select(.name | test(\"^gingerslicer-profiles_ota_${VERSION}\\\\..*\\\\.zip$\")) | .id")
+
+            if [ -n "$EXISTING_ASSET_IDS" ]; then
+              for asset_id in $EXISTING_ASSET_IDS; do
+                gh api --method DELETE "repos/$REPO/releases/assets/$asset_id"
+              done
+            fi
+
+            gh release upload "$RELEASE_TAG" "./output/$ZIP_NAME" --repo "$REPO"
+          done
