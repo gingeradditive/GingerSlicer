@@ -79,16 +79,33 @@ jobs:
           for dir in ./resources/profiles/*/; do
             VERSION=$(basename "$dir")
             NUMBER="$TIMESTAMP"
-            ZIP_NAME="gingerslicer-profiles_ota_${VERSION}.${NUMBER}.zip"
             echo "Packaging $VERSION"
 
             ./scripts/pack_profiles.sh "$VERSION" "$NUMBER"
-            mv "./gingerslicer-profiles_ota_${VERSION}.${NUMBER}.zip" ./output/
 
-            echo "Replacing existing asset for $VERSION in $RELEASE_TAG (if present)"
-            EXISTING_ASSET_NAMES=$(gh release view "$RELEASE_TAG" --repo "$REPO" --json assets --jq ".assets[] | select(.name | startswith(\"gingerslicer-profiles_ota_${VERSION}.\")) | select(.name | endswith(\".zip\")) | .name")
+            RAW_ZIP_NAME="gingerslicer-profiles_ota_${VERSION}.${NUMBER}.zip"
+            DOT_VERSION="${VERSION// /.}"
+            DOT_ZIP_NAME="gingerslicer-profiles_ota_${DOT_VERSION}.${NUMBER}.zip"
+
+            if [ -f "./$RAW_ZIP_NAME" ]; then
+              ZIP_NAME="$RAW_ZIP_NAME"
+            elif [ -f "./$DOT_ZIP_NAME" ]; then
+              ZIP_NAME="$DOT_ZIP_NAME"
+            else
+              echo "ERROR: Could not find expected profile package for $VERSION"
+              ls -la .
+              exit 1
+            fi
+
+            mv "./$ZIP_NAME" ./output/
+            ASSET_PREFIX="${ZIP_NAME%.${NUMBER}.zip}"
+
+            echo "Replacing existing asset(s) for $ASSET_PREFIX in $RELEASE_TAG (if present)"
+            EXISTING_ASSET_NAMES=$(gh release view "$RELEASE_TAG" --repo "$REPO" --json assets --jq ".assets[] | select(.name | startswith(\"${ASSET_PREFIX}.\")) | select(.name | endswith(\".zip\")) | .name")
 
             if [ -n "$EXISTING_ASSET_NAMES" ]; then
+              echo "Assets to delete:"
+              printf '%s\n' "$EXISTING_ASSET_NAMES"
               while IFS= read -r asset_name; do
                 [ -z "$asset_name" ] && continue
                 gh release delete-asset "$RELEASE_TAG" "$asset_name" --repo "$REPO" --yes
