@@ -80,9 +80,7 @@ set(SLIC3R_GUI_SOURCES
     GUI/CloneDialog.hpp
     GUI/ConfigManipulation.cpp
     GUI/ConfigManipulation.hpp
-    GUI/ConfigWizard.cpp
     GUI/ConfigWizard.hpp
-    GUI/ConfigWizard_private.hpp
     GUI/ConnectPrinter.cpp
     GUI/ConnectPrinter.hpp
     GUI/CreatePresetsDialog.cpp
@@ -419,10 +417,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/UserManager.hpp
     GUI/UserNotification.cpp
     GUI/UserNotification.hpp
-    GUI/WebDownPluginDlg.cpp
-    GUI/WebDownPluginDlg.hpp
-    GUI/WebGuideDialog.cpp
-    GUI/WebGuideDialog.hpp
     GUI/WebUserLoginDialog.cpp
     GUI/WebUserLoginDialog.hpp
     GUI/WebViewDialog.cpp

@@ -107,8 +107,6 @@
 #include "Widgets/ProgressDialog.hpp"
 
 //BBS: DailyTip and UserGuide Dialog
-#include "WebDownPluginDlg.hpp"
-#include "WebGuideDialog.hpp"
 #include "ReleaseNote.hpp"
 #include "PrivacyUpdateDialog.hpp"
 #include "ModelMall.hpp"
