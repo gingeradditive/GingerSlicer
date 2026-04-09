@@ -535,7 +535,7 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
             const char *comment = line.raw.data();
             while (*comment != ';' && *comment != 0) ++comment;
             if (*comment != ';') comment = nullptr;
-            push_line_to_output(line_idx, line.feedrate(), comment);
+            push_line_to_output(line_idx, line.feedrate(), comment, ";_ERS_STEADY");
             return;
         }
         push_to_output(line.raw.data(), line.raw_length, true);
@@ -564,13 +564,123 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
     // get the gcode line length
     float l = line.dist_xyz();
+    float vol_rate = line.volumetric_extrusion_rate;
+    float rate_start = line.volumetric_extrusion_rate_start;
+    float rate_end   = line.volumetric_extrusion_rate_end;
+    float original_feedrate = line.feedrate(); // F from the original GCode
+
+    // Pellet mode trapezoidal profile: when BOTH rate_start and rate_end are below
+    // the target vol_rate, this line needs ramp-up at the start AND ramp-down at the end,
+    // with a steady zone at full speed in the middle.
+    // The standard linear interpolation (rate_start → rate_end) cannot represent this shape.
+    if (m_pellet_ers_mode && rate_start < vol_rate * 0.98f && rate_end < vol_rate * 0.98f && l > 2.f * m_max_segment_length) {
+        float slope_pos = line.max_volumetric_extrusion_rate_slope_positive;
+        float slope_neg = line.max_volumetric_extrusion_rate_slope_negative;
+        if (slope_pos <= 0.f) slope_pos = m_max_volumetric_extrusion_rate_slope_positive;
+        if (slope_neg <= 0.f) slope_neg = m_max_volumetric_extrusion_rate_slope_negative;
+
+        // Distance to ramp from rate_start to vol_rate:
+        //   vol_rate = sqrt(rate_start^2 + 2 * slope * vol_rate * l_rampup / F)
+        //   l_rampup = (vol_rate^2 - rate_start^2) * F / (2 * slope * vol_rate)
+        float l_rampup  = (vol_rate * vol_rate - rate_start * rate_start) * original_feedrate / (2.f * slope_pos * vol_rate);
+        float l_rampdown = (vol_rate * vol_rate - rate_end * rate_end) * original_feedrate / (2.f * slope_neg * vol_rate);
+
+        if (l_rampup + l_rampdown <= l) {
+            // === TRAPEZOIDAL PROFILE: ramp-up + steady + ramp-down ===
+            float l_steady = l - l_rampup - l_rampdown;
+            float pos_orig_start[5], pos_orig_end[5];
+            memcpy(pos_orig_start, line.pos_start, sizeof(float) * 5);
+            memcpy(pos_orig_end, line.pos_end, sizeof(float) * 5);
+
+            // --- RAMP-UP zone ---
+            if (l_rampup >= 0.5f * m_max_segment_length) {
+                size_t nSeg = size_t(ceil(l_rampup / m_max_segment_length));
+                float t_rampup_end = l_rampup / l; // parametric position where ramp-up ends
+                float f_start = rate_start * original_feedrate / vol_rate;
+                float f_end   = original_feedrate; // full speed
+                for (size_t i = 1; i <= nSeg; ++i) {
+                    float t_local = float(i) / float(nSeg); // 0..1 within ramp-up
+                    float t_global = t_local * t_rampup_end; // 0..t_rampup_end
+                    for (int j = 0; j < 4; ++j) {
+                        line.pos_end[j] = pos_orig_start[j] + (pos_orig_end[j] - pos_orig_start[j]) * t_global;
+                        line.pos_provided[j] = true;
+                    }
+                    float f_interp = f_start + (f_end - f_start) * (float(i) - 0.5f) / float(nSeg);
+                    push_line_to_output(line_idx, f_interp, comment, ";_ERS_RAMPUP");
+                    comment = nullptr;
+                    memcpy(line.pos_start, line.pos_end, sizeof(float) * 5);
+                }
+            }
+
+            // --- STEADY zone ---
+            if (l_steady >= 0.5f * m_max_segment_length) {
+                float t_steady_start = l_rampup / l;
+                float t_steady_end   = (l_rampup + l_steady) / l;
+                for (int j = 0; j < 4; ++j) {
+                    line.pos_end[j] = pos_orig_start[j] + (pos_orig_end[j] - pos_orig_start[j]) * t_steady_end;
+                    line.pos_provided[j] = true;
+                }
+                push_line_to_output(line_idx, original_feedrate, comment, ";_ERS_STEADY");
+                comment = nullptr;
+                memcpy(line.pos_start, line.pos_end, sizeof(float) * 5);
+            }
+
+            // --- RAMP-DOWN zone ---
+            if (l_rampdown >= 0.5f * m_max_segment_length) {
+                size_t nSeg = size_t(ceil(l_rampdown / m_max_segment_length));
+                float f_start = original_feedrate; // full speed
+                float f_end   = rate_end * original_feedrate / vol_rate;
+                for (size_t i = 1; i <= nSeg; ++i) {
+                    float t_local = float(i) / float(nSeg);
+                    float t_global_start = (l_rampup + l_steady) / l;
+                    float t_global = t_global_start + t_local * (l_rampdown / l);
+                    for (int j = 0; j < 4; ++j) {
+                        line.pos_end[j] = pos_orig_start[j] + (pos_orig_end[j] - pos_orig_start[j]) * t_global;
+                        line.pos_provided[j] = true;
+                    }
+                    float f_interp = f_start + (f_end - f_start) * (float(i) - 0.5f) / float(nSeg);
+                    push_line_to_output(line_idx, f_interp, comment, ";_ERS_RAMPDOWN");
+                    comment = nullptr;
+                    memcpy(line.pos_start, line.pos_end, sizeof(float) * 5);
+                }
+            } else {
+                // Remaining ramp-down too short to segment, emit as final piece
+                for (int j = 0; j < 4; ++j) {
+                    line.pos_end[j] = pos_orig_end[j];
+                    line.pos_provided[j] = true;
+                }
+                float f_avg = rate_end * original_feedrate / vol_rate;
+                push_line_to_output(line_idx, f_avg, comment, ";_ERS_RAMPDOWN");
+            }
+            return;
+        }
+        // else: ramp zones overlap (very short line) — fall through to standard linear handling
+    }
+
     // number of segments this line can be broken down to
     auto nSegments = size_t(ceil(l / m_max_segment_length));
     
     // Orca:
     // Calculate the absolute difference in volumetric extrusion rate between the start and end point of the line.
     // Quantize it to 1mm3/min (0.016mm3/sec).
-    int delta_volumetric_rate = std::round(fabs(line.volumetric_extrusion_rate_end - line.volumetric_extrusion_rate_start));
+    int delta_volumetric_rate = std::round(fabs(rate_end - rate_start));
+
+    // Determine ERS tag for pellet mode
+    const char *ers_tag = nullptr;
+    if (m_pellet_ers_mode) {
+        if (line.pellet_ramp) {
+            // Line was modified by pellet boundary handler / mini passes
+            if (rate_start < rate_end)
+                ers_tag = ";_ERS_RAMPUP";
+            else if (rate_start > rate_end)
+                ers_tag = ";_ERS_RAMPDOWN";
+            else
+                ers_tag = ";_ERS_STEADY";
+        } else {
+            // Native ERS adjustment only
+            ers_tag = ";_ERS_STEADY";
+        }
+    }
     
     // Emit the line with lowered extrusion rates.
     // Orca:
@@ -578,13 +688,13 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
     // Or if the line size is equal in length with the smallest segment.
     // If so, then emit the line as a single extrusion, i.e. dont split into segments.
     if ( nSegments == 1 || delta_volumetric_rate < 10) {
-        push_line_to_output(line_idx, line.feedrate() * line.volumetric_correction_avg(), comment);
+        push_line_to_output(line_idx, line.feedrate() * line.volumetric_correction_avg(), comment, ers_tag);
     } else // The line needs to be split the line into segments and apply extrusion rate smoothing
     {
-        bool accelerating = line.volumetric_extrusion_rate_start < line.volumetric_extrusion_rate_end;
+        bool accelerating = rate_start < rate_end;
         // Update the initial and final feed rate values.
-        line.pos_start[4] = line.volumetric_extrusion_rate_start * line.pos_end[4] / line.volumetric_extrusion_rate;
-        line.pos_end  [4] = line.volumetric_extrusion_rate_end   * line.pos_end[4] / line.volumetric_extrusion_rate;
+        line.pos_start[4] = rate_start * line.pos_end[4] / vol_rate;
+        line.pos_end  [4] = rate_end   * line.pos_end[4] / vol_rate;
         float feed_avg = 0.5f * (line.pos_start[4] + line.pos_end[4]);
         // Limiting volumetric extrusion rate slope for this segment.
         float max_volumetric_extrusion_rate_slope = accelerating ? line.max_volumetric_extrusion_rate_slope_positive :
@@ -594,7 +704,7 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
         float t_total = line.dist_xyz() / feed_avg;
         // Time of the acceleration / deceleration part of the segment, if accelerating / decelerating
         // with the maximum volumetric extrusion rate slope.
-        float t_acc    = 0.5f * (line.volumetric_extrusion_rate_start + line.volumetric_extrusion_rate_end) / max_volumetric_extrusion_rate_slope;
+        float t_acc    = 0.5f * (rate_start + rate_end) / max_volumetric_extrusion_rate_slope;
         float l_acc    = l;
         float l_steady = 0.f;
         if (t_acc < t_total) {
@@ -629,7 +739,7 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
                     line.pos_end[i] = pos_start[i] + (pos_end[i] - pos_start[i]) * t;
                     line.pos_provided[i] = true;
                 }
-                push_line_to_output(line_idx, pos_start[4], comment);
+                push_line_to_output(line_idx, pos_start[4], comment, ";_ERS_STEADY");
                 comment = nullptr;
 
                 float new_pos_start_feedrate = pos_start[4];
@@ -649,7 +759,7 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
                 line.pos_provided[j] = true;
             } 
             // Interpolate the feed rate at the center of the segment.
-            push_line_to_output(line_idx, pos_start[4] + (pos_end[4] - pos_start[4]) * (float(i) - 0.5f) / float(nSegments), comment);
+            push_line_to_output(line_idx, pos_start[4] + (pos_end[4] - pos_start[4]) * (float(i) - 0.5f) / float(nSegments), comment, ers_tag);
             comment = nullptr;
             memcpy(line.pos_start, line.pos_end, sizeof(float)*5);
         }
@@ -658,13 +768,13 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
                 line.pos_end[i] = pos_end2[i];
                 line.pos_provided[i] = true;
             }
-            push_line_to_output(line_idx, pos_end[4], comment);
+            push_line_to_output(line_idx, pos_end[4], comment, ";_ERS_STEADY");
         } else {
             for (int i = 0; i < 4; ++ i) {
                 line.pos_end[i] = pos_end[i];
                 line.pos_provided[i] = true;
             }
-            push_line_to_output(line_idx, pos_end[4], comment);
+            push_line_to_output(line_idx, pos_end[4], comment, ers_tag);
         }
     }
     
@@ -868,6 +978,7 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
                 first_line.volumetric_extrusion_rate_end = rate_end_limit;
                 first_line.max_volumetric_extrusion_rate_slope_positive = rate_slope;
                 first_line.modified = true;
+                first_line.pellet_ramp = true;
             }
             // Mini forward pass: propagate ramp-up to subsequent lines until full speed is reached.
             // This is needed because for short first lines (e.g. infill), the ramp doesn't complete
@@ -895,6 +1006,7 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
                     next_line.volumetric_extrusion_rate_end = rate_end;
                     next_line.max_volumetric_extrusion_rate_slope_positive = ramp_slope;
                     next_line.modified = true;
+                    next_line.pellet_ramp = true;
                     rate_prec = rate_end;
                     idx = idx_next;
                 }
@@ -924,6 +1036,7 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
                 last_line.volumetric_extrusion_rate_end = 0.5f;
                 last_line.max_volumetric_extrusion_rate_slope_negative = rate_slope;
                 last_line.modified = true;
+                last_line.pellet_ramp = true;
             }
             // Mini backward pass: propagate ramp-down to preceding lines until full speed is reached.
             // This is needed because for short last lines (e.g. infill), the ramp doesn't complete
@@ -953,6 +1066,7 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
                     prev_line.volumetric_extrusion_rate_start = std::min(rate_start, prev_line.volumetric_extrusion_rate_start);
                     prev_line.max_volumetric_extrusion_rate_slope_negative = ramp_slope;
                     prev_line.modified = true;
+                    prev_line.pellet_ramp = true;
                     // Propagate the COMPUTED rate_start (not the min'd stored value)
                     // so the backward pass keeps its own consistent propagation chain.
                     rate_succ = rate_start;
@@ -1041,7 +1155,7 @@ inline bool is_just_line_with_extrude_set_speed_tag(const std::string &line)
     return p_line <= line_end && is_eol(*p_line);
 }
 
-void PressureEqualizer::push_line_to_output(const size_t line_idx, float new_feedrate, const char *comment)
+void PressureEqualizer::push_line_to_output(const size_t line_idx, float new_feedrate, const char *comment, const char *ers_tag)
 {
     // Orca: sanity check, 1 mm/s is the minimum feedrate.
     if (new_feedrate < 60)
@@ -1050,7 +1164,7 @@ void PressureEqualizer::push_line_to_output(const size_t line_idx, float new_fee
     new_feedrate = std::round(new_feedrate / 60.0) * 60.0;
     const GCodeLine &line = m_gcode_lines[line_idx];
     // Add ERS debug comment when line was modified by pressure equalizer
-    const bool add_ers_comment = m_pellet_ers_mode && line.modified;
+    const bool add_ers_comment = m_pellet_ers_mode && (line.modified || ers_tag != nullptr);
     if (line_idx > 0 && output_buffer_length > 0) {
         const std::string prev_line_str = std::string(output_buffer.begin() + int(this->output_buffer_prev_length),
                                                       output_buffer.begin() + int(this->output_buffer_length) + 1);
@@ -1077,8 +1191,12 @@ void PressureEqualizer::push_line_to_output(const size_t line_idx, float new_fee
     if (comment != nullptr)
         extrusion_formatter.emit_string(std::string(comment));
     
-    if (add_ers_comment)
-        extrusion_formatter.emit_string(";_ERS");
+    if (add_ers_comment) {
+        if (ers_tag != nullptr)
+            extrusion_formatter.emit_string(std::string(ers_tag));
+        else
+            extrusion_formatter.emit_string(";_ERS");
+    }
 
     push_to_output(extrusion_formatter);
 }

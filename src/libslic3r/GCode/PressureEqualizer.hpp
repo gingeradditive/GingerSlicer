@@ -174,6 +174,8 @@ private:
         float       max_volumetric_extrusion_rate_slope_negative;
 
         bool        adjustable_flow       = false;
+        // Set by pellet boundary handler / mini passes to distinguish ramp segments from native ERS.
+        bool        pellet_ramp           = false;
 
         bool        extrude_set_speed_tag = false;
         bool        extrude_end_tag       = false;
@@ -203,7 +205,7 @@ private:
     inline void push_to_output(const std::string &text, bool add_eol);
     inline void push_to_output(const char *text, size_t len, bool add_eol = true);
     // Push a G-code line to the output.
-    void push_line_to_output(size_t line_idx, float new_feedrate, const char *comment);
+    void push_line_to_output(size_t line_idx, float new_feedrate, const char *comment, const char *ers_tag = nullptr);
 
 public:
     std::queue<LayerResult*> m_layer_results;
