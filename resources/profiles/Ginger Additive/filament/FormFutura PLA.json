@@ -9,7 +9,7 @@
    "inherits": "Generic PLA",
    "is_custom_defined": "0",
    "name": "FormFutura PLA",
-   "version": "2.3.3.3",
+   "version": "2.3.4.0",
    "compatible_printers": [
       "Ginger G1 1.0 nozzle",
       "Ginger G1 1.8 nozzle",
