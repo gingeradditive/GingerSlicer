@@ -48,8 +48,6 @@ class wxDataViewCtrl;
 class wxBookCtrlBase;
 // BBS
 class Notebook;
-struct wxLanguageInfo;
-
 
 namespace Slic3r {
 
@@ -266,10 +264,6 @@ private:
                                // Note: for 100% Scale m_em_unit = 10 -> it's a good enough coefficient for a size setting of controls
 
     std::unique_ptr<wxLocale> 	  m_wxLocale;
-    // System language, from locales, owned by wxWidgets.
-    const wxLanguageInfo		 *m_language_info_system = nullptr;
-    // Best translation language, provided by Windows or OSX, owned by wxWidgets.
-    const wxLanguageInfo		 *m_language_info_best   = nullptr;
 
     OpenGLManager m_opengl_mgr;
     std::unique_ptr<RemovableDriveManager> m_removable_drive_manager;
@@ -544,10 +538,9 @@ public:
     void            preset_deleted_from_cloud(std::string setting_id);
 
     wxString        filter_string(wxString str);
-    wxString        current_language_code() const { return m_wxLocale->GetCanonicalName(); }
-	// Translate the language code to a code, for which Prusa Research maintains translations. Defaults to "en_US".
+    wxString        current_language_code() const { return "en_US"; }
     wxString 		current_language_code_safe() const;
-    bool            is_localized() const { return m_wxLocale->GetLocale() != "English"; }
+    bool            is_localized() const { return false; }
 
     void            open_preferences(size_t open_on_tab = 0, const std::string& highlight_option = std::string());
 
