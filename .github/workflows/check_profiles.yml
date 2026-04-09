@@ -79,7 +79,7 @@ jobs:
             mv "./gingerslicer-profiles_ota_${VERSION}.${NUMBER}.zip" ./output/
 
             echo "Replacing existing asset for $VERSION in $RELEASE_TAG (if present)"
-            EXISTING_ASSET_IDS=$(gh api "repos/$REPO/releases/tags/$RELEASE_TAG" --jq ".assets[] | select(.name | test(\"^gingerslicer-profiles_ota_${VERSION}\\\\..*\\\\.zip$\")) | .id")
+            EXISTING_ASSET_IDS=$(gh api "repos/$REPO/releases/tags/$RELEASE_TAG" --jq ".assets[] | select(.name | startswith(\"gingerslicer-profiles_ota_${VERSION}.\")) | select(.name | endswith(\".zip\")) | .id")
 
             if [ -n "$EXISTING_ASSET_IDS" ]; then
               for asset_id in $EXISTING_ASSET_IDS; do
