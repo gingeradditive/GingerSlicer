@@ -8,15 +8,12 @@ on:
         required: true
 
 jobs:
-  promote:
-    name: Promote nightly to release
+  bump-version:
+    name: Bump version and merge
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
-    env:
-      NEW_VERSION: ${{ github.event.inputs.version }}
-
     steps:
       - name: Normalize version input
         id: normalize
@@ -42,15 +39,11 @@ jobs:
           echo "Current version: $CURRENT_VER"
           echo "New version:     $NEW_VER"
 
-          # Split versions into components
           IFS='.' read -r CUR_MAJOR CUR_MINOR CUR_PATCH <<< "$CURRENT_VER"
           IFS='.' read -r NEW_MAJOR NEW_MINOR NEW_PATCH <<< "$NEW_VER"
-
-          # Default patch to 0 if missing
           CUR_PATCH=${CUR_PATCH:-0}
           NEW_PATCH=${NEW_PATCH:-0}
 
-          # Compare
           is_greater=false
           if [ "$NEW_MAJOR" -gt "$CUR_MAJOR" ]; then
             is_greater=true
@@ -83,7 +76,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
           git add version.inc
-          git commit -m "Bump SoftFever_VERSION to ${{ steps.normalize.outputs.version }}"
+          git commit -m "release: bump SoftFever_VERSION to ${{ steps.normalize.outputs.version }}"
           git push origin "$BRANCH"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
 
@@ -109,39 +102,8 @@ jobs:
             --merge \
             --delete-branch \
             --admin
-          echo "PR #${{ steps.create_pr.outputs.pr_number }} merged successfully"
+          echo "PR #${{ steps.create_pr.outputs.pr_number }} merged — Build all will start automatically."
+          echo "When Build all completes, create_release.yml will create the tag and GitHub Release."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Checkout updated main
-        uses: actions/checkout@v4
-        with:
-          ref: main
-
-      - name: Download Nightly Artifacts
-        run: |
-          mkdir artifacts
-          gh release download nightly-builds -R ${{ github.repository }} -D ./artifacts
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: List downloaded files
-        run: ls -lah ./artifacts
-
-      - name: Create tag ${{ steps.normalize.outputs.tag }}
-        uses: rickstaa/action-create-tag@v1
-        with:
-          tag: ${{ steps.normalize.outputs.tag }}
-          message: "Release ${{ steps.normalize.outputs.tag }} promoted from nightly"
-          force_push_tag: false
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.normalize.outputs.tag }}
-          name: Release ${{ steps.normalize.outputs.tag }}
-          draft: false
-          prerelease: false
-          files: |
-            artifacts/*
 
