@@ -34,16 +34,18 @@ jobs:
           COMMIT_MSG=$(git log -1 --pretty=%s "${{ github.event.workflow_run.head_sha }}")
           echo "Head commit message: $COMMIT_MSG"
 
-          if echo "$COMMIT_MSG" | grep -qP '^Merge pull request.*release/bump-version-'; then
-            # Merge commit from the version bump PR — extract version from version.inc
+          # Detect version bump commits in any of these formats:
+          #   - Squash merge:  "Release vX.Y.Z: bump SoftFever_VERSION to X.Y.Z (#N)"
+          #   - Merge commit:  "Merge pull request #N from .../release/bump-version-X.Y.Z"
+          #   - Direct commit: "release: bump SoftFever_VERSION to X.Y.Z"
+          if echo "$COMMIT_MSG" | grep -qiP 'bump SoftFever_VERSION to [0-9]+\.[0-9]+\.[0-9]+'; then
             VERSION=$(grep -oP 'set\(SoftFever_VERSION\s+"\K[^"]+' version.inc)
             echo "is_release=true" >> "$GITHUB_OUTPUT"
             echo "version=$VERSION" >> "$GITHUB_OUTPUT"
             echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
             echo "Detected release version bump: $VERSION"
-          elif echo "$COMMIT_MSG" | grep -qP '^release: bump SoftFever_VERSION to '; then
-            # Direct commit (squash merge) — extract version from commit message
-            VERSION=$(echo "$COMMIT_MSG" | grep -oP 'release: bump SoftFever_VERSION to \K[0-9]+\.[0-9]+\.[0-9]+')
+          elif echo "$COMMIT_MSG" | grep -qP 'release/bump-version-'; then
+            VERSION=$(grep -oP 'set\(SoftFever_VERSION\s+"\K[^"]+' version.inc)
             echo "is_release=true" >> "$GITHUB_OUTPUT"
             echo "version=$VERSION" >> "$GITHUB_OUTPUT"
             echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"

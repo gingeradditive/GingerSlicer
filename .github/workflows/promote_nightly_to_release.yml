@@ -102,8 +102,15 @@ jobs:
             --squash \
             --delete-branch \
             --admin
-          echo "PR #${{ steps.create_pr.outputs.pr_number }} merged — Build all will start automatically."
-          echo "When Build all completes, create_release.yml will create the tag and GitHub Release."
+          echo "PR #${{ steps.create_pr.outputs.pr_number }} merged."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Trigger Build All workflow
+        run: |
+          echo "Triggering 'Build all' on main..."
+          gh workflow run build_all.yml --ref main
+          echo "Build all triggered. When it completes, create_release.yml will create the tag and GitHub Release."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
