@@ -1,51 +1,116 @@
 name: Check profiles
-on: 
+
+on:
   pull_request:
-    branches: 
-    - main 
+    branches:
+      - main
     paths:
-    - 'resources/profiles/**'
-    - ".github/workflows/check_profiles.yml"
+      - 'resources/profiles/**'
+      - '.github/workflows/check_profiles.yml'
+
+  push:
+    branches:
+      - main
+    paths:
+      - 'resources/profiles/**'
 
   workflow_dispatch:
     inputs:
-      logLevel:
-        description: 'Log level'     
-        required: true
-        default: 'warning'
-
+      force_release:
+        description: Bypass profile checks and force release publication
+        required: false
+        default: false
+        type: boolean
 
 jobs:
-  check_translation:
-    name: Check profiles
+  check_profiles:
     runs-on: ubuntu-24.04
-    steps:  
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.force_release != true }}
+    steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Run extra JSON check
-        run: |
-          python3 ./scripts/orca_extra_profile_check.py
-
-      # download
-      - name: Download 
-        working-directory: ${{ github.workspace }}
+      - name: Download validator
         run: |
           curl -LJO https://github.com/SoftFever/Orca_tools/releases/download/1/OrcaSlicer_profile_validator
           chmod +x ./OrcaSlicer_profile_validator
 
-      # validate profiles
-      - name: validate system profiles
+      - name: Run validation for each profile version
         run: |
-          ./OrcaSlicer_profile_validator -p ${{ github.workspace }}/resources/profiles -l 2
+          echo "Validating profiles in ./resources/profiles/"
+          python3 ./scripts/orca_extra_profile_check.py
+          ./OrcaSlicer_profile_validator -p ./resources/profiles/ -l 2
 
-      # - name: validate custom presets
-      #   working-directory: ${{ github.workspace }}
-      #   run: |
-      #     curl -LJO https://github.com/SoftFever/OrcaSlicer/releases/download/nightly-builds/orca_custom_preset_tests.zip
-      #     unzip ./orca_custom_preset_tests.zip -d ${{ github.workspace }}/resources/profiles
-      #     ./OrcaSlicer_profile_validator -p ${{ github.workspace }}/resources/profiles -l 2
+      - name: Check profile version bump
+        if: github.event_name == 'pull_request'
+        run: |
+          python3 ./scripts/check_profile_version_bump.py --base origin/${{ github.base_ref }}
 
+  release_profiles:
+    runs-on: ubuntu-24.04
+    needs: check_profiles
+    if: ${{ always() && ((github.ref == 'refs/heads/main' && needs.check_profiles.result == 'success') || (github.event_name == 'workflow_dispatch' && (needs.check_profiles.result == 'success' || inputs.force_release == true))) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
+      - name: Set up GitHub CLI
+        run: |
+          sudo apt update
+          sudo apt install gh -y
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Upload profile packages to nightly-builds release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x ./scripts/pack_profiles.sh
+          mkdir -p output
 
+          RELEASE_TAG="nightly-builds"
+          REPO="gingeradditive/gingerslicer"
+          TIMESTAMP=$(date +%s)
+
+          gh release view "$RELEASE_TAG" --repo "$REPO" >/dev/null
+
+          for dir in ./resources/profiles/*/; do
+            VERSION=$(basename "$dir")
+            NUMBER="$TIMESTAMP"
+            echo "Packaging $VERSION"
+
+            ./scripts/pack_profiles.sh "$VERSION" "$NUMBER"
+
+            RAW_ZIP_NAME="gingerslicer-profiles_ota_${VERSION}.${NUMBER}.zip"
+            DOT_VERSION="${VERSION// /.}"
+            DOT_ZIP_NAME="gingerslicer-profiles_ota_${DOT_VERSION}.${NUMBER}.zip"
+
+            if [ -f "./$RAW_ZIP_NAME" ]; then
+              ZIP_NAME="$RAW_ZIP_NAME"
+            elif [ -f "./$DOT_ZIP_NAME" ]; then
+              ZIP_NAME="$DOT_ZIP_NAME"
+            else
+              echo "ERROR: Could not find expected profile package for $VERSION"
+              ls -la .
+              exit 1
+            fi
+
+            mv "./$ZIP_NAME" ./output/
+            ASSET_PREFIX="gingerslicer-profiles_ota_${DOT_VERSION}"
+
+            echo "Replacing existing asset(s) matching '${ASSET_PREFIX}.*' in $RELEASE_TAG"
+            EXISTING_ASSET_NAMES=$(gh release view "$RELEASE_TAG" --repo "$REPO" --json assets --jq ".assets[].name" | grep "^${ASSET_PREFIX}\." | grep '\.zip$' || true)
+
+            if [ -n "$EXISTING_ASSET_NAMES" ]; then
+              echo "Assets to delete:"
+              printf '%s\n' "$EXISTING_ASSET_NAMES"
+              while IFS= read -r asset_name; do
+                [ -z "$asset_name" ] && continue
+                gh release delete-asset "$RELEASE_TAG" "$asset_name" --repo "$REPO" --yes
+              done <<< "$EXISTING_ASSET_NAMES"
+            fi
+
+            gh release upload "$RELEASE_TAG" "./output/$ZIP_NAME" --repo "$REPO"
+          done
