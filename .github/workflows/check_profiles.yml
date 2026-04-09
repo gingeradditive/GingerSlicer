@@ -8,12 +8,6 @@ on:
       - 'resources/profiles/**'
       - '.github/workflows/check_profiles.yml'
 
-  push:
-    branches:
-      - main
-    paths:
-      - 'resources/profiles/**'
-
   workflow_dispatch:
 
 jobs:
@@ -22,6 +16,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Download validator
         run: |
@@ -33,3 +29,8 @@ jobs:
           echo "Validating profiles in ./resources/profiles/"
           python3 ./scripts/orca_extra_profile_check.py
           ./OrcaSlicer_profile_validator -p ./resources/profiles/ -l 2
+
+      - name: Check profile version bump
+        if: github.event_name == 'pull_request'
+        run: |
+          python3 ./scripts/check_profile_version_bump.py --base origin/${{ github.base_ref }}
