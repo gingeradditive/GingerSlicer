@@ -5296,9 +5296,15 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
     std::string gcode;
     
     // Pellet ERS: Mark start of continuous polyline extrusion
+    // Calculate travel distance from last position to this path's start
     static unsigned int polyline_id = 0;
     if (m_config.pellet_ers_mode.value) {
-        gcode += std::string(";POLYLINE_START id=") + std::to_string(polyline_id++) + "\n";
+        double travel_dist = 0.0;
+        if (m_last_pos_defined) {
+            travel_dist = unscale<double>((m_last_pos - path.first_point()).cast<double>().norm());
+        }
+        gcode += std::string(";POLYLINE_START id=") + std::to_string(polyline_id++) + 
+                 " travel_mm=" + std::to_string(travel_dist) + "\n";
     }
 
     if (is_bridge(path.role()))

@@ -89,6 +89,8 @@ private:
 
     // Pellet extruder mode: apply ERS across all gaps (travel, retract, discontinuities)
     bool                           m_pellet_ers_mode { false };
+    // Travel threshold below which ramp-up/ramp-down is skipped (treated as continuous)
+    float                          m_pellet_ers_travel_threshold { 3.0f };
 
     // Indicate if extrude set speed block was opened using the tag ";_EXTRUDE_SET_SPEED"
     // or not (not opened, or it was closed using the tag ";_EXTRUDE_END").
@@ -179,6 +181,11 @@ private:
 
         bool        extrude_set_speed_tag = false;
         bool        extrude_end_tag       = false;
+        
+        // Pellet ERS: travel distance from previous position to this polyline start (mm)
+        float       travel_before_polyline = 0.f;
+        // Pellet ERS: travel distance from this polyline end to next polyline start (mm)
+        float       travel_after_polyline = 0.f;
     };
 
     // Output buffer will only grow. It will not be reallocated over and over.

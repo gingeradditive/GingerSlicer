@@ -3955,6 +3955,25 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
+    def = this->add("pellet_ers_travel_threshold_mm", coFloat);
+    def->label = L("ERS travel threshold");
+    def->tooltip = L(
+        "Minimum travel move length (in mm) that triggers ramp-up/ramp-down in Pellet ERS mode.\n\n"
+        "Travel moves shorter than this threshold are treated as continuous extrusion - "
+        "no ramp-up or ramp-down is applied because the extruder pressure hasn't decayed significantly. "
+        "This prevents unnecessary feedrate variations on small gaps between infill lines or close features.\n\n"
+        "Recommended values:\n"
+        "• 0mm: Always apply ramp-up/down (safest for large pressure changes)\n"
+        "• 3-5mm: Good balance for most pellet extruders (default)\n"
+        "• 10mm+: Aggressive - only ramp on large travels (requires fast pressure response)\n\n"
+        "Only affects Pellet ERS mode."
+    );
+    def->sidetext = L("mm");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(3.0));
+    def->min = 0;
+    def->max = 100;
+
     def = this->add("fan_min_speed", coFloats);
     def->label = L("Fan speed");
     def->tooltip = L("Minimum speed for part cooling fan.");
