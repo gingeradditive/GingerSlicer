@@ -9,6 +9,7 @@
 #include "format.hpp"
 #include "nlohmann/json.hpp"
 
+#include <algorithm>
 #include <utility>
 #include <vector>
 #include <stdexcept>
@@ -1351,6 +1352,79 @@ std::vector<std::string> AppConfig::get_custom_color_from_config()
         }
     }
     return colors;
+}
+
+std::vector<std::string> AppConfig::get_printer_host_list() const
+{
+    std::vector<std::string> hosts;
+    if (has_section("printer_hosts")) {
+        auto data = get_section("printer_hosts");
+        for (const auto& iter : data) {
+            if (iter.first != "selected")
+                hosts.push_back(iter.second);
+        }
+    }
+    if (hosts.empty())
+        hosts.push_back("g1os.local");
+    return hosts;
+}
+
+void AppConfig::set_printer_host_list(const std::vector<std::string> &hosts)
+{
+    std::map<std::string, std::string> data;
+    for (size_t i = 0; i < hosts.size(); i++)
+        data[std::to_string(i)] = hosts[i];
+    // Preserve selected host if present
+    if (has_section("printer_hosts")) {
+        auto old_data = get_section("printer_hosts");
+        auto it = old_data.find("selected");
+        if (it != old_data.end())
+            data["selected"] = it->second;
+    }
+    set_section("printer_hosts", data);
+}
+
+void AppConfig::add_printer_host(const std::string &host)
+{
+    auto hosts = get_printer_host_list();
+    // Don't add duplicates
+    for (const auto& h : hosts)
+        if (h == host) return;
+    hosts.push_back(host);
+    set_printer_host_list(hosts);
+}
+
+void AppConfig::remove_printer_host(const std::string &host)
+{
+    auto hosts = get_printer_host_list();
+    hosts.erase(std::remove(hosts.begin(), hosts.end(), host), hosts.end());
+    if (hosts.empty())
+        hosts.push_back("g1os.local");
+    set_printer_host_list(hosts);
+    // If removed host was selected, select first
+    if (get_selected_printer_host() == host)
+        set_selected_printer_host(hosts.front());
+}
+
+std::string AppConfig::get_selected_printer_host() const
+{
+    if (has_section("printer_hosts")) {
+        auto data = get_section("printer_hosts");
+        auto it = data.find("selected");
+        if (it != data.end() && !it->second.empty())
+            return it->second;
+    }
+    auto hosts = get_printer_host_list();
+    return hosts.empty() ? "g1os.local" : hosts.front();
+}
+
+void AppConfig::set_selected_printer_host(const std::string &host)
+{
+    if (!has_section("printer_hosts")) {
+        // Initialize with default host list
+        set_printer_host_list({"g1os.local"});
+    }
+    set("printer_hosts", "selected", host);
 }
 
 void AppConfig::reset_selections()
