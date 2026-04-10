@@ -6514,22 +6514,11 @@ void GUI_App::window_pos_center(wxTopLevelWindow *window)
 
 bool GUI_App::config_wizard_startup()
 {
-    if (!m_app_conf_exists || preset_bundle->printers.only_default_printers()) {
-        BOOST_LOG_TRIVIAL(info) << "run wizard...";
-        run_wizard(ConfigWizard::RR_DATA_EMPTY);
-        BOOST_LOG_TRIVIAL(info) << "finished run wizard";
-        return true;
-    } /*else if (get_app_config()->legacy_datadir()) {
-        // Looks like user has legacy pre-vendorbundle data directory,
-        // explain what this is and run the wizard
-
-        MsgDataLegacy dlg;
-        dlg.ShowModal();
-
-        run_wizard(ConfigWizard::RR_DATA_LEGACY);
-        return true;
-    }*/
-    return false;
+    // Always auto-select all printers/nozzles/filaments on every startup
+    BOOST_LOG_TRIVIAL(info) << "config_wizard_startup: auto-selecting all profiles...";
+    run_wizard(m_app_conf_exists ? ConfigWizard::RR_USER : ConfigWizard::RR_DATA_EMPTY);
+    BOOST_LOG_TRIVIAL(info) << "config_wizard_startup: finished";
+    return true;
 }
 
 void GUI_App::check_updates(const bool verbose)
@@ -6542,6 +6531,13 @@ void GUI_App::check_updates(const bool verbose)
 		}
 		else if (updater_result == PresetUpdater::R_INCOMPAT_CONFIGURED) {
             m_app_conf_exists = true;
+            // Auto-select all profiles after OTA reconfiguration
+            run_wizard(ConfigWizard::RR_USER);
+		}
+		else if (updater_result == PresetUpdater::R_UPDATE_INSTALLED) {
+            // Auto-select all profiles (including newly installed ones) after OTA update
+            BOOST_LOG_TRIVIAL(info) << "check_updates: OTA update installed, auto-selecting all profiles";
+            run_wizard(ConfigWizard::RR_USER);
 		}
 		else if (verbose && updater_result == PresetUpdater::R_NOOP) {
 			MsgNoUpdates dlg;
