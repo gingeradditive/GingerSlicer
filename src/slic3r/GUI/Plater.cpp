@@ -6522,12 +6522,6 @@ void Plater::priv::on_select_preset(wxCommandEvent &evt)
     // So, use GetSelection() from event parameter
     int selection = evt.GetSelection();
 
-    auto marker = reinterpret_cast<size_t>(combo->GetClientData(selection));
-    if (PresetComboBox::LabelItemType::LABEL_ITEM_WIZARD_ADD_PRINTERS == marker) {
-        sidebar->create_printer_preset();
-        return;
-    }
-
     auto idx = combo->get_filament_idx();
 
     // BBS:Save the plate parameters before switching
