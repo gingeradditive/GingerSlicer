@@ -704,7 +704,8 @@ Sidebar::Sidebar(Plater *parent)
         h_sizer_title->AddSpacer(FromDIP(SidebarProps::ElementSpacing()));
         h_sizer_title->Add(p->m_text_printer_settings, 0, wxALIGN_CENTER);
         h_sizer_title->AddStretchSpacer();
-        h_sizer_title->Add(p->m_printer_setting, 0, wxALIGN_CENTER);
+        if (p->m_printer_setting)
+            h_sizer_title->Add(p->m_printer_setting, 0, wxALIGN_CENTER);
         h_sizer_title->AddSpacer(FromDIP(SidebarProps::TitlebarMargin()));
         h_sizer_title->SetMinSize(-1, 3 * em);
 
@@ -1394,7 +1395,8 @@ void Sidebar::msw_rescale()
     p->m_panel_filament_title->GetSizer()
         ->SetMinSize(-1, 3 * wxGetApp().em_unit());
     p->m_printer_icon->msw_rescale();
-    p->m_printer_setting->msw_rescale();
+    if (p->m_printer_setting)
+        p->m_printer_setting->msw_rescale();
     p->m_filament_icon->msw_rescale();
     p->m_flushing_volume_btn->Rescale();
     //BBS
@@ -1461,7 +1463,8 @@ void Sidebar::sys_color_changed()
     //for (wxWindow* btn : std::vector<wxWindow*>{ p->btn_reslice, p->btn_export_gcode })
     //    wxGetApp().UpdateDarkUI(btn, true);
     p->m_printer_icon->msw_rescale();
-    p->m_printer_setting->msw_rescale();
+    if (p->m_printer_setting)
+        p->m_printer_setting->msw_rescale();
     p->m_filament_icon->msw_rescale();
     p->m_flushing_volume_btn->Rescale();
 
