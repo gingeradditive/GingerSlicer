@@ -63,9 +63,21 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: List downloaded files
+      - name: Clean and rename artifacts
         if: steps.check.outputs.is_release == 'true'
-        run: ls -lah ./artifacts
+        run: |
+          # Remove OTA profile archives
+          rm -f ./artifacts/*profiles_ota*
+
+          # Replace 'nightly' with the actual version in every filename
+          VERSION="${{ steps.check.outputs.version }}"
+          for f in ./artifacts/*nightly*; do
+            [ -e "$f" ] || continue
+            mv "$f" "$(echo "$f" | sed "s/nightly/$VERSION/g")"
+          done
+
+          echo "Final artifacts:"
+          ls -lah ./artifacts
 
       - name: Create tag ${{ steps.check.outputs.tag }}
         if: steps.check.outputs.is_release == 'true'
