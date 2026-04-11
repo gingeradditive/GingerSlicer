@@ -343,10 +343,6 @@ struct Sidebar::priv
     wxStaticLine* m_staticline1;
     StaticBox* m_panel_filament_title;
     wxStaticText* m_staticText_filament_settings;
-    ScalableButton *  m_bpButton_add_filament;
-    ScalableButton *  m_bpButton_del_filament;
-    ScalableButton *  m_bpButton_ams_filament;
-    ScalableButton *  m_bpButton_set_filament;
     wxPanel* m_panel_filament_content;
     wxScrolledWindow* m_scrolledWindow_filament_content;
     wxStaticLine* m_staticline2;
@@ -703,21 +699,13 @@ Sidebar::Sidebar(Plater *parent)
             //wizard_t->run(ConfigWizard::RR_USER, ConfigWizard::SP_CUSTOM);
             });
 
-
-        p->m_printer_setting = new ScalableButton(p->m_panel_printer_title, wxID_ANY, "settings");
-        p->m_printer_setting->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) {
-            // p->editing_filament = -1;
-            // wxGetApp().params_dialog()->Popup();
-            // wxGetApp().get_tab(Preset::TYPE_FILAMENT)->restore_last_select_item();
-            wxGetApp().run_wizard(ConfigWizard::RR_USER, ConfigWizard::SP_PRINTERS);
-            });
-
         wxBoxSizer* h_sizer_title = new wxBoxSizer(wxHORIZONTAL);
         h_sizer_title->Add(p->m_printer_icon, 0, wxALIGN_CENTRE | wxLEFT, FromDIP(SidebarProps::TitlebarMargin()));
         h_sizer_title->AddSpacer(FromDIP(SidebarProps::ElementSpacing()));
         h_sizer_title->Add(p->m_text_printer_settings, 0, wxALIGN_CENTER);
         h_sizer_title->AddStretchSpacer();
-        h_sizer_title->Add(p->m_printer_setting, 0, wxALIGN_CENTER);
+        if (p->m_printer_setting)
+            h_sizer_title->Add(p->m_printer_setting, 0, wxALIGN_CENTER);
         h_sizer_title->AddSpacer(FromDIP(SidebarProps::TitlebarMargin()));
         h_sizer_title->SetMinSize(-1, 3 * em);
 
@@ -852,7 +840,7 @@ Sidebar::Sidebar(Plater *parent)
     p->m_panel_filament_title->SetBackgroundColor2(0xF1F1F1);
     p->m_panel_filament_title->Bind(wxEVT_LEFT_UP, [this](wxMouseEvent &e) {
         if (e.GetPosition().x > (p->m_flushing_volume_btn->IsShown()
-                ? p->m_flushing_volume_btn->GetPosition().x : (p->m_bpButton_add_filament->GetPosition().x - FromDIP(30)))) // ORCA exclude area of del button from titlebar collapse/expand feature to fix undesired collapse when user spams del filament button 
+                ? p->m_flushing_volume_btn->GetPosition().x : 0))
             return;
         if (p->m_panel_filament_content->GetMaxHeight() == 0)
             p->m_panel_filament_content->SetMaxSize({-1, -1});
@@ -918,80 +906,15 @@ Sidebar::Sidebar(Plater *parent)
     bSizer39->Add(p->m_flushing_volume_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(5));
     bSizer39->Hide(p->m_flushing_volume_btn);
 
-    ScalableButton* add_btn = new ScalableButton(p->m_panel_filament_title, wxID_ANY, "add_filament");
-    add_btn->SetToolTip(_L("Add one filament"));
-    add_btn->Bind(wxEVT_BUTTON, [this, scrolled_sizer](wxCommandEvent& e){
-        // Orca: limit filament choices to MAXIMUM_EXTRUDER_NUMBER
-        if (p->combos_filament.size() >= MAXIMUM_EXTRUDER_NUMBER)
-            return;
-
-        int filament_count = p->combos_filament.size() + 1;
-        wxColour new_col = Plater::get_next_color_for_filament();
-        std::string new_color = new_col.GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
-        wxGetApp().preset_bundle->set_num_filaments(filament_count, new_color);
-        wxGetApp().plater()->on_filaments_change(filament_count);
-        wxGetApp().get_tab(Preset::TYPE_PRINT)->update();
-        wxGetApp().preset_bundle->export_selections(*wxGetApp().app_config);
-        auto_calc_flushing_volumes(filament_count - 1);
-    });
-    p->m_bpButton_add_filament = add_btn;
-
     // ORCA Moved add button after delete button to prevent add button position change when remove icon automatically hidden
 
-    ScalableButton* del_btn = new ScalableButton(p->m_panel_filament_title, wxID_ANY, "delete_filament");
-    del_btn->SetToolTip(_L("Remove last filament"));
-    del_btn->Bind(wxEVT_BUTTON, [this, scrolled_sizer](wxCommandEvent &e) {
-        if (p->combos_filament.size() <= 1)
-            return;
-
-        size_t filament_count = p->combos_filament.size() - 1;
-        if (wxGetApp().preset_bundle->is_the_only_edited_filament(filament_count) || (filament_count == 1)) {
-            wxGetApp().get_tab(Preset::TYPE_FILAMENT)->select_preset(wxGetApp().preset_bundle->filament_presets[0], false, "", true);
-        }
-
-        if (p->editing_filament >= filament_count) {
-            p->editing_filament = -1;
-        }
-
-        wxGetApp().preset_bundle->set_num_filaments(filament_count);
-        wxGetApp().plater()->on_filaments_change(filament_count);
-        wxGetApp().get_tab(Preset::TYPE_PRINT)->update();
-        wxGetApp().preset_bundle->export_selections(*wxGetApp().app_config);
-    });
-    p->m_bpButton_del_filament = del_btn;
-
-    bSizer39->Add(del_btn, 0, wxALIGN_CENTER | wxLEFT, FromDIP(SidebarProps::IconSpacing()));
-    bSizer39->Add(add_btn, 0, wxALIGN_CENTER | wxLEFT, FromDIP(SidebarProps::IconSpacing())); // ORCA Moved add button after delete button to prevent add button position change when remove icon automatically hidden
     bSizer39->AddSpacer(FromDIP(20));
 
     if (p->combos_filament.size() <= 1) { // ORCA Fix Flushing button and Delete filament button not hidden on launch while only 1 filament exist
         bSizer39->Hide(p->m_flushing_volume_btn);
-        bSizer39->Hide(p->m_bpButton_del_filament); // ORCA: Hide delete filament button if there is only one filament
     }
 
-    ams_btn = new ScalableButton(p->m_panel_filament_title, wxID_ANY, "ams_fila_sync", wxEmptyString, wxDefaultSize, wxDefaultPosition,
-                                                 wxBU_EXACTFIT | wxNO_BORDER, false, 16); // ORCA match icon size with other icons as 16x16
-    ams_btn->SetToolTip(_L("Synchronize filament list from AMS"));
-    ams_btn->Bind(wxEVT_BUTTON, [this, scrolled_sizer](wxCommandEvent &e) {
-        sync_ams_list();
-    });
-    p->m_bpButton_ams_filament = ams_btn;
 
-    bSizer39->Add(ams_btn, 0, wxALIGN_CENTER | wxLEFT, FromDIP(SidebarProps::IconSpacing()));
-    //bSizer39->Add(FromDIP(10), 0, 0, 0, 0 );
-
-    ScalableButton* set_btn = new ScalableButton(p->m_panel_filament_title, wxID_ANY, "settings");
-    set_btn->SetToolTip(_L("Set filaments to use"));
-    set_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent &e) {
-        p->editing_filament = -1;
-        // wxGetApp().params_dialog()->Popup();
-        // wxGetApp().get_tab(Preset::TYPE_FILAMENT)->restore_last_select_item();
-        wxGetApp().run_wizard(ConfigWizard::RR_USER, ConfigWizard::SP_FILAMENTS);
-        });
-    p->m_bpButton_set_filament = set_btn;
-
-    bSizer39->Add(set_btn, 0, wxALIGN_CENTER | wxLEFT, FromDIP(SidebarProps::IconSpacing()));
-    bSizer39->AddSpacer(FromDIP(SidebarProps::TitlebarMargin()));
 
     // add filament content
     p->m_panel_filament_content = new wxPanel( p->scrolled, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
@@ -1256,13 +1179,10 @@ void Sidebar::update_all_preset_comboboxes()
     if (preset_bundle.use_bbl_network()) {
         //only show connection button for not-BBL printer
         connection_btn->Hide();
-        //only show sync-ams button for BBL printer
-        ams_btn->Show();
         //update print button default value for bbl or third-party printer
         p_mainframe->set_print_button_to_default(MainFrame::PrintSelectType::ePrintPlate);
     } else {
         connection_btn->Show();
-        ams_btn->Hide();
         auto print_btn_type = MainFrame::PrintSelectType::eExportGcode;
         wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
         wxString apikey;
@@ -1475,12 +1395,9 @@ void Sidebar::msw_rescale()
     p->m_panel_filament_title->GetSizer()
         ->SetMinSize(-1, 3 * wxGetApp().em_unit());
     p->m_printer_icon->msw_rescale();
-    p->m_printer_setting->msw_rescale();
+    if (p->m_printer_setting)
+        p->m_printer_setting->msw_rescale();
     p->m_filament_icon->msw_rescale();
-    p->m_bpButton_add_filament->msw_rescale();
-    p->m_bpButton_del_filament->msw_rescale();
-    p->m_bpButton_ams_filament->msw_rescale();
-    p->m_bpButton_set_filament->msw_rescale();
     p->m_flushing_volume_btn->Rescale();
     //BBS
     m_bed_type_list->Rescale();
@@ -1546,12 +1463,9 @@ void Sidebar::sys_color_changed()
     //for (wxWindow* btn : std::vector<wxWindow*>{ p->btn_reslice, p->btn_export_gcode })
     //    wxGetApp().UpdateDarkUI(btn, true);
     p->m_printer_icon->msw_rescale();
-    p->m_printer_setting->msw_rescale();
+    if (p->m_printer_setting)
+        p->m_printer_setting->msw_rescale();
     p->m_filament_icon->msw_rescale();
-    p->m_bpButton_add_filament->msw_rescale();
-    p->m_bpButton_del_filament->msw_rescale();
-    p->m_bpButton_ams_filament->msw_rescale();
-    p->m_bpButton_set_filament->msw_rescale();
     p->m_flushing_volume_btn->Rescale();
 
     // BBS
@@ -1652,10 +1566,8 @@ void Sidebar::on_filaments_change(size_t num_filaments)
     if (p->m_flushing_volume_btn != nullptr && sizer != nullptr) {
         if (num_filaments > 1) {
             sizer->Show(p->m_flushing_volume_btn);
-            sizer->Show(p->m_bpButton_del_filament); // ORCA: Show delete filament button if multiple filaments
         } else {
             sizer->Hide(p->m_flushing_volume_btn);
-            sizer->Hide(p->m_bpButton_del_filament); // ORCA: Hide delete filament button if there is only one filament
         }
     }
 
@@ -1875,10 +1787,6 @@ void Sidebar::sync_ams_list()
 
 void Sidebar::show_SEMM_buttons(bool bshow)
 {
-    if(p->m_bpButton_add_filament)
-        p->m_bpButton_add_filament->Show(bshow);
-    if (p->m_bpButton_del_filament && p->combos_filament.size() > 1) // ORCA add filament count as condition to prevent showing Flushing volumes and Del Filament icon visible while only 1 filament exist
-        p->m_bpButton_del_filament->Show(bshow);
     if (p->m_flushing_volume_btn && p->combos_filament.size() > 1) // ORCA add filament count as condition to prevent showing Flushing volumes and Del Filament icon visible while only 1 filament exist
         p->m_flushing_volume_btn->Show(bshow);
     Layout();
@@ -6613,12 +6521,6 @@ void Plater::priv::on_select_preset(wxCommandEvent &evt)
     // m_presets_choice->GetSelection() will return first item, because search in PopupListCtrl is case-insensitive.
     // So, use GetSelection() from event parameter
     int selection = evt.GetSelection();
-
-    auto marker = reinterpret_cast<size_t>(combo->GetClientData(selection));
-    if (PresetComboBox::LabelItemType::LABEL_ITEM_WIZARD_ADD_PRINTERS == marker) {
-        sidebar->create_printer_preset();
-        return;
-    }
 
     auto idx = combo->get_filament_idx();
 

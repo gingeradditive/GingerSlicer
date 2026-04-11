@@ -783,25 +783,7 @@ void PlaterPresetComboBox::OnSelect(wxCommandEvent &evt)
     auto marker = reinterpret_cast<Marker>(this->GetClientData(selected_item));
     if (marker >= LABEL_ITEM_MARKER && marker < LABEL_ITEM_MAX) {
         this->SetSelection(m_last_selected);
-        if (LABEL_ITEM_WIZARD_ADD_PRINTERS == marker) {
-            evt.Skip();
-            return;
-        }
         evt.StopPropagation();
-        if (marker == LABEL_ITEM_MARKER)
-            return;
-        //if (marker == LABEL_ITEM_WIZARD_PRINTERS)
-        //    show_add_menu();
-        //else {
-            ConfigWizard::StartPage sp = ConfigWizard::SP_WELCOME;
-            switch (marker) {
-            case LABEL_ITEM_WIZARD_PRINTERS: sp = ConfigWizard::SP_PRINTERS; break;
-            case LABEL_ITEM_WIZARD_FILAMENTS: sp = ConfigWizard::SP_FILAMENTS; break;
-            case LABEL_ITEM_WIZARD_MATERIALS: sp = ConfigWizard::SP_MATERIALS; break;
-            default: break;
-            }
-            wxTheApp->CallAfter([sp]() { run_wizard(sp); });
-        //}
         return;
     } else if (marker == LABEL_ITEM_PHYSICAL_PRINTER || m_last_selected != selected_item || m_collection->current_is_dirty()) {
         m_last_selected = selected_item;
@@ -1116,20 +1098,6 @@ void PlaterPresetComboBox::update()
         }
     }*/
 
-    if (m_type == Preset::TYPE_PRINTER || m_type == Preset::TYPE_FILAMENT || m_type == Preset::TYPE_SLA_MATERIAL) {
-        wxBitmap* bmp = get_bmp("edit_preset_list", wide_icons, "edit_uni");
-        assert(bmp);
-
-        if (m_type == Preset::TYPE_FILAMENT)
-            set_label_marker(Append(separator(L("Add/Remove filaments")), *bmp), LABEL_ITEM_WIZARD_FILAMENTS);
-        else if (m_type == Preset::TYPE_SLA_MATERIAL)
-            set_label_marker(Append(separator(L("Add/Remove materials")), *bmp), LABEL_ITEM_WIZARD_MATERIALS);
-        else {
-            set_label_marker(Append(separator(L("Select/Remove printers (system presets)")), *bmp), LABEL_ITEM_WIZARD_PRINTERS);
-            set_label_marker(Append(separator(L("Create printer")), *bmp), LABEL_ITEM_WIZARD_ADD_PRINTERS);
-        }
-    }
-
     update_selection();
     Thaw();
 
@@ -1185,19 +1153,6 @@ void TabPresetComboBox::OnSelect(wxCommandEvent &evt)
     auto marker = reinterpret_cast<Marker>(this->GetClientData(selected_item));
     if (marker >= LABEL_ITEM_DISABLED && marker < LABEL_ITEM_MAX) {
         this->SetSelection(m_last_selected);
-        // BBS: Add/Remove filaments
-        ConfigWizard::StartPage sp = ConfigWizard::SP_WELCOME;
-        switch (marker) {
-        case LABEL_ITEM_WIZARD_PRINTERS: sp = ConfigWizard::SP_PRINTERS; break;
-        case LABEL_ITEM_WIZARD_FILAMENTS: sp = ConfigWizard::SP_FILAMENTS; break;
-        case LABEL_ITEM_WIZARD_MATERIALS: sp = ConfigWizard::SP_MATERIALS; break;
-        default: break;
-        }
-        if (sp != ConfigWizard::SP_WELCOME) {
-            wxTheApp->CallAfter([this, sp]() {
-                run_wizard(sp);
-            });
-        }
     }
     else if (on_selection_changed && (m_last_selected != selected_item || m_collection->current_is_dirty())) {
         m_last_selected = selected_item;
@@ -1362,21 +1317,7 @@ void TabPresetComboBox::update()
             }
         }*/
 
-        // add "Add/Remove printers" item
-        //std::string icon_name = "edit_uni";
-        //wxBitmap* bmp = get_bmp("edit_preset_list, tab,", icon_name, "");
-        //assert(bmp);
-
-        //set_label_marker(Append(separator(L("Add/Remove printers")), *bmp), LABEL_ITEM_WIZARD_PRINTERS);
     }
-
-    // BBS Add/Remove filaments select
-    //wxBitmap* bmp = get_bmp("edit_preset_list", false, "edit_uni");
-    //assert(bmp);
-    //if (m_type == Preset::TYPE_FILAMENT)
-    //    set_label_marker(Append(separator(L("Add/Remove filaments")), *bmp), LABEL_ITEM_WIZARD_FILAMENTS);
-    //else if (m_type == Preset::TYPE_SLA_MATERIAL)
-    //    set_label_marker(Append(separator(L("Add/Remove materials")), *bmp), LABEL_ITEM_WIZARD_MATERIALS);
 
     update_selection();
     Thaw();
