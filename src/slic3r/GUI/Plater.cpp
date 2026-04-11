@@ -769,6 +769,7 @@ Sidebar::Sidebar(Plater *parent)
         {
             wxBoxSizer* host_sizer = new wxBoxSizer(wxHORIZONTAL);
             wxStaticText* host_title = new wxStaticText(p->m_panel_printer_content, wxID_ANY, _L("Printer host"));
+            host_title->SetForegroundColour(wxColour(0, 0, 0));
             host_title->Wrap(-1);
             host_title->SetFont(Label::Body_14);
 
@@ -846,7 +847,7 @@ Sidebar::Sidebar(Plater *parent)
         // Bed type selection
         wxBoxSizer* bed_type_sizer = new wxBoxSizer(wxHORIZONTAL);
         wxStaticText* bed_type_title = new wxStaticText(p->m_panel_printer_content, wxID_ANY, _L("Bed type"));
-        //bed_type_title->SetBackgroundColour();
+        bed_type_title->SetForegroundColour(wxColour(0, 0, 0));
         bed_type_title->Wrap(-1);
         bed_type_title->SetFont(Label::Body_14);
         m_bed_type_list = new ComboBox(p->m_panel_printer_content, wxID_ANY, wxString(""), wxDefaultPosition, {-1, FromDIP(30)}, 0, nullptr, wxCB_READONLY);
