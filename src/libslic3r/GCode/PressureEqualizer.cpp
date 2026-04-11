@@ -1139,11 +1139,13 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
     // Pellet mode trapezoidal profile: when BOTH rate_start and rate_end are below
 
-    // the target vol_rate, this line needs ramp-up at the start AND ramp-down at the end,
+    // the target vol_rate, this line may need ramp-up and/or ramp-down.
 
-    // with a steady zone at full speed in the middle.
+    // The peak rate is the physically achievable maximum given both ramp constraints
 
-    // The standard linear interpolation (rate_start → rate_end) cannot represent this shape.
+    // and the line's length — NOT always vol_rate. For a pure ramp-down line the peak
+
+    // equals rate_start, eliminating the spurious steady zone.
 
     if (m_pellet_ers_mode && rate_start < vol_rate * 0.98f && rate_end < vol_rate * 0.98f && l > 2.f * m_max_segment_length) {
 
@@ -1155,17 +1157,14 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
         if (slope_neg <= 0.f) slope_neg = m_max_volumetric_extrusion_rate_slope_negative;
 
+        // Physically achievable peak from each end over the full line length
+        float peak_from_start = sqrtf(rate_start * rate_start + 2.f * slope_pos * vol_rate * l / original_feedrate);
+        float peak_from_end   = sqrtf(rate_end   * rate_end   + 2.f * slope_neg * vol_rate * l / original_feedrate);
+        float peak_rate = std::min({vol_rate, peak_from_start, peak_from_end});
 
+        float l_rampup  = (peak_rate * peak_rate - rate_start * rate_start) * original_feedrate / (2.f * slope_pos * vol_rate);
 
-        // Distance to ramp from rate_start to vol_rate:
-
-        //   vol_rate = sqrt(rate_start^2 + 2 * slope * vol_rate * l_rampup / F)
-
-        //   l_rampup = (vol_rate^2 - rate_start^2) * F / (2 * slope * vol_rate)
-
-        float l_rampup  = (vol_rate * vol_rate - rate_start * rate_start) * original_feedrate / (2.f * slope_pos * vol_rate);
-
-        float l_rampdown = (vol_rate * vol_rate - rate_end * rate_end) * original_feedrate / (2.f * slope_neg * vol_rate);
+        float l_rampdown = (peak_rate * peak_rate - rate_end * rate_end) * original_feedrate / (2.f * slope_neg * vol_rate);
 
 
 
@@ -1191,9 +1190,11 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
                 float t_rampup_end = l_rampup / l; // parametric position where ramp-up ends
 
+                float f_peak  = peak_rate * original_feedrate / vol_rate;
+
                 float f_start = rate_start * original_feedrate / vol_rate;
 
-                float f_end   = original_feedrate; // full speed
+                float f_end   = f_peak; // peak speed (== original_feedrate when peak_rate == vol_rate)
 
                 for (size_t i = 1; i <= nSeg; ++i) {
 
@@ -1239,7 +1240,9 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
                 }
 
-                push_line_to_output(line_idx, original_feedrate, comment, ";_ERS_STEADY");
+                float f_peak_steady = peak_rate * original_feedrate / vol_rate;
+
+                push_line_to_output(line_idx, f_peak_steady, comment, ";_ERS_STEADY");
 
                 comment = nullptr;
 
@@ -1255,7 +1258,7 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
                 size_t nSeg = size_t(ceil(l_rampdown / m_max_segment_length));
 
-                float f_start = original_feedrate; // full speed
+                float f_start = peak_rate * original_feedrate / vol_rate; // peak speed
 
                 float f_end   = rate_end * original_feedrate / vol_rate;
 
@@ -1759,11 +1762,17 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
     if (m_pellet_ers_mode && is_segment_start &&
         m_gcode_lines[first_extruding_idx].travel_before_polyline >= m_pellet_ers_travel_threshold) {
 
+        bool in_wipe = false;
         for (long i = (long)first_line_idx; i < (long)first_extruding_idx; ++i) {
 
             GCodeLine &line = m_gcode_lines[i];
 
             std::string_view line_view(line.raw.data(), line.raw.size());
+
+            // Skip wipe blocks — wipe moves have their own independent feedrate
+            if (line_view.find("WIPE_START") != std::string_view::npos) in_wipe = true;
+            if (line_view.find("WIPE_END") != std::string_view::npos) { in_wipe = false; continue; }
+            if (in_wipe) continue;
 
             if (line_view.find("G1 F") != std::string_view::npos && !line.extruding()) {
 
@@ -2048,6 +2057,10 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
             GCodeLine &line = m_gcode_lines[i];
 
             std::string_view line_view(line.raw.data(), line.raw.size());
+
+            // Stop before wipe block — wipe has its own independent feedrate
+            if (line_view.find("WIPE_START") != std::string_view::npos)
+                break;
 
             if (line_view.find("G1 F") != std::string_view::npos && !line.extruding()) {
 
