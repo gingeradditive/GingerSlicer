@@ -1137,17 +1137,15 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
 
 
-    // Pellet mode trapezoidal profile: when BOTH rate_start and rate_end are below
+    // Pellet mode trapezoidal/triangular profile: when EITHER rate_start or rate_end
 
-    // the target vol_rate, this line may need ramp-up and/or ramp-down.
+    // is below the target vol_rate, this line needs internal segmentation.
 
-    // The peak rate is the physically achievable maximum given both ramp constraints
+    // Try trapezoidal (ramp-up -> steady@vol_rate -> ramp-down) first.
 
-    // and the line's length — NOT always vol_rate. For a pure ramp-down line the peak
+    // If both ramps don't fit, use triangular (ramp-up meets ramp-down at reduced peak).
 
-    // equals rate_start, eliminating the spurious steady zone.
-
-    if (m_pellet_ers_mode && rate_start < vol_rate * 0.98f && rate_end < vol_rate * 0.98f && l > 2.f * m_max_segment_length) {
+    if (m_pellet_ers_mode && (rate_start < vol_rate * 0.98f || rate_end < vol_rate * 0.98f) && l > 2.f * m_max_segment_length) {
 
         float slope_pos = line.max_volumetric_extrusion_rate_slope_positive;
 
@@ -1157,14 +1155,10 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
         if (slope_neg <= 0.f) slope_neg = m_max_volumetric_extrusion_rate_slope_negative;
 
-        // Physically achievable peak from each end over the full line length
-        float peak_from_start = sqrtf(rate_start * rate_start + 2.f * slope_pos * vol_rate * l / original_feedrate);
-        float peak_from_end   = sqrtf(rate_end   * rate_end   + 2.f * slope_neg * vol_rate * l / original_feedrate);
-        float peak_rate = std::min({vol_rate, peak_from_start, peak_from_end});
+        // Ramp distances to reach vol_rate from each end
+        float l_rampup  = (vol_rate * vol_rate - rate_start * rate_start) * original_feedrate / (2.f * slope_pos * vol_rate);
 
-        float l_rampup  = (peak_rate * peak_rate - rate_start * rate_start) * original_feedrate / (2.f * slope_pos * vol_rate);
-
-        float l_rampdown = (peak_rate * peak_rate - rate_end * rate_end) * original_feedrate / (2.f * slope_neg * vol_rate);
+        float l_rampdown = (vol_rate * vol_rate - rate_end * rate_end) * original_feedrate / (2.f * slope_neg * vol_rate);
 
 
 
@@ -1190,11 +1184,9 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
                 float t_rampup_end = l_rampup / l; // parametric position where ramp-up ends
 
-                float f_peak  = peak_rate * original_feedrate / vol_rate;
-
                 float f_start = rate_start * original_feedrate / vol_rate;
 
-                float f_end   = f_peak; // peak speed (== original_feedrate when peak_rate == vol_rate)
+                float f_end   = original_feedrate; // full speed at vol_rate
 
                 for (size_t i = 1; i <= nSeg; ++i) {
 
@@ -1240,9 +1232,7 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
                 }
 
-                float f_peak_steady = peak_rate * original_feedrate / vol_rate;
-
-                push_line_to_output(line_idx, f_peak_steady, comment, ";_ERS_STEADY");
+                push_line_to_output(line_idx, original_feedrate, comment, ";_ERS_STEADY");
 
                 comment = nullptr;
 
@@ -1258,7 +1248,7 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
                 size_t nSeg = size_t(ceil(l_rampdown / m_max_segment_length));
 
-                float f_start = peak_rate * original_feedrate / vol_rate; // peak speed
+                float f_start = original_feedrate; // full speed at vol_rate
 
                 float f_end   = rate_end * original_feedrate / vol_rate;
 
@@ -1288,7 +1278,7 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
                 }
 
-            } else {
+            } else if (l_rampdown > 0.01f) {
 
                 // Remaining ramp-down too short to segment, emit as final piece
 
@@ -1310,8 +1300,75 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
         }
 
-        // else: ramp zones overlap (very short line) — fall through to standard linear handling
+        // === TRIANGULAR PROFILE: ramp-up meets ramp-down, no steady zone ===
+        // Both ramps can't reach vol_rate within this line — find where they meet.
+        float k_pos = 2.f * slope_pos * vol_rate / original_feedrate;
+        float k_neg = 2.f * slope_neg * vol_rate / original_feedrate;
+        float x_meet = (rate_end * rate_end - rate_start * rate_start + k_neg * l) / (k_pos + k_neg);
+        x_meet = std::clamp(x_meet, 0.f, l);
 
+        float l_up   = x_meet;
+        float l_down = l - x_meet;
+        bool has_rampup   = l_up   >= 0.5f * m_max_segment_length;
+        bool has_rampdown = l_down >= 0.5f * m_max_segment_length;
+
+        if (has_rampup || has_rampdown) {
+            float peak = sqrtf(rate_start * rate_start + k_pos * x_meet);
+            peak = std::min(peak, vol_rate);
+
+            float pos_orig_start[5], pos_orig_end[5];
+            memcpy(pos_orig_start, line.pos_start, sizeof(float) * 5);
+            memcpy(pos_orig_end, line.pos_end, sizeof(float) * 5);
+
+            float f_peak = peak * original_feedrate / vol_rate;
+
+            // --- RAMP-UP zone (rate_start -> peak) ---
+            if (has_rampup) {
+                size_t nSeg = std::max(size_t(1), size_t(ceil(l_up / m_max_segment_length)));
+                float t_up_end = l_up / l;
+                float f_start_up = rate_start * original_feedrate / vol_rate;
+
+                for (size_t i = 1; i <= nSeg; ++i) {
+                    float t_local = float(i) / float(nSeg);
+                    float t_global = t_local * t_up_end;
+
+                    for (int j = 0; j < 4; ++j) {
+                        line.pos_end[j] = pos_orig_start[j] + (pos_orig_end[j] - pos_orig_start[j]) * t_global;
+                        line.pos_provided[j] = true;
+                    }
+
+                    float f_interp = f_start_up + (f_peak - f_start_up) * (float(i) - 0.5f) / float(nSeg);
+                    push_line_to_output(line_idx, f_interp, comment, ";_ERS_RAMPUP");
+                    comment = nullptr;
+                    memcpy(line.pos_start, line.pos_end, sizeof(float) * 5);
+                }
+            }
+
+            // --- RAMP-DOWN zone (peak -> rate_end) ---
+            if (has_rampdown) {
+                size_t nSeg = std::max(size_t(1), size_t(ceil(l_down / m_max_segment_length)));
+                float f_end_down = rate_end * original_feedrate / vol_rate;
+
+                for (size_t i = 1; i <= nSeg; ++i) {
+                    float t_local = float(i) / float(nSeg);
+                    float t_global = (l_up + t_local * l_down) / l;
+
+                    for (int j = 0; j < 4; ++j) {
+                        line.pos_end[j] = pos_orig_start[j] + (pos_orig_end[j] - pos_orig_start[j]) * t_global;
+                        line.pos_provided[j] = true;
+                    }
+
+                    float f_interp = f_peak + (f_end_down - f_peak) * (float(i) - 0.5f) / float(nSeg);
+                    push_line_to_output(line_idx, f_interp, comment, ";_ERS_RAMPDOWN");
+                    comment = nullptr;
+                    memcpy(line.pos_start, line.pos_end, sizeof(float) * 5);
+                }
+            }
+
+            return;
+        }
+
+        // else: line too short for any meaningful segmentation — fall through to standard linear
     }
 
 
@@ -1416,7 +1473,7 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
         float l_steady = 0.f;
 
-        if (t_acc < t_total) {
+        if (t_acc < t_total && !(m_pellet_ers_mode && line.pellet_ramp)) {
 
             // One may achieve higher print speeds if part of the segment is not speed limited.
 
