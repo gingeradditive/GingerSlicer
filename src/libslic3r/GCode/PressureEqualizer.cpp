@@ -1914,116 +1914,55 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
         GCodeLine &first_line = m_gcode_lines[first_extruding_idx];
 
         // Skip ramp-up for short travels - treated as continuous extrusion
-        // Pressure hasn't decayed significantly below this threshold
         if (first_line.travel_before_polyline < m_pellet_ers_travel_threshold) {
-            // No boundary ramp-up needed - standard ERS slope will be applied
+            // No boundary ramp-up needed
         } else if (first_line.adjustable_flow) {
 
+            // Find the positive slope for the first line's extrusion role
             float ramp_slope = 0.f;
-
             for (size_t iRole = 1; iRole < size_t(ExtrusionRole::erCount); ++iRole) {
-
-                const float &rate_slope = m_max_volumetric_extrusion_rate_slopes[iRole].positive;
-
-                if (rate_slope == 0 || first_line.extrusion_role != ExtrusionRole(iRole))
-
-                    continue;
-
-                ramp_slope = rate_slope;
-
-                float dist = first_line.dist_xyz();
-
-                float feedrate = first_line.feedrate();
-
-                if (feedrate <= 0 || dist <= 0)
-
-                    continue;
-
-                // Ramp-up: start from near-zero, accelerate over the line's distance
-
-                // rate_end = sqrt(rate_start^2 + 2 * slope * vol * dist / F)
-
-                // With rate_start ≈ 0: rate_end = sqrt(2 * slope * vol * dist / F)
-
-                float rate_end_limit = sqrt(2.0f * rate_slope * first_line.volumetric_extrusion_rate * dist / feedrate);
-
-                // Clamp rate_end to not exceed original rate
-
-                rate_end_limit = std::min(rate_end_limit, first_line.volumetric_extrusion_rate);
-
-                // Standard ramp-up from near-zero (travel >= threshold)
-                first_line.volumetric_extrusion_rate_start = 0.5f;
-
-                first_line.volumetric_extrusion_rate_end = rate_end_limit;
-
-                first_line.max_volumetric_extrusion_rate_slope_positive = rate_slope;
-
-                first_line.modified = true;
-
-                first_line.pellet_ramp = true;
-
+                if (m_max_volumetric_extrusion_rate_slopes[iRole].positive > 0 &&
+                    first_line.extrusion_role == ExtrusionRole(iRole)) {
+                    ramp_slope = m_max_volumetric_extrusion_rate_slopes[iRole].positive;
+                    break;
+                }
             }
 
-            // Mini forward pass: propagate ramp-up to subsequent lines until full speed is reached.
-
-            // This is needed because for short first lines (e.g. infill), the ramp doesn't complete
-
-            // within the first line alone.
-
             if (ramp_slope > 0.f) {
+                float rate_start_min = 0.5f;
+                float ramp_target = first_line.volumetric_extrusion_rate;
 
-                float rate_prec = first_line.volumetric_extrusion_rate_end;
+                // Walk forward through extruding lines, distributing the ramp-up
+                // across as many GCodeLines as needed until the target rate is reached.
+                float rate_prec = rate_start_min;
+                for (size_t idx = first_extruding_idx; idx <= last_extruding_idx; ++idx) {
+                    GCodeLine &line = m_gcode_lines[idx];
+                    if (!line.extruding() || !line.adjustable_flow)
+                        continue;
 
-                size_t idx = first_extruding_idx;
-
-                while (idx < last_extruding_idx) {
-
-                    size_t idx_next = idx + 1;
-
-                    while (idx_next < last_extruding_idx && !m_gcode_lines[idx_next].extruding())
-
-                        ++idx_next;
-
-                    if (!m_gcode_lines[idx_next].extruding())
-
+                    // Ramp completed — stop
+                    if (rate_prec >= ramp_target)
                         break;
 
-                    GCodeLine &next_line = m_gcode_lines[idx_next];
+                    float dist = line.dist_xyz();
+                    float feedrate = line.feedrate();
+                    if (feedrate <= 0.f || dist <= 0.f)
+                        continue;
 
-                    // Stop if the ramp has reached the target rate
+                    line.volumetric_extrusion_rate_start = rate_prec;
 
-                    if (rate_prec >= next_line.volumetric_extrusion_rate)
+                    // rate_end = sqrt(rate_start^2 + 2 * slope * vol * dist / F)
+                    float rate_end = sqrtf(rate_prec * rate_prec
+                        + 2.f * ramp_slope * line.volumetric_extrusion_rate * dist / feedrate);
+                    rate_end = std::min(rate_end, ramp_target);
 
-                        break;
-
-                    if (!next_line.adjustable_flow)
-
-                        break;
-
-                    // Limit start rate to the previous line's end rate
-
-                    next_line.volumetric_extrusion_rate_start = rate_prec;
-
-                    // Calculate new end rate using the slope formula
-
-                    float rate_end = sqrtf(rate_prec * rate_prec + 2.f * ramp_slope * next_line.volumetric_extrusion_rate * next_line.dist_xyz() / next_line.feedrate());
-
-                    rate_end = std::min(rate_end, next_line.volumetric_extrusion_rate);
-
-                    next_line.volumetric_extrusion_rate_end = rate_end;
-
-                    next_line.max_volumetric_extrusion_rate_slope_positive = ramp_slope;
-
-                    next_line.modified = true;
-
-                    next_line.pellet_ramp = true;
+                    line.volumetric_extrusion_rate_end = rate_end;
+                    line.max_volumetric_extrusion_rate_slope_positive = ramp_slope;
+                    line.modified = true;
+                    line.pellet_ramp = true;
 
                     rate_prec = rate_end;
-
-                    idx = idx_next;
-
                 }
-
             }
 
         }
@@ -2035,123 +1974,61 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
         GCodeLine &last_line = m_gcode_lines[last_extruding_idx];
 
         // Skip ramp-down for short travels - treated as continuous extrusion
-        // Pressure won't decay significantly to next segment below this threshold
         if (last_line.travel_after_polyline < m_pellet_ers_travel_threshold) {
-            // No boundary ramp-down needed - standard ERS slope will be applied
+            // No boundary ramp-down needed
         } else if (last_line.adjustable_flow) {
 
+            // Find the negative slope for the last line's extrusion role
             float ramp_slope = 0.f;
-
             for (size_t iRole = 1; iRole < size_t(ExtrusionRole::erCount); ++iRole) {
-
-                const float &rate_slope = m_max_volumetric_extrusion_rate_slopes[iRole].negative;
-
-                if (rate_slope == 0 || last_line.extrusion_role != ExtrusionRole(iRole))
-
-                    continue;
-
-                ramp_slope = rate_slope;
-
-                float dist = last_line.dist_xyz();
-
-                float feedrate = last_line.feedrate();
-
-                if (feedrate <= 0 || dist <= 0)
-
-                    continue;
-
-                // Ramp-down: decelerate to near-zero over the line's distance
-
-                // rate_start = sqrt(2 * slope * vol * dist / F)
-
-                float rate_start_limit = sqrt(2.0f * rate_slope * last_line.volumetric_extrusion_rate * dist / feedrate);
-
-                // Clamp rate_start to not exceed original rate
-
-                rate_start_limit = std::min(rate_start_limit, last_line.volumetric_extrusion_rate);
-
-                // Set rate_end to near-zero (ramp to 0 flow)
-
-                last_line.volumetric_extrusion_rate_start = rate_start_limit;
-
-                last_line.volumetric_extrusion_rate_end = 0.5f;
-
-                last_line.max_volumetric_extrusion_rate_slope_negative = rate_slope;
-
-                last_line.modified = true;
-
-                last_line.pellet_ramp = true;
-
+                if (m_max_volumetric_extrusion_rate_slopes[iRole].negative > 0 &&
+                    last_line.extrusion_role == ExtrusionRole(iRole)) {
+                    ramp_slope = m_max_volumetric_extrusion_rate_slopes[iRole].negative;
+                    break;
+                }
             }
 
-            // Mini backward pass: propagate ramp-down to preceding lines until full speed is reached.
-
-            // This is needed because for short last lines (e.g. infill), the ramp doesn't complete
-
-            // within the last line alone.
-
             if (ramp_slope > 0.f) {
+                float rate_end_min = 0.5f;
+                float ramp_target = last_line.volumetric_extrusion_rate;
 
-                float rate_succ = last_line.volumetric_extrusion_rate_start;
-
+                // Walk backward through extruding lines, distributing the ramp-down
+                // across as many GCodeLines as needed until the target rate is reached.
+                float rate_succ = rate_end_min;
                 size_t idx = last_extruding_idx;
+                while (true) {
+                    GCodeLine &line = m_gcode_lines[idx];
+                    if (line.extruding() && line.adjustable_flow) {
 
-                while (idx > first_extruding_idx) {
+                        // Ramp completed — stop
+                        if (rate_succ >= ramp_target)
+                            break;
 
-                    size_t idx_prev = idx - 1;
+                        float dist = line.dist_xyz();
+                        float feedrate = line.feedrate();
+                        if (feedrate > 0.f && dist > 0.f) {
 
-                    while (idx_prev > first_extruding_idx && !m_gcode_lines[idx_prev].extruding())
+                            // Use std::min to preserve ramp-up values already set
+                            line.volumetric_extrusion_rate_end = std::min(rate_succ, line.volumetric_extrusion_rate_end);
 
-                        --idx_prev;
+                            // rate_start = sqrt(rate_end^2 + 2 * slope * vol * dist / F)
+                            float rate_start = sqrtf(rate_succ * rate_succ
+                                + 2.f * ramp_slope * line.volumetric_extrusion_rate * dist / feedrate);
+                            rate_start = std::min(rate_start, ramp_target);
 
-                    if (!m_gcode_lines[idx_prev].extruding())
+                            line.volumetric_extrusion_rate_start = std::min(rate_start, line.volumetric_extrusion_rate_start);
+                            line.max_volumetric_extrusion_rate_slope_negative = ramp_slope;
+                            line.modified = true;
+                            line.pellet_ramp = true;
 
+                            rate_succ = rate_start;
+                        }
+                    }
+
+                    if (idx <= first_extruding_idx)
                         break;
-
-                    GCodeLine &prev_line = m_gcode_lines[idx_prev];
-
-                    // Stop if the ramp has reached the target rate
-
-                    if (rate_succ >= prev_line.volumetric_extrusion_rate)
-
-                        break;
-
-                    if (!prev_line.adjustable_flow)
-
-                        break;
-
-                    // Limit end rate to the next line's start rate.
-
-                    // Use std::min to preserve ramp-up values (never increase a rate that
-
-                    // the ramp-up mini forward pass already lowered).
-
-                    prev_line.volumetric_extrusion_rate_end = std::min(rate_succ, prev_line.volumetric_extrusion_rate_end);
-
-                    // Calculate new start rate using the slope formula
-
-                    float rate_start = sqrtf(rate_succ * rate_succ + 2.f * ramp_slope * prev_line.volumetric_extrusion_rate * prev_line.dist_xyz() / prev_line.feedrate());
-
-                    rate_start = std::min(rate_start, prev_line.volumetric_extrusion_rate);
-
-                    prev_line.volumetric_extrusion_rate_start = std::min(rate_start, prev_line.volumetric_extrusion_rate_start);
-
-                    prev_line.max_volumetric_extrusion_rate_slope_negative = ramp_slope;
-
-                    prev_line.modified = true;
-
-                    prev_line.pellet_ramp = true;
-
-                    // Propagate the COMPUTED rate_start (not the min'd stored value)
-
-                    // so the backward pass keeps its own consistent propagation chain.
-
-                    rate_succ = rate_start;
-
-                    idx = idx_prev;
-
+                    --idx;
                 }
-
             }
 
         }
