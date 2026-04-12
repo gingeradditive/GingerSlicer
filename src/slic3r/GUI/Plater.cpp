@@ -743,6 +743,7 @@ Sidebar::Sidebar(Plater *parent)
         PlaterPresetComboBox* combo_printer = new PlaterPresetComboBox(p->m_panel_printer_content, Preset::TYPE_PRINTER);
         ScalableButton* edit_btn = new ScalableButton(p->m_panel_printer_content, wxID_ANY, "edit");
         edit_btn->SetToolTip(_L("Click to edit preset"));
+        edit_btn->SetBackgroundColour(wxColour(255, 255, 255));
         edit_btn->Bind(wxEVT_BUTTON, [this, combo_printer](wxCommandEvent)
             {
                 p->editing_filament = -1;
@@ -768,17 +769,17 @@ Sidebar::Sidebar(Plater *parent)
         // Printer host selection (above machine preset)
         {
             wxBoxSizer* host_sizer = new wxBoxSizer(wxHORIZONTAL);
-            wxStaticText* host_title = new wxStaticText(p->m_panel_printer_content, wxID_ANY, _L("Printer host"));
+            wxStaticText* host_title = new wxStaticText(p->m_panel_printer_content, wxID_ANY, _L("Host"));
             host_title->Wrap(-1);
             host_title->SetFont(Label::Body_14);
 
             m_printer_host_list = new ComboBox(p->m_panel_printer_content, wxID_ANY, wxString(""), wxDefaultPosition, {-1, FromDIP(30)}, 0, nullptr, wxCB_READONLY);
 
-            m_btn_add_host = new ScalableButton(p->m_panel_printer_content, wxID_ANY, "add_filament");
+            m_btn_add_host = new ScalableButton(p->m_panel_printer_content, wxID_ANY, "add");
             m_btn_add_host->SetToolTip(_L("Add printer host address"));
             m_btn_add_host->SetBackgroundColour(wxColour(255, 255, 255));
 
-            m_btn_remove_host = new ScalableButton(p->m_panel_printer_content, wxID_ANY, "delete_filament");
+            m_btn_remove_host = new ScalableButton(p->m_panel_printer_content, wxID_ANY, "delete");
             m_btn_remove_host->SetToolTip(_L("Remove selected printer host address"));
             m_btn_remove_host->SetBackgroundColour(wxColour(255, 255, 255));
 
@@ -830,7 +831,7 @@ Sidebar::Sidebar(Plater *parent)
             host_sizer->Add(host_title, 0, wxLEFT | wxALIGN_CENTER_VERTICAL, FromDIP(SidebarProps::ContentMargin()));
             host_sizer->Add(m_printer_host_list, 1, wxLEFT | wxEXPAND, FromDIP(SidebarProps::ElementSpacing()));
             host_sizer->Add(m_btn_add_host, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()));
-            host_sizer->Add(m_btn_remove_host, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(2));
+            host_sizer->Add(m_btn_remove_host, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::IconSpacing()));
             host_sizer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
             vsizer_printer->Add(host_sizer, 0, wxEXPAND, 0);
             vsizer_printer->AddSpacer(FromDIP(5));
