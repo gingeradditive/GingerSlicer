@@ -267,8 +267,6 @@ FileArchiveDialog::FileArchiveDialog(wxWindow* parent_window, mz_zip_archive* ar
     topSizer->Add(btn_sizer, 0, wxEXPAND | wxALL, 10);
     this->SetSizer(topSizer);
     SetMinSize(wxSize(40 * em, 30 * em));
-
-    for (auto btn : m_button_list)
 }
 
 void FileArchiveDialog::on_dpi_changed(const wxRect& suggested_rect)

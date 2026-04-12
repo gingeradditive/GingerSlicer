@@ -858,8 +858,7 @@ void GLGizmoEmboss::on_render_input_window(float x, float y, float bottom_limit)
 
     // Configuration creation
     if (m_gui_cfg == nullptr ||                   // Exist configuration - first run
-        m_gui_cfg->screen_scale != screen_scale  ||// change of DPI
-        ) {
+        m_gui_cfg->screen_scale != screen_scale) { // change of DPI
         // Create cache for gui offsets
         ::GuiCfg cfg = create_gui_configuration();
         cfg.screen_scale = screen_scale;

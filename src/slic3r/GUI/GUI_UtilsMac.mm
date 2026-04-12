@@ -68,6 +68,27 @@ bool is_debugger_present()
     return ( (info.kp_proc.p_flag & P_TRACED) != 0 );
 }
 
+void set_miniaturizable(WXWidget widget)
+{
+    NSView* view = (NSView*)widget;
+    NSWindow* window = [view window];
+    if (window) {
+        [window setMiniaturizable:YES];
+    }
+}
+
+void set_title_colour_after_set_title(WXWidget widget)
+{
+    // This function is a no-op on modern macOS
+    // Title bar color is handled by the system
+}
+
+void set_tag_when_enter_full_screen(bool is_full_screen)
+{
+    // This function is a no-op
+    // Tagging behavior is handled by the system
+}
+
 }
 }
 

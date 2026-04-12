@@ -14779,4 +14779,3 @@ SuppressBackgroundProcessingUpdate::~SuppressBackgroundProcessingUpdate()
 }
 
 }}    // namespace Slic3r::GUI
-}}    // namespace Slic3r::GUI

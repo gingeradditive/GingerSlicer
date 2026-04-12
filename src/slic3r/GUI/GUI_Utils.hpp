@@ -485,6 +485,9 @@ int get_dpi_for_window(const wxWindow *window);
 void dataview_remove_insets(wxDataViewCtrl* dv);
 void staticbox_remove_margin(wxStaticBox* sb);
 float mac_max_scaling_factor();
+void set_miniaturizable(WXWidget widget);
+void set_title_colour_after_set_title(WXWidget widget);
+void set_tag_when_enter_full_screen(bool is_full_screen);
 #endif
 
 #if defined(__WXOSX__) || defined(__linux__)
