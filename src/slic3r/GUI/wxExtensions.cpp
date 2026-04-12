@@ -445,7 +445,7 @@ wxBitmap create_scaled_bitmap(  const std::string& bmp_name_in,
     boost::replace_last(bmp_name, ".png", "");
 
     // Try loading an SVG first, then PNG if SVG was not found:
-    wxBitmap *bmp = cache.load_svg(bmp_name, width, height, grayscale, false, new_color, resize ? em_unit(win) * 0.1f : 0.f);
+    wxBitmap *bmp = cache.load_svg(bmp_name, width, height, grayscale, new_color, resize ? em_unit(win) * 0.1f : 0.f);
     if (bmp == nullptr) {
         bmp = cache.load_png(bmp_name, width, height, grayscale, resize ? win->FromDIP(10) * 0.1f : 0.f);
     }
@@ -468,7 +468,7 @@ wxBitmap create_scaled_bitmap2(const std::string& bmp_name_in, Slic3r::GUI::Bitm
     std::string bmp_name = bmp_name_in;
     boost::replace_last(bmp_name, ".png", "");
 
-    wxBitmap* bmp = cache.load_svg2(bmp_name, width, height, grayscale, false, array_new_color, resize ? em_unit(win) * 0.1f : 0.f);
+    wxBitmap* bmp = cache.load_svg2(bmp_name, width, height, grayscale, array_new_color, resize ? em_unit(win) * 0.1f : 0.f);
     if (bmp == nullptr) {
         // No SVG found
         throw Slic3r::RuntimeError("Could not load bitmap: " + bmp_name);

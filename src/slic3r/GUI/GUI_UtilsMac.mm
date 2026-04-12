@@ -21,6 +21,19 @@ void staticbox_remove_margin(wxStaticBox* sb) {
     [nativeBox setBorderWidth:0];
 }
 
+float mac_max_scaling_factor() {
+    // Get the maximum scaling factor across all screens
+    float max_scale = 1.0f;
+    NSArray *screens = [NSScreen screens];
+    for (NSScreen *screen in screens) {
+        float scale = screen.backingScaleFactor;
+        if (scale > max_scale) {
+            max_scale = scale;
+        }
+    }
+    return max_scale;
+}
+
 bool is_debugger_present()
 // Returns true if the current process is being debugged (either
 // running under the debugger or has a debugger attached post facto).

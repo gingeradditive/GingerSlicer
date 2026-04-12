@@ -2,6 +2,7 @@
 #include "OpenGLManager.hpp"
 
 #include "GUI.hpp"
+#include "GUI_Utils.hpp"
 #include "I18N.hpp"
 #include "3DScene.hpp"
 
