@@ -17,12 +17,6 @@ namespace {
 	}
 }
 
-void NotificationManager::SlicingProgressNotification::on_change_color_mode(bool is_dark)
-{
-	PopNotification::on_change_color_mode(is_dark);
-	m_dailytips_panel->on_change_color_mode(is_dark);
-}
-
 void NotificationManager::SlicingProgressNotification::init()
 {
 	if (m_sp_state == SlicingProgressState::SP_PROGRESS) {
@@ -208,7 +202,6 @@ void NotificationManager::SlicingProgressNotification::render(GLCanvas3D& canvas
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8 * scale, 0));
 	// for debug
 	//ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, m_WindowRadius / 4);
-	//m_is_dark ? push_style_color(ImGuiCol_Border, { 62 / 255.f, 62 / 255.f, 69 / 255.f, 1.f }, true, m_current_fade_opacity) : push_style_color(ImGuiCol_Border, m_CurrentColor, true, m_current_fade_opacity);
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
 	push_style_color(ImGuiCol_Border, { 0, 0, 0, 0 }, true, m_current_fade_opacity);
 
@@ -478,10 +471,10 @@ void NotificationManager::SlicingProgressNotification::render_close_button(const
 		ImGui::SetCursorScreenPos(button_pos);
 
 		std::wstring button_text;
-		button_text = m_is_dark ? ImGui::CloseNotifDarkButton : ImGui::CloseNotifButton;
+		button_text = ImGui::CloseNotifButton;
 		if (ImGui::IsMouseHoveringRect(button_pos, button_pos + button_size, true))
 		{
-			button_text = m_is_dark ? ImGui::CloseNotifHoverDarkButton : ImGui::CloseNotifHoverButton;
+			button_text = ImGui::CloseNotifHoverButton;
 			if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
 				close();
 		}

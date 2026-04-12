@@ -183,7 +183,6 @@ const float Bed3D::Axes::DefaultTipLength = 5.0f;
 
 // ORCA make bed colors accessable for 2D bed
 ColorRGBA Bed3D::DEFAULT_MODEL_COLOR             = { 0.3255f, 0.337f, 0.337f, 1.0f };
-ColorRGBA Bed3D::DEFAULT_MODEL_COLOR_DARK        = { 0.255f, 0.255f, 0.283f, 1.0f };
 ColorRGBA Bed3D::DEFAULT_SOLID_GRID_COLOR        = { 0.9f, 0.9f, 0.9f, 1.0f };
 ColorRGBA Bed3D::DEFAULT_TRANSPARENT_GRID_COLOR  = { 0.9f, 0.9f, 0.9f, 0.6f };
 
@@ -360,12 +359,7 @@ void Bed3D::set_axes_mode(bool origin)
 Point Bed3D::point_projection(const Point& point) const
 {
     return m_polygon.point_projection(point);
-}*/
-
-void Bed3D::on_change_color_mode(bool is_dark)
-{
-    m_is_dark = is_dark;
-}
+*/
 
 void Bed3D::render(GLCanvas3D& canvas, const Transform3d& view_matrix, const Transform3d& projection_matrix, bool bottom, float scale_factor, bool show_axes)
 {
@@ -382,7 +376,7 @@ void Bed3D::render_internal(GLCanvas3D& canvas, const Transform3d& view_matrix, 
 
     glsafe(::glEnable(GL_DEPTH_TEST));
 
-    m_model.set_color(m_is_dark ? DEFAULT_MODEL_COLOR_DARK : DEFAULT_MODEL_COLOR);
+    m_model.set_color(DEFAULT_MODEL_COLOR);
 
     switch (m_type)
     {
@@ -668,7 +662,7 @@ void Bed3D::render_model(const Transform3d& view_matrix, const Transform3d& proj
         return;
 
     if (m_model.get_filename() != m_model_filename && m_model.init_from_file(m_model_filename)) {
-        m_model.set_color(m_is_dark ? DEFAULT_MODEL_COLOR_DARK : DEFAULT_MODEL_COLOR);
+        m_model.set_color(DEFAULT_MODEL_COLOR);
 
         update_model_offset();
 
@@ -726,7 +720,7 @@ void Bed3D::render_default(bool bottom, const Transform3d& view_matrix, const Tr
         if (m_model.get_filename().empty() && !bottom) {
             // draw background
             glsafe(::glDepthMask(GL_FALSE));
-            ColorRGBA color = m_is_dark ? DEFAULT_MODEL_COLOR_DARK : DEFAULT_MODEL_COLOR;   // ORCA add dark mode support
+            ColorRGBA color = DEFAULT_MODEL_COLOR;
             color = ColorRGBA(color[0] * 0.8f, color[1] * 0.8f,color[2] * 0.8f, color[3]);  // ORCA shift color a darker tone to fix difference between flat / gouraud_light shader
             m_triangles.set_color(color);
             m_triangles.render();

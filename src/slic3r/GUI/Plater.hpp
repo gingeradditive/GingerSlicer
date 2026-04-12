@@ -457,7 +457,6 @@ public:
     void send_job_finished(wxCommandEvent& evt);
     void publish_job_finished(wxCommandEvent& evt);
     void open_platesettings_dialog(wxCommandEvent& evt);
-    void on_change_color_mode(SimpleEvent& evt);
 	void eject_drive();
 
     void take_snapshot(const std::string &snapshot_name);

@@ -29,7 +29,6 @@ public:
     void expand(bool expand = true);
     void collapse();
     bool is_expanded();
-    void on_change_color_mode(bool is_dark);
     void set_fade_opacity(float opacity);
 
 protected:
@@ -50,7 +49,6 @@ private:
     float m_footer_height;
     int m_uid;
     bool m_first_enter{ false };
-    bool m_is_dark{ false };
     DailyTipsLayout m_layout{ DailyTipsLayout::Vertical };
     float m_fade_opacity{ 1.0f };
 };
@@ -61,12 +59,10 @@ public:
     void open();
     void close();
     void render();
-    void on_change_color_mode(bool is_dark);
 
 private:
     DailyTipsPanel* m_panel{ nullptr };
     bool m_show{ false };
-    bool m_is_dark{ false };
 };
 
 }}

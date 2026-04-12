@@ -76,7 +76,6 @@ CopyrightsDialog::CopyrightsDialog()
     SetSizer(sizer);
     sizer->SetSizeHints(this);
     CenterOnParent();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 void CopyrightsDialog::fill_entries()
@@ -226,10 +225,8 @@ AboutDialog::AboutDialog()
     main_sizer->Add(m_panel, 1, wxEXPAND | wxALL, 0);
     main_sizer->Add(ver_sizer, 0, wxEXPAND | wxALL, 0);
 
-	bool is_dark = wxGetApp().app_config->get("dark_color_mode") == "1";
-
     // logo
-    m_logo_bitmap = ScalableBitmap(this, is_dark ? "GingerSlicer_about_dark" : "GingerSlicer_about", 125);
+    m_logo_bitmap = ScalableBitmap(this, "GingerSlicer_about", 125);
     m_logo = new wxStaticBitmap(this, wxID_ANY, m_logo_bitmap.bmp(), wxDefaultPosition,wxDefaultSize, 0);
     m_logo->SetSizer(vesizer);
 
@@ -355,7 +352,6 @@ AboutDialog::AboutDialog()
     ver_sizer->Add( 0, 0, 0, wxTOP, FromDIP(30));
     button_portions->Bind(wxEVT_BUTTON, &AboutDialog::onCopyrightBtn, this);
 
-    wxGetApp().UpdateDlgDarkUI(this);
 	SetSizer(main_sizer);
     Layout();
     Fit();

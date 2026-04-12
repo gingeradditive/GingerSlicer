@@ -620,7 +620,6 @@ public:
             float m_z_offset{ 0.5f };
             GCodeProcessorResult::MoveVertex m_curr_move;
             bool m_visible{ true };
-            bool m_is_dark = false;
 
         public:
             float m_scale = 1.0f;
@@ -636,7 +635,6 @@ public:
             void set_visible(bool visible) { m_visible = visible; }
 
             void render(int canvas_width, int canvas_height, const EViewType& view_type);
-            void on_change_color_mode(bool is_dark) { m_is_dark = is_dark; }
 
             void update_curr_move(const GCodeProcessorResult::MoveVertex move);
         };
@@ -649,7 +647,6 @@ public:
                 std::string parameters;
                 std::string comment;
             };
-            bool m_is_dark = false;
             uint64_t m_selected_line_id{ 0 };
             size_t m_last_lines_size{ 0 };
             std::string m_filename;
@@ -677,7 +674,6 @@ public:
             //BBS: GUI refactor: add canvas size
             //void render(float top, float bottom, uint64_t curr_line_id) const;
             void render(float top, float bottom, float right, uint64_t curr_line_id) const;
-            void on_change_color_mode(bool is_dark) { m_is_dark = is_dark; }
 
             void stop_mapping_file();
         };
@@ -787,13 +783,11 @@ private:
 
     bool m_contained_in_bed{ true };
 mutable bool m_no_render_path { false };
-    bool m_is_dark = false;
 
 public:
     GCodeViewer();
     ~GCodeViewer();
 
-    void on_change_color_mode(bool is_dark);
     float m_scale = 1.0;
     void set_scale(float scale = 1.0);
     void init(ConfigOptionMode mode, Slic3r::PresetBundle* preset_bundle);

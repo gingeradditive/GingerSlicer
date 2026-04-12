@@ -122,7 +122,7 @@ GLGizmosManager::EType GLGizmosManager::get_gizmo_from_mouse(const Vec2d &mouse_
 
 void GLGizmosManager::switch_gizmos_icon_filename()
 {
-    m_background_texture.metadata.filename = m_is_dark ? "toolbar_background_dark.png" : "toolbar_background.png";
+    m_background_texture.metadata.filename = "toolbar_background.png";
     m_background_texture.metadata.left = 16;
     m_background_texture.metadata.top = 16;
     m_background_texture.metadata.right = 16;
@@ -131,50 +131,49 @@ void GLGizmosManager::switch_gizmos_icon_filename()
         m_background_texture.texture.load_from_file(resources_dir() + "/images/" + m_background_texture.metadata.filename, false, GLTexture::SingleThreaded, false);
 
     for (auto& gizmo : m_gizmos) {
-        gizmo->on_change_color_mode(m_is_dark);
         switch (gizmo->get_sprite_id())
         {
         case(EType::Move):
-            gizmo->set_icon_filename(m_is_dark ? "toolbar_move_dark.svg" : "toolbar_move.svg");
+            gizmo->set_icon_filename("toolbar_move.svg");
             break;
         case(EType::Rotate):
-            gizmo->set_icon_filename(m_is_dark ? "toolbar_rotate_dark.svg" : "toolbar_rotate.svg");
+            gizmo->set_icon_filename("toolbar_rotate.svg");
             break;
         case(EType::Scale):
-            gizmo->set_icon_filename(m_is_dark ? "toolbar_scale_dark.svg" : "toolbar_scale.svg");
+            gizmo->set_icon_filename("toolbar_scale.svg");
             break;
         case(EType::Flatten):
-            gizmo->set_icon_filename(m_is_dark ? "toolbar_flatten_dark.svg" : "toolbar_flatten.svg");
+            gizmo->set_icon_filename("toolbar_flatten.svg");
             break;
         case(EType::Cut):
-            gizmo->set_icon_filename(m_is_dark ? "toolbar_cut_dark.svg" : "toolbar_cut.svg");
+            gizmo->set_icon_filename("toolbar_cut.svg");
             break;
         case(EType::FdmSupports):
-            gizmo->set_icon_filename(m_is_dark ? "toolbar_support_dark.svg" : "toolbar_support.svg");
+            gizmo->set_icon_filename("toolbar_support.svg");
             break;
         case(EType::Seam):
-            gizmo->set_icon_filename(m_is_dark ? "toolbar_seam_dark.svg" : "toolbar_seam.svg");
+            gizmo->set_icon_filename("toolbar_seam.svg");
             break;
         case(EType::Emboss):
-            gizmo->set_icon_filename(m_is_dark ? "toolbar_text_dark.svg" : "toolbar_text.svg");
+            gizmo->set_icon_filename("toolbar_text.svg");
             break;
         case(EType::MmSegmentation):
-            gizmo->set_icon_filename(m_is_dark ? "mmu_segmentation_dark.svg" : "mmu_segmentation.svg");
+            gizmo->set_icon_filename("mmu_segmentation.svg");
             break;
         case(EType::FuzzySkin):
-            gizmo->set_icon_filename(m_is_dark ? "toolbar_fuzzy_skin_paint_dark.svg" : "toolbar_fuzzy_skin_paint.svg");
+            gizmo->set_icon_filename("toolbar_fuzzy_skin_paint.svg");
             break;
         case(EType::MeshBoolean):
-            gizmo->set_icon_filename(m_is_dark ? "toolbar_meshboolean_dark.svg" : "toolbar_meshboolean.svg");
+            gizmo->set_icon_filename("toolbar_meshboolean.svg");
             break;
         case (EType::Measure):
-            gizmo->set_icon_filename(m_is_dark ? "toolbar_measure_dark.svg" : "toolbar_measure.svg");
+            gizmo->set_icon_filename("toolbar_measure.svg");
             break;
         case (EType::Assembly):
-            gizmo->set_icon_filename(m_is_dark ? "toolbar_assembly_dark.svg" : "toolbar_assembly.svg");
+            gizmo->set_icon_filename("toolbar_assembly.svg");
             break;
         case (EType::BrimEars):
-            gizmo->set_icon_filename(m_is_dark ? "toolbar_brimears_dark.svg" : "toolbar_brimears.svg");
+            gizmo->set_icon_filename("toolbar_brimears.svg");
             break;
         }
 
@@ -186,7 +185,7 @@ bool GLGizmosManager::init()
     bool result = init_icon_textures();
     if (!result) return result;
 
-    m_background_texture.metadata.filename = m_is_dark ? "toolbar_background_dark.png" : "toolbar_background.png";
+    m_background_texture.metadata.filename = "toolbar_background.png";
     m_background_texture.metadata.left = 16;
     m_background_texture.metadata.top = 16;
     m_background_texture.metadata.right = 16;
@@ -202,22 +201,22 @@ bool GLGizmosManager::init()
     //BBS: GUI refactor: add obj manipulation
     m_gizmos.clear();
     unsigned int sprite_id = 0;
-    m_gizmos.emplace_back(new GLGizmoMove3D(m_parent, m_is_dark ? "toolbar_move_dark.svg" : "toolbar_move.svg", EType::Move, &m_object_manipulation));
-    m_gizmos.emplace_back(new GLGizmoRotate3D(m_parent, m_is_dark ? "toolbar_rotate_dark.svg" : "toolbar_rotate.svg", EType::Rotate, &m_object_manipulation));
-    m_gizmos.emplace_back(new GLGizmoScale3D(m_parent, m_is_dark ? "toolbar_scale_dark.svg" : "toolbar_scale.svg", EType::Scale, &m_object_manipulation));
-    m_gizmos.emplace_back(new GLGizmoFlatten(m_parent, m_is_dark ? "toolbar_flatten_dark.svg" : "toolbar_flatten.svg", EType::Flatten));
-    m_gizmos.emplace_back(new GLGizmoCut3D(m_parent, m_is_dark ? "toolbar_cut_dark.svg" : "toolbar_cut.svg", EType::Cut));
-    m_gizmos.emplace_back(new GLGizmoMeshBoolean(m_parent, m_is_dark ? "toolbar_meshboolean_dark.svg" : "toolbar_meshboolean.svg", EType::MeshBoolean));
-    m_gizmos.emplace_back(new GLGizmoFdmSupports(m_parent, m_is_dark ? "toolbar_support_dark.svg" : "toolbar_support.svg", EType::FdmSupports));
-    m_gizmos.emplace_back(new GLGizmoSeam(m_parent, m_is_dark ? "toolbar_seam_dark.svg" : "toolbar_seam.svg", EType::Seam));
-    m_gizmos.emplace_back(new GLGizmoFuzzySkin(m_parent, m_is_dark ? "toolbar_fuzzy_skin_paint_dark.svg" : "toolbar_fuzzy_skin_paint.svg", EType::FuzzySkin));
-    m_gizmos.emplace_back(new GLGizmoMmuSegmentation(m_parent, m_is_dark ? "mmu_segmentation_dark.svg" : "mmu_segmentation.svg", EType::MmSegmentation));
-    m_gizmos.emplace_back(new GLGizmoEmboss(m_parent, m_is_dark ? "toolbar_text_dark.svg" : "toolbar_text.svg", EType::Emboss));
+    m_gizmos.emplace_back(new GLGizmoMove3D(m_parent, "toolbar_move.svg", EType::Move, &m_object_manipulation));
+    m_gizmos.emplace_back(new GLGizmoRotate3D(m_parent, "toolbar_rotate.svg", EType::Rotate, &m_object_manipulation));
+    m_gizmos.emplace_back(new GLGizmoScale3D(m_parent, "toolbar_scale.svg", EType::Scale, &m_object_manipulation));
+    m_gizmos.emplace_back(new GLGizmoFlatten(m_parent, "toolbar_flatten.svg", EType::Flatten));
+    m_gizmos.emplace_back(new GLGizmoCut3D(m_parent, "toolbar_cut.svg", EType::Cut));
+    m_gizmos.emplace_back(new GLGizmoMeshBoolean(m_parent, "toolbar_meshboolean.svg", EType::MeshBoolean));
+    m_gizmos.emplace_back(new GLGizmoFdmSupports(m_parent, "toolbar_support.svg", EType::FdmSupports));
+    m_gizmos.emplace_back(new GLGizmoSeam(m_parent, "toolbar_seam.svg", EType::Seam));
+    m_gizmos.emplace_back(new GLGizmoFuzzySkin(m_parent, "toolbar_fuzzy_skin_paint.svg", EType::FuzzySkin));
+    m_gizmos.emplace_back(new GLGizmoMmuSegmentation(m_parent, "mmu_segmentation.svg", EType::MmSegmentation));
+    m_gizmos.emplace_back(new GLGizmoEmboss(m_parent, "toolbar_text.svg", EType::Emboss));
     m_gizmos.emplace_back(new GLGizmoSVG(m_parent));
-    m_gizmos.emplace_back(new GLGizmoMeasure(m_parent, m_is_dark ? "toolbar_measure_dark.svg" : "toolbar_measure.svg", EType::Measure));
-    m_gizmos.emplace_back(new GLGizmoAssembly(m_parent, m_is_dark ? "toolbar_assembly_dark.svg" : "toolbar_assembly.svg", EType::Assembly));
+    m_gizmos.emplace_back(new GLGizmoMeasure(m_parent, "toolbar_measure.svg", EType::Measure));
+    m_gizmos.emplace_back(new GLGizmoAssembly(m_parent, "toolbar_assembly.svg", EType::Assembly));
     m_gizmos.emplace_back(new GLGizmoSimplify(m_parent, "reduce_triangles.svg", EType::Simplify));
-    m_gizmos.emplace_back(new GLGizmoBrimEars(m_parent, m_is_dark ? "toolbar_brimears_dark.svg" : "toolbar_brimears.svg", EType::BrimEars));
+    m_gizmos.emplace_back(new GLGizmoBrimEars(m_parent, "toolbar_brimears.svg", EType::BrimEars));
     //m_gizmos.emplace_back(new GLGizmoSlaSupports(m_parent, "sla_supports.svg", sprite_id++));
     //m_gizmos.emplace_back(new GLGizmoFaceDetector(m_parent, "face recognition.svg", sprite_id++));
     //m_gizmos.emplace_back(new GLGizmoHollow(m_parent, "hollow.svg", sprite_id++));
@@ -232,7 +231,6 @@ bool GLGizmosManager::init()
             return false;
         }
         gizmo->set_common_data_pool(m_common_gizmos_data.get());
-        gizmo->on_change_color_mode(m_is_dark);
     }
 
     m_current = Undefined;
@@ -534,10 +532,6 @@ bool GLGizmosManager::wants_reslice_supports_on_undo() const
     return false;
     // return (m_current == SlaSupports
     //     && dynamic_cast<const GLGizmoSlaSupports*>(m_gizmos.at(SlaSupports).get())->has_backend_supports());
-}
-
-void GLGizmosManager::on_change_color_mode(bool is_dark) {
-    m_is_dark = is_dark;
 }
 
 void GLGizmosManager::render_current_gizmo() const

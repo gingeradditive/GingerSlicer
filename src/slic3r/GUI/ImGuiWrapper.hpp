@@ -316,9 +316,7 @@ public:
 
     ImFontAtlasCustomRect* GetTextureCustomRect(const wchar_t& tex_id);
 
-    static const ImVec4 COL_GREY_DARK;
     static const ImVec4 COL_GREY_LIGHT;
-    static const ImVec4 COL_ORANGE_DARK;
     static const ImVec4 COL_ORANGE_LIGHT;
     static const ImVec4 COL_WINDOW_BACKGROUND;
     static const ImVec4 COL_BUTTON_BACKGROUND;
@@ -335,15 +333,11 @@ public:
     static const ImVec4 COL_ACTIVE;
     static const ImVec4 COL_TITLE_BG;
     static const ImVec4 COL_WINDOW_BG;
-    static const ImVec4 COL_WINDOW_BG_DARK;
     static const ImVec4 COL_TOOLBAR_BG;
-    static const ImVec4 COL_TOOLBAR_BG_DARK;
     static const ImVec4 COL_SEPARATOR;
-    static const ImVec4 COL_SEPARATOR_DARK;
     static const ImVec4 COL_ORCA;
 
     //BBS
-    static void on_change_color_mode(bool is_dark);
     static void push_toolbar_style(const float scale);
     static void pop_toolbar_style();
     static void push_menu_style(const float scale);

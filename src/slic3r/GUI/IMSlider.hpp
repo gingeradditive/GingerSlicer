@@ -128,7 +128,6 @@ public:
 
     float m_scale = 1.0;
     void set_scale(float scale = 1.0);
-    void on_change_color_mode(bool is_dark);
     void set_menu_enable(bool enable = true) { m_menu_enable = enable; }
 
 protected:
@@ -171,9 +170,6 @@ private:
     // Use those values to disable selection of active extruders
     std::array<int, 2> get_active_extruders_for_tick(int tick) const;
 
-    // Use those values to disable selection of active extruders
-    bool m_is_dark = false;
-
     bool is_osx{false};
     int  m_min_value;
     int  m_max_value;
@@ -203,10 +199,6 @@ private:
     void* m_one_layer_on_hover_light_id;
     void* m_one_layer_off_light_id;
     void* m_one_layer_off_hover_light_id;
-    void* m_one_layer_on_dark_id;
-    void* m_one_layer_on_hover_dark_id;
-    void* m_one_layer_off_dark_id;
-    void* m_one_layer_off_hover_dark_id;
     void *m_pause_icon_id;
     void *m_custom_icon_id;
     void *m_delete_icon_id;
