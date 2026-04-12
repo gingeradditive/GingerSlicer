@@ -186,11 +186,7 @@ void StateColor::SetDarkMode(bool dark) { gDarkMode = dark; }
 
 inline wxColour darkModeColorFor2(wxColour const &color)
 {
-    if (!gDarkMode)
-        return color;
-    auto iter = gDarkColors.find(color);
-    wxASSERT(iter != gDarkColors.end());
-    if (iter != gDarkColors.end()) return iter->second;
+    // Dark mode support removed - always return input color
     return color;
 }
 
@@ -203,10 +199,7 @@ std::map<wxColour, wxColour> revert(std::map<wxColour, wxColour> const & map)
 
 wxColour StateColor::lightModeColorFor(wxColour const &color)
 {
-    static std::map<wxColour, wxColour> gLightColors = revert(gDarkColors);
-    auto iter = gLightColors.find(color);
-    wxASSERT(iter != gLightColors.end());
-    if (iter != gLightColors.end()) return iter->second;
+    // Dark mode support removed - always return input color
     return color;
 }
 
