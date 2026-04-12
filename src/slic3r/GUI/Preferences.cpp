@@ -656,6 +656,7 @@ wxBoxSizer *PreferencesDialog::create_item_switch(wxString title, wxWindow *pare
         /* app_config->set(param, std::to_string(e.GetSelection()));
          app_config->save();*/
     });
+    return m_sizer_switch;
 }
 
 wxBoxSizer *PreferencesDialog::create_item_checkbox(wxString title, wxWindow *parent, wxString tooltip, int padding_left, std::string param)
