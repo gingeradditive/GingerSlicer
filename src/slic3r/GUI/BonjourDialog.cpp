@@ -96,7 +96,6 @@ BonjourDialog::BonjourDialog(wxWindow *parent, Slic3r::PrinterTechnology tech)
 	});
 
 	Bind(wxEVT_TIMER, &BonjourDialog::on_timer, this);
-	GUI::wxGetApp().UpdateDlgDarkUI(this);
 }
 
 BonjourDialog::~BonjourDialog()
@@ -266,7 +265,6 @@ IPListDialog::IPListDialog(wxWindow* parent, const wxString& hostname, const std
 	vsizer->Add(button_sizer, 0, wxALIGN_CENTER);
 	SetSizerAndFit(vsizer);
 
-	GUI::wxGetApp().UpdateDlgDarkUI(this);
 }
 
 IPListDialog::~IPListDialog()

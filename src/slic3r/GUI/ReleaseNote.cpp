@@ -87,7 +87,6 @@ ReleaseNoteDialog::ReleaseNoteDialog(Plater *plater /*= nullptr*/)
     m_sizer_main->Fit(this);
 
     Centre(wxBOTH);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 ReleaseNoteDialog::~ReleaseNoteDialog() {}
@@ -108,7 +107,6 @@ void ReleaseNoteDialog::update_release_note(wxString release_note, std::string v
     m_vebview_release_note->SetSizer(sizer_text_release_note);
     m_vebview_release_note->Layout();
     m_vebview_release_note->Fit();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 UpdatePluginDialog::UpdatePluginDialog(wxWindow* parent /*= nullptr*/)
@@ -201,7 +199,6 @@ UpdatePluginDialog::UpdatePluginDialog(wxWindow* parent /*= nullptr*/)
     m_sizer_main->Fit(this);
 
     Centre(wxBOTH);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 UpdatePluginDialog::~UpdatePluginDialog() {}
@@ -245,7 +242,6 @@ void UpdatePluginDialog::update_info(std::string json_path)
     m_vebview_release_note->SetSizer(sizer_text_release_note);
     m_vebview_release_note->Layout();
     m_vebview_release_note->Fit();
-    wxGetApp().UpdateDlgDarkUI(this);
     Layout();
     Fit();
 }
@@ -403,7 +399,6 @@ UpdateVersionDialog::UpdateVersionDialog(wxWindow *parent)
     SetMinSize(GetSize());
 
     Centre(wxBOTH);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 UpdateVersionDialog::~UpdateVersionDialog() {}
@@ -532,7 +527,6 @@ void UpdateVersionDialog::update_version_info(wxString release_note, wxString ve
         SetMaxSize(GetSize());
     }
 
-    wxGetApp().UpdateDlgDarkUI(this);
     Layout();
     Fit();
 }
@@ -707,7 +701,6 @@ SecondaryCheckDialog::SecondaryCheckDialog(wxWindow* parent, wxWindowID id, cons
     m_sizer_main->Fit(this);
 
     CenterOnParent();
-    wxGetApp().UpdateFrameDarkUI(this);
 }
 
 void SecondaryCheckDialog::post_event(wxCommandEvent&& event)
@@ -754,7 +747,6 @@ void SecondaryCheckDialog::update_text(wxString text)
 
 void SecondaryCheckDialog::on_show()
 {
-    wxGetApp().UpdateFrameDarkUI(this);
     // recover button color
     wxMouseEvent evt_ok(wxEVT_LEFT_UP);
     m_button_ok->GetEventHandler()->ProcessEvent(evt_ok);
@@ -846,7 +838,6 @@ void SecondaryCheckDialog::on_dpi_changed(const wxRect& suggested_rect)
 }
 
 void SecondaryCheckDialog::msw_rescale() { 
-    wxGetApp().UpdateFrameDarkUI(this); 
     Refresh();
 }
 
@@ -906,7 +897,6 @@ PrintErrorDialog::PrintErrorDialog(wxWindow* parent, wxWindowID id, const wxStri
     init_button_list();
 
     CenterOnParent();
-    wxGetApp().UpdateFrameDarkUI(this);
 }
 
 void PrintErrorDialog::post_event(wxCommandEvent&& event)
@@ -1012,7 +1002,6 @@ void PrintErrorDialog::update_text_image(const wxString& text, const wxString& e
 
 void PrintErrorDialog::on_show()
 {
-    wxGetApp().UpdateFrameDarkUI(this);
 
     this->Show();
     this->Raise();
@@ -1164,7 +1153,6 @@ void PrintErrorDialog::on_dpi_changed(const wxRect& suggested_rect)
 }
 
 void PrintErrorDialog::msw_rescale() {
-    wxGetApp().UpdateFrameDarkUI(this);
     Refresh();
 }
 
@@ -1288,7 +1276,6 @@ ConfirmBeforeSendDialog::ConfirmBeforeSendDialog(wxWindow* parent, wxWindowID id
     m_sizer_main->Fit(this);
 
     CenterOnParent();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 void ConfirmBeforeSendDialog::update_text(wxString text)
@@ -1354,7 +1341,6 @@ void ConfirmBeforeSendDialog::update_text(std::vector<ConfirmBeforeSendInfo> tex
 
 void ConfirmBeforeSendDialog::on_show()
 {
-    wxGetApp().UpdateDlgDarkUI(this);
     // recover button color
     wxMouseEvent evt_ok(wxEVT_LEFT_UP);
     m_button_ok->GetEventHandler()->ProcessEvent(evt_ok);
@@ -1756,7 +1742,6 @@ InputIpAddressDialog::InputIpAddressDialog(wxWindow *parent)
 
     CentreOnParent(wxBOTH);
     Move(wxPoint(GetScreenPosition().x, GetScreenPosition().y - FromDIP(50)));
-    wxGetApp().UpdateDlgDarkUI(this);
 
     closeTimer = new wxTimer();
     closeTimer->SetOwner(this);

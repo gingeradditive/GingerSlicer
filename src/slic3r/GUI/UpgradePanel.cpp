@@ -292,7 +292,6 @@ MachineInfoPanel::MachineInfoPanel(wxWindow* parent, wxWindowID id, const wxPoin
 
     m_staticText_release_note->Bind(wxEVT_LEFT_DOWN, &MachineInfoPanel::on_show_release_note, this);
     m_button_upgrade_firmware->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(MachineInfoPanel::on_upgrade_firmware), NULL, this);
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 
@@ -755,7 +754,6 @@ void MachineInfoPanel::update_ams_ext(MachineObject *obj)
                 if (add_count > 0) {
                     for (int i = 0; i < add_count; i++) {
                         auto amspanel = new AmsPanel(this, wxID_ANY);
-                        wxGetApp().UpdateDarkUIWin(amspanel);
                         m_ams_info_sizer->Add(amspanel, 1, wxEXPAND, 5);
                         m_amspanel_list.Add(amspanel);
                     }

@@ -110,7 +110,6 @@ MultiTaskItem::MultiTaskItem(wxWindow* parent, MachineObject* obj, int type)
         onStop(); 
     });
 
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 void MultiTaskItem::update_info()
@@ -718,7 +717,6 @@ LocalTaskManagerPage::LocalTaskManagerPage(wxWindow* parent)
     page_sizer = new wxBoxSizer(wxVERTICAL);
     page_sizer->Add(m_main_panel, 1, wxALL | wxEXPAND, FromDIP(25));
 
-    wxGetApp().UpdateDarkUIWin(this);
 
     SetSizer(page_sizer);
     Layout();
@@ -1185,7 +1183,6 @@ CloudTaskManagerPage::CloudTaskManagerPage(wxWindow* parent)
     page_sizer->Add(m_main_panel, 1, wxALL | wxEXPAND, FromDIP(25));
     Bind(wxEVT_TIMER, &CloudTaskManagerPage::on_timer, this);
 
-    wxGetApp().UpdateDarkUIWin(this);
 
     SetSizer(page_sizer);
     Layout();

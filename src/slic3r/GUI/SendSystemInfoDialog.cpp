@@ -105,7 +105,6 @@ public:
         top_sizer->Add(vsizer, 1, wxEXPAND | wxLEFT | wxTOP | wxRIGHT | wxBOTTOM, 10);
         SetSizer(top_sizer);
         #ifdef _WIN32
-            wxGetApp().UpdateDlgDarkUI(this);
         #endif
     }
 };
@@ -136,7 +135,6 @@ public:
         top_sizer->Add(vsizer, 1, wxEXPAND | wxLEFT | wxTOP | wxRIGHT | wxBOTTOM, 10);
         SetSizer(top_sizer);
         #ifdef _WIN32
-            wxGetApp().UpdateDlgDarkUI(this);
         #endif
     }
 };
@@ -648,7 +646,6 @@ SendSystemInfoDialog::SendSystemInfoDialog(wxWindow* parent)
 
 
 #ifdef _WIN32
-    wxGetApp().UpdateDlgDarkUI(this);
 #endif
 
     const auto size = GetSize();

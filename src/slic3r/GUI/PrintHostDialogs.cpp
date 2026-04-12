@@ -348,8 +348,6 @@ PrintHostQueueDialog::PrintHostQueueDialog(wxWindow *parent)
     topsizer->Add(btnsizer, 0, wxEXPAND);
     SetSizer(topsizer);
 
-    wxGetApp().UpdateDlgDarkUI(this);
-    wxGetApp().UpdateDVCDarkUI(job_list);
 
     std::vector<int> size;
     SetSize(load_user_data(UDT_SIZE, size) ? wxSize(size[0] * em, size[1] * em) : wxSize(HEIGHT * em, WIDTH * em));
@@ -431,8 +429,6 @@ void PrintHostQueueDialog::on_dpi_changed(const wxRect &suggested_rect)
 void PrintHostQueueDialog::on_sys_color_changed()
 {
 #ifdef _WIN32
-    wxGetApp().UpdateDlgDarkUI(this);
-    wxGetApp().UpdateDVCDarkUI(job_list);
 #endif
 }
 

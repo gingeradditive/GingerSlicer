@@ -3355,7 +3355,6 @@ ObjectTableDialog::ObjectTableDialog(wxWindow* parent, Plater* platerObj, Model 
     SetSizer(m_main_sizer);
     Fit();
     Layout();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 ObjectTableDialog::~ObjectTableDialog()

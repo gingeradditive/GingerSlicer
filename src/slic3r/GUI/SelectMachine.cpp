@@ -635,7 +635,6 @@ SelectMachineDialog::SelectMachineDialog(Plater *plater)
     init_bind();
     init_timer();
     Centre(wxBOTH);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 void SelectMachineDialog::init_bind()
@@ -3835,7 +3834,6 @@ bool SelectMachineDialog::Show(bool show)
     }
 
     // set default value when show this dialog
-    wxGetApp().UpdateDlgDarkUI(this);
     wxGetApp().reset_to_active();
     set_default();
     update_user_machine_list();

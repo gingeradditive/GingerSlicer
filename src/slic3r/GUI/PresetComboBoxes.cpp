@@ -455,7 +455,6 @@ void PresetComboBox::msw_rescale()
 
 void PresetComboBox::sys_color_changed()
 {
-    wxGetApp().UpdateDarkUI(this);
     msw_rescale();
 }
 

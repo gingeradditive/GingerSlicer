@@ -51,7 +51,6 @@ NetworkTestDialog::NetworkTestDialog(wxWindow* parent, wxWindowID id, const wxSt
 	this->Layout();
 
 	this->Centre(wxBOTH);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 wxBoxSizer* NetworkTestDialog::create_top_sizer(wxWindow* parent)

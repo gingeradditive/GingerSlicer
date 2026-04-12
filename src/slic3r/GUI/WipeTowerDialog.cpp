@@ -46,7 +46,7 @@ static const wxColour g_text_color = wxColour(107, 107, 107, 255);
 
 static void update_ui(wxWindow* window)
 {
-    Slic3r::GUI::wxGetApp().UpdateDarkUI(window);
+    // Dark mode support removed
 }
 
 RammingDialog::RammingDialog(wxWindow* parent,const std::string& parameters)
@@ -70,7 +70,6 @@ RammingDialog::RammingDialog(wxWindow* parent,const std::string& parameters)
         EndModal(wxID_OK);
         },wxID_OK);
 
-    wxGetApp().UpdateDlgDarkUI(this);
     this->Show();
 
     Slic3r::GUI::MessageDialog dlg(this, _(L("Ramming denotes the rapid extrusion just before a tool change in a single-extruder MM printer. Its purpose is to "
@@ -345,8 +344,6 @@ WipingDialog::WipingDialog(wxWindow* parent, const std::vector<float>& matrix, c
         else
             e.Skip();
         });
-
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 void WipingPanel::create_panels(wxWindow* parent, const int num) {

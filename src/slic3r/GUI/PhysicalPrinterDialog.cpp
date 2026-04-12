@@ -113,7 +113,6 @@ PhysicalPrinterDialog::PhysicalPrinterDialog(wxWindow* parent) :
     SetSizer(topSizer);
     topSizer->SetSizeHints(this);
     this->CenterOnParent();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 PhysicalPrinterDialog::~PhysicalPrinterDialog()

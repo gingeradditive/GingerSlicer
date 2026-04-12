@@ -128,7 +128,6 @@ public:
 ObjectList::ObjectList(wxWindow* parent) :
     wxDataViewCtrl(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxDV_MULTIPLE | wxNO_BORDER | wxDV_NO_HEADER) // ORCA: Remove border and header
 {
-    wxGetApp().UpdateDVCDarkUI(this, true);
 
 #ifdef __linux__
     // Temporary fix for incorrect dark mode application regarding list item's text color.
@@ -5554,7 +5553,6 @@ void ObjectList::msw_rescale()
 
 void ObjectList::sys_color_changed()
 {
-    wxGetApp().UpdateDVCDarkUI(this, true);
     
     msw_rescale();
 

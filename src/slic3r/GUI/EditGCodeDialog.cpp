@@ -38,8 +38,6 @@ EditGCodeDialog::EditGCodeDialog(wxWindow* parent, const std::string& key, const
 {
     SetFont(wxGetApp().normal_font());
     SetBackgroundColour(*wxWHITE);
-    wxGetApp().UpdateDarkUI(this);
-    wxGetApp().UpdateDlgDarkUI(this);
 
     int border = 10;
     int em = em_unit();
@@ -56,7 +54,6 @@ EditGCodeDialog::EditGCodeDialog(wxWindow* parent, const std::string& key, const
     m_search_bar->ShowCancelButton(true);
     m_search_bar->SetDescriptiveText(_L("Search G-code placeholders"));
     m_search_bar->SetForegroundColour(*wxBLACK);
-    wxGetApp().UpdateDarkUI(m_search_bar);
 
     m_search_bar->Bind(wxEVT_SET_FOCUS, [](wxFocusEvent&) {
 //        this->on_search_update();
@@ -69,7 +66,6 @@ EditGCodeDialog::EditGCodeDialog(wxWindow* parent, const std::string& key, const
 
     m_params_list = new ParamsViewCtrl(this, wxDefaultSize);
     m_params_list->SetFont(wxGetApp().code_font());
-    wxGetApp().UpdateDarkUI(m_params_list);
     param_sizer->Add(m_params_list, 1, wxEXPAND | wxALL, border);
 
     m_add_btn = new ScalableButton(this, wxID_ANY, "add_copies");
@@ -82,7 +78,6 @@ EditGCodeDialog::EditGCodeDialog(wxWindow* parent, const std::string& key, const
     );
     m_gcode_editor->SetFont(wxGetApp().code_font());
     m_gcode_editor->SetInsertionPointEnd();
-    wxGetApp().UpdateDarkUI(m_gcode_editor);
 
     grid_sizer->Add(param_sizer,  1, wxEXPAND);
     grid_sizer->Add(m_add_btn,      0, wxALIGN_CENTER_VERTICAL);
@@ -819,7 +814,6 @@ ParamsViewCtrl::ParamsViewCtrl(wxWindow *parent, wxSize size)
     ),
     m_em_unit(em_unit(parent))
 {
-    wxGetApp().UpdateDVCDarkUI(this);
 
     model = new ParamsModel();
     this->AssociateModel(model);

@@ -888,7 +888,6 @@ EditDevNameDialog::EditDevNameDialog(Plater *plater /*= nullptr*/)
     Layout();
     Fit();
     Centre(wxBOTH);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 EditDevNameDialog::~EditDevNameDialog() {}

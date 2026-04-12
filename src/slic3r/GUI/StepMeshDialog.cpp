@@ -306,7 +306,6 @@ StepMeshDialog::StepMeshDialog(wxWindow* parent, Slic3r::Step& file, double line
         EndModal(wxID_CANCEL);
     });
 
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 StepMeshDialog::~StepMeshDialog()

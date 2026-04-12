@@ -322,12 +322,10 @@ void ObjectLayers::sys_color_changed()
         const wxSizerItem* item = m_grid_sizer->GetItem(i);
         if (item->IsWindow()) {
             if (LayerRangeEditor* editor = dynamic_cast<LayerRangeEditor*>(item->GetWindow()))
-                wxGetApp().UpdateDarkUI(editor);
         }
         else if (item->IsSizer()) {// case when we have editor with buttons
             if (wxSizerItem* e_item = item->GetSizer()->GetItem(size_t(0)); e_item->IsWindow()) {
                 if (LayerRangeEditor* editor = dynamic_cast<LayerRangeEditor*>(e_item->GetWindow()))
-                    wxGetApp().UpdateDarkUI(editor);
             }
         }
     }
@@ -358,7 +356,6 @@ LayerRangeEditor::LayerRangeEditor( ObjectLayers* parent,
     )
 {
     this->SetFont(wxGetApp().normal_font());
-    wxGetApp().UpdateDarkUI(this);
 
     // Reset m_enter_pressed flag to _false_, when value is editing
     this->Bind(wxEVT_TEXT, [this](wxEvent&) { m_enter_pressed = false; }, this->GetId());

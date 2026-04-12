@@ -68,7 +68,6 @@ RecenterDialog::RecenterDialog(wxWindow* parent, wxWindowID id, const wxString& 
     m_button_confirm->Bind(wxEVT_BUTTON, &RecenterDialog::on_button_confirm, this);
     m_button_close->Bind(wxEVT_BUTTON, &RecenterDialog::on_button_close, this);
 
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 RecenterDialog::~RecenterDialog() {}

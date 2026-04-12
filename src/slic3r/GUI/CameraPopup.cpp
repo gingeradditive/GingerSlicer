@@ -170,7 +170,6 @@ CameraPopup::CameraPopup(wxWindow *parent)
     m_interval_timer = new wxTimer();
     m_interval_timer->SetOwner(this);
 
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 void CameraPopup::sdcard_absent_hint()

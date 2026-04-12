@@ -107,7 +107,6 @@ CloneDialog::CloneDialog(wxWindow *parent)
     this->SetSizer(v_sizer);
     this->Layout();
     v_sizer->Fit(this);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 CloneDialog::~CloneDialog() {}

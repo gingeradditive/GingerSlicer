@@ -535,7 +535,6 @@ SendToPrinterDialog::SendToPrinterDialog(Plater *plater)
     init_timer();
     // CenterOnParent();
     Centre(wxBOTH);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 void SendToPrinterDialog::update_print_error_info(int code, std::string msg, std::string extra)

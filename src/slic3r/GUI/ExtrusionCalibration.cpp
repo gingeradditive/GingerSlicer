@@ -15,7 +15,6 @@ ExtrusionCalibration::ExtrusionCalibration(wxWindow *parent, wxWindowID id)
         wxMINIMIZE_BOX | wxMAXIMIZE_BOX | wxCLOSE_BOX | wxCAPTION |wxCLIP_CHILDREN))
 {
     create();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 void ExtrusionCalibration::init_bitmaps() 
@@ -371,7 +370,6 @@ void ExtrusionCalibration::open_bitmap(wxMouseEvent& event) {
         popup->Layout();
         popup->Fit();
         popup->CenterOnParent();
-        wxGetApp().UpdateDlgDarkUI(popup);
         popup->ShowModal();
     }
     return;
@@ -733,7 +731,6 @@ void ExtrusionCalibration::Popup()
     update();
     Layout();
     Fit();
-    wxGetApp().UpdateDlgDarkUI(this);
     ShowModal();
 }
 void ExtrusionCalibration::post_select_event() {

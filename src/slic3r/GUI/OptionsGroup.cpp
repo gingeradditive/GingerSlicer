@@ -473,7 +473,6 @@ bool OptionsGroup::activate(std::function<void()> throw_if_canceled/* = [](){}*/
 		if (staticbox) {
             // ORCA match style of wxStaticBox between platforms
 			LabeledStaticBox * stb = new LabeledStaticBox(m_parent, _(title));
-			//wxGetApp().UpdateDarkUI(stb);
 			this->stb = stb;
 			sizer = new wxStaticBoxSizer(stb, wxVERTICAL);
 		}
@@ -862,14 +861,11 @@ void ConfigOptionsGroup::sys_color_changed()
 {
 #ifdef _WIN32
     if (staticbox && stb) {
-        wxGetApp().UpdateAllStaticTextDarkUI(stb);
         // update bitmaps for extra column items (like "delete" buttons on settings panel)
         for (auto extra_col : m_extra_column_item_ptrs)
-            wxGetApp().UpdateDarkUI(extra_col);
     }
 
     if (custom_ctrl)
-        wxGetApp().UpdateDarkUI(custom_ctrl);
 #endif
 
     auto update = [](wxSizer* sizer) {
@@ -881,7 +877,6 @@ void ConfigOptionsGroup::sys_color_changed()
                     sc_btn->msw_rescale();
                     return;
                 }
-                wxGetApp().UpdateDarkUI(win, dynamic_cast<wxButton*>(win) != nullptr);
             }
     };
 

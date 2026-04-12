@@ -130,7 +130,6 @@ ZUserLogin::ZUserLogin() : wxDialog((wxWindow *) (wxGetApp().mainframe), wxID_AN
         wxPoint tmpPT((screenwidth - pSize.x) / 2, MaxY);
         Move(tmpPT);
     }
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 ZUserLogin::~ZUserLogin() {

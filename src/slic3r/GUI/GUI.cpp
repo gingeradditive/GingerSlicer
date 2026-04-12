@@ -388,7 +388,6 @@ void create_combochecklist(wxComboCtrl* comboCtrl, const std::string& text, cons
 {
     if (comboCtrl == nullptr)
         return;
-    wxGetApp().UpdateDarkUI(comboCtrl);
 
     wxCheckListBoxComboPopup* popup = new wxCheckListBoxComboPopup;
     if (popup != nullptr) {
@@ -426,7 +425,6 @@ void create_combochecklist(wxComboCtrl* comboCtrl, const std::string& text, cons
 		}
 
 		comboCtrl->SetMinClientSize(wxSize(max_width, -1));
-        wxGetApp().UpdateDarkUI(popup);
 	}
 }
 

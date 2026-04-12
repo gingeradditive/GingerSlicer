@@ -71,9 +71,6 @@ ProgressStatusBar::~ProgressStatusBar() {
 
 void ProgressStatusBar::update_dark_ui()
 {
-    GUI::wxGetApp().UpdateDarkUI(self);
-    GUI::wxGetApp().UpdateDarkUI(m_prog);
-    GUI::wxGetApp().UpdateDarkUI(m_cancelbutton);
 }
 
 int ProgressStatusBar::get_progress() const

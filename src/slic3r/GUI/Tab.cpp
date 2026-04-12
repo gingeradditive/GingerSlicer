@@ -118,7 +118,6 @@ Tab::Tab(ParamsPanel* parent, const wxString& title, Preset::Type type) :
     Create(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBK_LEFT | wxTAB_TRAVERSAL/*, name*/);
     this->SetFont(Slic3r::GUI::wxGetApp().normal_font());
 
-    wxGetApp().UpdateDarkUI(this);
     SetBackgroundColour(*wxWHITE);
 
     m_compatible_printers.type			= Preset::TYPE_PRINTER;
@@ -459,7 +458,6 @@ void Tab::create_preset_tab()
     // Index of the last icon inserted into $self->{icons}.
     m_icon_count = -1;
     m_tabctrl->AssignImageList(m_icons);
-    wxGetApp().UpdateDarkUI(m_tabctrl);
 
     // Delay processing of the following handler until the message queue is flushed.
     // This helps to process all the cursor key events on Windows in the tree control,
@@ -1297,8 +1295,6 @@ void Tab::sys_color_changed()
     //BBS: GUI refactor
     //if (m_mode_sizer)
     //    m_mode_sizer->msw_rescale();
-    wxGetApp().UpdateDarkUI(this);
-    wxGetApp().UpdateDarkUI(m_tabctrl);
 #endif
     update_changed_tree_ui();
 
@@ -6043,12 +6039,10 @@ void Tab::create_line_with_widget(ConfigOptionsGroup* optgroup, const std::strin
 wxSizer* Tab::compatible_widget_create(wxWindow* parent, PresetDependencies &deps)
 {
     deps.checkbox = new ::CheckBox(parent, wxID_ANY);
-    wxGetApp().UpdateDarkUI(deps.checkbox, false, true);
 
     deps.checkbox_title = new wxStaticText(parent, wxID_ANY, _L("All"));
     deps.checkbox_title->SetFont(Label::Body_14);
     deps.checkbox_title->SetForegroundColour(wxColour("#363636"));
-    wxGetApp().UpdateDarkUI(deps.checkbox_title, false, true);
 
     // ORCA modernize button style
     Button* btn = new Button(parent, _(L("Set")) + " " + dots);
@@ -6128,7 +6122,6 @@ wxSizer* Tab::compatible_widget_create(wxWindow* parent, PresetDependencies &dep
         }
 
         wxMultiChoiceDialog dlg(parent, deps.dialog_title, deps.dialog_label, presets);
-        wxGetApp().UpdateDlgDarkUI(&dlg);
         // Collect and set indices of depending_presets marked as compatible.
         wxArrayInt selections;
         auto *compatible_printers = dynamic_cast<const ConfigOptionStrings*>(m_config->option(deps.key_list));

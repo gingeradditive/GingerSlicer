@@ -62,7 +62,6 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, wxBoxSizer* side_tools) :
 
 void ButtonsListCtrl::OnPaint(wxPaintEvent&)
 {
-    //Slic3r::GUI::wxGetApp().UpdateDarkUI(this);
     const wxSize sz = GetSize();
     wxPaintDC dc(this);
 
@@ -200,7 +199,6 @@ bool ButtonsListCtrl::InsertPage(size_t n, const wxString &text, bool bSelect /*
             wxPostEvent(this->GetParent(), evt);
         }
     });
-    Slic3r::GUI::wxGetApp().UpdateDarkUI(btn);
     m_pageButtons.insert(m_pageButtons.begin() + n, btn);
     m_buttons_sizer->Insert(n, new wxSizerItem(btn));
     m_buttons_sizer->SetCols(m_buttons_sizer->GetCols() + 1);

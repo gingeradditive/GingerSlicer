@@ -22,7 +22,6 @@ OAuthDialog::OAuthDialog(wxWindow* parent, OAuthParams params)
 
     wxStdDialogButtonSizer* btns = this->CreateStdDialogButtonSizer(wxCANCEL);
     btnCancel                    = static_cast<wxButton*>(this->FindWindowById(wxID_CANCEL, this));
-    wxGetApp().UpdateDarkUI(btnCancel);
     btnCancel->Bind(wxEVT_BUTTON, &OAuthDialog::on_cancel, this);
 
     const auto message_sizer = new wxBoxSizer(wxVERTICAL);
@@ -39,7 +38,6 @@ OAuthDialog::OAuthDialog(wxWindow* parent, OAuthParams params)
     SetSizer(topSizer);
     topSizer->SetSizeHints(this);
     this->CenterOnParent();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 void OAuthDialog::on_cancel(wxEvent& event)

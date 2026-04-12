@@ -154,7 +154,6 @@ ArchiveViewCtrl::ArchiveViewCtrl(wxWindow* parent, wxSize size)
     )
     //, m_em_unit(em_unit(parent))
 {
-    wxGetApp().UpdateDVCDarkUI(this);
 
     m_model = new ArchiveViewModel(parent);
     this->AssociateModel(m_model);
@@ -177,8 +176,6 @@ FileArchiveDialog::FileArchiveDialog(wxWindow* parent_window, mz_zip_archive* ar
 {
 #ifdef _WIN32
     SetBackgroundColour(*wxWHITE);
-    wxGetApp().UpdateDarkUI(this);
-    wxGetApp().UpdateDlgDarkUI(this);
 #else
     SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
 #endif
@@ -272,7 +269,6 @@ FileArchiveDialog::FileArchiveDialog(wxWindow* parent_window, mz_zip_archive* ar
     SetMinSize(wxSize(40 * em, 30 * em));
 
     for (auto btn : m_button_list)
-        wxGetApp().UpdateDarkUI(btn);
 }
 
 void FileArchiveDialog::on_dpi_changed(const wxRect& suggested_rect)

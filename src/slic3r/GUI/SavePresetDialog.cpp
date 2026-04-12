@@ -246,14 +246,12 @@ SavePresetDialog::SavePresetDialog(wxWindow *parent, Preset::Type type, std::str
     : DPIDialog(parent, wxID_ANY, _L("Save preset"), wxDefaultPosition, wxDefaultSize, wxCAPTION | wxCLOSE_BOX)
 {
     build(std::vector<Preset::Type>{type}, suffix);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 SavePresetDialog::SavePresetDialog(wxWindow *parent, std::vector<Preset::Type> types, std::string suffix)
     : DPIDialog(parent, wxID_ANY, _L("Save preset"), wxDefaultPosition, wxDefaultSize, wxCAPTION | wxCLOSE_BOX)
 {
     build(types, suffix);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 SavePresetDialog::~SavePresetDialog()

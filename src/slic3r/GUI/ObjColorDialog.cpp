@@ -37,7 +37,6 @@ const int COLOR_LABEL_WIDTH = 180;
 
 static void update_ui(wxWindow* window)
 {
-    Slic3r::GUI::wxGetApp().UpdateDarkUI(window);
 }
 
 static const char g_min_cluster_color = 1;
@@ -186,7 +185,6 @@ ObjColorDialog::ObjColorDialog(wxWindow *                      parent,
     }
     this->Bind(wxEVT_CLOSE_WINDOW, [this](wxCloseEvent& e) { EndModal(wxCANCEL); });
 
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 RGBA     convert_to_rgba(const wxColour &color)
 {

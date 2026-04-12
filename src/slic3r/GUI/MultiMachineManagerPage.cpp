@@ -23,7 +23,6 @@ MultiMachineItem::MultiMachineItem(wxWindow* parent, MachineObject* obj)
             wxGetApp().mainframe->m_monitor->get_status_panel()->get_media_play_ctrl()->jump_to_play();
         }
     });
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 void MultiMachineItem::OnEnterWindow(wxMouseEvent& evt)

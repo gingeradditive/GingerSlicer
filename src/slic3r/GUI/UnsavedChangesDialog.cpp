@@ -590,7 +590,6 @@ DiffViewCtrl::DiffViewCtrl(wxWindow* parent, wxSize size)
     ),
     m_em_unit(em_unit(parent))
 {
-    wxGetApp().UpdateDVCDarkUI(this);
 
     model = new DiffModel(parent);
     this->AssociateModel(model);
@@ -798,7 +797,6 @@ UnsavedChangesDialog::UnsavedChangesDialog(const wxString &caption, const wxStri
 {
     build(Preset::TYPE_INVALID, nullptr, "", header);
     this->CenterOnScreen();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 UnsavedChangesDialog::UnsavedChangesDialog(Preset::Type type, PresetCollection *dependent_presets, const std::string &new_selected_preset, bool no_transfer)
@@ -814,7 +812,6 @@ UnsavedChangesDialog::UnsavedChangesDialog(Preset::Type type, PresetCollection *
         m_buttons &= ~ActionButtons::TRANSFER;
     build(type, dependent_presets, new_selected_preset);
     this->CenterOnScreen();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 
@@ -1782,7 +1779,6 @@ FullCompareDialog::FullCompareDialog(const wxString& option_name, const wxString
 
     auto add_value = [grid_sizer, border, this](wxString label, const std::set<wxString>& diff_set, bool is_colored = false) {
         wxTextCtrl* text = new wxTextCtrl(this, wxID_ANY, label, wxDefaultPosition, wxSize(400, 400), wxTE_MULTILINE | wxTE_READONLY | wxBORDER_DEFAULT | wxTE_RICH);
-        wxGetApp().UpdateDarkUI(text);
         text->SetStyle(0, label.Len(), wxTextAttr(is_colored ? wxColour(orange) : wxNullColour, wxNullColour, this->GetFont()));
 
         for (const wxString& str : diff_set) {
@@ -1800,7 +1796,6 @@ FullCompareDialog::FullCompareDialog(const wxString& option_name, const wxString
     sizer->Add(grid_sizer, 1, wxEXPAND);
 
     wxStdDialogButtonSizer* buttons = this->CreateStdDialogButtonSizer(wxOK);
-    wxGetApp().UpdateDarkUI(static_cast<wxButton*>(this->FindWindowById(wxID_OK, this)), true);
 
     wxBoxSizer* topSizer = new wxBoxSizer(wxVERTICAL);
 
@@ -1810,7 +1805,6 @@ FullCompareDialog::FullCompareDialog(const wxString& option_name, const wxString
     SetSizer(topSizer);
     topSizer->SetSizeHints(this);
 
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 
@@ -2026,7 +2020,6 @@ void DiffPresetDialog::complete_dialog_creation()
     this->SetMinSize(wxSize(80 * em_unit(), 30 * em_unit()));
     this->SetSizer(topSizer);
     topSizer->SetSizeHints(this);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 DiffPresetDialog::DiffPresetDialog(MainFrame* mainframe)
@@ -2104,7 +2097,6 @@ void DiffPresetDialog::show(Preset::Type type /* = Preset::TYPE_INVALID*/)
         Fit();
 
     update_tree();
-    wxGetApp().UpdateDlgDarkUI(this);
 
     // if this dialog is shown it have to be Hide and show again to be placed on the very Top of windows
     if (IsShown())
@@ -2277,9 +2269,6 @@ void DiffPresetDialog::on_dpi_changed(const wxRect&)
 void DiffPresetDialog::on_sys_color_changed()
 {
 #ifdef _WIN32
-    wxGetApp().UpdateAllStaticTextDarkUI(this);
-    wxGetApp().UpdateDarkUI(m_show_all_presets);
-    wxGetApp().UpdateDVCDarkUI(m_tree);
 #endif
 
     for (auto preset_combos : m_preset_combos) {

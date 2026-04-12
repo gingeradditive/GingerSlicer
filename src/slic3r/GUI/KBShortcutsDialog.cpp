@@ -82,7 +82,6 @@ KBShortcutsDialog::KBShortcutsDialog()
     event.SetInt(0);
     event.SetEventObject(this);
     wxPostEvent(this, event);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 void KBShortcutsDialog::OnSelectTabel(wxCommandEvent &event)
@@ -108,7 +107,6 @@ void KBShortcutsDialog::OnSelectTabel(wxCommandEvent &event)
         }
         i++;
     }
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 wxWindow *KBShortcutsDialog::create_button(int id, wxString text)
@@ -324,7 +322,6 @@ wxPanel* KBShortcutsDialog::create_page(wxWindow* parent, const ShortcutsItem& s
 
     int items_count = (int) shortcuts.second.size();
     wxScrolledWindow *scrollable_panel = new wxScrolledWindow(main_page);
-    wxGetApp().UpdateDarkUI(scrollable_panel);
     scrollable_panel->SetScrollbars(20, 20, 50, 50);
     scrollable_panel->SetInitialSize(wxSize(FromDIP(850), FromDIP(450)));
 

@@ -625,7 +625,6 @@ SearchDialog::SearchDialog(OptionsSearcher *searcher, Preset::Type type, wxWindo
 
     // SetSizer(topSizer);
     // topSizer->SetSizeHints(this);
-    GUI::wxGetApp().UpdateDarkUIWin(this);
 }
 
 SearchDialog::~SearchDialog() {}
@@ -857,7 +856,6 @@ SearchObjectDialog::SearchObjectDialog(GUI::ObjectList* object_list, wxWindow* p
     m_sizer_border->Fit(this);
     Thaw();
 
-    GUI::wxGetApp().UpdateDarkUIWin(this);
 }
 
 SearchObjectDialog::~SearchObjectDialog() {}

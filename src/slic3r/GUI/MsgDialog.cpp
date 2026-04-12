@@ -66,7 +66,6 @@ MsgDialog::MsgDialog(wxWindow *parent, const wxString &title, const wxString &he
 
     apply_style(style);
 	SetSizerAndFit(main_sizer);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
  MsgDialog::~MsgDialog()
@@ -204,7 +203,6 @@ void MsgDialog::apply_style(long style)
 
 void MsgDialog::finalize()
 {
-    wxGetApp().UpdateDlgDarkUI(this);
     Fit();
     CenterOnParent();
 }
@@ -295,7 +293,6 @@ static void add_msg_content(wxWindow* parent, wxBoxSizer* content_sizer, wxStrin
         msg_escaped = std::string("<pre><code>") + msg_escaped + "</code></pre>";
     html->SetPage("<html><body bgcolor=\"" + bgr_clr_str + "\"><font color=\"" + text_clr_str + "\">" + wxString::FromUTF8(msg_escaped.data()) + "</font></body></html>");
     content_sizer->Add(html, 1, wxEXPAND|wxRIGHT, 8);
-    wxGetApp().UpdateDarkUIWin(html);
 }
 
 // ErrorDialog
@@ -339,7 +336,6 @@ MessageDialog::MessageDialog(wxWindow* parent,
 {
     add_msg_content(this, content_sizer, message);
     finalize();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 
@@ -488,7 +484,6 @@ DeleteConfirmDialog::DeleteConfirmDialog(wxWindow *parent, const wxString &title
     SetSizer(m_main_sizer);
     Layout();
     Fit();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 DeleteConfirmDialog::~DeleteConfirmDialog() {}
@@ -523,7 +518,6 @@ Newer3mfVersionDialog::Newer3mfVersionDialog(wxWindow *parent, const Semver *fil
     this->SetSizer(main_sizer);
     Layout();
     Fit();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 wxBoxSizer *Newer3mfVersionDialog::get_msg_sizer()

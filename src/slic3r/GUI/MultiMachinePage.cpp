@@ -16,7 +16,6 @@ MultiMachinePage::MultiMachinePage(wxWindow* parent, wxWindowID id, const wxPoin
     Layout();
     Fit();
     
-    wxGetApp().UpdateDarkUIWin(this);
 
     init_timer();
     Bind(wxEVT_TIMER, &MultiMachinePage::on_timer, this);
@@ -129,7 +128,6 @@ DevicePickItem::DevicePickItem(wxWindow* parent, MachineObject* obj)
     Bind(wxEVT_LEFT_DOWN, &DevicePickItem::OnLeftDown, this);
     Bind(wxEVT_MOTION, &DevicePickItem::OnMove, this);
     Bind(EVT_MULTI_DEVICE_SELECTED, &DevicePickItem::OnSelectedDevice, this);
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 void DevicePickItem::DrawTextWithEllipsis(wxDC& dc, const wxString& text, int maxWidth, int left, int top /*= 0*/)
@@ -337,7 +335,6 @@ MultiMachinePickPage::MultiMachinePickPage(Plater* plater /*= nullptr*/)
     Fit();
     Centre(wxBOTH);
 
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 MultiMachinePickPage::~MultiMachinePickPage()

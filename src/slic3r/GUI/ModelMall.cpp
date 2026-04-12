@@ -142,7 +142,6 @@ namespace GUI {
 
     void ModelMallDialog::on_show(wxShowEvent& event)
     {
-        wxGetApp().UpdateFrameDarkUI(this);
         if (event.IsShown()) {
             Centre(wxBOTH);
         }

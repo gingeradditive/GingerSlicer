@@ -660,7 +660,6 @@ bool FanControlPopup::ProcessLeftDown(wxMouseEvent& event)
 
 void FanControlPopup::on_show(wxShowEvent& evt)
 {
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 void FanControlPopup::paintEvent(wxPaintEvent& evt)

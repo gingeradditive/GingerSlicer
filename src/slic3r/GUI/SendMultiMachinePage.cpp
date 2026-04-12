@@ -43,7 +43,6 @@ SendDeviceItem::SendDeviceItem(wxWindow* parent,  MachineObject* obj)
     Bind(wxEVT_LEFT_DOWN, &SendDeviceItem::OnLeftDown, this);
     Bind(wxEVT_MOTION, &SendDeviceItem::OnMove, this);
     Bind(EVT_MULTI_DEVICE_SELECTED, &SendDeviceItem::OnSelectedDevice, this);
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 void SendDeviceItem::DrawTextWithEllipsis(wxDC& dc, const wxString& text, int maxWidth, int left, int top /*= 0*/)
@@ -298,7 +297,6 @@ SendMultiMachinePage::SendMultiMachinePage(Plater* plater)
 
     init_timer();
     Bind(wxEVT_TIMER, &SendMultiMachinePage::on_timer, this);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 SendMultiMachinePage::~SendMultiMachinePage()

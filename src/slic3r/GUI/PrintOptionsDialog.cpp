@@ -72,7 +72,6 @@ PrintOptionsDialog::PrintOptionsDialog(wxWindow* parent)
         evt.Skip();
         });
 
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 PrintOptionsDialog::~PrintOptionsDialog()
@@ -428,7 +427,6 @@ void PrintOptionsDialog::update_machine_obj(MachineObject *obj_)
 bool PrintOptionsDialog::Show(bool show)
 {
     if (show) {
-        wxGetApp().UpdateDlgDarkUI(this);
         CentreOnParent();
     }
     return DPIDialog::Show(show);
@@ -507,7 +505,6 @@ PrinterPartsDialog::PrinterPartsDialog(wxWindow* parent)
     SetSizer(sizer);
     Layout();
     Fit();
-    wxGetApp().UpdateDlgDarkUI(this);
 
     nozzle_type_checkbox->Connect(wxEVT_COMBOBOX, wxCommandEventHandler(PrinterPartsDialog::set_nozzle_data), NULL, this);
     nozzle_diameter_checkbox->Connect(wxEVT_COMBOBOX, wxCommandEventHandler(PrinterPartsDialog::set_nozzle_data), NULL, this);
@@ -590,7 +587,6 @@ void PrinterPartsDialog::update_machine_obj(MachineObject* obj_)
 bool PrinterPartsDialog::Show(bool show)
 {
     if (show) {
-        wxGetApp().UpdateDlgDarkUI(this);
         CentreOnParent();
 
         auto type     = obj->m_extder_data.extders[MAIN_NOZZLE_ID].current_nozzle_type;

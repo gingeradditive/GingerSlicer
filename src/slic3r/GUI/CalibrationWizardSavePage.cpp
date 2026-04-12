@@ -358,7 +358,6 @@ void CaliPASaveAutoPanel::sync_cali_result(const std::vector<PACalibResult>& cal
         m_part_failed_panel->Hide();
     }
 
-    wxGetApp().UpdateDarkUIWin(this);
 
     Layout();
 }
@@ -670,7 +669,6 @@ void CaliPASaveAutoPanel::sync_cali_result_for_multi_extruder(const std::vector<
         m_part_failed_panel->Hide();
     }
 
-    wxGetApp().UpdateDarkUIWin(this);
 
     Layout();
 }
@@ -1334,7 +1332,6 @@ void CalibrationFlowX1SavePage::sync_cali_result(const std::vector<FlowRatioCali
         m_part_failed_panel->Hide();
     }
 
-    wxGetApp().UpdateDarkUIWin(this);
 
     Layout();
 }
