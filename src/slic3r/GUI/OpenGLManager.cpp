@@ -19,8 +19,6 @@
 #ifdef __APPLE__
 // Part of hack to remove crash when closing the application on OSX 10.9.5 when building against newer wxWidgets
 #include <wx/platinfo.h>
-
-#include "../Utils/MacDarkMode.hpp"
 #endif // __APPLE__
 
 namespace Slic3r {

@@ -4,9 +4,6 @@
 #include "I18N.hpp"
 
 #include "libslic3r/LocalesUtils.hpp"
-#ifdef __APPLE__
-#include "slic3r/Utils/MacDarkMode.hpp"
-#endif
 #include <string>
 
 #include <boost/algorithm/string.hpp>

@@ -1,6 +1,5 @@
 #include "WebView.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
-#include "slic3r/Utils/MacDarkMode.hpp"
 
 #include <boost/log/trivial.hpp>
 
