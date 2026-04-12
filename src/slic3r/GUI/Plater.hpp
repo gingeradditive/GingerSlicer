@@ -191,9 +191,6 @@ public:
     void                    auto_calc_flushing_volumes(const int modify_id);
     void                    jump_to_object(ObjectDataViewModelNode* item);
     void                    can_search();
-#ifdef _MSW_DARK_MODE
-    void                    show_mode_sizer(bool show);
-#endif
 
     std::vector<PlaterPresetComboBox*>&   combos_filament();
     Search::OptionsSearcher&        get_searcher();

@@ -133,7 +133,6 @@ PrivacyUpdateDialog::PrivacyUpdateDialog(wxWindow* parent, wxWindowID id, const 
     m_sizer_main->Fit(this);
 
     CenterOnParent();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 wxWebView* PrivacyUpdateDialog::CreateTipView(wxWindow* parent)
@@ -164,16 +163,10 @@ bool PrivacyUpdateDialog::ShowReleaseNote(std::string content)
 void PrivacyUpdateDialog::RunScript(std::string script)
 {
     WebView::RunScript(m_vebview_release_note, script);
-    std::string switch_dark_mode_script = "SwitchDarkMode(";
-    switch_dark_mode_script += wxGetApp().app_config->get("dark_color_mode") == "1" ? "true" : "false";
-    switch_dark_mode_script += ");";
-    WebView::RunScript(m_vebview_release_note, switch_dark_mode_script);
-    script.clear();
 }
 
 void PrivacyUpdateDialog::on_show()
 {
-    wxGetApp().UpdateDlgDarkUI(this);
     this->ShowModal();
 }
 

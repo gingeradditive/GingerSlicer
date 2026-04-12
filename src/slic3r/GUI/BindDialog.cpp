@@ -744,7 +744,6 @@ PingCodeBindDialog::~PingCodeBindDialog() {
      this->Connect(EVT_BIND_UPDATE_MESSAGE, wxCommandEventHandler(BindMachineDialog::on_update_message), NULL, this);
      m_simplebook->SetSelection(1);
 
-     wxGetApp().UpdateDlgDarkUI(this);
  }
 
  BindMachineDialog::~BindMachineDialog()
@@ -915,7 +914,6 @@ void BindMachineDialog::on_show(wxShowEvent &event)
 
     if (event.IsShown()) {
         auto img = m_machine_info->get_printer_thumbnail_img_str();
-        if (wxGetApp().dark_mode()) { img += "_dark"; }
         auto bitmap = create_scaled_bitmap(img, this, FromDIP(100));
         m_printer_img->SetBitmap(bitmap);
         m_printer_img->Refresh();
@@ -1069,10 +1067,7 @@ UnBindMachineDialog::UnBindMachineDialog(Plater *plater /*= nullptr*/)
      Bind(wxEVT_SHOW, &UnBindMachineDialog::on_show, this);
      m_button_unbind->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(UnBindMachineDialog::on_unbind_printer), NULL, this);
      m_button_cancel->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(UnBindMachineDialog::on_cancel), NULL, this);
-
-
-     wxGetApp().UpdateDlgDarkUI(this);
- }
+} 
 
  UnBindMachineDialog::~UnBindMachineDialog()
  {
@@ -1132,7 +1127,6 @@ void UnBindMachineDialog::on_show(wxShowEvent &event)
 {
     if (event.IsShown()) {
         auto img = m_machine_info->get_printer_thumbnail_img_str();
-        if (wxGetApp().dark_mode()) { img += "_dark"; }
         auto bitmap = create_scaled_bitmap(img, this, FromDIP(100));
         m_printer_img->SetBitmap(bitmap);
         m_printer_img->Refresh();

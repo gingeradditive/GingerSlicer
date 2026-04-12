@@ -3790,14 +3790,7 @@ void SelectMachineDialog::update_page_turn_state(bool show)
 
 void SelectMachineDialog::sys_color_changed()
 {
-    if (wxGetApp(). dark_mode()) {
-        //rename_button->SetIcon("ams_editable_light");
-        m_rename_button->SetBitmap(rename_editable_light->bmp());
-
-    }
-    else {
-        m_rename_button->SetBitmap(rename_editable->bmp());
-    }
+    m_rename_button->SetBitmap(rename_editable->bmp());
     m_rename_button->Refresh();
 }
 
@@ -3956,22 +3949,8 @@ std::string SelectMachineDialog::get_print_status_info(PrintDialogStatus status)
  }
 
  void ThumbnailPanel::render(wxDC& dc) {
-
-     if (wxGetApp().dark_mode() && m_brightness_value < SHOW_BACKGROUND_BITMAP_PIXEL_THRESHOLD) {
-         #ifdef __WXMSW__
-             wxMemoryDC memdc;
-             wxBitmap bmp(GetSize());
-             memdc.SelectObject(bmp);
-             memdc.DrawBitmap(bitmap_with_background, 0, 0);
-             dc.Blit(0, 0, GetSize().GetWidth(), GetSize().GetHeight(), &memdc, 0, 0);
-        #else
-             dc.DrawBitmap(bitmap_with_background, 0, 0);
-        #endif
-     }
-     else
-         dc.DrawBitmap(m_bitmap, 0, 0);
-
- }
+    dc.DrawBitmap(m_bitmap, 0, 0);
+}
 
  ThumbnailPanel::~ThumbnailPanel() {}
 

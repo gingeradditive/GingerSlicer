@@ -188,10 +188,8 @@ void GLGizmoSeam::on_render_input_window(float x, float y, float bottom_limit)
     m_imgui->text(m_desc.at("cursor_type"));
     std::array<wchar_t, 2> tool_ids = { ImGui::CircleButtonIcon, ImGui::SphereButtonIcon };
     std::array<wchar_t, 2> icons;
-    if (m_is_dark_mode)
-        icons = { ImGui::CircleButtonDarkIcon, ImGui::SphereButtonDarkIcon};
-    else
-        icons = { ImGui::CircleButtonIcon, ImGui::SphereButtonIcon };
+    
+    icons = { ImGui::CircleButtonIcon, ImGui::SphereButtonIcon };
     std::array<wxString, 2> tool_tips = { _L("Circle"), _L("Sphere")};
     for (int i = 0; i < tool_ids.size(); i++) {
         std::string  str_label = std::string("##");

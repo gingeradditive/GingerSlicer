@@ -20,9 +20,6 @@
 #include <map>
 
 #ifdef __WINDOWS__
-#ifdef _MSW_DARK_MODE
-#include "dark_mode.hpp"
-#endif // _MSW_DARK_MODE
 #endif //__WINDOWS__
 
 namespace Slic3r { namespace GUI {
@@ -658,66 +655,7 @@ wxBoxSizer *PreferencesDialog::create_item_switch(wxString title, wxWindow *pare
     switchbox->Bind(wxEVT_TOGGLEBUTTON, [this, param](wxCommandEvent &e) {
         /* app_config->set(param, std::to_string(e.GetSelection()));
          app_config->save();*/
-         e.Skip();
     });
-    return m_sizer_switch;
-}
-
-wxBoxSizer* PreferencesDialog::create_item_darkmode_checkbox(wxString title, wxWindow* parent, wxString tooltip, int padding_left, std::string param)
-{
-    wxBoxSizer* m_sizer_checkbox = new wxBoxSizer(wxHORIZONTAL);
-
-    m_sizer_checkbox->Add(0, 0, 0, wxEXPAND | wxLEFT, 23);
-
-    auto checkbox = new ::CheckBox(parent);
-    checkbox->SetValue((app_config->get(param) == "1") ? true : false);
-    m_dark_mode_ckeckbox = checkbox;
-
-    m_sizer_checkbox->Add(checkbox, 0, wxALIGN_CENTER, 0);
-    m_sizer_checkbox->Add(0, 0, 0, wxEXPAND | wxLEFT, 8);
-
-    auto checkbox_title = new wxStaticText(parent, wxID_ANY, title, wxDefaultPosition, wxDefaultSize, 0);
-    checkbox_title->SetForegroundColour(DESIGN_GRAY900_COLOR);
-    checkbox_title->SetFont(::Label::Body_13);
-
-    auto size = checkbox_title->GetTextExtent(title);
-    checkbox_title->SetMinSize(wxSize(size.x + FromDIP(40), -1));
-    checkbox_title->Wrap(-1);
-    m_sizer_checkbox->Add(checkbox_title, 0, wxALIGN_CENTER | wxALL, 3);
-
-
-    //// save config
-    checkbox->Bind(wxEVT_TOGGLEBUTTON, [this, checkbox, param](wxCommandEvent& e) {
-        app_config->set(param, checkbox->GetValue() ? "1" : "0");
-        app_config->save();
-        wxGetApp().Update_dark_mode_flag();
-
-        //dark mode
-#ifdef _MSW_DARK_MODE
-        wxGetApp().force_colors_update();
-        wxGetApp().update_ui_from_settings();
-        set_dark_mode();
-#endif
-        SimpleEvent evt = SimpleEvent(EVT_GLCANVAS_COLOR_MODE_CHANGED);
-        wxPostEvent(wxGetApp().plater(), evt);
-        e.Skip();
-        });
-
-    checkbox->SetToolTip(tooltip);
-    return m_sizer_checkbox;
-}
-
-void PreferencesDialog::set_dark_mode()
-{
-#ifdef __WINDOWS__
-#ifdef _MSW_DARK_MODE
-    NppDarkMode::SetDarkExplorerTheme(this->GetHWND());
-    NppDarkMode::SetDarkTitleBar(this->GetHWND());
-    wxGetApp().UpdateDlgDarkUI(this);
-    SetActiveWindow(wxGetApp().mainframe->GetHWND());
-    SetActiveWindow(GetHWND());
-#endif
-#endif
 }
 
 wxBoxSizer *PreferencesDialog::create_item_checkbox(wxString title, wxWindow *parent, wxString tooltip, int padding_left, std::string param)
@@ -1023,7 +961,6 @@ PreferencesDialog::PreferencesDialog(wxWindow *parent, wxWindowID id, const wxSt
 {
     SetBackgroundColour(*wxWHITE);
     create();
-    wxGetApp().UpdateDlgDarkUI(this);
     Bind(wxEVT_CLOSE_WINDOW, [this](wxCloseEvent& event) {
         try {
             NetworkAgent* agent = GUI::wxGetApp().getAgent();

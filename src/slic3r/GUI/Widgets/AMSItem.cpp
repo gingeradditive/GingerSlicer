@@ -508,7 +508,7 @@ void AMSextruder::doRender(wxDC& dc)
             else { dc.SetPen(wxPen(m_current_colur, 6, wxPENSTYLE_SOLID)); }
             dc.DrawRoundedRectangle(-size.x / 2, size.y * 0.1, size.x, size.y, 4);
 
-            if ((m_current_colur == *wxWHITE || m_current_colur.Alpha() == 0) && !wxGetApp().dark_mode()) {
+            if ((m_current_colur == *wxWHITE || m_current_colur.Alpha() == 0)) {
                 dc.SetPen(wxPen(AMS_CONTROL_DEF_BLOCK_BK_COLOUR, 1, wxPENSTYLE_SOLID));
                 dc.DrawRoundedRectangle(-size.x / 2 - FromDIP(3), size.y * 0.1 + FromDIP(3), size.x, size.y, 3);
                 dc.DrawRoundedRectangle(-size.x / 2 + FromDIP(3), size.y * 0.1 - FromDIP(3), size.x, size.y, 5);
@@ -520,7 +520,7 @@ void AMSextruder::doRender(wxDC& dc)
             else {dc.SetPen(wxPen(m_current_colur, 6, wxPENSTYLE_SOLID));}
             dc.DrawLine(size.x / 2, -1, size.x / 2, size.y * 0.6 - 1);
 
-            if ((m_current_colur == *wxWHITE || m_current_colur.Alpha() == 0) && !wxGetApp().dark_mode()) {
+            if ((m_current_colur == *wxWHITE || m_current_colur.Alpha() == 0)) {
                 dc.SetPen(wxPen(AMS_CONTROL_DEF_BLOCK_BK_COLOUR, 1, wxPENSTYLE_SOLID));
                 dc.DrawLine(size.x / 2 - FromDIP(4), -1, size.x / 2 - FromDIP(3), size.y * 0.6 - 1);
                 dc.DrawLine(size.x / 2 + FromDIP(3), -1, size.x / 2 + FromDIP(3), size.y * 0.6 - 1);
@@ -533,7 +533,7 @@ void AMSextruder::doRender(wxDC& dc)
             else { dc.SetPen(wxPen(m_current_colur, 6, wxPENSTYLE_SOLID)); }
             dc.DrawLine(size.x / 2, -1, size.x / 2, size.y * 0.6 - 1);
 
-            if ((m_current_colur == *wxWHITE || m_current_colur.Alpha() == 0) && !wxGetApp().dark_mode()) {
+            if ((m_current_colur == *wxWHITE || m_current_colur.Alpha() == 0)) {
                 dc.SetPen(wxPen(AMS_CONTROL_DEF_BLOCK_BK_COLOUR, 1, wxPENSTYLE_SOLID));
                 dc.DrawLine(size.x / 2 - FromDIP(4), -1, size.x / 2 - FromDIP(3), size.y * 0.6 - 1);
                 dc.DrawLine(size.x / 2 + FromDIP(3), -1, size.x / 2 + FromDIP(3), size.y * 0.6 - 1);
@@ -617,7 +617,7 @@ void AMSVirtualRoad::doRender(wxDC& dc)
     dc.SetBrush(wxBrush(*wxTRANSPARENT_BRUSH));
     dc.DrawRoundedRectangle(size.x / 2, -size.y / 1.1 + FromDIP(1), size.x, size.y, 4);
 
-    if ((m_current_color == *wxWHITE || m_current_color.Alpha() == 0) && !wxGetApp().dark_mode()) {
+    if ((m_current_color == *wxWHITE || m_current_color.Alpha() == 0)) {
         dc.SetPen(wxPen(AMS_CONTROL_DEF_LIB_BK_COLOUR, 1, wxPENSTYLE_SOLID));
         dc.DrawRoundedRectangle(size.x / 2 - FromDIP(3), -size.y / 1.1 + FromDIP(4), size.x, size.y, 5);
         dc.DrawRoundedRectangle(size.x / 2 + FromDIP(3), -size.y / 1.1 - FromDIP(2), size.x, size.y, 3);
@@ -1944,12 +1944,8 @@ void AMSHumidity::doRender(wxDC& dc)
         {
             // hum image
             ScalableBitmap hum_img;
-            if (!wxGetApp().dark_mode()) {
-                hum_img = ams_humidity_no_num_imgs[m_amsinfo.ams_humidity - 1];
-            } else {
-                hum_img = ams_humidity_no_num_dark_imgs[m_amsinfo.ams_humidity - 1];
-            }
-
+            hum_img = ams_humidity_no_num_imgs[m_amsinfo.ams_humidity - 1];
+            
             pot = wxPoint(FromDIP(5), ((size.y - hum_img.GetBmpSize().y) / 2));
             dc.DrawBitmap(hum_img.bmp(), pot);
             pot.x += hum_img.GetBmpSize().x + FromDIP(3);
@@ -1979,12 +1975,8 @@ void AMSHumidity::doRender(wxDC& dc)
         {
             // hum image
             ScalableBitmap hum_img;
-            if (!wxGetApp().dark_mode()) {
-                hum_img = ams_humidity_imgs[m_amsinfo.ams_humidity - 1];
-            } else {
-                hum_img = ams_humidity_dark_imgs[m_amsinfo.ams_humidity - 1];
-            }
-
+            hum_img = ams_humidity_imgs[m_amsinfo.ams_humidity - 1];
+            
             pot = wxPoint(FromDIP(5), ((size.y - hum_img.GetBmpSize().y) / 2));
             dc.DrawBitmap(hum_img.bmp(), pot);
             pot.x = pot.x + hum_img.GetBmpSize().x;

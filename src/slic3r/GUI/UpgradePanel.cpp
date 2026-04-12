@@ -407,14 +407,8 @@ void MachineInfoPanel::init_bitmaps()
     m_img_printer        = ScalableBitmap(this, "printer_thumbnail", 160);
     m_img_monitor_ams    = ScalableBitmap(this, "monitor_upgrade_ams", 200);
     m_img_ext            = ScalableBitmap(this, "monitor_upgrade_ext", 200);
-    if (wxGetApp().dark_mode()) {
-        m_img_air_pump = ScalableBitmap(this, "air_pump_dark", 160);
-        m_img_extra_ams = ScalableBitmap(this, "extra_icon_dark", 160);
-    }
-    else {
-        m_img_air_pump  = ScalableBitmap(this, "air_pump", 160);
-        m_img_extra_ams = ScalableBitmap(this, "extra_icon", 160);
-    }
+    m_img_air_pump  = ScalableBitmap(this, "air_pump", 160);
+    m_img_extra_ams = ScalableBitmap(this, "extra_icon", 160);
 
     m_img_laser          = ScalableBitmap(this, "laser", 160);
     m_img_cutting        = ScalableBitmap(this, "cut", 160);
@@ -451,15 +445,8 @@ void MachineInfoPanel::update_printer_imgs(MachineObject* obj)
 {
     if (!obj) {return;}
     auto img = obj->get_printer_thumbnail_img_str();
-    if (wxGetApp().dark_mode()) {
-        img += "_dark";
-        m_img_extra_ams = ScalableBitmap(this, "extra_icon_dark", 160);
-    }
-    else {
-        m_img_extra_ams = ScalableBitmap(this, "extra_icon", 160);
-
-    }
-
+    m_img_extra_ams = ScalableBitmap(this, "extra_icon", 160);
+    
     m_img_printer = ScalableBitmap(this, img, 160);
     m_printer_img->SetBitmap(m_img_printer.bmp());
     m_printer_img->Refresh();

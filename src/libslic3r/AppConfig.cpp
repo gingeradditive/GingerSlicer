@@ -213,11 +213,6 @@ void AppConfig::set_defaults()
         set_bool("use_legacy_3DConnexion", true);
 //#endif
 
-#ifdef SUPPORT_DARK_MODE
-    if (get("dark_color_mode").empty())
-        set("dark_color_mode", "0");
-#endif
-
 //#ifdef SUPPORT_SYS_MENU
     if (get("sys_menu_enabled").empty())
         set("sys_menu_enabled", "1");

@@ -8,7 +8,6 @@ AMSSetting::AMSSetting(wxWindow *parent, wxWindowID id, const wxPoint &pos, cons
     : DPIDialog(parent, id, wxEmptyString, pos, size, style)
 {
     create();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 AMSSetting::~AMSSetting() {}
 
@@ -275,7 +274,6 @@ void AMSSetting::create()
     m_sizer_main->Fit(this);
 
     this->Centre(wxBOTH);
-    wxGetApp().UpdateDlgDarkUI(this);
 
     Bind(wxEVT_SHOW, [this](auto& e) {
         if (this->IsShown()) {
@@ -324,9 +322,6 @@ void AMSSetting::update_insert_material_read_mode(bool selected, std::string ver
 
 void AMSSetting::update_ams_img(std::string ams_icon_str)
 {
-    if (wxGetApp().dark_mode()&& ams_icon_str=="extra_icon") {
-        ams_icon_str += "_dark";
-    }
     m_am_img->SetBitmap(create_scaled_bitmap(ams_icon_str, nullptr, 126));
 }
 

@@ -13,7 +13,6 @@
 #include "I18N.hpp"
 #include "GUI_Utils.hpp"
 #include "Plater.hpp"
-#include "../Utils/MacDarkMode.hpp"
 #include "BitmapComboBox.hpp"
 #include "Widgets/StaticBox.hpp"
 #include "Widgets/Label.hpp"
@@ -445,14 +444,8 @@ wxBitmap create_scaled_bitmap(  const std::string& bmp_name_in,
     std::string bmp_name = bmp_name_in;
     boost::replace_last(bmp_name, ".png", "");
 
-    bool dark_mode = 
-#ifdef _WIN32
-    menu_bitmap ? Slic3r::GUI::check_dark_mode() :
-#endif
-    Slic3r::GUI::wxGetApp().dark_mode();
-
     // Try loading an SVG first, then PNG if SVG was not found:
-    wxBitmap *bmp = cache.load_svg(bmp_name, width, height, grayscale, dark_mode, new_color, resize ? em_unit(win) * 0.1f : 0.f);
+    wxBitmap *bmp = cache.load_svg(bmp_name, width, height, grayscale, false, new_color, resize ? em_unit(win) * 0.1f : 0.f);
     if (bmp == nullptr) {
         bmp = cache.load_png(bmp_name, width, height, grayscale, resize ? win->FromDIP(10) * 0.1f : 0.f);
     }
@@ -491,7 +484,6 @@ wxBitmap* get_default_extruder_color_icon(bool thin_icon/* = false*/)
     const double em = Slic3r::GUI::wxGetApp().em_unit();
     const int icon_width = lround((thin_icon ? 2 : 4.5) * em);
     const int icon_height = lround(2 * em);
-    bool dark_mode = Slic3r::GUI::wxGetApp().dark_mode();
 
     wxClientDC cdc((wxWindow*)Slic3r::GUI::wxGetApp().mainframe);
     wxMemoryDC dc(&cdc);
@@ -609,7 +601,6 @@ void apply_extruder_selector(Slic3r::GUI::BitmapComboBox** ctrl,
 
     if (!*ctrl) {
         *ctrl = new Slic3r::GUI::BitmapComboBox(parent, wxID_ANY, wxEmptyString, pos, size, 0, nullptr, wxCB_READONLY);
-        Slic3r::GUI::wxGetApp().UpdateDarkUI(*ctrl);
     }
     else
     {
@@ -662,7 +653,6 @@ LockButton::LockButton( wxWindow *parent,
     m_bmp_lock_open     = ScalableBitmap(this, "unlock_normal");
     m_bmp_lock_open_f   = ScalableBitmap(this, "unlock_hover");
 
-    Slic3r::GUI::wxGetApp().UpdateDarkUI(this);
     SetBitmap(m_bmp_lock_open.bmp());
     SetBitmapDisabled(m_bmp_lock_open.bmp());
     SetBitmapHover(m_bmp_lock_closed_f.bmp());
@@ -700,7 +690,6 @@ void LockButton::msw_rescale()
 
 void LockButton::update_button_bitmaps()
 {
-    Slic3r::GUI::wxGetApp().UpdateDarkUI(this);
     SetBitmap(m_is_pushed ? m_bmp_lock_closed.bmp() : m_bmp_lock_open.bmp());
     SetBitmapHover(m_is_pushed ? m_bmp_lock_closed_f.bmp() : m_bmp_lock_open_f.bmp());
 
@@ -949,7 +938,6 @@ ScalableButton::ScalableButton( wxWindow *          parent,
 {
     SetBackgroundColour(StaticBox::GetParentBackgroundColor(parent));
     Create(parent, id, label, pos, size, style);
-    Slic3r::GUI::wxGetApp().UpdateDarkUI(this);
 
     if (!icon_name.empty()) {
         SetBitmap(create_scaled_bitmap(icon_name, parent, m_px_cnt));
@@ -979,7 +967,6 @@ ScalableButton::ScalableButton( wxWindow *          parent,
     m_has_border(!(style& wxNO_BORDER))
 {
     Create(parent, id, label, wxDefaultPosition, wxDefaultSize, style);
-    Slic3r::GUI::wxGetApp().UpdateDarkUI(this);
 
     SetBitmap(bitmap.bmp());
 }
@@ -1029,8 +1016,6 @@ void ScalableButton::UseDefaultBitmapDisabled()
 
 void ScalableButton::msw_rescale()
 {
-    Slic3r::GUI::wxGetApp().UpdateDarkUI(this, m_has_border);
-
     if (!m_current_icon_name.empty()) {
         wxBitmap bmp = create_scaled_bitmap(m_current_icon_name, m_parent, m_px_cnt);
         SetBitmap(bmp);

@@ -20,9 +20,6 @@
 #ifdef __WINDOWS__
 #include <wx/msw/dcclient.h>
 #include <wx/msw/private.h>
-#ifdef _MSW_DARK_MODE
-#include "dark_mode.hpp"
-#endif //_MSW_DARK_MODE
 #endif //__WINDOWS__
 
 #include "libslic3r/libslic3r.h"
@@ -80,7 +77,6 @@ BitmapComboBox::BitmapComboBox(wxWindow* parent,
     // Workaround for ignoring CBN_EDITCHANGE events, which are processed after the content of the combo box changes, so that
     // the index of the item inside CBN_EDITCHANGE may no more be valid.
     EnableTextChangedEvents(false);
-    wxGetApp().UpdateDarkUI(this);
     if (!HasFlag(wxCB_READONLY))
         wxTextEntry::SetMargins(0,0);
 #endif /* _WIN32 */
@@ -254,11 +250,7 @@ void BitmapComboBox::DrawBackground_(wxDC& dc, const wxRect& rect, int WXUNUSED(
         dc.SetTextForeground(flags & ODCB_PAINTING_DISABLED ? wxColour(108,108,108) : wxGetApp().get_label_clr_default());
 
         wxColour selCol = flags & ODCB_PAINTING_DISABLED ? 
-//#ifdef _MSW_DARK_MODE
-            //wxRGBToColour(NppDarkMode::GetSofterBackgroundColor()) :
-//#else
             wxGetApp().get_highlight_default_clr() :
-//#endif
             wxGetApp().get_window_default_clr();
         dc.SetPen(selCol);
         dc.SetBrush(selCol);

@@ -192,8 +192,6 @@ wxDEFINE_EVENT(EVT_INSTALL_PLUGIN_NETWORKING,       wxCommandEvent);
 wxDEFINE_EVENT(EVT_UPDATE_PLUGINS_WHEN_LAUNCH,       wxCommandEvent);
 wxDEFINE_EVENT(EVT_INSTALL_PLUGIN_HINT,             wxCommandEvent);
 wxDEFINE_EVENT(EVT_PREVIEW_ONLY_MODE_HINT,          wxCommandEvent);
-//BBS: change light/dark mode
-wxDEFINE_EVENT(EVT_GLCANVAS_COLOR_MODE_CHANGED,     SimpleEvent);
 //BBS: print
 wxDEFINE_EVENT(EVT_PRINT_FROM_SDCARD_VIEW,          SimpleEvent);
 
@@ -266,7 +264,6 @@ SlicedInfo::SlicedInfo(wxWindow *parent) :
     wxStaticBoxSizer(new wxStaticBox(parent, wxID_ANY, _L("Sliced Info")), wxVERTICAL)
 {
     GetStaticBox()->SetFont(wxGetApp().bold_font());
-    wxGetApp().UpdateDarkUI(GetStaticBox());
 
     auto *grid_sizer = new wxFlexGridSizer(2, 5, 15);
     grid_sizer->SetFlexibleDirection(wxVERTICAL);
@@ -663,9 +660,6 @@ Sidebar::Sidebar(Plater *parent)
     SetFont(wxGetApp().normal_font());
 #ifndef __APPLE__
 #ifdef _WIN32
-    wxGetApp().UpdateDarkUI(this);
-    wxGetApp().UpdateDarkUI(p->scrolled);
-#else
     SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
 #endif
 #endif
@@ -1576,14 +1570,12 @@ void Sidebar::sys_color_changed()
 
 #if 0
     for (wxWindow* win : std::vector<wxWindow*>{ this, p->sliced_info->GetStaticBox(), p->object_info->GetStaticBox(), p->btn_reslice, p->btn_export_gcode })
-        wxGetApp().UpdateDarkUI(win);
     p->object_info->msw_rescale();
 
     for (wxWindow* win : std::vector<wxWindow*>{ p->scrolled, p->presets_panel })
-        wxGetApp().UpdateAllStaticTextDarkUI(win);
+        (void)win; // unused
 #endif
     //for (wxWindow* btn : std::vector<wxWindow*>{ p->btn_reslice, p->btn_export_gcode })
-    //    wxGetApp().UpdateDarkUI(btn, true);
     p->m_printer_icon->msw_rescale();
     if (p->m_printer_setting)
         p->m_printer_setting->msw_rescale();
@@ -2033,13 +2025,6 @@ bool Sidebar::is_collapsed() { return p->plater->is_sidebar_collapsed(); }
 
 void Sidebar::collapse(bool collapse) { p->plater->collapse_sidebar(collapse); }
 
-#ifdef _MSW_DARK_MODE
-void Sidebar::show_mode_sizer(bool show)
-{
-    //p->mode_sizer->Show(show);
-}
-#endif
-
 void Sidebar::update_ui_from_settings()
 {
     // BBS
@@ -2240,13 +2225,11 @@ enum ExportingStatus{
 };
 
 
-// TODO: listen on dark ui change
 class FloatFrame : public wxAuiFloatingFrame
 {
 public:
     FloatFrame(wxWindow* parent, wxAuiManager* ownerMgr, const wxAuiPaneInfo& pane) : wxAuiFloatingFrame(parent, ownerMgr, pane)
     {
-        wxGetApp().UpdateFrameDarkUI(this);
     }
 };
 
@@ -2360,8 +2343,6 @@ struct Plater::priv
     static const std::regex pattern_zip_amf;
     static const std::regex pattern_any_amf;
     static const std::regex pattern_prusa;
-
-    bool m_is_dark = false;
 
     priv(Plater *q, MainFrame *main_frame);
     ~priv();
@@ -2652,9 +2633,7 @@ struct Plater::priv
     void on_action_export_sliced_file(SimpleEvent&);
     void on_action_export_all_sliced_file(SimpleEvent&);
     void on_action_select_sliced_plate(wxCommandEvent& evt);
-    //BBS: change dark/light mode
-    void on_change_color_mode(SimpleEvent& evt);
-    void on_apple_change_color_mode(wxSysColourChangedEvent& evt);
+    //BBS
     void apply_color_mode();
     void on_update_geometry(Vec3dsEvent<2>&);
     void on_3dcanvas_mouse_dragging_started(SimpleEvent&);
@@ -2852,8 +2831,6 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     //BBS :partplatelist construction
     , partplate_list(this->q, &model)
 {
-    m_is_dark = wxGetApp().app_config->get("dark_color_mode") == "1";
-
     m_aui_mgr.SetManagedWindow(q);
     m_aui_mgr.SetDockSizeConstraint(1, 1);
     //m_aui_mgr.GetArtProvider()->SetMetric(wxAUI_DOCKART_PANE_BORDER_SIZE, 0);
@@ -2897,8 +2874,6 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     this->q->Bind(EVT_INSTALL_PLUGIN_HINT, &priv::show_install_plugin_hint, this);
     this->q->Bind(EVT_UPDATE_PLUGINS_WHEN_LAUNCH, &priv::update_plugin_when_launch, this);
     this->q->Bind(EVT_PREVIEW_ONLY_MODE_HINT, &priv::show_preview_only_hint, this);
-    this->q->Bind(EVT_GLCANVAS_COLOR_MODE_CHANGED, &priv::on_change_color_mode, this);
-    this->q->Bind(wxEVT_SYS_COLOUR_CHANGED, &priv::on_apple_change_color_mode, this);
     this->q->Bind(EVT_CREATE_FILAMENT, &priv::on_create_filament, this);
     this->q->Bind(EVT_MODIFY_FILAMENT, &priv::on_modify_filament, this);
     this->q->Bind(EVT_ADD_CUSTOM_FILAMENT, &priv::on_add_custom_filament, this);
@@ -7560,37 +7535,15 @@ void Plater::priv::show_preview_only_hint(wxCommandEvent &event)
     notification_manager->bbl_show_preview_only_notification(into_u8(_L("Preview only mode:\nThe loaded file contains G-code only, cannot enter the Prepare page.")));
 }
 
-void Plater::priv::on_apple_change_color_mode(wxSysColourChangedEvent& evt) {
-    m_is_dark = wxSystemSettings::GetAppearance().IsDark();
-    if (view3D->get_canvas3d() && view3D->get_canvas3d()->is_initialized()) {
-        view3D->get_canvas3d()->on_change_color_mode(m_is_dark);
-        preview->get_canvas3d()->on_change_color_mode(m_is_dark);
-        assemble_view->get_canvas3d()->on_change_color_mode(m_is_dark);
-    }
-
-    apply_color_mode();
-}
-
-void Plater::priv::on_change_color_mode(SimpleEvent& evt) {
-    m_is_dark = wxGetApp().app_config->get("dark_color_mode") == "1";
-    view3D->get_canvas3d()->on_change_color_mode(m_is_dark);
-    preview->get_canvas3d()->on_change_color_mode(m_is_dark);
-    assemble_view->get_canvas3d()->on_change_color_mode(m_is_dark);
-    if (m_send_to_sdcard_dlg) m_send_to_sdcard_dlg->on_change_color_mode();
-
-    apply_color_mode();
-}
-
 void Plater::priv::apply_color_mode()
 {
-    const bool is_dark         = wxGetApp().dark_mode();
     wxColour   orca_color      = wxColour(70, 59, 59);//wxColour(ColorRGBA::ORCA().r_uchar(), ColorRGBA::ORCA().g_uchar(), ColorRGBA::ORCA().b_uchar());
-    orca_color                 = is_dark ? StateColor::darkModeColorFor(orca_color) : StateColor::lightModeColorFor(orca_color);
-    wxColour sash_color = is_dark ? wxColour(48, 38, 38) : wxColour(206, 206, 206);
+    orca_color                 = StateColor::lightModeColorFor(orca_color);
+    wxColour sash_color = wxColour(206, 206, 206);
     m_aui_mgr.GetArtProvider()->SetColour(wxAUI_DOCKART_INACTIVE_CAPTION_COLOUR, sash_color);
     m_aui_mgr.GetArtProvider()->SetColour(wxAUI_DOCKART_INACTIVE_CAPTION_TEXT_COLOUR, *wxWHITE);
     m_aui_mgr.GetArtProvider()->SetColour(wxAUI_DOCKART_SASH_COLOUR, sash_color);
-    m_aui_mgr.GetArtProvider()->SetColour(wxAUI_DOCKART_BORDER_COLOUR, is_dark ? *wxBLACK : wxColour(165, 165, 165));
+    m_aui_mgr.GetArtProvider()->SetColour(wxAUI_DOCKART_BORDER_COLOUR, wxColour(165, 165, 165));
 }
 
 static void get_position(wxWindowBase* child, wxWindowBase* until_parent, int& x, int& y) {
@@ -8051,7 +8004,7 @@ bool Plater::priv::init_collapse_toolbar()
         return true;
 
     BackgroundTexture::Metadata background_data;
-    background_data.filename = m_is_dark ? "toolbar_background_dark.png" : "toolbar_background.png";
+    background_data.filename = "toolbar_background.png";
     background_data.left = 16;
     background_data.top = 16;
     background_data.right = 16;
@@ -10931,8 +10884,6 @@ ProjectDropDialog::ProjectDropDialog(const std::string &filename)
 
     m_fname_f->SetLabel(fstring);
     m_fname_s->SetLabel(bstring);
-
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 wxBoxSizer *ProjectDropDialog::create_remember_checkbox(wxString title, wxWindow *parent, wxString tooltip)
@@ -11570,7 +11521,6 @@ static long GetNumberFromUser(  const wxString& msg,
 {
 #ifdef _WIN32
     wxNumberEntryDialog dialog(parent, msg, prompt, title, value, min, max, wxDefaultPosition);
-    wxGetApp().UpdateDlgDarkUI(&dialog);
     if (dialog.ShowModal() == wxID_OK)
         return dialog.GetValue();
 
@@ -14828,4 +14778,5 @@ SuppressBackgroundProcessingUpdate::~SuppressBackgroundProcessingUpdate()
     wxGetApp().plater()->schedule_background_process(m_was_scheduled);
 }
 
+}}    // namespace Slic3r::GUI
 }}    // namespace Slic3r::GUI

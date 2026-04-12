@@ -50,7 +50,6 @@ AMSMaterialsSetting::AMSMaterialsSetting(wxWindow *parent, wxWindowID id)
     , m_color_picker_popup(ColorPickerPopup(this))
 {
     create();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 void AMSMaterialsSetting::create()
@@ -382,7 +381,7 @@ void AMSMaterialsSetting::paintEvent(wxPaintEvent &evt)
 {
     auto      size = GetSize();
     wxPaintDC dc(this);
-    dc.SetPen(wxPen(StateColor::darkModeColorFor(wxColour("#000000")), 1, wxPENSTYLE_SOLID));
+    dc.SetPen(wxPen(wxColour("#000000"), 1, wxPENSTYLE_SOLID));
     dc.SetBrush(wxBrush(*wxTRANSPARENT_BRUSH));
     dc.DrawRectangle(0, 0, size.x, size.y);
 }
@@ -845,7 +844,6 @@ bool AMSMaterialsSetting::Show(bool show)
         m_input_k_val->Show();
         Layout();
         Fit();
-        wxGetApp().UpdateDarkUI(this);
     }
     return DPIDialog::Show(show);
 }
@@ -1248,7 +1246,6 @@ ColorPicker::ColorPicker(wxWindow* parent, wxWindowID id, const wxPoint& pos /*=
     Bind(wxEVT_PAINT, &ColorPicker::paintEvent, this);
 
     m_bitmap_border = create_scaled_bitmap("color_picker_border", nullptr, 25);
-    m_bitmap_border_dark = create_scaled_bitmap("color_picker_border_dark", nullptr, 25);
     m_bitmap_transparent = create_scaled_bitmap("transparent_color_picker", nullptr, 25);
 }
 
@@ -1257,7 +1254,6 @@ ColorPicker::~ColorPicker(){}
 void ColorPicker::msw_rescale()
 {
     m_bitmap_border = create_scaled_bitmap("color_picker_border", nullptr, 25);
-    m_bitmap_border_dark = create_scaled_bitmap("color_picker_border_dark", nullptr, 25);
 
     Refresh();
 }
@@ -1364,12 +1360,7 @@ void ColorPicker::doRender(wxDC& dc)
                     dc.GradientFillLinear(rect, m_cols[i], m_cols[i + 1], wxEAST);
                     left += gwidth;
                 }
-                if (wxGetApp().dark_mode()) {
-                    dc.DrawBitmap(m_bitmap_border_dark, wxPoint(0, 0));
-                }
-                else {
-                    dc.DrawBitmap(m_bitmap_border, wxPoint(0, 0));
-                }
+                dc.DrawBitmap(m_bitmap_border, wxPoint(0, 0));
             }
             else {
                 float ev_angle = 360.0 / m_cols.size();
@@ -1385,12 +1376,7 @@ void ColorPicker::doRender(wxDC& dc)
                     startAngle += ev_angle;
                     startAngle = startAngle > 360.0 ? startAngle - 360.0 : startAngle;
                 }
-                if (wxGetApp().dark_mode()) {
-                    dc.DrawBitmap(m_bitmap_border_dark, wxPoint(0, 0));
-                }
-                else {
-                    dc.DrawBitmap(m_bitmap_border, wxPoint(0, 0));
-                }
+                dc.DrawBitmap(m_bitmap_border, wxPoint(0, 0));
             }
         }
     }
@@ -1471,7 +1457,7 @@ ColorPickerPopup::ColorPickerPopup(wxWindow* parent)
         auto cp = new ColorPicker(m_def_color_box, wxID_ANY, wxDefaultPosition, wxDefaultSize);
         cp->set_color(col);
         cp->set_selected(false);
-        cp->SetBackgroundColour(StateColor::darkModeColorFor(wxColour(238,238,238)));
+        cp->SetBackgroundColour(wxColour(238,238,238));
         m_color_pickers.push_back(cp);
         fg_sizer->Add(cp, 0, wxALL, FromDIP(3));
         cp->Bind(wxEVT_LEFT_DOWN, [this, cp](auto& e) {
@@ -1561,7 +1547,6 @@ ColorPickerPopup::ColorPickerPopup(wxWindow* parent)
     Fit();
 
     Bind(wxEVT_PAINT, &ColorPickerPopup::paintEvent, this);
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 void ColorPickerPopup::on_custom_clr_picker(wxMouseEvent& event)
@@ -1627,7 +1612,7 @@ void ColorPickerPopup::set_ams_colours(std::vector<wxColour> ams)
         auto cp = new ColorPicker(m_def_color_box, wxID_ANY, wxDefaultPosition, wxDefaultSize);
         cp->set_color(col);
         cp->set_selected(false);
-        cp->SetBackgroundColour(StateColor::darkModeColorFor(wxColour(238,238,238)));
+        cp->SetBackgroundColour(wxColour(238,238,238));
         m_color_pickers.push_back(cp);
         m_ams_color_pickers.push_back(cp);
         m_ams_fg_sizer->Add(cp, 0, wxALL, FromDIP(3));

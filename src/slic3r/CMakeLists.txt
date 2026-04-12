@@ -574,20 +574,10 @@ set(SLIC3R_GUI_SOURCES
 
 add_subdirectory(GUI/DeviceTab)
 
-if (WIN32)
-    list(APPEND SLIC3R_GUI_SOURCES
-            GUI/dark_mode/dark_mode.hpp
-            GUI/dark_mode/IatHook.hpp
-            GUI/dark_mode/UAHMenuBar.hpp
-            GUI/dark_mode.hpp
-            GUI/dark_mode.cpp
-        )
-endif ()
 
 if (APPLE)
     list(APPEND SLIC3R_GUI_SOURCES
             Utils/RetinaHelperImpl.mm
-            Utils/MacDarkMode.mm
             GUI/RemovableDriveManagerMM.mm
             GUI/RemovableDriveManagerMM.h
             GUI/Mouse3DHandlerMac.mm

@@ -113,15 +113,8 @@ void uiAmsPercentHumidityDryPopup::doRender(wxDC &dc)
     if (0 < m_humidity_level && m_humidity_level < 6)
     {
         ScalableBitmap humitidy_image;
-        if (wxGetApp().dark_mode())
-        {
-            humitidy_image = ScalableBitmap(this, "hum_level" + std::to_string(m_humidity_level) + "_no_num_light", 64);
-        }
-        else
-        {
-            humitidy_image = ScalableBitmap(this, "hum_level" + std::to_string(m_humidity_level) + "_no_num_light", 64);
-        }
-
+        humitidy_image = ScalableBitmap(this, "hum_level" + std::to_string(m_humidity_level) + "_no_num_light", 64);
+        
         p.y += 2 * FromDIP(24);
         dc.DrawBitmap(humitidy_image.bmp(), (GetSize().GetWidth() - humitidy_image.GetBmpWidth()) / 2, p.y);
         p.y += humitidy_image.GetBmpHeight();

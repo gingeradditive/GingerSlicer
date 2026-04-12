@@ -45,7 +45,6 @@
 #include "Preferences.hpp"
 #include "Widgets/ProgressDialog.hpp"
 #include "BindDialog.hpp"
-#include "../Utils/MacDarkMode.hpp"
 
 #include <fstream>
 #include <string_view>
@@ -596,10 +595,6 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
         }
         evt.Skip();
     });
-
-#ifdef _MSW_DARK_MODE
-    wxGetApp().UpdateDarkUIWin(this);
-#endif // _MSW_DARK_MODE
 
     wxGetApp().persist_window_geometry(this, true);
     wxGetApp().persist_window_geometry(&m_settings_dialog, true);
@@ -1175,10 +1170,6 @@ void MainFrame::show_device(bool bBBLPrinter) {
         // the calibration tab won't be properly added as well, due to the TabPosition::tpCalibration no longer matches the real tab position.
         // m_tabpanel->AddPage(m_calibration, _L("Calibration"), std::string("tab_calibration_active"),
         //                        std::string("tab_calibration_active"), false);
-
-#ifdef _MSW_DARK_MODE
-        wxGetApp().UpdateDarkUIWin(this);
-#endif // _MSW_DARK_MODE
 
     } else {
         if (m_tabpanel->FindPage(m_printer_view) != wxNOT_FOUND)
@@ -2011,7 +2002,7 @@ void MainFrame::update_side_button_style()
     // m_publish_btn->SetBackgroundColor(m_btn_bg_enable);
     // m_publish_btn->SetBorderColor(m_btn_bg_enable);
     // m_publish_btn->SetBackgroundColour(wxColour(59,68,70));
-    // m_publish_btn->SetTextColor(StateColor::darkModeColorFor("#FFFFFE"));
+    // m_publish_btn->SetTextColor("#FFFFFE");
 
     m_slice_btn->SetTextLayout(SideButton::EHorizontalOrientation::HO_Left, FromDIP(15));
     m_slice_btn->SetCornerRadius(FromDIP(12));
@@ -2076,12 +2067,6 @@ void MainFrame::on_dpi_changed(const wxRect& suggested_rect)
 {
     wxGetApp().update_fonts(this);
     this->SetFont(this->normal_font());
-
-#ifdef _MSW_DARK_MODE
-    // update common mode sizer
-    if (!wxGetApp().tabs_as_menu())
-        dynamic_cast<Notebook*>(m_tabpanel)->Rescale();
-#endif
 
 #ifndef __APPLE__
     // BBS
@@ -2153,13 +2138,6 @@ void MainFrame::on_sys_color_changed()
 #endif //__APPLE__
 
 #ifdef __WXMSW__
-    wxGetApp().UpdateDarkUI(m_tabpanel);
- //   m_statusbar->update_dark_ui();
-#ifdef _MSW_DARK_MODE
-    // update common mode sizer
-    if (!wxGetApp().tabs_as_menu())
-        dynamic_cast<Notebook*>(m_tabpanel)->Rescale();
-#endif
 #endif
 
     // BBS
@@ -3130,11 +3108,6 @@ void MainFrame::init_menubar_as_editor()
 
 #endif
 
-#ifdef _MSW_DARK_MODE
-    if (wxGetApp().tabs_as_menu())
-        m_menubar->EnableTop(6, false);
-#endif
-
 #ifdef __APPLE__
     // This fixes a bug on Mac OS where the quit command doesn't emit window close events
     // wx bug: https://trac.wxwidgets.org/ticket/18328
@@ -3533,14 +3506,6 @@ void MainFrame::select_tab(size_t tab/* = size_t(-1)*/)
 
         if (m_tabpanel->GetSelection() != (int)new_selection)
             m_tabpanel->SetSelection(new_selection);
-#ifdef _MSW_DARK_MODE
-        /*if (wxGetApp().tabs_as_menu()) {
-            if (Tab* cur_tab = dynamic_cast<Tab*>(m_tabpanel->GetPage(new_selection)))
-                update_marker_for_tabs_menu((m_layout == ESettingsLayout::Old ? m_menubar : m_settings_dialog.menubar()), cur_tab->title(), m_layout == ESettingsLayout::Old);
-            else if (tab == 0 && m_layout == ESettingsLayout::Old)
-                m_plater->get_current_canvas3D()->render();
-        }*/
-#endif
         if (tab == MainFrame::tp3DEditor && m_layout == ESettingsLayout::Old)
             m_plater->canvas3D()->render();
         else if (was_hidden) {
@@ -3974,15 +3939,6 @@ SettingsDialog::SettingsDialog(MainFrame* mainframe)
 
     //just hide the Frame on closing
     this->Bind(wxEVT_CLOSE_WINDOW, [this](wxCloseEvent& evt) { this->Hide(); });
-
-#ifdef _MSW_DARK_MODE
-    if (wxGetApp().tabs_as_menu()) {
-        // menubar
-        //m_menubar = new wxMenuBar();
-        //add_tabs_as_menu(m_menubar, mainframe, this);
-        //this->SetMenuBar(m_menubar);
-    }
-#endif
 
     // initialize layout
     auto sizer = new wxBoxSizer(wxVERTICAL);
