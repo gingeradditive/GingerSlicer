@@ -838,7 +838,11 @@ Sidebar::Sidebar(Plater *parent)
         }
 
         wxBoxSizer* hsizer_printer = new wxBoxSizer(wxHORIZONTAL);
-        hsizer_printer->Add(combo_printer, 1, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ContentMargin()));
+        wxStaticText* printer_title = new wxStaticText(p->m_panel_printer_content, wxID_ANY, _L("Nozzle"));
+        printer_title->Wrap(-1);
+        printer_title->SetFont(Label::Body_14);
+        hsizer_printer->Add(printer_title, 0, wxLEFT | wxALIGN_CENTER_VERTICAL, FromDIP(SidebarProps::ContentMargin()));
+        hsizer_printer->Add(combo_printer, 1, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()));
         hsizer_printer->Add(edit_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()));
         hsizer_printer->Add(connection_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::IconSpacing()));
         hsizer_printer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
