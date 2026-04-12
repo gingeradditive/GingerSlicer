@@ -808,7 +808,6 @@ Sidebar::Sidebar(Plater *parent)
                         app_config->save();
                         update_printer_host_list();
                         apply_printer_host_to_config(new_host);
-                        update_all_preset_comboboxes();
                     }
                 }
             });
@@ -1295,20 +1294,6 @@ void Sidebar::update_all_preset_comboboxes()
     const auto print_tech = preset_bundle.printers.get_edited_preset().printer_technology();
 
     bool is_bbl_vendor = preset_bundle.is_bbl_vendor();
-
-    // Apply selected printer host from sidebar dropdown to the current config
-    // Only apply if the host is different from the current config to avoid marking the preset as dirty
-    {
-        AppConfig *app_config = wxGetApp().app_config;
-        std::string selected_host = app_config->get_selected_printer_host();
-        if (!selected_host.empty()) {
-            auto &editable_cfg = preset_bundle.printers.get_edited_preset().config;
-            std::string current_host = editable_cfg.opt_string("print_host");
-            if (current_host != selected_host) {
-                editable_cfg.opt_string("print_host") = selected_host;
-            }
-        }
-    }
 
     auto p_mainframe = wxGetApp().mainframe;
     auto cfg = preset_bundle.printers.get_edited_preset().config;
