@@ -105,6 +105,7 @@
 #include "ConfigWizard.hpp"
 #include "../Utils/ASCIIFolding.hpp"
 #include "../Utils/FixModelByWin10.hpp"
+#include "../Utils/PrintHost.hpp"
 #include "../Utils/UndoRedo.hpp"
 #include "../Utils/PresetUpdater.hpp"
 #include "../Utils/Process.hpp"
@@ -118,7 +119,7 @@
 #include "Gizmos/GLGizmoSVG.hpp" // Drop SVG file
 #include "Gizmos/GizmoObjectManipulation.hpp"
 
-#include <wx/textdlg.h>
+#include <wx/textctrl.h>
 
 // BBS
 #include "Widgets/ProgressDialog.hpp"
@@ -148,7 +149,6 @@
 #include "libslic3r/Platform.hpp"
 #include "nlohmann/json.hpp"
 
-#include "PhysicalPrinterDialog.hpp"
 #include "PrintHostDialogs.hpp"
 #include "PlateSettingsDialog.hpp"
 #include "DailyTips.hpp"
@@ -747,15 +747,6 @@ Sidebar::Sidebar(Plater *parent)
         combo_printer->edit_btn = edit_btn;
         p->combo_printer = combo_printer;
 
-        connection_btn = new ScalableButton(p->m_panel_printer_content, wxID_ANY, "monitor_signal_strong");
-        connection_btn->SetBackgroundColour(wxColour(255, 255, 255));
-        connection_btn->SetToolTip(_L("Connection"));
-        connection_btn->Bind(wxEVT_BUTTON, [this, combo_printer](wxCommandEvent)
-            {
-                PhysicalPrinterDialog dlg(this->GetParent());
-                dlg.ShowModal();
-            });
-
         wxBoxSizer* vsizer_printer = new wxBoxSizer(wxVERTICAL);
 
         vsizer_printer->AddSpacer(FromDIP(16));
@@ -792,9 +783,63 @@ Sidebar::Sidebar(Plater *parent)
             });
 
             m_btn_add_host->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
-                wxTextEntryDialog dlg(this, _L("Enter printer host address:"), _L("Add Printer Host"), "");
+                wxDialog dlg(this, wxID_ANY, _L("Add Printer Host"));
+                auto* main_sizer = new wxBoxSizer(wxVERTICAL);
+
+                auto* label = new wxStaticText(&dlg, wxID_ANY, _L("Enter printer host address:"));
+                auto* host_input = new wxTextCtrl(&dlg, wxID_ANY, "", wxDefaultPosition, wxSize(FromDIP(320), -1));
+
+                auto* button_sizer = new wxBoxSizer(wxHORIZONTAL);
+                auto* test_btn = new wxButton(&dlg, wxID_ANY, _L("Test"));
+                auto* cancel_btn = new wxButton(&dlg, wxID_CANCEL, _L("Cancel"));
+                auto* ok_btn = new wxButton(&dlg, wxID_OK, _L("OK"));
+
+                test_btn->Bind(wxEVT_BUTTON, [this, host_input](wxCommandEvent&) {
+                    std::string host = host_input->GetValue().ToUTF8().data();
+                    boost::trim(host);
+                    if (host.empty()) {
+                        show_error(this, _L("Please enter printer host address."));
+                        return;
+                    }
+
+                    DynamicPrintConfig test_cfg = wxGetApp().preset_bundle->printers.get_edited_preset().config;
+                    test_cfg.opt_string("print_host") = host;
+
+                    std::unique_ptr<PrintHost> print_host(PrintHost::get_print_host(&test_cfg));
+                    if (!print_host) {
+                        show_error(this, _L("Could not get a valid Printer Host reference"));
+                        return;
+                    }
+
+                    wxString msg;
+                    bool result;
+                    {
+                        wxBusyCursor wait;
+                        result = print_host->test(msg);
+                    }
+
+                    if (result)
+                        show_info(this, print_host->get_test_ok_msg(), _L("Success!"));
+                    else
+                        show_error(this, print_host->get_test_failed_msg(msg));
+                });
+
+                main_sizer->Add(label, 0, wxLEFT | wxRIGHT | wxTOP, FromDIP(12));
+                main_sizer->Add(host_input, 0, wxEXPAND | wxALL, FromDIP(12));
+
+                button_sizer->Add(test_btn, 0, wxRIGHT, FromDIP(8));
+                button_sizer->AddStretchSpacer(1);
+                button_sizer->Add(cancel_btn, 0, wxRIGHT, FromDIP(8));
+                button_sizer->Add(ok_btn, 0);
+                main_sizer->Add(button_sizer, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, FromDIP(12));
+
+                dlg.SetSizerAndFit(main_sizer);
+                dlg.SetMinSize(dlg.GetSize());
+                host_input->SetFocus();
+
                 if (dlg.ShowModal() == wxID_OK) {
-                    std::string new_host = dlg.GetValue().ToUTF8().data();
+                    std::string new_host = host_input->GetValue().ToUTF8().data();
+                    boost::trim(new_host);
                     if (!new_host.empty()) {
                         AppConfig *app_config = wxGetApp().app_config;
                         app_config->add_printer_host(new_host);
@@ -838,7 +883,6 @@ Sidebar::Sidebar(Plater *parent)
         hsizer_printer->Add(printer_title, 0, wxLEFT | wxALIGN_CENTER_VERTICAL, FromDIP(SidebarProps::ContentMargin()));
         hsizer_printer->Add(combo_printer, 1, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()));
         hsizer_printer->Add(edit_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()));
-        hsizer_printer->Add(connection_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::IconSpacing()));
         hsizer_printer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
         vsizer_printer->Add(hsizer_printer, 0, wxEXPAND, 0);
 
@@ -1293,12 +1337,9 @@ void Sidebar::update_all_preset_comboboxes()
     auto cfg = preset_bundle.printers.get_edited_preset().config;
 
     if (preset_bundle.use_bbl_network()) {
-        //only show connection button for not-BBL printer
-        connection_btn->Hide();
         //update print button default value for bbl or third-party printer
         p_mainframe->set_print_button_to_default(MainFrame::PrintSelectType::ePrintPlate);
     } else {
-        connection_btn->Show();
         auto print_btn_type = MainFrame::PrintSelectType::eExportGcode;
         wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
         wxString apikey;
@@ -2913,6 +2954,9 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
                                    .TopDockable(false)
                                    .BottomDockable(false)
                                    .Floatable(true)
+                                   .CaptionVisible(false)
+                                   .PaneBorder(false)
+                                   .Gripper(false)
                                    .BestSize(wxSize(42 * wxGetApp().em_unit(), 90 * wxGetApp().em_unit())));
 
     auto* panel_sizer = new wxBoxSizer(wxHORIZONTAL);
@@ -2934,6 +2978,8 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
             m_aui_mgr.LoadPerspective(layout, false);
             sidebar_layout.is_collapsed = !sidebar.IsShown();
         }
+        // Always enforce no caption/border on sidebar after loading perspective
+        sidebar.CaptionVisible(false).PaneBorder(false).Gripper(false);
 
         // Keep tracking the current sidebar size, by storing it using `best_size`, which will be stored
         // in the config and re-applied when the app is opened again.
@@ -3525,6 +3571,8 @@ void Plater::priv::update_sidebar(bool force_update) {
 void Plater::priv::reset_window_layout()
 {
     m_aui_mgr.LoadPerspective(m_default_window_layout, false);
+    auto& pane = m_aui_mgr.GetPane(sidebar);
+    pane.CaptionVisible(false).PaneBorder(false).Gripper(false);
     sidebar_layout.is_collapsed = false;
     update_sidebar(true);
 }

@@ -205,7 +205,6 @@ private:
     ComboBox* m_printer_host_list = nullptr;
     ScalableButton* m_btn_add_host = nullptr;
     ScalableButton* m_btn_remove_host = nullptr;
-    ScalableButton* connection_btn = nullptr;
     ScalableButton* ams_btn = nullptr;
 
     void update_printer_host_list();
