@@ -70,10 +70,17 @@ bool is_debugger_present()
 
 void set_miniaturizable(WXWidget widget)
 {
-    NSView* view = (NSView*)widget;
-    NSWindow* window = [view window];
+    id native_widget = (id)widget;
+    NSWindow* window = nil;
+
+    if ([native_widget isKindOfClass:[NSWindow class]]) {
+        window = (NSWindow*)native_widget;
+    } else if ([native_widget isKindOfClass:[NSView class]]) {
+        window = [(NSView*)native_widget window];
+    }
+
     if (window) {
-        [window setMiniaturizable:YES];
+        [window setStyleMask:([window styleMask] | NSWindowStyleMaskMiniaturizable)];
     }
 }
 
