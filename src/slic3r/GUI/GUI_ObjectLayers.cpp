@@ -316,20 +316,6 @@ void ObjectLayers::sys_color_changed()
         }
     }
 
-#ifdef _WIN32
-    m_og->sys_color_changed();
-    for (int i = 0; i < cells_cnt; ++i) {
-        const wxSizerItem* item = m_grid_sizer->GetItem(i);
-        if (item->IsWindow()) {
-            if (LayerRangeEditor* editor = dynamic_cast<LayerRangeEditor*>(item->GetWindow()))
-        }
-        else if (item->IsSizer()) {// case when we have editor with buttons
-            if (wxSizerItem* e_item = item->GetSizer()->GetItem(size_t(0)); e_item->IsWindow()) {
-                if (LayerRangeEditor* editor = dynamic_cast<LayerRangeEditor*>(e_item->GetWindow()))
-            }
-        }
-    }
-#endif
 
 }
 

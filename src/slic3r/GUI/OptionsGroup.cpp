@@ -859,14 +859,6 @@ void ConfigOptionsGroup::msw_rescale()
 
 void ConfigOptionsGroup::sys_color_changed()
 {
-#ifdef _WIN32
-    if (staticbox && stb) {
-        // update bitmaps for extra column items (like "delete" buttons on settings panel)
-        for (auto extra_col : m_extra_column_item_ptrs)
-    }
-
-    if (custom_ctrl)
-#endif
 
     auto update = [](wxSizer* sizer) {
         for (wxSizerItem* item : sizer->GetChildren())

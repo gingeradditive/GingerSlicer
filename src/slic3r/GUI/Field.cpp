@@ -2079,10 +2079,6 @@ void PointCtrl::msw_rescale()
 
 void PointCtrl::sys_color_changed()
 {
-#ifdef _WIN32
-    for (wxSizerItem* item: sizer->GetChildren())
-        if (item->IsWindow())
-#endif
 }
 
 bool PointCtrl::value_was_changed(wxTextCtrl* win)
