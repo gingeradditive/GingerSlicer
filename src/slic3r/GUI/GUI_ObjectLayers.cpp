@@ -315,8 +315,6 @@ void ObjectLayers::sys_color_changed()
             }
         }
     }
-
-
 }
 
 void ObjectLayers::reset_selection()

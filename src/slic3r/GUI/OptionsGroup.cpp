@@ -859,7 +859,6 @@ void ConfigOptionsGroup::msw_rescale()
 
 void ConfigOptionsGroup::sys_color_changed()
 {
-
     auto update = [](wxSizer* sizer) {
         for (wxSizerItem* item : sizer->GetChildren())
             if (item->IsWindow()) {
