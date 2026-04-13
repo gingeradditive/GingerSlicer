@@ -1,7 +1,6 @@
 #include "StateColor.hpp"
 #include <cmath>
 
-static bool gDarkMode = false;
 
 static bool operator<(wxColour const &l, wxColour const &r) { return l.GetRGBA() < r.GetRGBA(); }
 
@@ -134,28 +133,11 @@ wxColour StateColor::LightenDarkenColor(const wxColour& color, int amount) {
     return wxColour(r_int, g_int, b_int);
 }
 
-void StateColor::SetDarkMode(bool dark) { gDarkMode = dark; }
-
-inline wxColour darkModeColorFor2(wxColour const &color)
-{
-    // Dark mode support removed - always return input color
-    return color;
-}
-
-std::map<wxColour, wxColour> revert(std::map<wxColour, wxColour> const & map)
-{
-    std::map<wxColour, wxColour> map2;
-    for (auto &p : map) map2.emplace(p.second, p.first);
-    return map2;
-}
 
 wxColour StateColor::lightModeColorFor(wxColour const &color)
 {
-    // Dark mode support removed - always return input color
     return color;
 }
-
-wxColour StateColor::darkModeColorFor(wxColour const &color) { return darkModeColorFor2(color); }
 
 StateColor::StateColor(wxColour const &color) { append(color, 0); }
 
@@ -211,27 +193,6 @@ wxColour StateColor::colorForStates(int states)
         int on = s & 0xffff;
         int off = s >> 16;
         if ((on & states) == on && (off & ~states) == off) {
-            return darkModeColorFor2(colors_[i]);
-        }
-        if (focused && (on & Hovered)) {
-            on |= Focused;
-            on &= ~Hovered;
-            if ((on & states) == on && (off & ~states) == off) {
-                return darkModeColorFor2(colors_[i]);
-            }
-        }
-    }
-    return wxColour(0, 0, 0, 0);
-}
-
-wxColour StateColor::colorForStatesNoDark(int states)
-{
-    bool focused = takeFocusedAsHovered_ && (states & Focused);
-    for (int i = 0; i < statesList_.size(); ++i) {
-        int s = statesList_[i];
-        int on = s & 0xffff;
-        int off = s >> 16;
-        if ((on & states) == on && (off & ~states) == off) {
             return colors_[i];
         }
         if (focused && (on & Hovered)) {
@@ -244,6 +205,7 @@ wxColour StateColor::colorForStatesNoDark(int states)
     }
     return wxColour(0, 0, 0, 0);
 }
+
 
 int StateColor::colorIndexForStates(int states)
 {

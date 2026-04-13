@@ -405,7 +405,7 @@ SearchItem::SearchItem(wxWindow *parent, wxString text, int index, SearchDialog*
 
     this->SetToolTip(tooltip);
 
-    SetBackgroundColour(StateColor::darkModeColorFor(wxColour("#FFFFFF")));
+    SetBackgroundColour(wxColour("#FFFFFF"));
     Bind(wxEVT_ENTER_WINDOW, &SearchItem::on_mouse_enter, this);
     Bind(wxEVT_LEAVE_WINDOW, &SearchItem::on_mouse_leave, this);
     Bind(wxEVT_LEFT_DOWN, &SearchItem::on_mouse_left_down, this);
@@ -422,7 +422,7 @@ wxSize SearchItem::DrawTextString(wxDC &dc, const wxString &text, const wxPoint 
     }
 
     dc.SetBackgroundMode(wxTRANSPARENT);
-    dc.SetTextForeground(StateColor::darkModeColorFor(wxColour("#323A3C")));
+    dc.SetTextForeground(wxColour("#323A3C"));
     dc.DrawText(text, pt);
     return dc.GetTextExtent(text);
 }
@@ -494,19 +494,19 @@ void SearchItem::OnPaint(wxPaintEvent &event)
 
 void SearchItem::on_mouse_enter(wxMouseEvent &evt)
 {
-    SetBackgroundColour(StateColor::darkModeColorFor(wxColour("#BFE1DE"))); // ORCA color with %25 opacity
+    SetBackgroundColour(wxColour("#BFE1DE")); // ORCA color with %25 opacity
     Refresh();
 }
 
 void SearchItem::on_mouse_leave(wxMouseEvent &evt)
 {
-    SetBackgroundColour(StateColor::darkModeColorFor(wxColour(255, 255, 255)));
+    SetBackgroundColour(wxColour(255, 255, 255));
     Refresh();
 }
 
 void SearchItem::on_mouse_left_down(wxMouseEvent &evt)
 {
-    SetBackgroundColour(StateColor::darkModeColorFor(wxColour("#BFE1DE"))); // ORCA color with %25 opacity
+    SetBackgroundColour(wxColour("#BFE1DE")); // ORCA color with %25 opacity
     Refresh();
 }
 
@@ -699,13 +699,13 @@ void SearchDialog::update_list()
     m_scrolledWindow->Destroy();
 
     m_scrolledWindow = new ScrolledWindow(m_client_panel, wxID_ANY, wxDefaultPosition, wxSize(POPUP_WIDTH * em - (em + em / 2), POPUP_HEIGHT * em - em), wxVSCROLL, 6, 6);
-    m_scrolledWindow->SetMarginColor(StateColor::darkModeColorFor(m_bg_colour));
-    m_scrolledWindow->SetScrollbarColor(StateColor::darkModeColorFor(m_thumb_color));
-    m_scrolledWindow->SetBackgroundColour(StateColor::darkModeColorFor(m_bg_colour));
+    m_scrolledWindow->SetMarginColor(m_bg_colour);
+    m_scrolledWindow->SetScrollbarColor(m_thumb_color);
+    m_scrolledWindow->SetBackgroundColour(m_bg_colour);
 
     auto m_listsizer = new wxBoxSizer(wxVERTICAL);
     auto m_listPanel = new wxWindow(m_scrolledWindow->GetPanel(), -1);
-    m_listPanel->SetBackgroundColour(StateColor::darkModeColorFor(m_bg_colour));
+    m_listPanel->SetBackgroundColour(m_bg_colour);
     m_listPanel->SetSize(wxSize(m_scrolledWindow->GetSize().GetWidth(), -1));
 
     const std::vector<FoundOption> &filters = searcher->found_options();
@@ -936,13 +936,13 @@ void SearchObjectDialog::update_list()
     m_scrolledWindow->Destroy();
 
     m_scrolledWindow = new ScrolledWindow(m_client_panel, wxID_ANY, wxDefaultPosition, wxSize(POPUP_WIDTH * em - (em + em / 2), POPUP_HEIGHT * em - em), wxVSCROLL, 6, 6);
-    m_scrolledWindow->SetMarginColor(StateColor::darkModeColorFor(m_bg_color));
-    m_scrolledWindow->SetScrollbarColor(StateColor::darkModeColorFor(m_thumb_color));
-    m_scrolledWindow->SetBackgroundColour(StateColor::darkModeColorFor(m_bg_color));
+    m_scrolledWindow->SetMarginColor(m_bg_color);
+    m_scrolledWindow->SetScrollbarColor(m_thumb_color);
+    m_scrolledWindow->SetBackgroundColour(m_bg_color);
 
     auto m_listsizer = new wxBoxSizer(wxVERTICAL);
     auto m_listPanel = new wxWindow(m_scrolledWindow->GetPanel(), -1);
-    m_listPanel->SetBackgroundColour(StateColor::darkModeColorFor(m_bg_color));
+    m_listPanel->SetBackgroundColour(m_bg_color);
     m_listPanel->SetSize(wxSize(m_scrolledWindow->GetSize().GetWidth(), -1));
 
     const std::vector<std::tuple<GUI::ObjectDataViewModelNode*, wxString, wxString>>& found = m_object_list->GetModel()->get_found_list();

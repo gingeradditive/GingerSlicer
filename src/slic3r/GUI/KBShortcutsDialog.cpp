@@ -91,16 +91,16 @@ void KBShortcutsDialog::OnSelectTabel(wxCommandEvent &event)
     while (i != m_hash_selector.end()) {
         Select *sel = i->second;
         if (id == sel->m_index) {
-            sel->m_tab_button->SetBackgroundColour(StateColor::darkModeColorFor(wxColour("#BFE1DE"))); // ORCA color for selected tab background
-            sel->m_tab_text->SetBackgroundColour(StateColor::darkModeColorFor(wxColour("#BFE1DE"))); // ORCA color for selected tab background
+            sel->m_tab_button->SetBackgroundColour(wxColour("#BFE1DE")); // ORCA color for selected tab background
+            sel->m_tab_text->SetBackgroundColour(wxColour("#BFE1DE")); // ORCA color for selected tab background
             sel->m_tab_text->SetFont(::Label::Head_13);
             sel->m_tab_button->Refresh();
             sel->m_tab_text->Refresh();
 
             m_simplebook->SetSelection(id);
         } else {
-            sel->m_tab_button->SetBackgroundColour(StateColor::darkModeColorFor(wxColour("#F8F8F8")));
-            sel->m_tab_text->SetBackgroundColour(StateColor::darkModeColorFor(wxColour("#F8F8F8")));
+            sel->m_tab_button->SetBackgroundColour(wxColour("#F8F8F8"));
+            sel->m_tab_text->SetBackgroundColour(wxColour("#F8F8F8"));
             sel->m_tab_text->SetFont(::Label::Body_13);
             sel->m_tab_button->Refresh();
             sel->m_tab_text->Refresh();

@@ -212,7 +212,7 @@ void DropDown::render(wxDC &dc)
     if (texts.size() == 0) return;
     int states = state_handler.states();
     dc.SetPen(wxPen(border_color.colorForStates(states)));
-    dc.SetBrush(wxBrush(StateColor::darkModeColorFor(GetBackgroundColour())));
+    dc.SetBrush(wxBrush(GetBackgroundColour()));
     // if (GetWindowStyle() & wxBORDER_NONE)
     //    dc.SetPen(wxNullPen);
 

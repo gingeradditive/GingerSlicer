@@ -47,7 +47,7 @@ void TempInput::Create(wxWindow *parent, wxString text, wxString label, wxString
     state_handler.attach({&label_color, &text_color});
     state_handler.update_binds();
     text_ctrl = new wxTextCtrl(this, wxID_ANY, text, {5, 5}, wxDefaultSize, wxTE_PROCESS_ENTER | wxBORDER_NONE, wxTextValidator(wxFILTER_NUMERIC), wxTextCtrlNameStr);
-    text_ctrl->SetBackgroundColour(StateColor::darkModeColorFor(*wxWHITE));
+    text_ctrl->SetBackgroundColour(*wxWHITE);
     text_ctrl->SetMaxLength(3);
     state_handler.attach_child(text_ctrl);
     text_ctrl->Bind(wxEVT_SET_FOCUS, [this](auto &e) {
@@ -117,7 +117,7 @@ void TempInput::Create(wxWindow *parent, wxString text, wxString label, wxString
         }
     });
     text_ctrl->SetFont(Label::Body_13);
-    text_ctrl->SetForegroundColour(StateColor::darkModeColorFor(*wxBLACK));
+    text_ctrl->SetForegroundColour(*wxBLACK);
     if (!normal_icon.IsEmpty()) { this->normal_icon = ScalableBitmap(this, normal_icon.ToStdString(), 16); }
     if (!actice_icon.IsEmpty()) { this->actice_icon = ScalableBitmap(this, actice_icon.ToStdString(), 16); }
     this->degree_icon = ScalableBitmap(this, "degree", 16);
@@ -420,7 +420,7 @@ void TempInput::render(wxDC &dc)
         pt.y = (size.y - labelSize.y) / 2;
     }
 
-    dc.SetTextForeground(StateColor::darkModeColorFor("#323A3C"));
+    dc.SetTextForeground("#323A3C");
     dc.DrawText(text, pt);
 
     // separator

@@ -158,16 +158,16 @@ void AxisCtrlButton::render(wxDC& dc)
     wxGraphicsPath outer_path = gc->CreatePath();
     outer_path.AddCircle(0, 0, r_outer);
     outer_path.AddCircle(0, 0, r_inner);
-    gc->SetPen(StateColor::darkModeColorFor(BUTTON_BG_COL));
-    gc->SetBrush(StateColor::darkModeColorFor(BUTTON_BG_COL));
+    gc->SetPen(BUTTON_BG_COL);
+    gc->SetBrush(BUTTON_BG_COL);
     gc->DrawPath(outer_path);
 
 	//draw the inner ring
     wxGraphicsPath inner_path = gc->CreatePath();
     inner_path.AddCircle(0, 0, r_inner);
     inner_path.AddCircle(0, 0, r_blank);
-    gc->SetPen(StateColor::darkModeColorFor(BUTTON_IN_BG_COL));
-    gc->SetBrush(StateColor::darkModeColorFor(BUTTON_IN_BG_COL));
+    gc->SetPen(BUTTON_IN_BG_COL);
+    gc->SetBrush(BUTTON_IN_BG_COL);
 	gc->DrawPath(inner_path);
 
 	//draw an arc in corresponding position
@@ -208,8 +208,8 @@ void AxisCtrlButton::render(wxDC& dc)
         gc->SetPen(wxPen(border_color.colorForStates(states), 2));
         gc->SetBrush(wxBrush(background_color.colorForStates(states)));
     } else {
-        gc->SetPen(StateColor::darkModeColorFor(BUTTON_BG_COL));
-        gc->SetBrush(StateColor::darkModeColorFor(BUTTON_BG_COL));
+        gc->SetPen(BUTTON_BG_COL);
+        gc->SetBrush(BUTTON_BG_COL);
     }
     gc->DrawPath(home_path);
 

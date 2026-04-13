@@ -51,7 +51,7 @@ void SendDeviceItem::DrawTextWithEllipsis(wxDC& dc, const wxString& text, int ma
     wxFont font = dc.GetFont();
 
     wxSize textSize = dc.GetTextExtent(text);
-    dc.SetTextForeground(StateColor::darkModeColorFor(wxColour(50, 58, 61)));
+    dc.SetTextForeground(wxColour(50, 58, 61));
     int textWidth = textSize.GetWidth();
 
     if (textWidth > maxWidth) {
@@ -1324,7 +1324,7 @@ wxPanel* SendMultiMachinePage::create_page()
     m_button_send = new Button(main_page, _L("Send"));
     m_button_send->SetBackgroundColor(btn_bg_enable);
     m_button_send->SetBorderColor(btn_bg_enable);
-    m_button_send->SetTextColor(StateColor::darkModeColorFor("#FFFFFE"));
+    m_button_send->SetTextColor("#FFFFFE");
     m_button_send->SetSize(wxSize(FromDIP(120), FromDIP(40)));
     m_button_send->SetMinSize(wxSize(FromDIP(120), FromDIP(40)));
     m_button_send->SetMinSize(wxSize(FromDIP(120), FromDIP(40)));

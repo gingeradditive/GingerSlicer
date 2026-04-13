@@ -121,7 +121,7 @@ void PrintHostSendDialog::init()
     auto checkbox_text = new wxStaticText(this, wxID_ANY, _L("Switch to Device tab after upload."), wxDefaultPosition, wxDefaultSize, 0);
     checkbox_sizer->Add(checkbox_text, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
     checkbox_text->SetFont(::Label::Body_13);
-    checkbox_text->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#323A3D")));
+    checkbox_text->SetForegroundColour(wxColour("#323A3D"));
     content_sizer->Add(checkbox_sizer);
     content_sizer->AddSpacer(VERT_SPACING);
 
@@ -312,7 +312,6 @@ PrintHostQueueDialog::PrintHostQueueDialog(wxWindow *parent)
 
     job_list = new wxDataViewListCtrl(this, wxID_ANY);
 
-    // MSW DarkMode: workaround for the selected item in the list
     auto append_text_column = [this](const wxString& label, int width, wxAlignment align = wxALIGN_LEFT,
                                      int flags = wxDATAVIEW_COL_RESIZABLE | wxDATAVIEW_COL_SORTABLE) {
 #ifdef _WIN32
@@ -726,7 +725,7 @@ void ElegooPrintHostSendDialog::init() {
         auto checkbox_text = new wxStaticText(this, wxID_ANY, _L("Switch to Device tab after upload."), wxDefaultPosition, wxDefaultSize, 0);
         checkbox_sizer->Add(checkbox_text, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
         checkbox_text->SetFont(::Label::Body_13);
-        checkbox_text->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#323A3D")));
+        checkbox_text->SetForegroundColour(wxColour("#323A3D"));
         content_sizer->Add(checkbox_sizer);
         content_sizer->AddSpacer(VERT_SPACING);
     }
@@ -752,7 +751,7 @@ void ElegooPrintHostSendDialog::init() {
         auto checkbox_text = new wxStaticText(this, wxID_ANY, _L("Upload and Print"), wxDefaultPosition, wxDefaultSize, 0);
         checkbox_sizer->Add(checkbox_text, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
         checkbox_text->SetFont(::Label::Body_13);
-        checkbox_text->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#323A3D")));
+        checkbox_text->SetForegroundColour(wxColour("#323A3D"));
         content_sizer->Add(checkbox_sizer);
         content_sizer->AddSpacer(VERT_SPACING);
     }
@@ -771,7 +770,7 @@ void ElegooPrintHostSendDialog::init() {
         auto checkbox_text = new wxStaticText(this, wxID_ANY, _L("Time-lapse"), wxDefaultPosition, wxDefaultSize, 0);
         checkbox_sizer->Add(checkbox_text, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
         checkbox_text->SetFont(::Label::Body_13);
-        checkbox_text->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#323A3D")));
+        checkbox_text->SetForegroundColour(wxColour("#323A3D"));
         uploadandprint_sizer->Add(checkbox_sizer);
         uploadandprint_sizer->AddSpacer(VERT_SPACING);
     }
@@ -790,7 +789,7 @@ void ElegooPrintHostSendDialog::init() {
         auto checkbox_text = new wxStaticText(this, wxID_ANY, _L("Heated Bed Leveling"), wxDefaultPosition, wxDefaultSize, 0);
         checkbox_sizer->Add(checkbox_text, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
         checkbox_text->SetFont(::Label::Body_13);
-        checkbox_text->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#323A3D")));
+        checkbox_text->SetForegroundColour(wxColour("#323A3D"));
         uploadandprint_sizer->Add(checkbox_sizer);
         uploadandprint_sizer->AddSpacer(VERT_SPACING);
     }
@@ -824,7 +823,7 @@ void ElegooPrintHostSendDialog::init() {
             auto checkbox_text = new wxStaticText(this, wxID_ANY, _L("Textured Build Plate (Side A)"), wxDefaultPosition, wxDefaultSize, 0);
             radio_sizer->Add(checkbox_text, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
             checkbox_text->SetFont(::Label::Body_13);
-            checkbox_text->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#323A3D")));
+            checkbox_text->SetForegroundColour(wxColour("#323A3D"));
             uploadandprint_sizer->Add(radio_sizer);
             uploadandprint_sizer->AddSpacer(VERT_SPACING);
         }
@@ -836,7 +835,7 @@ void ElegooPrintHostSendDialog::init() {
             auto checkbox_text = new wxStaticText(this, wxID_ANY, _L("Smooth Build Plate (Side B)"), wxDefaultPosition, wxDefaultSize, 0);
             radio_sizer->Add(checkbox_text, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
             checkbox_text->SetFont(::Label::Body_13);
-            checkbox_text->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#323A3D")));
+            checkbox_text->SetForegroundColour(wxColour("#323A3D"));
             uploadandprint_sizer->Add(radio_sizer);
             uploadandprint_sizer->AddSpacer(VERT_SPACING);
         }
@@ -844,7 +843,7 @@ void ElegooPrintHostSendDialog::init() {
     {
         auto h_sizer = new wxBoxSizer(wxHORIZONTAL);
         warning_text->SetFont(::Label::Body_13);
-        warning_text->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#FF1001")));
+        warning_text->SetForegroundColour(wxColour("#FF1001"));
         // wrapping the text
         warning_text->Wrap(350);
         h_sizer->AddSpacer(16);

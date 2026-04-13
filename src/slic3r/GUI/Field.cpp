@@ -764,7 +764,7 @@ void TextCtrl::BUILD() {
         temp->SetFont(Slic3r::GUI::wxGetApp().normal_font());
 
 
-    temp->SetForegroundColour(StateColor::darkModeColorFor(*wxBLACK));
+    temp->SetForegroundColour(*wxBLACK);
 
     if (! m_opt.multiline && !wxOSX)
 		// Only disable background refresh for single line input fields, as they are completely painted over by the edit control.
@@ -1866,8 +1866,8 @@ void ColourPicker::draw_bmp_btn(wxColourPickerCtrl* field, wxColour color)
         if (!dc.IsOk()) return bmp;
         wxGCDC dc2(dc); // just use wxGCDC since bitmap button only used for windows
 
-        dc2.SetPen(focus ? wxPen(wxColour(StateColor::darkModeColorFor(wxColour("#d72828"))), 1) : *wxTRANSPARENT_PEN);
-        dc2.SetBrush(wxBrush(StateColor::darkModeColorFor(bg_color)));
+        dc2.SetPen(focus ? wxPen(wxColour("#d72828"), 1) : *wxTRANSPARENT_PEN);
+        dc2.SetBrush(wxBrush(bg_color));
         dc2.DrawRoundedRectangle(btn->GetRect(), btn->FromDIP(4));
 
         int padding = btn->FromDIP(5);
@@ -1880,7 +1880,7 @@ void ColourPicker::draw_bmp_btn(wxColourPickerCtrl* field, wxColour color)
             dc2.SetFont(wxFont(11, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL));
             wxString text    = _L("Pick") + " " + dots;
             wxSize   text_sz = dc2.GetTextExtent(text);
-            dc2.SetTextForeground(StateColor::darkModeColorFor(wxColour("#262E30")));
+            dc2.SetTextForeground(wxColour("#262E30"));
             dc2.DrawText(text, (btn_sz.x - text_sz.x) / 2, (btn_sz.y - text_sz.y) / 2);
         }
         dc.SelectObject(wxNullBitmap);

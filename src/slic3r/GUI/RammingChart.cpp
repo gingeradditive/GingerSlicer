@@ -24,12 +24,12 @@ void Chart::draw() {
     dc.SetPen(GetBackgroundColour());
     dc.DrawRectangle(GetClientRect());  // otherwise the background would end up black on windows
 
-    dc.SetPen(    wxPen(StateColor::darkModeColorFor(wxColour("#DBDBDB")), 1)); // input box border color
-    dc.SetBrush(wxBrush(StateColor::darkModeColorFor(wxColour("#F1F1F1")))); // sidebar titlebar bg color
+    dc.SetPen(    wxPen(wxColour("#DBDBDB"), 1)); // input box border color
+    dc.SetBrush(wxBrush(wxColour("#F1F1F1"))); // sidebar titlebar bg color
     dc.DrawRectangle(m_rect);
     
     if (visible_area.m_width < 0.499) {
-        dc.SetTextForeground(StateColor::darkModeColorFor(wxColour("#FF6F00"))); // Use orange color for warning
+        dc.SetTextForeground(wxColour("#FF6F00")); // Use orange color for warning
         dc.DrawText(_(L("NO RAMMING AT ALL")),wxPoint(m_rect.GetLeft()+m_rect.GetWidth()/2-legend_side,m_rect.GetBottom()-m_rect.GetHeight()/2));
         return;
     }
@@ -41,7 +41,7 @@ void Chart::draw() {
             dc.SetPen( wxPen( wxColor(std::min(222,color), 222-std::max(color-222,0), 60), 1) ); // adding blue color sligtly gives a bit more modern look instead using raw red & green
             dc.DrawLine(m_rect.GetLeft()+1+i,(m_line_to_draw)[i],m_rect.GetLeft()+1+i,m_rect.GetBottom());        
         }
-        dc.SetPen(wxPen(StateColor::darkModeColorFor(wxColour("#363636")), 1));
+        dc.SetPen(wxPen(wxColour("#363636"), 1));
         for (unsigned int i=0;i<m_line_to_draw.size()-2;++i) {
             if (splines)
                 dc.DrawLine(m_rect.GetLeft()+i,(m_line_to_draw)[i],m_rect.GetLeft()+i+1,(m_line_to_draw)[i+1]);
@@ -53,14 +53,14 @@ void Chart::draw() {
     }
     
     // draw draggable buttons
-    dc.SetBrush(StateColor::darkModeColorFor(wxColour("#d72828"))); // orca color for draggable circles
-    dc.SetPen(wxPen(StateColor::darkModeColorFor(wxColour("#363636")), 1));
+    dc.SetBrush(wxColour("#d72828")); // orca color for draggable circles
+    dc.SetPen(wxPen(wxColour("#363636"), 1));
     for (auto& button : m_buttons)
         //dc.DrawRectangle(math_to_screen(button.get_pos())-wxPoint(side/2.,side/2.), wxSize(side,side));
         dc.DrawCircle(math_to_screen(button.get_pos()),side/2.);
         //dc.DrawRectangle(math_to_screen(button.get_pos()-wxPoint2DDouble(0.125,0))-wxPoint(0,5),wxSize(50,10));
 
-    dc.SetTextForeground(StateColor::darkModeColorFor(wxColour("#363636"))); // Label color
+    dc.SetTextForeground(wxColour("#363636")); // Label color
 
     // draw x-axis:
     float last_mark = -10000;
@@ -119,14 +119,14 @@ void Chart::draw() {
         }
         
         // Draw label background
-        dc.SetPen(wxPen(StateColor::darkModeColorFor(wxColour("#DBDBDB")), 1));
-        wxColour bg_color = StateColor::darkModeColorFor(wxColour("#F1F1F1"));
+        dc.SetPen(wxPen(wxColour("#DBDBDB"), 1));
+        wxColour bg_color = wxColour("#F1F1F1");
         dc.SetBrush(wxBrush(wxColour(bg_color.Red(), bg_color.Green(), bg_color.Blue(), 204))); // 80% opacity
         wxRect label_rect(label_x - padding, label_y - padding, label_width + (2*padding), label_height + (2*padding));
         dc.DrawRoundedRectangle(label_rect, 2);
         
         // Draw the label text
-        dc.SetTextForeground(StateColor::darkModeColorFor("#363636")); 
+        dc.SetTextForeground("#363636"); 
         dc.DrawText(value_label, wxPoint(label_x, label_y));
     }
 }

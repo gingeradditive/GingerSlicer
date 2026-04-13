@@ -57,7 +57,7 @@ MachineObjectPanel::MachineObjectPanel(wxWindow *parent, wxWindowID id, const wx
 
     Bind(wxEVT_PAINT, &MachineObjectPanel::OnPaint, this);
 
-    SetBackgroundColour(StateColor::darkModeColorFor(*wxWHITE));
+    SetBackgroundColour(*wxWHITE);
 
     m_unbind_img        = ScalableBitmap(this, "unbind", 18);
     m_edit_name_img     = ScalableBitmap(this, "edit_button", 18);
@@ -164,7 +164,7 @@ void MachineObjectPanel::doRender(wxDC &dc)
     left += dwbitmap.GetBmpSize().x + 8;
     dc.SetFont(Label::Body_13);
     dc.SetBackgroundMode(wxTRANSPARENT);
-    dc.SetTextForeground(StateColor::darkModeColorFor(SELECT_MACHINE_GREY900));
+    dc.SetTextForeground(SELECT_MACHINE_GREY900);
     wxString dev_name = "";
     if (m_info) {
         dev_name = from_u8(m_info->dev_name);
@@ -587,7 +587,7 @@ void SelectMachinePopup::update_other_devices()
     wxBoxSizer* placeholder_sizer = new wxBoxSizer(wxVERTICAL);
 
     m_hyperlink = new wxHyperlinkCtrl(m_placeholder_panel, wxID_ANY, _L("Can't find my devices?"), wxT("https://wiki.bambulab.com/en/software/bambu-studio/failed-to-connect-printer"), wxDefaultPosition, wxDefaultSize, wxHL_DEFAULT_STYLE);
-    m_hyperlink->SetNormalColour(StateColor::darkModeColorFor("#009789"));
+    m_hyperlink->SetNormalColour("#009789");
     placeholder_sizer->Add(m_hyperlink, 0, wxALIGN_CENTER | wxALL, 5);
 
 
@@ -595,7 +595,7 @@ void SelectMachinePopup::update_other_devices()
     m_placeholder_panel->Layout();
     placeholder_sizer->Fit(m_placeholder_panel);
 
-    m_placeholder_panel->SetBackgroundColour(StateColor::darkModeColorFor(*wxWHITE));
+    m_placeholder_panel->SetBackgroundColour(*wxWHITE);
     m_sizer_other_devices->Add(m_placeholder_panel, 0, wxEXPAND, 0);
 
     //m_sizer_other_devices->Layout();
@@ -1009,7 +1009,7 @@ PinCodePanel::PinCodePanel(wxWindow* parent, int type, wxWindowID winid /*= wxID
      auto size = GetSize();
      dc.DrawBitmap(m_bitmap.bmp(), wxPoint(FromDIP(12), (size.y - m_bitmap.GetBmpSize().y) / 2));
      dc.SetFont(::Label::Head_13);
-     dc.SetTextForeground(StateColor::darkModeColorFor(wxColour("#262E30"))); // ORCA fix text not visible on dark theme
+     dc.SetTextForeground(wxColour("#262E30")); // ORCA fix text not visible on dark theme
      wxString txt;
      if (m_type == 0) {txt = _L("Bind with Pin Code");}
      else if (m_type == 1) {txt = _L("Bind with Access Code");}

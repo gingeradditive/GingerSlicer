@@ -199,7 +199,7 @@ void SideButton::dorender(wxDC& dc, wxDC& text_dc)
 
     // draw background
     dc.SetPen(wxNullPen);
-    dc.SetBrush(StateColor::darkModeColorFor(bottom_color));
+    dc.SetBrush(bottom_color);
     dc.DrawRectangle(0, 0, size.x, size.y);
 
     int states = state_handler.states();

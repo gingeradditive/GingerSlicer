@@ -116,11 +116,11 @@ StepMeshDialog::StepMeshDialog(wxWindow* parent, Slic3r::Step& file, double line
 
     wxBoxSizer* tips_sizer = new wxBoxSizer(wxVERTICAL);
     wxStaticText* info = new wxStaticText(this, wxID_ANY, _L("Smaller linear and angular deflections result in higher-quality transformations but increase the processing time."));
-    info->SetForegroundColour(StateColor::darkModeColorFor(FONT_COLOR));
+    info->SetForegroundColour(FONT_COLOR);
     wxStaticText *tips = new wxStaticText(this, wxID_ANY, _L("View Wiki for more information"));
     wxFont font(10, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL, false);
     font.SetUnderlined(true);
-    tips->SetForegroundColour(StateColor::darkModeColorFor(wxColour(0, 151, 137)));
+    tips->SetForegroundColour(wxColour(0, 151, 137));
     tips->SetFont(font);
     tips->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) {
         wxLaunchDefaultBrowser("https://github.com/SoftFever/OrcaSlicer/wiki/stl-transformation");
@@ -134,7 +134,7 @@ StepMeshDialog::StepMeshDialog(wxWindow* parent, Slic3r::Step& file, double line
     //linear_sizer->SetMinSize(wxSize(MIN_DIALOG_WIDTH, -1));
     wxStaticText* linear_title = new wxStaticText(this,
                                                   wxID_ANY, _L("Linear Deflection") + ": ");
-    linear_title->SetForegroundColour(StateColor::darkModeColorFor(FONT_COLOR));
+    linear_title->SetForegroundColour(FONT_COLOR);
     linear_sizer->Add(linear_title, 0, wxALIGN_LEFT);
     linear_sizer->AddStretchSpacer(1);
     wxSlider* linear_slider = new wxSlider(this, wxID_ANY,
@@ -187,7 +187,7 @@ StepMeshDialog::StepMeshDialog(wxWindow* parent, Slic3r::Step& file, double line
     wxBoxSizer* angle_sizer = new wxBoxSizer(wxHORIZONTAL);
     wxStaticText* angle_title = new wxStaticText(this,
                                                   wxID_ANY, _L("Angle Deflection") + ": ");
-    angle_title->SetForegroundColour(StateColor::darkModeColorFor(FONT_COLOR));
+    angle_title->SetForegroundColour(FONT_COLOR);
     angle_sizer->Add(angle_title, 0, wxALIGN_LEFT);
     angle_sizer->AddStretchSpacer(1);
     wxSlider* angle_slider = new wxSlider(this, wxID_ANY,
@@ -240,16 +240,16 @@ StepMeshDialog::StepMeshDialog(wxWindow* parent, Slic3r::Step& file, double line
 
     wxBoxSizer* check_sizer = new wxBoxSizer(wxHORIZONTAL);
     m_split_compound_checkbox = new wxCheckBox(this, wxID_ANY, _L("Split compound and compsolid into multiple objects"), wxDefaultPosition, wxDefaultSize, 0);
-    m_split_compound_checkbox->SetForegroundColour(StateColor::darkModeColorFor(FONT_COLOR));
+    m_split_compound_checkbox->SetForegroundColour(FONT_COLOR);
     m_split_compound_checkbox->SetValue(wxGetApp().app_config->get_bool("is_split_compound"));
     check_sizer->Add(m_split_compound_checkbox, 0, wxALIGN_LEFT);
     bSizer->Add(check_sizer, 1, wxEXPAND | wxLEFT | wxRIGHT, LEFT_RIGHT_PADING);
 
     wxBoxSizer* mesh_face_number_sizer = new wxBoxSizer(wxHORIZONTAL);
     wxStaticText *mesh_face_number_title = new wxStaticText(this, wxID_ANY, _L("Number of triangular facets") + ": ");
-    mesh_face_number_title->SetForegroundColour(StateColor::darkModeColorFor(FONT_COLOR));
+    mesh_face_number_title->SetForegroundColour(FONT_COLOR);
     mesh_face_number_text = new wxStaticText(this, wxID_ANY, "0");
-    mesh_face_number_text->SetForegroundColour(StateColor::darkModeColorFor(FONT_COLOR));
+    mesh_face_number_text->SetForegroundColour(FONT_COLOR);
     mesh_face_number_text->SetMinSize(wxSize(FromDIP(150), -1));
     mesh_face_number_sizer->Add(mesh_face_number_title, 0, wxALIGN_LEFT);
     mesh_face_number_sizer->Add(mesh_face_number_text, 0, wxALIGN_LEFT);
@@ -258,7 +258,7 @@ StepMeshDialog::StepMeshDialog(wxWindow* parent, Slic3r::Step& file, double line
     wxBoxSizer* bSizer_button = new wxBoxSizer(wxHORIZONTAL);
     bSizer_button->SetMinSize(wxSize(FromDIP(100), -1));
     m_checkbox = new wxCheckBox(this, wxID_ANY, _L("Don't show again"), wxDefaultPosition, wxDefaultSize, 0);
-    m_checkbox->SetForegroundColour(StateColor::darkModeColorFor(FONT_COLOR));
+    m_checkbox->SetForegroundColour(FONT_COLOR);
     bSizer_button->Add(m_checkbox, 0, wxALIGN_LEFT | wxLEFT | wxALIGN_CENTER_VERTICAL, LEFT_RIGHT_PADING);
     bSizer_button->AddStretchSpacer(1);
 

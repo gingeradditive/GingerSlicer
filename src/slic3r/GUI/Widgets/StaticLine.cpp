@@ -100,11 +100,11 @@ void StaticLine::render(wxDC& dc)
         titleRect.x += icon.GetBmpWidth() + 5;
     }
     if (!label.IsEmpty()) {
-        dc.SetTextForeground(StateColor::darkModeColorFor(GetForegroundColour()));
+        dc.SetTextForeground(GetForegroundColour());
         dc.DrawText(label, titleRect.x, (size.GetHeight() - textSize.GetHeight()) / 2);
         titleRect.x += textSize.GetWidth() + 5;
     }
-    dc.SetPen(wxPen(StateColor::darkModeColorFor(lineColor)));
+    dc.SetPen(wxPen(lineColor));
     if (vertical) {
         size.x /= 2;
         if (titleRect.y > 0) titleRect.y += 5;

@@ -125,7 +125,7 @@ RammingPanel::RammingPanel(wxWindow* parent, const std::string& parameters)
     wxClientDC dc(label);
     wxString multiline_message;
     label->SetFont(Label::Body_14);
-    label->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#363636")));
+    label->SetForegroundColour(wxColour("#363636"));
     label->split_lines(dc, scale(470), message, multiline_message);
     label->SetLabel(multiline_message);
     sizer_chart->Add(label, 0, wxEXPAND | wxALL, 5);
@@ -138,7 +138,7 @@ RammingPanel::RammingPanel(wxWindow* parent, const std::string& parameters)
     auto add_title = [this, sizer_param](wxString label){
         auto title = new StaticLine(this, 0, label);
         title->SetFont(Label::Head_14);
-        title->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#363636")));
+        title->SetForegroundColour(wxColour("#363636"));
         sizer_param->Add(title, 0, wxEXPAND | wxBOTTOM, scale(8));
     };
 
@@ -156,7 +156,7 @@ RammingPanel::RammingPanel(wxWindow* parent, const std::string& parameters)
         });
         auto h_sizer = new wxBoxSizer(wxHORIZONTAL);
         auto text = new wxStaticText(this, wxID_ANY, label, wxDefaultPosition, col_size);
-        text->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#363636")));
+        text->SetForegroundColour(wxColour("#363636"));
         h_sizer->Add(text, 0, wxALIGN_CENTER_VERTICAL);
         h_sizer->Add(spin);
         sizer_param->Add(h_sizer, 0, wxEXPAND | wxBOTTOM, scale(2));
@@ -690,7 +690,7 @@ void WipingPanel::update_warning_texts()
             }
             else {
                 if (text_box->GetForegroundColour() != g_normal_color) {
-                    text_box->SetForegroundColour(StateColor::darkModeColorFor(g_normal_color));
+                    text_box->SetForegroundColour(g_normal_color);
                     text_box->Refresh();
                 }
             }

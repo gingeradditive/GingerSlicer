@@ -1825,7 +1825,7 @@ void InputIpAddressDialog::set_machine_obj(MachineObject* obj)
         m_button_ok->Enable(true);
         StateColor btn_bg_green(std::pair<wxColour, int>(wxColour( 202, 37, 37), StateColor::Pressed), std::pair<wxColour, int>(wxColour(253, 47, 47), StateColor::Hovered),
             std::pair<wxColour, int>(AMS_CONTROL_BRAND_COLOUR, StateColor::Normal));
-        m_button_ok->SetTextColor(StateColor::darkModeColorFor("#FFFFFE"));
+        m_button_ok->SetTextColor("#FFFFFE");
         m_button_ok->SetBackgroundColor(btn_bg_green);
     }
     else {
@@ -2048,7 +2048,7 @@ void InputIpAddressDialog::on_check_ip_address_failed(wxCommandEvent& evt)
     m_button_ok->Enable(true);
     StateColor btn_bg_green(std::pair<wxColour, int>(wxColour( 202, 37, 37), StateColor::Pressed), std::pair<wxColour, int>(wxColour(253, 47, 47), StateColor::Hovered),
         std::pair<wxColour, int>(AMS_CONTROL_BRAND_COLOUR, StateColor::Normal));
-    m_button_ok->SetTextColor(StateColor::darkModeColorFor("#FFFFFE"));
+    m_button_ok->SetTextColor("#FFFFFE");
     m_button_ok->SetBackgroundColor(btn_bg_green);
 }
 
@@ -2072,7 +2072,7 @@ void InputIpAddressDialog::on_text(wxCommandEvent &evt)
         if (enabled) {
             StateColor btn_bg_green(std::pair<wxColour, int>(wxColour( 202, 37, 37), StateColor::Pressed), std::pair<wxColour, int>(wxColour(253, 47, 47), StateColor::Hovered),
                                     std::pair<wxColour, int>(AMS_CONTROL_BRAND_COLOUR, StateColor::Normal));
-            btn->SetTextColor(StateColor::darkModeColorFor("#FFFFFE"));
+            btn->SetTextColor("#FFFFFE");
             btn->SetBackgroundColor(btn_bg_green);
         } else {
             btn->SetBackgroundColor(wxColour(0x90, 0x90, 0x90));

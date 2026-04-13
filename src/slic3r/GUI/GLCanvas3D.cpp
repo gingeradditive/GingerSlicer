@@ -34,7 +34,6 @@
 
 #include "slic3r/GUI/Gizmos/GLGizmoPainterBase.hpp"
 #include "slic3r/Utils/UndoRedo.hpp"
-// #include "slic3r/Utils/MacDarkMode.hpp" // Removed - file not available in current branch
 
 #include <slic3r/GUI/GUI_Utils.hpp>
 

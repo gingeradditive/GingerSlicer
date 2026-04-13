@@ -17,8 +17,8 @@ DragCanvas::DragCanvas(wxWindow* parent, const std::vector<std::string>& colors,
 {
     SetBackgroundColour(*wxWHITE);
 
-    m_background_color = StateColor::darkModeColorFor("#FFFFFF"); // ORCA
-    m_border_color     = StateColor::darkModeColorFor("#DBDBDB"); // ORCA
+    m_background_color = "#FFFFFF"; // ORCA
+    m_border_color     = "#DBDBDB"; // ORCA
 
     m_arrow_bmp = create_scaled_bitmap("plate_settings_arrow", this, 16);
 
