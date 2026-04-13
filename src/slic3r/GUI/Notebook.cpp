@@ -33,9 +33,6 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, wxBoxSizer* side_tools) :
     this->SetSizer(m_sizer);
 
     m_buttons_sizer = new wxFlexGridSizer(1, m_btn_margin, m_btn_margin);
-    m_sizer->AddStretchSpacer(1);
-    m_sizer->Add(m_buttons_sizer, 0, wxALIGN_CENTER | wxLEFT | wxTOP | wxBOTTOM, m_btn_margin);
-    m_sizer->AddStretchSpacer(1);
 
     if (side_tools != NULL) {
         for (size_t idx = 0; idx < side_tools->GetItemCount(); idx++) {
@@ -45,7 +42,17 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, wxBoxSizer* side_tools) :
                 item_win->Reparent(this);
             }
         }
-        m_sizer->Add(side_tools, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT | wxBOTTOM, m_btn_margin);
+        // Balanced left/right sections keep tab buttons at absolute center
+        m_sizer->Add(0, 0, 1, wxEXPAND);
+        m_sizer->Add(m_buttons_sizer, 0, wxALIGN_CENTER | wxTOP | wxBOTTOM, m_btn_margin);
+        auto* right_sizer = new wxBoxSizer(wxHORIZONTAL);
+        right_sizer->AddStretchSpacer(1);
+        right_sizer->Add(side_tools, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, m_btn_margin);
+        m_sizer->Add(right_sizer, 1, wxEXPAND);
+    } else {
+        m_sizer->AddStretchSpacer(1);
+        m_sizer->Add(m_buttons_sizer, 0, wxALIGN_CENTER | wxLEFT | wxTOP | wxBOTTOM, m_btn_margin);
+        m_sizer->AddStretchSpacer(1);
     }
 
     // BBS: disable custom paint
