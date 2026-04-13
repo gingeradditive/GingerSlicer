@@ -819,9 +819,9 @@ void MainFrame::update_layout()
     case ESettingsLayout::Old:
     {
         m_plater->Reparent(m_tabpanel);
-        m_tabpanel->InsertPage(tp3DEditor, m_plater, _L("Prepare"), std::string("tab_3d_active"), std::string("tab_3d_active"), false);
-        m_tabpanel->InsertPage(tpPreview, m_plater, _L("Preview"), std::string("tab_preview_active"), std::string("tab_preview_active"), false);
-        m_main_sizer->Add(m_tabpanel, 1, wxEXPAND | wxTOP, 0);
+        m_tabpanel->InsertPage(tp3DEditor, m_plater, "", std::string("tab_3d_active"), std::string("tab_3d_active"), false);
+        m_tabpanel->InsertPage(tpPreview, m_plater, "", std::string("tab_preview_active"), std::string("tab_preview_active"), false);
+        m_main_sizer->Add(m_tabpanel, 1, wxEXPAND, 0);
 
         m_tabpanel->Bind(wxCUSTOMEVT_NOTEBOOK_SEL_CHANGED, [this](wxCommandEvent& evt)
         {
@@ -1004,7 +1004,7 @@ void MainFrame::init_tabpanel() {
     // BBS
     wxBoxSizer *side_tools = create_side_tools();
     m_tabpanel = new Notebook(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, side_tools,
-                              wxNB_TOP | wxTAB_TRAVERSAL | wxNB_NOPAGETHEME);
+                              wxNB_BOTTOM | wxTAB_TRAVERSAL | wxNB_NOPAGETHEME);
     m_tabpanel->SetBackgroundColour(*wxWHITE);
 
 #ifndef __WXOSX__ // Don't call SetFont under OSX to avoid name cutting in ObjectList
@@ -1091,7 +1091,7 @@ void MainFrame::init_tabpanel() {
         //BBS add pages
     m_monitor = new MonitorPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
     m_monitor->SetBackgroundColour(*wxWHITE);
-    m_tabpanel->AddPage(m_monitor, _L("Device"), std::string("tab_monitor_active"), std::string("tab_monitor_active"), false);
+    m_tabpanel->AddPage(m_monitor, "", std::string("tab_monitor_active"), std::string("tab_monitor_active"), false);
 
     m_printer_view = new PrinterWebView(m_tabpanel);
     Bind(EVT_LOAD_PRINTER_URL, [this](LoadPrinterViewEvent &evt) {
@@ -1106,7 +1106,7 @@ void MainFrame::init_tabpanel() {
         m_multi_machine = new MultiMachinePage(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
         m_multi_machine->SetBackgroundColour(*wxWHITE);
         // TODO: change the bitmap
-        m_tabpanel->AddPage(m_multi_machine, _L("Multi-device"), std::string("tab_multi_active"), std::string("tab_multi_active"), false);
+        m_tabpanel->AddPage(m_multi_machine, "", std::string("tab_multi_active"), std::string("tab_multi_active"), false);
     }
 
     // m_project = new ProjectPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
@@ -1149,7 +1149,7 @@ void MainFrame::show_device(bool bBBLPrinter) {
             m_monitor->SetBackgroundColour(*wxWHITE);
         }
         m_monitor->Show(false);
-        m_tabpanel->InsertPage(tpMonitor, m_monitor, _L("Device"), std::string("tab_monitor_active"), std::string("tab_monitor_active"));
+        m_tabpanel->InsertPage(tpMonitor, m_monitor, "", std::string("tab_monitor_active"), std::string("tab_monitor_active"));
 
         if (wxGetApp().is_enable_multi_machine()) {
             if (!m_multi_machine) {
@@ -1158,7 +1158,7 @@ void MainFrame::show_device(bool bBBLPrinter) {
             }
             // TODO: change the bitmap
             m_multi_machine->Show(false);
-            m_tabpanel->InsertPage(tpMultiDevice, m_multi_machine, _L("Multi-device"), std::string("tab_multi_active"),
+            m_tabpanel->InsertPage(tpMultiDevice, m_multi_machine, "", std::string("tab_multi_active"),
                                    std::string("tab_multi_active"), false);
         }
         if (!m_calibration) {
@@ -1197,7 +1197,7 @@ void MainFrame::show_device(bool bBBLPrinter) {
             });
         }
         m_printer_view->Show(false);
-        m_tabpanel->InsertPage(tpMonitor, m_printer_view, _L("Device"), std::string("tab_monitor_active"),
+        m_tabpanel->InsertPage(tpMonitor, m_printer_view, "", std::string("tab_monitor_active"),
                                std::string("tab_monitor_active"));
     }
 }

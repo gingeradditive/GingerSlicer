@@ -83,9 +83,9 @@ void MultiMachinePage::init_tabpanel()
     m_cloud_task_manager = new CloudTaskManagerPage(m_tabpanel);
     m_machine_manager = new MultiMachineManagerPage(m_tabpanel);
 
-    m_tabpanel->AddPage(m_machine_manager, _L("Device"), "", true);
-    m_tabpanel->AddPage(m_local_task_manager, _L("Task Sending"), "", false);
-    m_tabpanel->AddPage(m_cloud_task_manager, _L("Task Sent"), "", false);
+    m_tabpanel->AddPage(m_machine_manager, "", "", true);
+    m_tabpanel->AddPage(m_local_task_manager, "", "", false);
+    m_tabpanel->AddPage(m_cloud_task_manager, "", "", false);
 }
 
 void MultiMachinePage::init_timer()

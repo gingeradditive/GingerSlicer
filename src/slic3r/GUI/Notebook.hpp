@@ -64,14 +64,18 @@ public:
                 wxBoxSizer* side_tools = NULL,
                 long style = 0)
     {
-        if (!wxBookCtrlBase::Create(parent, winid, pos, size, style | wxBK_TOP))
+        long book_style = style;
+        if ((book_style & (wxBK_TOP | wxBK_BOTTOM | wxBK_LEFT | wxBK_RIGHT)) == 0)
+            book_style |= wxBK_TOP;
+
+        if (!wxBookCtrlBase::Create(parent, winid, pos, size, book_style))
             return false;
 
         m_bookctrl = new ButtonsListCtrl(this, side_tools);
 
         wxSizer* mainSizer = new wxBoxSizer(IsVertical() ? wxVERTICAL : wxHORIZONTAL);
 
-        if (style & wxBK_RIGHT || style & wxBK_BOTTOM)
+        if (book_style & wxBK_RIGHT || book_style & wxBK_BOTTOM)
             mainSizer->Add(0, 0, 1, wxEXPAND, 0);
 
         m_controlSizer = new wxBoxSizer(IsVertical() ? wxHORIZONTAL : wxVERTICAL);
