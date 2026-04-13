@@ -1374,7 +1374,6 @@ void UpgradePanel::show_status(int status)
 
 void UpgradePanel::on_sys_color_changed()
 {
-    //add some protection for Dark mode
     if (m_push_upgrade_panel) {
         m_push_upgrade_panel->on_sys_color_changed();
     }

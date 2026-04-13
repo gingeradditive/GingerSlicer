@@ -102,7 +102,6 @@ class WebViewEdge : public wxWebViewEdge
 public:
     bool SetUserAgent(const wxString &userAgent)
     {
-        // Dark mode support removed - always use light color scheme
         SetColorScheme(COREWEBVIEW2_PREFERRED_COLOR_SCHEME_LIGHT);
 
         ICoreWebView2 *webView2 = (ICoreWebView2 *) GetNativeBackend();
@@ -281,8 +280,6 @@ wxWebView* WebView::CreateWebView(wxWindow * parent, wxString const & url)
 #endif
 #ifdef __WXMAC__
         WKWebView * wkWebView = (WKWebView *) webView->GetNativeBackend();
-        // WKWebView_setTransparentBackground was removed in dark mode removal
-        // Slic3r::GUI::WKWebView_setTransparentBackground(wkWebView);
 #endif
         auto addScriptMessageHandler = [] (wxWebView *webView) {
             BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": begin to add script message handler for wx.";
@@ -355,8 +352,6 @@ bool WebView::RunScript(wxWebView *webView, wxString const &javascript)
         return webView2->ExecuteScript(javascript, NULL) == 0;
 #elif defined __WXMAC__
         WKWebView * wkWebView = (WKWebView *) webView->GetNativeBackend();
-        // WKWebView_evaluateJavaScript was removed in dark mode removal
-        // Slic3r::GUI::WKWebView_evaluateJavaScript(wkWebView, javascript, nullptr);
         return true;
 #else
         WebKitWebView *wkWebView = (WebKitWebView *) webView->GetNativeBackend();
