@@ -43,7 +43,7 @@ MultiTaskItem::MultiTaskItem(wxWindow* parent, MachineObject* obj, int type)
     m_button_resume->SetBackgroundColor(m_btn_bg_enable);
     m_button_resume->SetBorderColor(m_btn_bg_enable);
     m_button_resume->SetFont(Label::Body_12);
-    m_button_resume->SetTextColor("#FFFFFE");
+    m_button_resume->SetTextColor(StateColor(wxString("#FFFFFE")));
     m_button_resume->SetMinSize(wxSize(FromDIP(70), FromDIP(35)));
     m_button_resume->SetCornerRadius(6);
     
