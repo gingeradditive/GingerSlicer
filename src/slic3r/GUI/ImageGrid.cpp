@@ -676,8 +676,8 @@ void Slic3r::GUI::ImageGrid::renderContent2(wxDC &dc, wxPoint const &pt, int ind
     m_content_rect.SetHeight(m_content_rect.GetHeight() - h);
     auto br = dc.GetBrush();
     auto pn = dc.GetPen();
-    dc.SetBrush(0xEEEEEE);
-    dc.SetPen(0xEEEEEE);
+    dc.SetBrush(wxColour(0xEE, 0xEE, 0xEE));
+    dc.SetPen(wxColour(0xEE, 0xEE, 0xEE));
     dc.DrawRectangle(pt, m_content_rect.GetSize()); // Fix translucent model thumbnail
     renderContent1(dc, pt, index, hit);
     m_content_rect.SetHeight(m_content_rect.GetHeight() + h);
