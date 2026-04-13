@@ -26,8 +26,7 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, wxBoxSizer* side_tools) :
     SetBackgroundColour(default_btn_bg);
 
     int em = em_unit(this);// Slic3r::GUI::wxGetApp().em_unit();
-    // BBS: no gap
-    m_btn_margin = 0; // std::lround(0.3 * em);
+    m_btn_margin = std::lround(0.3 * em);
     m_line_margin = std::lround(0.1 * em);
 
     m_sizer = new wxBoxSizer(wxHORIZONTAL);
@@ -35,7 +34,7 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, wxBoxSizer* side_tools) :
 
     m_buttons_sizer = new wxFlexGridSizer(1, m_btn_margin, m_btn_margin);
     m_sizer->AddStretchSpacer(1);
-    m_sizer->Add(m_buttons_sizer, 0, wxALIGN_CENTER | wxLEFT | wxBOTTOM, m_btn_margin);
+    m_sizer->Add(m_buttons_sizer, 0, wxALIGN_CENTER | wxLEFT | wxTOP | wxBOTTOM, m_btn_margin);
     m_sizer->AddStretchSpacer(1);
 
     if (side_tools != NULL) {
@@ -122,11 +121,10 @@ void ButtonsListCtrl::Rescale()
         btn->Rescale();
     }
 
-    // BBS: no gap
-    //m_btn_margin = std::lround(0.3 * em);
-    //m_line_margin = std::lround(0.1 * em);
-    //m_buttons_sizer->SetVGap(m_btn_margin);
-    //m_buttons_sizer->SetHGap(m_btn_margin);
+    m_btn_margin = std::lround(0.3 * em);
+    m_line_margin = std::lround(0.1 * em);
+    m_buttons_sizer->SetVGap(m_btn_margin);
+    m_buttons_sizer->SetHGap(m_btn_margin);
 
     m_sizer->Layout();
 }
@@ -147,8 +145,9 @@ void ButtonsListCtrl::SetSelection(int sel)
         );
         m_pageButtons[m_selection]->SetSelected(false);
         m_pageButtons[m_selection]->SetTextColor(text_color);
-        m_pageButtons[m_selection]->SetBorderWidth(0);
-        m_pageButtons[m_selection]->SetCornerRadius(0);
+        m_pageButtons[m_selection]->SetBorderColor(wxColour(240, 240, 240));
+        m_pageButtons[m_selection]->SetBorderWidth(1);
+        m_pageButtons[m_selection]->SetCornerRadius(16);
     }
     m_selection = sel;
 
@@ -188,7 +187,9 @@ bool ButtonsListCtrl::InsertPage(size_t n, const wxString &text, bool bSelect /*
     btn->SetTextColor(text_color);
     btn->SetInactiveIcon(inactive_bmp_name);
     btn->SetSelected(false);
-    btn->SetBorderWidth(0);
+    btn->SetBorderColor(wxColour(240, 240, 240));
+    btn->SetBorderWidth(1);
+    btn->SetCornerRadius(16);
     btn->Bind(wxEVT_BUTTON, [this, btn](wxCommandEvent& event) {
         if (auto it = std::find(m_pageButtons.begin(), m_pageButtons.end(), btn); it != m_pageButtons.end()) {
             auto sel = it - m_pageButtons.begin();
