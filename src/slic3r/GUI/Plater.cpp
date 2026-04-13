@@ -118,6 +118,8 @@
 #include "Gizmos/GLGizmoSVG.hpp" // Drop SVG file
 #include "Gizmos/GizmoObjectManipulation.hpp"
 
+#include <wx/textdlg.h>
+
 // BBS
 #include "Widgets/ProgressDialog.hpp"
 #include "BBLStatusBar.hpp"
@@ -741,6 +743,7 @@ Sidebar::Sidebar(Plater *parent)
         PlaterPresetComboBox* combo_printer = new PlaterPresetComboBox(p->m_panel_printer_content, Preset::TYPE_PRINTER);
         ScalableButton* edit_btn = new ScalableButton(p->m_panel_printer_content, wxID_ANY, "edit");
         edit_btn->SetToolTip(_L("Click to edit preset"));
+        edit_btn->SetBackgroundColour(wxColour(255, 255, 255));
         edit_btn->Bind(wxEVT_BUTTON, [this, combo_printer](wxCommandEvent)
             {
                 p->editing_filament = -1;
@@ -760,10 +763,86 @@ Sidebar::Sidebar(Plater *parent)
             });
 
         wxBoxSizer* vsizer_printer = new wxBoxSizer(wxVERTICAL);
-        wxBoxSizer* hsizer_printer = new wxBoxSizer(wxHORIZONTAL);
 
         vsizer_printer->AddSpacer(FromDIP(16));
-        hsizer_printer->Add(combo_printer, 1, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ContentMargin()));
+
+        // Printer host selection (above machine preset)
+        {
+            wxBoxSizer* host_sizer = new wxBoxSizer(wxHORIZONTAL);
+            wxStaticText* host_title = new wxStaticText(p->m_panel_printer_content, wxID_ANY, _L("Host"));
+            host_title->Wrap(-1);
+            host_title->SetFont(Label::Body_14);
+
+            m_printer_host_list = new ComboBox(p->m_panel_printer_content, wxID_ANY, wxString(""), wxDefaultPosition, {-1, FromDIP(30)}, 0, nullptr, wxCB_READONLY);
+
+            m_btn_add_host = new ScalableButton(p->m_panel_printer_content, wxID_ANY, "add");
+            m_btn_add_host->SetToolTip(_L("Add printer host address"));
+            m_btn_add_host->SetBackgroundColour(wxColour(255, 255, 255));
+
+            m_btn_remove_host = new ScalableButton(p->m_panel_printer_content, wxID_ANY, "delete");
+            m_btn_remove_host->SetToolTip(_L("Remove selected printer host address"));
+            m_btn_remove_host->SetBackgroundColour(wxColour(255, 255, 255));
+
+            // Populate from AppConfig
+            update_printer_host_list();
+
+            m_printer_host_list->Bind(wxEVT_COMBOBOX, [this](wxCommandEvent& e) {
+                int sel = m_printer_host_list->GetSelection();
+                if (sel != wxNOT_FOUND) {
+                    std::string host = m_printer_host_list->GetString(sel).ToUTF8().data();
+                    AppConfig *app_config = wxGetApp().app_config;
+                    app_config->set_selected_printer_host(host);
+                    app_config->save();
+                    apply_printer_host_to_config(host);
+                }
+            });
+
+            m_btn_add_host->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+                wxTextEntryDialog dlg(this, _L("Enter printer host address:"), _L("Add Printer Host"), "");
+                if (dlg.ShowModal() == wxID_OK) {
+                    std::string new_host = dlg.GetValue().ToUTF8().data();
+                    if (!new_host.empty()) {
+                        AppConfig *app_config = wxGetApp().app_config;
+                        app_config->add_printer_host(new_host);
+                        app_config->set_selected_printer_host(new_host);
+                        app_config->save();
+                        update_printer_host_list();
+                        apply_printer_host_to_config(new_host);
+                    }
+                }
+            });
+
+            m_btn_remove_host->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+                int sel = m_printer_host_list->GetSelection();
+                if (sel == wxNOT_FOUND) return;
+                std::string host = m_printer_host_list->GetString(sel).ToUTF8().data();
+
+                wxString msg = wxString::Format(_L("Remove printer host \"%s\"?"), host);
+                MessageDialog dialog(this, msg, _L("Remove Printer Host"), wxICON_QUESTION | wxYES_NO);
+                if (dialog.ShowModal() == wxID_YES) {
+                    AppConfig *app_config = wxGetApp().app_config;
+                    app_config->remove_printer_host(host);
+                    app_config->save();
+                    update_printer_host_list();
+                    apply_printer_host_to_config(app_config->get_selected_printer_host());
+                }
+            });
+
+            host_sizer->Add(host_title, 0, wxLEFT | wxALIGN_CENTER_VERTICAL, FromDIP(SidebarProps::ContentMargin()));
+            host_sizer->Add(m_printer_host_list, 1, wxLEFT | wxEXPAND, FromDIP(SidebarProps::ElementSpacing()));
+            host_sizer->Add(m_btn_add_host, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()));
+            host_sizer->Add(m_btn_remove_host, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::IconSpacing()));
+            host_sizer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
+            vsizer_printer->Add(host_sizer, 0, wxEXPAND, 0);
+            vsizer_printer->AddSpacer(FromDIP(5));
+        }
+
+        wxBoxSizer* hsizer_printer = new wxBoxSizer(wxHORIZONTAL);
+        wxStaticText* printer_title = new wxStaticText(p->m_panel_printer_content, wxID_ANY, _L("Nozzle"));
+        printer_title->Wrap(-1);
+        printer_title->SetFont(Label::Body_14);
+        hsizer_printer->Add(printer_title, 0, wxLEFT | wxALIGN_CENTER_VERTICAL, FromDIP(SidebarProps::ContentMargin()));
+        hsizer_printer->Add(combo_printer, 1, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()));
         hsizer_printer->Add(edit_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()));
         hsizer_printer->Add(connection_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::IconSpacing()));
         hsizer_printer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
@@ -772,7 +851,6 @@ Sidebar::Sidebar(Plater *parent)
         // Bed type selection
         wxBoxSizer* bed_type_sizer = new wxBoxSizer(wxHORIZONTAL);
         wxStaticText* bed_type_title = new wxStaticText(p->m_panel_printer_content, wxID_ANY, _L("Bed type"));
-        //bed_type_title->SetBackgroundColour();
         bed_type_title->Wrap(-1);
         bed_type_title->SetFont(Label::Body_14);
         m_bed_type_list = new ComboBox(p->m_panel_printer_content, wxID_ANY, wxString(""), wxDefaultPosition, {-1, FromDIP(30)}, 0, nullptr, wxCB_READONLY);
@@ -796,9 +874,6 @@ Sidebar::Sidebar(Plater *parent)
             font.SetUnderlined(false);
             bed_type_title->SetFont(font);
             SetCursor(wxCURSOR_ARROW);
-        });
-        bed_type_title->Bind(wxEVT_LEFT_UP, [bed_type_title, this](wxMouseEvent &e) {
-            wxLaunchDefaultBrowser("https://github.com/SoftFever/OrcaSlicer/wiki/bed-types");
         });
 
         AppConfig *app_config = wxGetApp().app_config;
@@ -1163,6 +1238,53 @@ void Sidebar::remove_unused_filament_combos(const size_t current_extruder_count)
             sizer_filaments1->Remove(c1 - 1);
         else if (c0 > c1)
             sizer_filaments1->AddStretchSpacer(1);
+    }
+}
+
+void Sidebar::update_printer_host_list()
+{
+    if (!m_printer_host_list) return;
+    m_printer_host_list->Clear();
+    AppConfig *app_config = wxGetApp().app_config;
+    auto hosts = app_config->get_printer_host_list();
+    std::string selected = app_config->get_selected_printer_host();
+    int sel_idx = 0;
+    for (size_t i = 0; i < hosts.size(); i++) {
+        m_printer_host_list->AppendString(wxString::FromUTF8(hosts[i]));
+        if (hosts[i] == selected)
+            sel_idx = (int)i;
+    }
+    m_printer_host_list->Select(sel_idx);
+}
+
+void Sidebar::apply_printer_host_to_config(const std::string &host)
+{
+    PresetBundle &preset_bundle = *wxGetApp().preset_bundle;
+    auto& cfg = preset_bundle.printers.get_edited_preset().config;
+    cfg.opt_string("print_host") = host;
+
+    // Also update the tab if open
+    Tab* printer_tab = wxGetApp().get_tab(Preset::TYPE_PRINTER);
+    if (printer_tab)
+        printer_tab->load_config(cfg);
+
+    // Refresh the device tab URL directly (avoid circular call to update_all_preset_comboboxes)
+    if (!preset_bundle.use_bbl_network()) {
+        auto p_mainframe = wxGetApp().mainframe;
+        wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
+        wxString apikey;
+        if (url.empty())
+            url = wxString::Format("file://%s/web/orca/missing_connection.html", from_u8(resources_dir()));
+        else {
+            if (!url.Lower().starts_with("http"))
+                url = wxString::Format("http://%s", url);
+            const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
+            if (cfg.has("printhost_apikey") && (host_type != htSimplyPrint))
+                apikey = cfg.opt_string("printhost_apikey");
+        }
+        p_mainframe->load_printer_url(url, apikey);
+        p_mainframe->set_print_button_to_default(
+            preset_bundle.is_bbl_vendor() ? MainFrame::PrintSelectType::ePrintPlate : MainFrame::PrintSelectType::eSendGcode);
     }
 }
 

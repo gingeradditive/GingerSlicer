@@ -280,6 +280,14 @@ public:
 
     void                save_custom_color_to_config(const std::vector<std::string> &colors);
     std::vector<std::string> get_custom_color_from_config();
+
+    // Printer host addresses management
+    std::vector<std::string> get_printer_host_list() const;
+    void set_printer_host_list(const std::vector<std::string> &hosts);
+    void add_printer_host(const std::string &host);
+    void remove_printer_host(const std::string &host);
+    std::string get_selected_printer_host() const;
+    void set_selected_printer_host(const std::string &host);
 	// reset the current print / filament / printer selections, so that
 	// the  PresetBundle::load_selections(const AppConfig &config) call will select
 	// the first non-default preset when called.
