@@ -312,6 +312,29 @@ void PressureEqualizer::process_layer(const std::string &gcode)
             segments.push_back({(size_t)seg_start, (size_t)seg_end, first_e_idx, last_e_idx, travel_distance});
         }
 
+        // --- Merge consecutive segments separated by below-threshold travel ---
+        // When travel between two polylines is below threshold, they form a continuous
+        // extrusion stream.  Merging ensures the ramp-up from the first polyline
+        // continues into the next one instead of restarting at steady state.
+        {
+            std::vector<PolylineSegment> merged;
+            for (size_t i = 0; i < segments.size(); ++i) {
+                if (merged.empty()) {
+                    merged.push_back(segments[i]);
+                } else {
+                    // The travel *before* this segment equals the gap after the previous one
+                    if (segments[i].travel_distance < m_pellet_ers_travel_threshold) {
+                        // Merge: extend the current merged segment to cover the new one
+                        merged.back().seg_end    = segments[i].seg_end;
+                        merged.back().last_e_idx = segments[i].last_e_idx;
+                    } else {
+                        merged.push_back(segments[i]);
+                    }
+                }
+            }
+            segments = std::move(merged);
+        }
+
         // --- Assign travel_before and travel_after to GCodeLines ---
         for (size_t i = 0; i < segments.size(); ++i) {
             auto &seg = segments[i];
