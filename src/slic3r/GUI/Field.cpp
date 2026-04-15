@@ -580,9 +580,7 @@ void Field::msw_rescale()
 
 void Field::sys_color_changed()
 {
-#ifdef _WIN32
-	if (wxWindow* win = this->getWindow())
-#endif
+;
 }
 
 std::vector<std::deque<wxWindow *>**> spools;
