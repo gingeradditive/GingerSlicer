@@ -1,9 +1,12 @@
 #include <regex>
 #include "CalibrationWizardPresetPage.hpp"
 #include "I18N.hpp"
+#include "GUI_App.hpp"
+#include "Plater.hpp"
 #include "Widgets/Label.hpp"
 #include "MsgDialog.hpp"
 #include "libslic3r/Print.hpp"
+#include "libslic3r/PresetBundle.hpp"
 
 namespace Slic3r { namespace GUI {
 static int PA_LINE = 0;

@@ -1,7 +1,9 @@
-#include "CalibrationWizardSavePage.hpp"
 #include "I18N.hpp"
+#include "GUI_App.hpp"
+#include "CalibrationWizardSavePage.hpp"
 #include "Widgets/Label.hpp"
 #include "MsgDialog.hpp"
+#include "libslic3r/PresetBundle.hpp"
 
 
 namespace Slic3r { namespace GUI {

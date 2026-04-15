@@ -1,5 +1,6 @@
 #include "CalibrationWizardStartPage.hpp"
 #include "I18N.hpp"
+#include "GUI_App.hpp"
 #include "Widgets/Label.hpp"
 
 namespace Slic3r { namespace GUI {

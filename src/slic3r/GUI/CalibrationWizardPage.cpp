@@ -1,5 +1,6 @@
 #include "CalibrationWizardPage.hpp"
 #include "I18N.hpp"
+#include "GUI_App.hpp"
 #include "Widgets/Label.hpp"
 #include "MsgDialog.hpp"
 

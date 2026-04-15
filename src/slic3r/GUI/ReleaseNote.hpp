@@ -25,6 +25,8 @@
 #include <wx/event.h>
 #include <wx/hyperlink.h>
 #include <wx/richtext/richtextctrl.h>
+#include <wx/simplebook.h>
+#include "BBLStatusBarSend.hpp"
 
 #include "GUI_Utils.hpp"
 #include "wxExtensions.hpp"
@@ -38,6 +40,8 @@
 #include <wx/webview.h>
 
 namespace Slic3r { namespace GUI {
+
+class Plater;
 
 wxDECLARE_EVENT(EVT_SECONDARY_CHECK_CONFIRM, wxCommandEvent);
 wxDECLARE_EVENT(EVT_SECONDARY_CHECK_CANCEL, wxCommandEvent);
