@@ -160,7 +160,7 @@ void BBLTopbarArt::DrawButton(wxDC& dc, wxWindow* wnd, const wxAuiToolBarItem& i
     if (bmp.IsOk())
         dc.DrawBitmap(bmp, bmpX, bmpY, true);
 
-    dc.SetTextForeground(wxGetApp().get_label_clr_default());
+    dc.SetTextForeground(Slic3r::GUI::wxGetApp().get_label_clr_default());
     if (item.GetState() & wxAUI_BUTTON_STATE_DISABLED)
     {
         dc.SetTextForeground(wxColour(128, 128, 128));
@@ -204,7 +204,7 @@ void BBLTopbar::Init(wxFrame* parent)
     wxBitmap file_bitmap = create_scaled_bitmap("topbar_file", nullptr, TOPBAR_ICON_SIZE);
     m_file_menu_item = this->AddTool(ID_TOP_FILE_MENU, _L("File"), file_bitmap, wxEmptyString, wxITEM_NORMAL);
 
-    this->SetForegroundColour(wxGetApp().get_label_clr_default());
+    this->SetForegroundColour(Slic3r::GUI::wxGetApp().get_label_clr_default());
 
     this->AddSpacer(FromDIP(5));
 

@@ -762,7 +762,7 @@ void ModeButton::focus_button(const bool focus)
 #ifdef _WIN32
     GetParent()->Refresh(); // force redraw a background of the selected mode button
 #else
-    SetForegroundColour(focus ? wxGetApp().get_label_clr_default() : wxColour(128, 128, 128));
+    SetForegroundColour(focus ? Slic3r::GUI::wxGetApp().get_label_clr_default() : wxColour(128, 128, 128));
 #endif /* no _WIN32 */
 
     Refresh();
