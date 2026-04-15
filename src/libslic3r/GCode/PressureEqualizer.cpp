@@ -1208,10 +1208,12 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
         if (slope_neg <= 0.f) slope_neg = m_max_volumetric_extrusion_rate_slope_negative;
 
-        // Ramp distances to reach vol_rate from each end
-        float l_rampup  = (vol_rate * vol_rate - rate_start * rate_start) * original_feedrate / (2.f * slope_pos * vol_rate);
+        // Ramp distances to reach vol_rate from each end.
+        // Clamp to 0: when rate_start/rate_end >= vol_rate, no ramp is needed on that side
+        // and the formula would produce a negative distance, corrupting position interpolation.
+        float l_rampup  = std::max(0.f, (vol_rate * vol_rate - rate_start * rate_start) * original_feedrate / (2.f * slope_pos * vol_rate));
 
-        float l_rampdown = (vol_rate * vol_rate - rate_end * rate_end) * original_feedrate / (2.f * slope_neg * vol_rate);
+        float l_rampdown = std::max(0.f, (vol_rate * vol_rate - rate_end * rate_end) * original_feedrate / (2.f * slope_neg * vol_rate));
 
 
 
