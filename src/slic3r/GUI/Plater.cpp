@@ -97,9 +97,6 @@
 #include "Jobs/PlaterWorker.hpp"
 #include "Jobs/BoostThreadWorker.hpp"
 #include "BackgroundSlicingProcess.hpp"
-#include "SelectMachine.hpp"
-#include "SendMultiMachinePage.hpp"
-#include "SendToPrinter.hpp"
 #include "PublishDialog.hpp"
 #include "ModelMall.hpp"
 #include "ConfigWizard.hpp"
@@ -2205,9 +2202,6 @@ struct Plater::priv
 
     MenuFactory menus;
 
-    SelectMachineDialog* m_select_machine_dlg = nullptr;
-    SendMultiMachinePage* m_send_multi_dlg = nullptr;
-    SendToPrinterDialog* m_send_to_sdcard_dlg = nullptr;
     PublishDialog *m_publish_dlg = nullptr;
 
     // Data
@@ -2379,21 +2373,6 @@ struct Plater::priv
 
     // BBS
     bool init_collapse_toolbar();
-
-    // BBS
-    void hide_select_machine_dlg()
-    {
-        if (m_select_machine_dlg)
-            m_select_machine_dlg->EndModal(wxID_OK);
-    }
-
-    void enter_prepare_mode()
-    {
-        if (m_select_machine_dlg)
-            m_select_machine_dlg->prepare_mode();
-    }
-
-    void hide_send_to_printer_dlg() { m_send_to_sdcard_dlg->EndModal(wxID_OK); }
 
     void update_preview_bottom_toolbar();
 
@@ -2670,9 +2649,6 @@ struct Plater::priv
     void update_fff_scene_only_shells(bool only_shells = true);
     //BBS: add popup object table logic
     bool PopupObjectTable(int object_id, int volume_id, const wxPoint& position);
-    void on_action_send_to_printer(bool isall = false);
-    void on_action_send_to_multi_machine(SimpleEvent&);
-    int update_print_required_data(Slic3r::DynamicPrintConfig config, Slic3r::Model model, Slic3r::PlateDataPtrs plate_data_list, std::string file_name, std::string file_path);
 private:
     bool layers_height_allowed() const;
 
@@ -2681,8 +2657,6 @@ private:
 
     void undo_redo_to(std::vector<UndoRedo::Snapshot>::const_iterator it_snapshot);
     void update_after_undo_redo(const UndoRedo::Snapshot& snapshot, bool temp_snapshot_was_taken = false);
-    void on_action_export_to_sdcard(SimpleEvent&);
-    void on_action_export_to_sdcard_all(SimpleEvent&);
     void update_plugin_when_launch(wxCommandEvent& event);
     // path to project folder stored with no extension
     boost::filesystem::path     m_project_folder;
@@ -2710,8 +2684,6 @@ private:
     std::vector<std::pair<Slic3r::PrintStateBase::Warning, size_t>> current_warnings;
     bool show_warning_dialog { false };
 
-    //record print preset
-    void record_start_print_preset(std::string action);
 };
 
 const std::regex Plater::priv::pattern_bundle(".*[.](amf|amf[.]xml|zip[.]amf|3mf)", std::regex::icase);
@@ -3101,9 +3073,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         q->Bind(EVT_GLTOOLBAR_SEND_GCODE, &priv::on_action_send_gcode, this);
         q->Bind(EVT_GLTOOLBAR_EXPORT_SLICED_FILE, &priv::on_action_export_sliced_file, this);
         q->Bind(EVT_GLTOOLBAR_EXPORT_ALL_SLICED_FILE, &priv::on_action_export_all_sliced_file, this);
-        q->Bind(EVT_GLTOOLBAR_SEND_TO_PRINTER, &priv::on_action_export_to_sdcard, this);
-        q->Bind(EVT_GLTOOLBAR_SEND_TO_PRINTER_ALL, &priv::on_action_export_to_sdcard_all, this);
-        q->Bind(EVT_GLTOOLBAR_PRINT_MULTI_MACHINE, &priv::on_action_send_to_multi_machine, this);
+
         q->Bind(EVT_GLCANVAS_PLATE_SELECT, &priv::on_plate_selected, this);
         q->Bind(EVT_DOWNLOAD_PROJECT, &priv::on_action_download_project, this);
         q->Bind(EVT_IMPORT_MODEL_ID, &priv::on_action_request_model_id, this);
@@ -7154,26 +7124,7 @@ void Plater::priv::on_action_print_plate(SimpleEvent&)
         BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << ":received print plate event\n" ;
     }
 
-    PresetBundle& preset_bundle = *wxGetApp().preset_bundle;
-    if (preset_bundle.use_bbl_network()) {
-        // BBS
-        if (!m_select_machine_dlg)
-            m_select_machine_dlg = new SelectMachineDialog(q);
-        m_select_machine_dlg->set_print_type(PrintFromType::FROM_NORMAL);
-        m_select_machine_dlg->prepare(partplate_list.get_curr_plate_index());
-        m_select_machine_dlg->ShowModal();
-        record_start_print_preset("print_plate");
-    } else {
-        q->send_gcode_legacy(PLATE_CURRENT_IDX, nullptr, true);
-    }
-}
-
-void Plater::priv::on_action_send_to_multi_machine(SimpleEvent&)
-{
-    if (!m_send_multi_dlg)
-        m_send_multi_dlg = new SendMultiMachinePage(q);
-    m_send_multi_dlg->prepare(partplate_list.get_curr_plate_index());
-    m_send_multi_dlg->ShowModal();
+    q->send_gcode_legacy(PLATE_CURRENT_IDX, nullptr, true);
 }
 
 void Plater::priv::on_action_print_plate_from_sdcard(SimpleEvent&)
@@ -7181,12 +7132,7 @@ void Plater::priv::on_action_print_plate_from_sdcard(SimpleEvent&)
     if (q != nullptr) {
         BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << ":received print plate event\n";
     }
-
-    //BBS
-    if (!m_select_machine_dlg) m_select_machine_dlg = new SelectMachineDialog(q);
-    m_select_machine_dlg->set_print_type(PrintFromType::FROM_SDCARD_VIEW);
-    m_select_machine_dlg->prepare(0);
-    m_select_machine_dlg->ShowModal();
+    q->send_gcode_legacy(PLATE_CURRENT_IDX, nullptr, true);
 }
 
 void Plater::priv::on_tab_selection_changing(wxBookCtrlEvent& e)
@@ -7222,25 +7168,6 @@ void Plater::priv::on_tab_selection_changing(wxBookCtrlEvent& e)
     }
 }
 
-int Plater::priv::update_print_required_data(Slic3r::DynamicPrintConfig config, Slic3r::Model model, Slic3r::PlateDataPtrs plate_data_list, std::string file_name, std::string file_path)
-{
-    if (!m_select_machine_dlg) m_select_machine_dlg = new SelectMachineDialog(q);
-    return m_select_machine_dlg->update_print_required_data(config, model, plate_data_list, file_name, file_path);
-}
-
-void Plater::priv::on_action_send_to_printer(bool isall)
-{
-	if (!m_send_to_sdcard_dlg) m_send_to_sdcard_dlg = new SendToPrinterDialog(q);
-    if (isall) {
-        m_send_to_sdcard_dlg->prepare(PLATE_ALL_IDX);
-    }
-    else {
-        m_send_to_sdcard_dlg->prepare(partplate_list.get_curr_plate_index());
-    }
-
-	m_send_to_sdcard_dlg->ShowModal();
-}
-
 
 void Plater::priv::on_action_select_sliced_plate(wxCommandEvent &evt)
 {
@@ -7256,18 +7183,7 @@ void Plater::priv::on_action_print_all(SimpleEvent&)
         BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << ":received print all event\n" ;
     }
 
-    PresetBundle& preset_bundle = *wxGetApp().preset_bundle;
-    if (preset_bundle.use_bbl_network()) {
-        // BBS
-        if (!m_select_machine_dlg)
-            m_select_machine_dlg = new SelectMachineDialog(q);
-        m_select_machine_dlg->set_print_type(PrintFromType::FROM_NORMAL);
-        m_select_machine_dlg->prepare(PLATE_ALL_IDX);
-        m_select_machine_dlg->ShowModal();
-        record_start_print_preset("print_all");
-    } else {
-        q->send_gcode_legacy(PLATE_ALL_IDX, nullptr, true);
-    }
+    q->send_gcode_legacy(PLATE_ALL_IDX, nullptr, true);
 }
 
 void Plater::priv::on_action_export_gcode(SimpleEvent&)
@@ -7302,21 +7218,6 @@ void Plater::priv::on_action_export_all_sliced_file(SimpleEvent &)
     }
 }
 
-void Plater::priv::on_action_export_to_sdcard(SimpleEvent&)
-{
-	if (q != nullptr) {
-		BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << ":received export sliced file event\n";
-		q->send_to_printer();
-	}
-}
-
-void Plater::priv::on_action_export_to_sdcard_all(SimpleEvent&)
-{
-    if (q != nullptr) {
-        BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << ":received export sliced file event\n";
-        q->send_to_printer(true);
-    }
-}
 
 //BBS: add plate select logic
 void Plater::priv::on_plate_selected(SimpleEvent&)
@@ -7423,6 +7324,27 @@ void Plater::priv::show_preview_only_hint(wxCommandEvent &event)
 {
     notification_manager->bbl_show_preview_only_notification(into_u8(_L("Preview only mode:\nThe loaded file contains G-code only, cannot enter the Prepare page.")));
 }
+
+void Plater::priv::on_apple_change_color_mode(wxSysColourChangedEvent& evt) {
+    m_is_dark = wxSystemSettings::GetAppearance().IsDark();
+    if (view3D->get_canvas3d() && view3D->get_canvas3d()->is_initialized()) {
+        view3D->get_canvas3d()->on_change_color_mode(m_is_dark);
+        preview->get_canvas3d()->on_change_color_mode(m_is_dark);
+        assemble_view->get_canvas3d()->on_change_color_mode(m_is_dark);
+    }
+
+    apply_color_mode();
+}
+
+void Plater::priv::on_change_color_mode(SimpleEvent& evt) {
+    m_is_dark = wxGetApp().app_config->get("dark_color_mode") == "1";
+    view3D->get_canvas3d()->on_change_color_mode(m_is_dark);
+    preview->get_canvas3d()->on_change_color_mode(m_is_dark);
+    assemble_view->get_canvas3d()->on_change_color_mode(m_is_dark);
+
+    apply_color_mode();
+}
+
 
 void Plater::priv::apply_color_mode()
 {
@@ -8705,49 +8627,6 @@ bool Plater::priv::PopupObjectTable(int object_id, int volume_id, const wxPoint&
 }
 
 
-void Plater::priv::record_start_print_preset(std::string action) {
-    // record start print preset
-    try {
-        json j;
-        j["user_mode"] = wxGetApp().get_mode_str();
-        int  plate_count = partplate_list.get_plate_count();
-        j["plate_count"] = plate_count;
-        unsigned int obj_count = model.objects.size();
-        j["obj_count"] = obj_count;
-        auto printer_preset = wxGetApp().preset_bundle->printers.get_edited_preset_with_vendor_profile().preset;
-        if (printer_preset.is_system) {
-            j["printer_preset_name"] = printer_preset.name;
-        }
-        else {
-            j["printer_preset_name"] = printer_preset.config.opt_string("inherits");
-        }
-        auto filament_presets = wxGetApp().preset_bundle->filament_presets;
-        for (int i = 0; i < filament_presets.size(); ++i) {
-            auto filament_preset = wxGetApp().preset_bundle->filaments.find_preset(filament_presets[i]);
-            if (filament_preset->is_system) {
-                j["filament_preset_" + std::to_string(i)] = filament_preset->name;
-            }
-            else {
-                j["filament_preset_" + std::to_string(i)] = filament_preset->config.opt_string("inherits");
-            }
-        }
-
-        Preset& print_preset = wxGetApp().preset_bundle->prints.get_edited_preset();
-        if (print_preset.is_system) {
-            j["process_preset"] = print_preset.name;
-        }
-        else {
-            j["process_preset"] = print_preset.config.opt_string("inherits");
-        }
-
-        j["record_event"] = action;
-        NetworkAgent* agent = wxGetApp().getAgent();
-    }
-    catch (...) {
-        return;
-    }
-
-}
 
 void Sidebar::set_btn_label(const ActionButtonType btn_type, const wxString& label) const
 {
@@ -11612,10 +11491,7 @@ void Plater::export_gcode(bool prefer_removable)
     }
 }
 
-void Plater::send_to_printer(bool isall)
-{
-    p->on_action_send_to_printer(isall);
-}
+
 
 //BBS export gcode 3mf to file
 void Plater::export_gcode_3mf(bool export_all)
@@ -12839,15 +12715,6 @@ void Plater::send_calibration_job_finished(wxCommandEvent & evt)
 
 void Plater::print_job_finished(wxCommandEvent &evt)
 {
-    //start print failed
-    if (Slic3r::GUI::wxGetApp().get_inf_dialog_contect().empty()) {
-        p->hide_select_machine_dlg();
-    }
-    else {
-        p->enter_prepare_mode();
-    }
-
-
     Slic3r::DeviceManager* dev = Slic3r::GUI::wxGetApp().getDeviceManager();
     if (!dev) return;
 
@@ -12866,7 +12733,6 @@ void Plater::send_job_finished(wxCommandEvent& evt)
     //dev->set_selected_machine(evt.GetString().ToStdString());
 
     send_gcode_finish(evt.GetString());
-    p->hide_send_to_printer_dlg();
     //p->main_frame->request_select_tab(MainFrame::TabPosition::tpMonitor);
     ////jump to monitor and select device status panel
     //MonitorPanel* curr_monitor = p->main_frame->m_monitor;
@@ -12939,10 +12805,7 @@ bool Plater::undo_redo_string_getter(const bool is_undo, int idx, const char** o
     return false;
 }
 
-int Plater::update_print_required_data(Slic3r::DynamicPrintConfig config, Slic3r::Model model, Slic3r::PlateDataPtrs plate_data_list, std::string file_name, std::string file_path)
-{
-    return p->update_print_required_data(config, model, plate_data_list, file_name, file_path);
-}
+
 
 
 void Plater::undo_redo_topmost_string_getter(const bool is_undo, std::string& out_text)
@@ -13225,18 +13088,11 @@ std::vector<std::string> Plater::get_colors_for_color_print(const GCodeProcessor
 
 wxWindow* Plater::get_select_machine_dialog()
 {
-    return p->m_select_machine_dlg;
+    return nullptr;
 }
 
 void Plater::update_print_error_info(int code, std::string msg, std::string extra)
 {
-    if (p->m_select_machine_dlg) {
-        p->m_select_machine_dlg->update_print_error_info(code, msg, extra);
-    }
-
-    if (p->m_send_to_sdcard_dlg) {
-        p->m_send_to_sdcard_dlg->update_print_error_info(code, msg, extra);
-    }
     if (p->main_frame->m_calibration)
         p->main_frame->m_calibration->update_print_error_info(code, msg, extra);
 }
@@ -13618,7 +13474,6 @@ void Plater::sys_color_changed()
     p->preview->sys_color_changed();
     p->sidebar->sys_color_changed();
     p->menus.sys_color_changed();
-    if (p->m_select_machine_dlg) p->m_select_machine_dlg->sys_color_changed();
 
     Layout();
     GetParent()->Layout();

@@ -3,7 +3,6 @@
 #include "wx/wxprec.h"
 #include "wx/aui/auibar.h"
 
-#include "SelectMachine.hpp"
 #include "DeviceManager.hpp"
 
 

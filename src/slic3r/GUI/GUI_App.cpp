@@ -4,7 +4,7 @@
 #include "GUI_ObjectList.hpp"
 #include "GUI_Factories.hpp"
 #include "slic3r/GUI/UserManager.hpp"
-#include "slic3r/GUI/TaskManager.hpp"
+
 #include "format.hpp"
 #include "libslic3r_version.h"
 #include "Downloader.hpp"
@@ -1101,13 +1101,6 @@ void GUI_App::shutdown()
 		removable_drive_manager()->shutdown();
 	}
 
-    // destroy login dialog
-    if (login_dlg != nullptr) {
-        BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< boost::format(": destroy login dialog");
-        delete login_dlg;
-        login_dlg = nullptr;
-    }
-
     if (m_is_recreating_gui) return;
     m_is_closing = true;
     BOOST_LOG_TRIVIAL(info) << "GUI_App::shutdown exit";
@@ -1647,21 +1640,9 @@ void GUI_App::init_networking_callbacks()
                     return;
                 BOOST_LOG_TRIVIAL(trace) << "static: server connected";
                 m_agent->set_user_selected_machine(m_agent->get_user_selected_machine());
-                    if (this->is_enable_multi_machine()) {
-                        auto evt = new wxCommandEvent(EVT_UPDATE_MACHINE_LIST);
-                        wxQueueEvent(this, evt);
-                    }
-                    m_agent->set_user_selected_machine(m_agent->get_user_selected_machine());
                     //subscribe device
                     if (m_agent->is_user_login()) {
                         m_agent->start_device_subscribe();
-                        /* resubscribe the cache dev list */
-                        if (this->is_enable_multi_machine()) {
-                            DeviceManager* dev = this->getDeviceManager();
-                            if (dev && !dev->subscribe_list_cache.empty()) {
-                                dev->subscribe_device_list(dev->subscribe_list_cache);
-                            }
-                        }
                     }
                 });
             });
@@ -1682,9 +1663,7 @@ void GUI_App::init_networking_callbacks()
                     obj->command_get_version();
                     obj->erase_user_access_code();
                     obj->command_get_access_code();
-                    if (!is_enable_multi_machine()) {
-                        GUI::wxGetApp().sidebar().load_ams_list(obj->dev_id, obj);
-                    }
+                    GUI::wxGetApp().sidebar().load_ams_list(obj->dev_id, obj);
                 }
                 });
             });
@@ -1797,10 +1776,8 @@ void GUI_App::init_networking_callbacks()
                     }
                     
 
-                    if (!this->is_enable_multi_machine()) {
-                        if ((sel == obj || sel == nullptr) && obj->is_ams_need_update) {
-                            GUI::wxGetApp().sidebar().load_ams_list(obj->dev_id, obj);
-                        }
+                    if ((sel == obj || sel == nullptr) && obj->is_ams_need_update) {
+                        GUI::wxGetApp().sidebar().load_ams_list(obj->dev_id, obj);
                     }
                 }
             });
@@ -2870,17 +2847,8 @@ __retry:
         else
             m_user_manager->set_agent(m_agent);
 
-        if (this->is_enable_multi_machine()) {
-            if (!m_task_manager) {
-                m_task_manager = new Slic3r::TaskManager(m_agent);
-                m_task_manager->start();
-            }
-            m_agent->enable_multi_machine(true);
-            DeviceManager::EnableMultiMachine = true;
-        } else {
-            m_agent->enable_multi_machine(false);
-            DeviceManager::EnableMultiMachine = false;
-        }
+        m_agent->enable_multi_machine(false);
+        DeviceManager::EnableMultiMachine = false;
 
         //BBS set config dir
         if (m_agent) {
@@ -3281,23 +3249,7 @@ void GUI_App::ShowDownNetPluginDlg() {
 
 void GUI_App::ShowUserLogin(bool show)
 {
-    // BBS: User Login Dialog
-    if (show) {
-        try {
-            if (!login_dlg)
-                login_dlg = new ZUserLogin();
-            else {
-                delete login_dlg;
-                login_dlg = new ZUserLogin();
-            }
-            login_dlg->ShowModal();
-        } catch (std::exception &) {
-            ;
-        }
-    } else {
-        if (login_dlg)
-            login_dlg->EndModal(wxID_OK);
-    }
+    // User login dialog removed (BambuLab feature)
 }
 
 
@@ -4660,21 +4612,19 @@ void GUI_App::show_dialog(wxString msg)
 
 void  GUI_App::push_notification(wxString msg, wxString title, UserNotificationStyle style)
 {
-    if (!this->is_enable_multi_machine()) {
-        if (style == UserNotificationStyle::UNS_NORMAL) {
-            if (m_info_dialog_content.empty()) {
-                wxCommandEvent* evt = new wxCommandEvent(EVT_SHOW_DIALOG);
-                evt->SetString(msg);
-                GUI::wxGetApp().QueueEvent(evt);
-                m_info_dialog_content = msg;
-            }
+    if (style == UserNotificationStyle::UNS_NORMAL) {
+        if (m_info_dialog_content.empty()) {
+            wxCommandEvent* evt = new wxCommandEvent(EVT_SHOW_DIALOG);
+            evt->SetString(msg);
+            GUI::wxGetApp().QueueEvent(evt);
+            m_info_dialog_content = msg;
         }
-        else if (style == UserNotificationStyle::UNS_WARNING_CONFIRM) {
-            GUI::wxGetApp().CallAfter([msg, title] {
-                GUI::MessageDialog msg_dlg(nullptr, msg, title, wxICON_WARNING | wxOK);
-                msg_dlg.ShowModal();
-            });
-        }
+    }
+    else if (style == UserNotificationStyle::UNS_WARNING_CONFIRM) {
+        GUI::wxGetApp().CallAfter([msg, title] {
+            GUI::MessageDialog msg_dlg(nullptr, msg, title, wxICON_WARNING | wxOK);
+            msg_dlg.ShowModal();
+        });
     }
 }
 
@@ -5930,23 +5880,6 @@ std::string GUI_App::url_encode(std::string value) {
     return Http::url_encode(value);
 }
 
-void GUI_App::popup_ping_bind_dialog()
-{
-    if (m_ping_code_binding_dialog == nullptr) {
-        m_ping_code_binding_dialog = new PingCodeBindDialog();
-        m_ping_code_binding_dialog->ShowModal();
-        remove_ping_bind_dialog();
-    }
-}
-
-void GUI_App::remove_ping_bind_dialog()
-{
-    if (m_ping_code_binding_dialog != nullptr) {
-        m_ping_code_binding_dialog->Destroy();
-        delete m_mall_publish_dialog;
-        m_ping_code_binding_dialog = nullptr;
-    }
-}
 
 
 void GUI_App::remove_mall_system_dialog()

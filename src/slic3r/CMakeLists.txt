@@ -42,8 +42,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/BBLTopbar.hpp
     GUI/BedShapeDialog.cpp
     GUI/BedShapeDialog.hpp
-    GUI/BindDialog.cpp
-    GUI/BindDialog.hpp
     GUI/BitmapCache.cpp
     GUI/BitmapCache.hpp
     GUI/BitmapComboBox.cpp
@@ -287,20 +285,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/Mouse3DController.hpp
     GUI/MsgDialog.cpp
     GUI/MsgDialog.hpp
-    GUI/MultiMachine.cpp
-    GUI/MultiMachine.hpp
-    GUI/MultiMachineManagerPage.cpp
-    GUI/MultiMachineManagerPage.hpp
-    GUI/MultiMachinePage.cpp
-    GUI/MultiMachinePage.hpp
-    GUI/MultiPrintJob.cpp
-    GUI/MultiPrintJob.hpp
-    GUI/MultiSendMachineModel.cpp
-    GUI/MultiSendMachineModel.hpp
-    GUI/MultiTaskManagerPage.cpp
-    GUI/MultiTaskManagerPage.hpp
-    GUI/MultiTaskModel.cpp
-    GUI/MultiTaskModel.hpp
     GUI/NetworkTestDialog.cpp
     GUI/NetworkTestDialog.hpp
     GUI/Notebook.cpp
@@ -373,16 +357,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/Search.hpp
     GUI/Selection.cpp
     GUI/Selection.hpp
-    GUI/SelectMachine.cpp
-    GUI/SelectMachine.hpp
-    GUI/SelectMachinePop.cpp
-    GUI/SelectMachinePop.hpp
-    GUI/SendMultiMachinePage.cpp
-    GUI/SendMultiMachinePage.hpp
     GUI/SendSystemInfoDialog.cpp
     GUI/SendSystemInfoDialog.hpp
-    GUI/SendToPrinter.cpp
-    GUI/SendToPrinter.hpp
     GUI/SingleChoiceDialog.cpp
     GUI/SingleChoiceDialog.hpp
     GUI/SliceInfoPanel.cpp
@@ -417,8 +393,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/UserManager.hpp
     GUI/UserNotification.cpp
     GUI/UserNotification.hpp
-    GUI/WebUserLoginDialog.cpp
-    GUI/WebUserLoginDialog.hpp
     GUI/WebViewDialog.cpp
     GUI/WebViewDialog.hpp
     GUI/Widgets/AMSControl.cpp

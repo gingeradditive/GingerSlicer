@@ -12,8 +12,6 @@
 #include "slic3r/GUI/UserNotification.hpp"
 #include "slic3r/Utils/NetworkAgent.hpp"
 #include "slic3r/GUI/WebViewDialog.hpp"
-#include "slic3r/GUI/WebUserLoginDialog.hpp"
-#include "slic3r/GUI/BindDialog.hpp"
 #include "slic3r/GUI/HMS.hpp"
 #include "slic3r/GUI/Jobs/UpgradeNetworkJob.hpp"
 #include "slic3r/GUI/HttpServer.hpp"
@@ -56,7 +54,6 @@ class Model;
 class UserManager;
 class DeviceManager;
 class NetworkAgent;
-class TaskManager;
 
 namespace GUI{
 
@@ -75,7 +72,6 @@ struct GUI_InitParams;
 class ParamsDialog;
 class HMSQuery;
 class ModelMallDialog;
-class PingCodeBindDialog;
 class NetworkErrorDialog;
 
 
@@ -278,7 +274,6 @@ private:
     bool m_is_closing {false};
     Slic3r::DeviceManager* m_device_manager { nullptr };
     Slic3r::UserManager* m_user_manager { nullptr };
-    Slic3r::TaskManager* m_task_manager { nullptr };
     NetworkAgent* m_agent { nullptr };
     std::vector<std::string> need_delete_presets;   // store setting ids of preset
     std::vector<bool> m_create_preset_blocked { false, false, false, false, false, false }; // excceed limit
@@ -286,9 +281,6 @@ private:
     bool m_networking_need_update { false };
     bool m_networking_cancel_update { false };
     std::shared_ptr<UpgradeNetworkJob> m_upgrade_network_job;
-
-    // login widget
-    ZUserLogin*     login_dlg { nullptr };
 
     VersionInfo version_info;
     VersionInfo privacy_version_info;
@@ -312,7 +304,6 @@ public:
     bool            OnInit() override;
     int             OnExit() override;
     bool            initialized() const { return m_initialized; }
-    inline bool     is_enable_multi_machine() { return this->app_config&& this->app_config->get("enable_multi_machine") == "true"; }
 
     std::map<std::string, bool> test_url_state;
 
@@ -324,7 +315,6 @@ public:
     void show_message_box(std::string msg) { wxMessageBox(msg); }
     EAppMode get_app_mode() const { return m_app_mode; }
     Slic3r::DeviceManager* getDeviceManager() { return m_device_manager; }
-    Slic3r::TaskManager*   getTaskManager() { return m_task_manager; }
     HMSQuery* get_hms_query() { return hms_query; }
     NetworkAgent* getAgent() { return m_agent; }
     bool is_editor() const { return m_app_mode == EAppMode::Editor; }
@@ -551,7 +541,6 @@ public:
     std::string         m_mall_model_download_url;
     std::string         m_mall_model_download_name;
     ModelMallDialog*    m_mall_publish_dialog{ nullptr };
-    PingCodeBindDialog* m_ping_code_binding_dialog{ nullptr };
 
     NetworkErrorDialog* m_server_error_dialog { nullptr };
 
@@ -576,8 +565,6 @@ public:
     std::string     url_encode(std::string value);
     std::string     url_decode(std::string value);
 
-    void            popup_ping_bind_dialog();
-    void            remove_ping_bind_dialog();
 
     // Parameters extracted from the command line to be passed to GUI after initialization.
     GUI_InitParams* init_params { nullptr };

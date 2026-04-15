@@ -44,7 +44,7 @@
 #include "PartPlate.hpp"
 #include "Preferences.hpp"
 #include "Widgets/ProgressDialog.hpp"
-#include "BindDialog.hpp"
+#include "../Utils/MacDarkMode.hpp"
 
 #include <fstream>
 #include <string_view>
@@ -1102,12 +1102,6 @@ void MainFrame::init_tabpanel() {
     });
     m_printer_view->Hide();
 
-    if (wxGetApp().is_enable_multi_machine()) {
-        m_multi_machine = new MultiMachinePage(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
-        m_multi_machine->SetBackgroundColour(*wxWHITE);
-        // TODO: change the bitmap
-        m_tabpanel->AddPage(m_multi_machine, "", std::string("tab_multi_active"), std::string("tab_multi_active"), false);
-    }
 
     // m_project = new ProjectPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
     // m_project->SetBackgroundColour(*wxWHITE);
@@ -1151,16 +1145,6 @@ void MainFrame::show_device(bool bBBLPrinter) {
         m_monitor->Show(false);
         m_tabpanel->InsertPage(tpMonitor, m_monitor, "", std::string("tab_monitor_active"), std::string("tab_monitor_active"));
 
-        if (wxGetApp().is_enable_multi_machine()) {
-            if (!m_multi_machine) {
-                m_multi_machine = new MultiMachinePage(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
-                m_multi_machine->SetBackgroundColour(*wxWHITE);
-            }
-            // TODO: change the bitmap
-            m_multi_machine->Show(false);
-            m_tabpanel->InsertPage(tpMultiDevice, m_multi_machine, "", std::string("tab_multi_active"),
-                                   std::string("tab_multi_active"), false);
-        }
         if (!m_calibration) {
             m_calibration = new CalibrationPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
             m_calibration->SetBackgroundColour(*wxWHITE);
@@ -1177,10 +1161,6 @@ void MainFrame::show_device(bool bBBLPrinter) {
 
         if ((idx = m_tabpanel->FindPage(m_calibration)) != wxNOT_FOUND) {
             m_calibration->Show(false);
-            m_tabpanel->RemovePage(idx);
-        }
-        if ((idx = m_tabpanel->FindPage(m_multi_machine)) != wxNOT_FOUND) {
-            m_multi_machine->Show(false);
             m_tabpanel->RemovePage(idx);
         }
         if ((idx = m_tabpanel->FindPage(m_monitor)) != wxNOT_FOUND) {
@@ -1547,7 +1527,6 @@ bool MainFrame::can_reslice() const
 
 wxBoxSizer* MainFrame::create_side_tools()
 {
-    enable_multi_machine = wxGetApp().is_enable_multi_machine();
     int em = em_unit();
     wxBoxSizer* sizer = new wxBoxSizer(wxHORIZONTAL);
 
@@ -1604,7 +1583,7 @@ wxBoxSizer* MainFrame::create_side_tools()
     m_print_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent& event)
         {
             //this->m_plater->select_view_3D("Preview");
-            if (m_print_select == ePrintAll || m_print_select == ePrintPlate || m_print_select == ePrintMultiMachine)
+            if (m_print_select == ePrintAll || m_print_select == ePrintPlate)
             {
                 m_plater->apply_background_progress();
                 // check valid of print
@@ -1615,8 +1594,6 @@ wxBoxSizer* MainFrame::create_side_tools()
                         wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_PRINT_ALL));
                     if (m_print_select == ePrintPlate)
                         wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_PRINT_PLATE));
-                    if(m_print_select == ePrintMultiMachine)
-                         wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_PRINT_MULTI_MACHINE));
                 }
             }
             else if (m_print_select == eExportGcode)
@@ -1629,12 +1606,6 @@ wxBoxSizer* MainFrame::create_side_tools()
                 wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_EXPORT_SLICED_FILE));
             else if (m_print_select == eExportAllSlicedFile)
                 wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_EXPORT_ALL_SLICED_FILE));
-            else if (m_print_select == eSendToPrinter)
-                wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_SEND_TO_PRINTER));
-            else if (m_print_select == eSendToPrinterAll)
-                wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_SEND_TO_PRINTER_ALL));
-            /* else if (m_print_select == ePrintMultiMachine)
-                 wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_PRINT_MULTI_MACHINE));*/
         });
 
     m_slice_option_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent& event)
@@ -1706,9 +1677,6 @@ wxBoxSizer* MainFrame::create_side_tools()
                 SideButton* print_plate_btn = new SideButton(p, _L("Print plate"), "");
                 print_plate_btn->SetCornerRadius(0);
 
-                SideButton* send_to_printer_btn = new SideButton(p, _L("Send"), "");
-                send_to_printer_btn->SetCornerRadius(0);
-
                 SideButton* export_sliced_file_btn = new SideButton(p, _L("Export plate sliced file"), "");
                 export_sliced_file_btn->SetCornerRadius(0);
 
@@ -1735,26 +1703,6 @@ wxBoxSizer* MainFrame::create_side_tools()
                     p->Dismiss();
                     });
 
-                send_to_printer_btn->Bind(wxEVT_BUTTON, [this, p](wxCommandEvent&) {
-                    m_print_btn->SetLabel(_L("Send"));
-                    m_print_select = eSendToPrinter;
-                    m_print_enable = get_enable_print_status();
-                    m_print_btn->Enable(m_print_enable);
-                    this->Layout();
-                    p->Dismiss();
-                    });
-
-                SideButton* send_to_printer_all_btn = new SideButton(p, _L("Send all"), "");
-                send_to_printer_all_btn->SetCornerRadius(0);
-                send_to_printer_all_btn->Bind(wxEVT_BUTTON, [this, p](wxCommandEvent&) {
-                    m_print_btn->SetLabel(_L("Send all"));
-                    m_print_select = eSendToPrinterAll;
-                    m_print_enable = get_enable_print_status();
-                    m_print_btn->Enable(m_print_enable);
-                    this->Layout();
-                    p->Dismiss();
-                    });
-
                 export_sliced_file_btn->Bind(wxEVT_BUTTON, [this, p](wxCommandEvent&) {
                     m_print_btn->SetLabel(_L("Export plate sliced file"));
                     m_print_select = eExportSlicedFile;
@@ -1773,16 +1721,11 @@ wxBoxSizer* MainFrame::create_side_tools()
                     p->Dismiss();
                     });
 
-                bool support_send = true;
                 bool support_print_all = true;
 
                 const auto preset_bundle = wxGetApp().preset_bundle;
                 if (preset_bundle) {
-                    if (preset_bundle->use_bbl_network()) {
-                        // BBL network support everything
-                    } else {
-                        support_send = false; // All 3rd print hosts do not have the send options
-
+                    if (!preset_bundle->use_bbl_network()) {
                         auto cfg = preset_bundle->printers.get_edited_preset().config;
                         const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
 
@@ -1794,23 +1737,6 @@ wxBoxSizer* MainFrame::create_side_tools()
                 p->append_button(print_plate_btn);
                 if (support_print_all) {
                     p->append_button(print_all_btn);
-                }
-                if (support_send) {
-                    p->append_button(send_to_printer_btn);
-                    p->append_button(send_to_printer_all_btn);
-                }
-                if (enable_multi_machine) {
-                    SideButton* print_multi_machine_btn = new SideButton(p, _L("Send to Multi-device"), "");
-                    print_multi_machine_btn->SetCornerRadius(0);
-                    print_multi_machine_btn->Bind(wxEVT_BUTTON, [this, p](wxCommandEvent&) {
-                        m_print_btn->SetLabel(_L("Send to Multi-device"));
-                        m_print_select = ePrintMultiMachine;
-                        m_print_enable = get_enable_print_status();
-                        m_print_btn->Enable(m_print_enable);
-                        this->Layout();
-                        p->Dismiss();
-                    });
-                    p->append_button(print_multi_machine_btn);
                 }
                 p->append_button(export_sliced_file_btn);
                 p->append_button(export_all_sliced_file_btn);
@@ -1944,35 +1870,12 @@ bool MainFrame::get_enable_print_status()
         }
         enable = enable && !is_all_plates;
 	}
-	else if (m_print_select == eSendToPrinter)
-	{
-		if (!current_plate->is_slice_result_ready_for_print())
-		{
-			enable = false;
-		}
-        enable = enable && !is_all_plates;
-	}
-    else if (m_print_select == eSendToPrinterAll)
-    {
-        if (!part_plate_list.is_all_slice_results_ready_for_print())
-        {
-            enable = false;
-        }
-    }
     else if (m_print_select == eExportAllSlicedFile)
     {
         if (!part_plate_list.is_all_slice_result_ready_for_export())
         {
             enable = false;
         }
-    }
-    else if (m_print_select == ePrintMultiMachine)
-    {
-        if (!current_plate->is_slice_result_ready_for_print())
-        {
-            enable = false;
-        }
-        enable = enable && !is_all_plates;
     }
 
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": m_print_select %1%, enable= %2% ")%m_print_select %enable;
@@ -2092,8 +1995,6 @@ void MainFrame::on_dpi_changed(const wxRect& suggested_rect)
     m_project->msw_rescale();
     if(m_monitor)
         m_monitor->msw_rescale();
-    if(m_multi_machine)
-        m_multi_machine->msw_rescale();
     if(m_calibration)
         m_calibration->msw_rescale();
 
@@ -3482,14 +3383,6 @@ void MainFrame::jump_to_monitor(std::string dev_id)
     ((MonitorPanel*)m_monitor)->select_machine(dev_id);
 }
 
-void MainFrame::jump_to_multipage()
-{
-    if(!m_multi_machine)
-        return;
-    m_tabpanel->SetSelection(tpMultiDevice);
-    ((MultiMachinePage*)m_multi_machine)->jump_to_send_page();
-}
-
 
 //BBS GUI refactor: remove unused layout new/dlg
 void MainFrame::select_tab(size_t tab/* = size_t(-1)*/)
@@ -3849,9 +3742,6 @@ void MainFrame::update_side_preset_ui()
     m_plater->sidebar().update_presets(Preset::TYPE_PRINTER);
     m_plater->sidebar().update_presets(Preset::TYPE_FILAMENT);
 
-
-    //take off multi machine
-    if(m_multi_machine){m_multi_machine->clear_page();}
 }
 
 void MainFrame::on_select_default_preset(SimpleEvent& evt)

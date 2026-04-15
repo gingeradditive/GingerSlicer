@@ -20,7 +20,6 @@
 #include <algorithm>
 #include "Plater.hpp"
 #include "BitmapCache.hpp"
-#include "BindDialog.hpp"
 
 namespace Slic3r { namespace GUI {
 

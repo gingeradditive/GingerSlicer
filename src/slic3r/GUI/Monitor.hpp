@@ -48,7 +48,6 @@
 #include "slic3r/GUI/HMSPanel.hpp"
 #include "slic3r/GUI/AmsWidgets.hpp"
 #include "Widgets/SideTools.hpp"
-#include "SelectMachinePop.hpp"
 
 namespace Slic3r {
 namespace GUI {
@@ -91,7 +90,6 @@ private:
     wxStaticText*   m_staticText_printer_name;
     wxStaticBitmap* m_bitmap_wifi_signal;
     wxBoxSizer *    m_side_tools_sizer;
-    SelectMachinePopup m_select_machine;
 
 	/* images */
     wxBitmap m_signal_strong_img;

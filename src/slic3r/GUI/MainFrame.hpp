@@ -32,7 +32,6 @@
 #include "BBLTopbar.hpp"
 #include "PrinterWebView.hpp"
 #include "calib_dlg.hpp"
-#include "MultiMachinePage.hpp"
 
 #define ENABEL_PRINT_ALL 0
 
@@ -99,7 +98,6 @@ class MainFrame : public DPIFrame
     wxMenuBar*  m_menubar{ nullptr };
     //wxMenu* publishMenu{ nullptr };
     wxMenu *    m_calib_menu{nullptr};
-    bool        enable_multi_machine{ false };
 
 #if 0
     wxMenuItem* m_menu_item_repeat { nullptr }; // doesn't used now
@@ -211,11 +209,10 @@ public:
         tp3DEditor      = 1,
         tpPreview       = 2,
         tpMonitor       = 3,
-        tpMultiDevice   = 4,
-        tpProject       = 5,
-        tpCalibration   = 6,
-        tpAuxiliary     = 7,
-        toDebugTool     = 8,
+        tpProject       = 4,
+        tpCalibration   = 5,
+        tpAuxiliary     = 6,
+        toDebugTool     = 7,
     };
 
     //BBS: add slice&&print status update logic
@@ -235,11 +232,8 @@ public:
         eExportSlicedFile    = 2,
         eExportGcode         = 3,
         eSendGcode           = 4,
-        eSendToPrinter       = 5,
-        eSendToPrinterAll    = 6,
-        eUploadGcode         = 7,
-        eExportAllSlicedFile = 8,
-        ePrintMultiMachine   = 9
+        eUploadGcode         = 5,
+        eExportAllSlicedFile = 6
     };
 
     void update_layout();
@@ -309,7 +303,6 @@ public:
     void        load_config(const DynamicPrintConfig& config);
     //BBS: jump to monitor
     void        jump_to_monitor(std::string dev_id = "");
-    void        jump_to_multipage();
     //BBS: hint when jump to 3Deditor under preview only mode
     bool        preview_only_hint();
     // Select tab in m_tabpanel
@@ -366,7 +359,6 @@ public:
     MonitorPanel*         m_monitor{ nullptr };
 
     //AuxiliaryPanel*       m_auxiliary{ nullptr };
-    MultiMachinePage*     m_multi_machine{ nullptr };
     ProjectPanel*         m_project{ nullptr };
 
     CalibrationPanel*     m_calibration{ nullptr };

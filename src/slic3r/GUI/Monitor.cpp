@@ -27,7 +27,6 @@
 #include "MediaPlayCtrl.h"
 #include "MediaFilePanel.h"
 #include "Plater.hpp"
-#include "BindDialog.hpp"
 
 namespace Slic3r {
 namespace GUI {
@@ -95,8 +94,7 @@ AddMachinePanel::~AddMachinePanel() {
 }
 
  MonitorPanel::MonitorPanel(wxWindow* parent, wxWindowID id, const wxPoint& pos, const wxSize& size, long style)
-    : wxPanel(parent, id, pos, size, style),
-     m_select_machine(SelectMachinePopup(this))
+    : wxPanel(parent, id, pos, size, style)
 {
 #ifdef __WINDOWS__
     SetDoubleBuffered(true);
@@ -118,9 +116,6 @@ AddMachinePanel::~AddMachinePanel() {
     Bind(wxEVT_SIZE, &MonitorPanel::on_size, this);
     Bind(wxEVT_COMMAND_CHOICE_SELECTED, &MonitorPanel::on_select_printer, this);
 
-    m_select_machine.Bind(EVT_FINISHED_UPDATE_MACHINE_LIST, [this](wxCommandEvent& e) {
-        m_side_tools->start_interval();
-    });
 
     Bind(EVT_ALREADY_READ_HMS, [this](wxCommandEvent& e) {
         auto key = e.GetString().ToStdString();
@@ -314,18 +309,7 @@ void MonitorPanel::on_printer_clicked(wxMouseEvent &event)
     wxPoint rect = m_side_tools->ClientToScreen(wxPoint(0, 0));
 
     if (!m_side_tools->is_in_interval()) {
-        wxPoint pos = m_side_tools->ClientToScreen(wxPoint(0, 0));
-        pos.y += m_side_tools->GetRect().height;
-        //pos.x = pos.x < 0? 0:pos.x;
-        m_select_machine.Move(pos);
-
-#ifdef __linux__
-        m_select_machine.SetSize(wxSize(m_side_tools->GetSize().x, -1));
-        m_select_machine.SetMaxSize(wxSize(m_side_tools->GetSize().x, -1));
-        m_select_machine.SetMinSize(wxSize(m_side_tools->GetSize().x, -1));
-#endif
-
-        m_select_machine.Popup();
+        // Machine selection popup removed
     }
 }
 
