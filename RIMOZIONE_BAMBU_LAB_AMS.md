@@ -1,592 +1,539 @@
 # Piano di Rimozione Funzionalità BambuLab e AMS
 
-## Introduzione
-Questo documento analizza tutte le funzionalità correlate a BambuLab (BBL) e AMS (Automatic Material System) nel codebase di GingerSlicer, fornendo un piano dettagliato per la loro rimozione passo passo.
+## Scopo del documento
 
-## Panoramica delle Funzionalità da Rimuovere
+Questo file deve guidare una IA nella rimozione progressiva delle funzionalità usate solo da stampanti BambuLab e delle funzionalità AMS.
 
-### 1. Funzionalità di Rete BambuLab
-- **NetworkAgent**: Sistema di comunicazione con stampanti BambuLab via MQTT/HTTP
-- **bambu_networking**: Libreria di networking per BambuLab
-- **DeviceManager**: Gestione dispositivi BambuLab
-- **Bind/Unbind**: Sistema di binding stampanti all'account cloud
-- **UserManager**: Gestione utenti BambuLab cloud
-- **HttpServer**: Server locale per OAuth BambuLab
+L'obiettivo non è cancellare tutto ciò che contiene i prefissi `BBL`, `Bambu`, `AMS` o `Ams`, ma rimuovere solo ciò che è davvero specifico a:
 
-### 2. Funzionalità AMS (Automatic Material System)
-- **AmsWidgets**: Widget UI per AMS
-- **AMSMaterialsSetting**: Impostazioni materiali AMS
-- **AMSSetting**: Impostazioni AMS generali
-- **AmsMappingPopup**: Popup per mapping AMS
-- **AMSControl/AMSItem**: Componenti controllo AMS
-- **Logica AMS in DeviceManager**: Gestione stati AMS
+- cloud BambuLab
+- binding/login/account BambuLab
+- gestione device BambuLab
+- invio stampa verso device BambuLab
+- monitoraggio remoto BambuLab
+- streaming/camera/file browser BambuLab
+- AMS e relative UI/configurazioni
 
-### 3. UI Specifiche BambuLab
-- **Monitor**: Pannello di monitoraggio stampanti BBL
-- **BBLTopbar**: Barra superiore BBL
-- **BBLStatusBar**: Barra di stato BBL (Bind, Send)
-- **SendToPrinter**: Invio G-code a stampanti BBL
-- **SelectMachine**: Selezione stampanti BBL
-- **BindDialog**: Dialog di binding stampanti
-- **WebUserLoginDialog**: Login web BambuLab
-- **CameraPopup**: Popup camera BBL
-- **UpgradePanel**: Pannello upgrade firmware BBL
-- **HMSPanel**: Pannello HMS (Hazard Message System)
-- **MediaFilePanel**: Pannello file media BBL
-- **StatusPanel**: Pannello stato stampante BBL
+## Vincoli obbligatori
 
-### 4. File System e Streaming
-- **PrinterFileSystem**: File system stampanti BBL
-- **BambuTunnel**: Tunnel per streaming BBL
-- **gstbambusrc**: GStreamer source per BBL
-- **BambuPlayer**: Player video BBL
+- **Non toccare l'About.**
+- **Non rimuovere `BBLTopbar`.** Anche se il nome contiene `BBL`, oggi è usata come top bar generale del `MainFrame`.
+- **Non assumere che ogni `BBLStatusBar*` sia Bambu-only.** Alcune classi sono componenti UI riusate anche fuori dai flussi Bambu stretti.
+- **Ogni step deve produrre una build compilabile o quasi compilabile con una pulizia locale molto limitata.**
+- **Dopo ogni step eliminare include, forward declaration, enum, eventi e binding non più usati.**
+- **Non partire dai file di supporto condivisi.** Prima rimuovere i consumatori specifici, poi le dipendenze residue.
 
-### 5. Job e Task
-- **BindJob**: Job di binding stampanti
-- **SendJob**: Job di invio G-code
-- **PrintJob**: Job di stampa
-- **TaskManager**: Gestione task BBL
-- **MultiTaskManagerPage**: Gestione multi-task
+## Elementi sicuramente fuori scope
 
-### 6. Calibrazione Specifica BBL
-- **CalibrationPanel**: Pannello calibrazione BBL
-- **CalibrationWizard**: Wizard calibrazione BBL
-- **ExtrusionCalibration**: Calibrazione estrusione BBL
-- **CalibUtils**: Utility calibrazione BBL
-
-### 7. Formato File
-- **bbs_3mf**: Lettura/scrittura formato 3MF Bambu Studio
-
-## Struttura del Piano di Rimozione
-
-### FASE 1: Rimozione Dipendenze di Rete (Foundation)
-
-#### 1.1 Rimuovere NetworkAgent e bambu_networking
-**File da rimuovere:**
-- `src/slic3r/Utils/bambu_networking.hpp`
-- `src/slic3r/Utils/NetworkAgent.hpp`
-- `src/slic3r/Utils/NetworkAgent.cpp`
-
-**Impatto:**
-- Rimozione completa del sistema di comunicazione BBL
-- Necessario rimuovere tutti i riferimenti in GUI_App, DeviceManager, ecc.
-
-#### 1.2 Rimuovere UserManager
-**File da rimuovere:**
-- `src/slic3r/GUI/UserManager.hpp`
-- `src/slic3r/GUI/UserManager.cpp`
-
-**Impatto:**
-- Rimozione gestione utenti cloud BBL
-- Rimuovere riferimenti in GUI_App
-
-#### 1.3 Rimuovere HttpServer
-**File da rimuovere:**
-- `src/slic3r/GUI/HttpServer.hpp`
-- `src/slic3r/GUI/HttpServer.cpp`
-
-**Impatto:**
-- Rimozione server locale OAuth
-- Rimuovere riferimenti in GUI_App, OAuthJob
-
-### FASE 2: Rimozione DeviceManager e Monitor
-
-#### 2.1 Rimuovere DeviceManager
-**File da rimuovere:**
-- `src/slic3r/GUI/DeviceManager.hpp`
-- `src/slic3r/GUI/DeviceManager.cpp`
-- `src/slic3r/GUI/DeviceTab/` (intera directory)
-
-**Impatto:**
-- Rimozione gestione dispositivi BBL
-- Rimuovere tutti i riferimenti in GUI_App, Monitor, Plater
-
-#### 2.2 Rimuovere Monitor e pannelli correlati
-**File da rimuovere:**
-- `src/slic3r/GUI/Monitor.hpp`
-- `src/slic3r/GUI/Monitor.cpp`
-- `src/slic3r/GUI/MonitorBasePanel.h`
-- `src/slic3r/GUI/MonitorBasePanel.cpp`
-- `src/slic3r/GUI/MonitorPage.hpp`
-- `src/slic3r/GUI/MonitorPage.cpp`
-- `src/slic3r/GUI/StatusPanel.hpp`
-- `src/slic3r/GUI/StatusPanel.cpp`
-- `src/slic3r/GUI/UpgradePanel.hpp`
-- `src/slic3r/GUI/UpgradePanel.cpp`
-- `src/slic3r/GUI/HMSPanel.hpp`
-- `src/slic3r/GUI/HMSPanel.cpp`
-- `src/slic3r/GUI/MediaFilePanel.hpp`
-- `src/slic3r/GUI/MediaFilePanel.cpp`
-- `src/slic3r/GUI/CameraPopup.hpp`
-- `src/slic3r/GUI/CameraPopup.cpp`
-
-**Impatto:**
-- Rimozione completa interfaccia monitoraggio BBL
-- Rimuovere tab Device da MainFrame
-
-### FASE 3: Rimozione UI BBL
-
-#### 3.1 Rimuovere componenti BBL
-**File da rimuovere:**
 - `src/slic3r/GUI/BBLTopbar.hpp`
 - `src/slic3r/GUI/BBLTopbar.cpp`
-- `src/slic3r/GUI/BBLStatusBar.hpp`
-- `src/slic3r/GUI/BBLStatusBar.cpp`
-- `src/slic3r/GUI/BBLStatusBarBind.hpp`
-- `src/slic3r/GUI/BBLStatusBarBind.cpp`
-- `src/slic3r/GUI/BBLStatusBarSend.hpp`
-- `src/slic3r/GUI/BBLStatusBarSend.cpp`
-
-**Impatto:**
-- Rimozione barre UI specifiche BBL
-- Pulire MainFrame e GUI_App
-
-#### 3.2 Rimuovere dialog e popup
-**File da rimuovere:**
-- `src/slic3r/GUI/BindDialog.hpp`
-- `src/slic3r/GUI/BindDialog.cpp`
-- `src/slic3r/GUI/SelectMachine.hpp`
-- `src/slic3r/GUI/SelectMachine.cpp`
-- `src/slic3r/GUI/SelectMachinePop.hpp`
-- `src/slic3r/GUI/SelectMachinePop.cpp`
-- `src/slic3r/GUI/WebUserLoginDialog.hpp`
-- `src/slic3r/GUI/WebUserLoginDialog.cpp`
-- `src/slic3r/GUI/SendToPrinter.hpp`
-- `src/slic3r/GUI/SendToPrinter.cpp`
-- `src/slic3r/GUI/SendMultiMachinePage.hpp`
-- `src/slic3r/GUI/SendMultiMachinePage.cpp`
-- `src/slic3r/GUI/MultiMachineManagerPage.hpp`
-- `src/slic3r/GUI/MultiMachineManagerPage.cpp`
-- `src/slic3r/GUI/MultiMachine.hpp`
-- `src/slic3r/GUI/MultiMachine.cpp`
-
-**Impatto:**
-- Rimozione dialog interazione stampanti BBL
-- Rimuovere menu e azioni correlate
-
-### FASE 4: Rimozione AMS
-
-#### 4.1 Rimuovere componenti AMS UI
-**File da rimuovere:**
-- `src/slic3r/GUI/AmsWidgets.hpp`
-- `src/slic3r/GUI/AmsWidgets.cpp`
-- `src/slic3r/GUI/AmsMappingPopup.hpp`
-- `src/slic3r/GUI/AmsMappingPopup.cpp`
-- `src/slic3r/GUI/AMSMaterialsSetting.hpp`
-- `src/slic3r/GUI/AMSMaterialsSetting.cpp`
-- `src/slic3r/GUI/AMSSetting.hpp`
-- `src/slic3r/GUI/AMSSetting.cpp`
-- `src/slic3r/GUI/Widgets/AMSControl.hpp`
-- `src/slic3r/GUI/Widgets/AMSControl.cpp`
-- `src/slic3r/GUI/Widgets/AMSItem.hpp`
-- `src/slic3r/GUI/Widgets/AMSItem.cpp`
-- `src/slic3r/GUI/DeviceTab/uiAmsHumidityPopup.h`
-- `src/slic3r/GUI/DeviceTab/uiAmsHumidityPopup.cpp`
-
-**Impatto:**
-- Rimozione completa UI AMS
-- Rimuovere riferimenti in Plater, GUI_ObjectList
-
-#### 4.2 Rimuovere logica AMS da libslic3r
-**File da modificare:**
-- `src/libslic3r/PrintConfig.hpp` - rimuovere opzioni AMS
-- `src/libslic3r/PrintConfig.cpp` - rimuovere opzioni AMS
-- `src/libslic3r/Model.hpp` - rimuovere strutture AMS
-- `src/libslic3r/Model.cpp` - rimuovere logica AMS
-- `src/libslic3r/Print.hpp` - rimuovere logica AMS
-- `src/libslic3r/Print.cpp` - rimuovere logica AMS
-
-### FASE 5: Rimozione Job e Task
-
-#### 5.1 Rimuovere Job
-**File da rimuovere:**
-- `src/slic3r/GUI/Jobs/BindJob.hpp`
-- `src/slic3r/GUI/Jobs/BindJob.cpp`
-- `src/slic3r/GUI/Jobs/SendJob.hpp`
-- `src/slic3r/GUI/Jobs/SendJob.cpp`
-- `src/slic3r/GUI/Jobs/PrintJob.hpp`
-- `src/slic3r/GUI/Jobs/PrintJob.cpp`
-
-**Impatto:**
-- Rimozione job asincroni BBL
-- Rimuovere riferimenti in GUI_App, Plater
-
-#### 5.2 Rimuovere TaskManager
-**File da rimuovere:**
-- `src/slic3r/GUI/TaskManager.hpp`
-- `src/slic3r/GUI/TaskManager.cpp`
-- `src/slic3r/GUI/MultiTaskManagerPage.hpp`
-- `src/slic3r/GUI/MultiTaskManagerPage.cpp`
-- `src/slic3r/GUI/MultiTaskModel.hpp`
-- `src/slic3r/GUI/MultiTaskModel.cpp`
-
-**Impatto:**
-- Rimozione gestione task cloud BBL
-
-### FASE 6: Rimozione Calibrazione BBL
-
-#### 6.1 Rimuovere pannelli calibrazione
-**File da rimuovere:**
-- `src/slic3r/GUI/CalibrationPanel.hpp`
-- `src/slic3r/GUI/CalibrationPanel.cpp`
-- `src/slic3r/GUI/Calibration.hpp`
-- `src/slic3r/GUI/Calibration.cpp`
-- `src/slic3r/GUI/CalibrationWizard.hpp`
-- `src/slic3r/GUI/CalibrationWizard.cpp`
-- `src/slic3r/GUI/CalibrationWizardStartPage.hpp`
-- `src/slic3r/GUI/CalibrationWizardStartPage.cpp`
-- `src/slic3r/GUI/CalibrationWizardPage.hpp`
-- `src/slic3r/GUI/CalibrationWizardPage.cpp`
-- `src/slic3r/GUI/CalibrationWizardCaliPage.hpp`
-- `src/slic3r/GUI/CalibrationWizardCaliPage.cpp`
-- `src/slic3r/GUI/CalibrationWizardPresetPage.hpp`
-- `src/slic3r/GUI/CalibrationWizardPresetPage.cpp`
-- `src/slic3r/GUI/CalibrationWizardSavePage.hpp`
-- `src/slic3r/GUI/CalibrationWizardSavePage.cpp`
-- `src/slic3r/GUI/ExtrusionCalibration.hpp`
-- `src/slic3r/GUI/ExtrusionCalibration.cpp`
-- `src/slic3r/GUI/CaliHistoryDialog.hpp`
-- `src/slic3r/GUI/CaliHistoryDialog.cpp`
-
-**Impatto:**
-- Rimozione calibrazione specifica BBL
-- Rimuovere riferimenti in MainFrame, Tab
-
-#### 6.2 Rimuovere utility calibrazione
-**File da rimuovere:**
-- `src/slic3r/Utils/CalibUtils.hpp`
-- `src/slic3r/Utils/CalibUtils.cpp`
-- `src/libslic3r/calib.hpp`
-- `src/libslic3r/calib.cpp`
-
-**Impatto:**
-- Rimozione logica calibrazione BBL
-- Rimuovere riferimenti in PrintConfig
-
-### FASE 7: Rimozione File System e Streaming
-
-#### 7.1 Rimuovere PrinterFileSystem
-**File da rimuovere:**
-- `src/slic3r/GUI/Printer/PrinterFileSystem.hpp`
-- `src/slic3r/GUI/Printer/PrinterFileSystem.cpp`
-
-**Impatto:**
-- Rimozione file system BBL
-- Rimuovere riferimenti in GUI_App
-
-#### 7.2 Rimuovere BambuTunnel e GStreamer
-**File da rimuovere:**
-- `src/slic3r/GUI/Printer/BambuTunnel.h`
-- `src/slic3r/GUI/Printer/gstbambusrc.h`
-- `src/slic3r/GUI/Printer/gstbambusrc.c`
-- `src/slic3r/GUI/BambuPlayer/` (intera directory)
-
-**Impatto:**
-- Rimozione streaming video BBL
-- Rimuovere dipendenze GStreamer da CMakeLists.txt
-
-#### 7.3 Rimuovere WebView BBL
-**File da rimuovere:**
-- `src/slic3r/GUI/PrinterWebView.hpp`
-- `src/slic3r/GUI/PrinterWebView.cpp`
-- `src/slic3r/GUI/WebViewDialog.hpp`
-- `src/slic3r/GUI/WebViewDialog.cpp`
-- `src/slic3r/GUI/Widgets/WebView.hpp`
-- `src/slic3r/GUI/Widgets/WebView.cpp`
-
-**Impatto:**
-- Rimozione WebView per contenuti BBL
-- Rimuovere riferimenti in GUI_App
-
-### FASE 8: Rimozione Formato bbs_3mf
-
-#### 8.1 Rimuovere formato BBS 3MF
-**File da rimuovere:**
-- `src/libslic3r/Format/bbs_3mf.hpp`
-- `src/libslic3r/Format/bbs_3mf.cpp`
-
-**Impatto:**
-- Rimozione lettura/scrittura 3MF Bambu Studio
-- Rimuovere riferimenti in GUI_App, Model
-
-### FASE 9: Pulizia CMakeLists.txt
-
-#### 9.1 Rimuovere file BBL da CMakeLists.txt
-**File da modificare:**
-- `src/slic3r/CMakeLists.txt`
-
-**Rimozioni:**
-```cmake
-# Rimuovere queste linee:
-GUI/BBLStatusBarBind.cpp
-GUI/BBLStatusBarBind.hpp
-GUI/BBLStatusBar.cpp
-GUI/BBLStatusBar.hpp
-GUI/BBLStatusBarSend.cpp
-GUI/BBLStatusBarSend.hpp
-GUI/BBLTopbar.cpp
-GUI/BBLTopbar.hpp
-GUI/AmsMappingPopup.cpp
-GUI/AmsMappingPopup.hpp
-GUI/AMSMaterialsSetting.cpp
-GUI/AMSMaterialsSetting.hpp
-GUI/AMSSetting.cpp
-GUI/AMSSetting.hpp
-GUI/AmsWidgets.cpp
-GUI/AmsWidgets.hpp
-Utils/bambu_networking.hpp
-GUI/Printer/gstbambusrc.c
-```
-
-**Rimozione GStreamer:**
-```cmake
-# Rimuovere queste sezioni:
-# We add GStreamer for bambu:/// support.
-find_package(GStreamer 1.0 REQUIRED COMPONENTS app base)
-# ... tutte le dipendenze GStreamer
-```
-
-**Rimozione DeviceTab:**
-```cmake
-# Rimuovere:
-add_subdirectory(DeviceTab)
-```
-
-### FASE 10: Pulizia GUI_App
-
-#### 10.1 Rimuovere membri BBL da GUI_App
-**File da modificare:**
-- `src/slic3r/GUI/GUI_App.hpp`
-- `src/slic3r/GUI/GUI_App.cpp`
-
-**Rimozioni:**
-```cpp
-// Rimuovere questi membri:
-NetworkAgent* m_agent { nullptr };
-Slic3r::DeviceManager* m_device_manager { nullptr };
-Slic3r::UserManager* m_user_manager { nullptr };
-HttpServer m_http_server;
-BBLTopbar* m_topbar { nullptr };
-
-// Rimuovere questi metodi:
-NetworkAgent* getAgent() { return m_agent; }
-Slic3r::DeviceManager* getDeviceManager() { return m_device_manager; }
-```
-
-**Rimozioni includes:**
-```cpp
-// Rimuovere:
-#include "slic3r/Utils/NetworkAgent.hpp"
-#include "slic3r/GUI/DeviceManager.hpp"
-#include "slic3r/GUI/UserManager.hpp"
-#include "slic3r/GUI/HttpServer.hpp"
-#include "slic3r/GUI/BBLTopbar.hpp"
-```
-
-### FASE 11: Pulizia MainFrame
-
-#### 11.1 Rimuovere riferimenti BBL da MainFrame
-**File da modificare:**
-- `src/slic3r/GUI/MainFrame.hpp`
-- `src/slic3r/GUI/MainFrame.cpp`
-
-**Rimozioni:**
-```cpp
-// Rimuovere:
-void show_device(bool bBBLPrinter);
-enum { eSendToPrinter = 5, eSendToPrinterAll = 6 };
-```
-
-**Rimozioni includes:**
-```cpp
-// Rimuovere:
-#include "BBLTopbar.hpp"
-#include "DeviceManager.hpp"
-#include "Monitor.hpp"
-#include "SendToPrinter.hpp"
-#include "SelectMachine.hpp"
-#include "BindDialog.hpp"
-#include "CalibrationWizard.hpp"
-#include "CalibrationPanel.hpp"
-```
-
-### FASE 12: Pulizia Plater
-
-#### 12.1 Rimuovere riferimenti BBL da Plater
-**File da modificare:**
-- `src/slic3r/GUI/Plater.hpp`
-- `src/slic3r/GUI/Plater.cpp`
-
-**Rimozioni:**
-```cpp
-// Rimuovere:
-SendToPrinterDialog* m_send_to_sdcard_dlg;
-```
-
-**Rimozioni includes:**
-```cpp
-// Rimuovere:
-#include "SendToPrinter.hpp"
-#include "AmsWidgets.hpp"
-```
-
-### FASE 13: Pulizia Tab
-
-#### 13.1 Rimuovere riferimenti AMS/BBL da Tab
-**File da modificare:**
-- `src/slic3r/GUI/Tab.hpp`
-- `src/slic3r/GUI/Tab.cpp`
-
-**Rimozioni:**
-- Rimuovere pagine AMS
-- Rimuovere opzioni di configurazione AMS/BBL
-- Rimuovere riferimenti a calibrazione BBL
-
-### FASE 14: Pulizia Configurazione
-
-#### 14.1 Rimuovere opzioni BBL da PrintConfig
-**File da modificare:**
-- `src/libslic3r/PrintConfig.hpp`
-- `src/libslic3r/PrintConfig.cpp`
-
-**Opzioni da rimuovere (esempio):**
-- `ams_mapping`
-- `ams_mapping_info`
-- `ams_mapping2`
-- `task_use_ams`
-- Tutte le opzioni specifiche BBL/AMS
-
-#### 14.2 Rimuovere opzioni BBL da AppConfig
-**File da modificare:**
-- `src/libslic3r/AppConfig.hpp`
-- `src/libslic3r/AppConfig.cpp`
-
-**Rimozioni:**
-- Rimuovere configurazioni cloud BBL
-- Rimuovere configurazioni device BBL
-- Rimuovere configurazioni AMS
-
-### FASE 15: Pulizia Risorse
-
-#### 15.1 Rimuovere risorse web BBL
-**Directory da rimuovere:**
-- `resources/web/` (se contiene solo contenuti BBL)
-
-**File da rimuovere:**
-- `resources/web/login/` (login BambuLab)
-- `resources/web/homepage/` (homepage BambuLab)
-
-### FASE 16: Pulizia Dipendenze Esterne
-
-#### 16.1 Rimuovere dipendenze da deps/
-**Controllare e rimuovere:**
-- Dipendenze GStreamer (se usate solo per BBL)
-- Altre librerie specifiche BBL
-
-### FASE 17: Pulizia Eventi e Callback
-
-#### 17.1 Rimuovere eventi BBL
-**File da modificare:**
-- `src/slic3r/GUI/Event.hpp`
-
-**Rimozioni:**
-```cpp
-// Rimuovere eventi come:
-EVT_UPDATE_USER_MACHINE_LIST
-EVT_PRINT_JOB_CANCEL
-EVT_BIND_SUCCESS
-EVT_BIND_FAIL
-// ... tutti gli eventi BBL
-```
-
-### FASE 18: Pulizia Preset
-
-#### 18.1 Rimuovere preset BBL da resources/
-**Directory da controllare:**
-- `resources/profiles/`
-
-**Azione:**
-- Rimuovere eventuali preset specifici BBL (se presenti)
-- Mantenere solo preset Ginger Additive
-
-### FASE 19: Verifica e Test
-
-#### 19.1 Compilazione
-```bash
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target GingerSlicer --config Release
-```
-
-#### 19.2 Test funzionalità
-- Verificare che l'applicazione si avvii senza crash
-- Verificare che le funzionalità di slicing funzionino
-- Verificare che l'export G-code funzioni
-- Verificare che l'import 3MF standard funzionino
-
-### FASE 20: Documentazione
-
-#### 20.1 Aggiornare documentazione
-- Aggiornare README.md
-- Rimuovere riferimenti a BambuLab dalla documentazione
-- Aggiornare CHANGELOG con note di rimozione
-
-## Ordine di Esecuzione Raccomandato
-
-1. **FASE 1**: Rimozione dipendenze di rete (Foundation)
-2. **FASE 2**: Rimozione DeviceManager e Monitor
-3. **FASE 3**: Rimozione UI BBL
-4. **FASE 4**: Rimozione AMS
-5. **FASE 5**: Rimozione Job e Task
-6. **FASE 6**: Rimozione Calibrazione BBL
-7. **FASE 7**: Rimozione File System e Streaming
-8. **FASE 8**: Rimozione Formato bbs_3mf
-9. **FASE 9**: Pulizia CMakeLists.txt
-10. **FASE 10**: Pulizia GUI_App
-11. **FASE 11**: Pulizia MainFrame
-12. **FASE 12**: Pulizia Plater
-13. **FASE 13**: Pulizia Tab
-14. **FASE 14**: Pulizia Configurazione
-15. **FASE 15**: Pulizia Risorse
-16. **FASE 16**: Pulizia Dipendenze Esterne
-17. **FASE 17**: Pulizia Eventi e Callback
-18. **FASE 18**: Pulizia Preset
-19. **FASE 19**: Verifica e Test
-20. **FASE 20**: Documentazione
-
-## Note Importanti
-
-1. **Backup**: Fare un backup completo prima di iniziare
-2. **Commit incrementali**: Commit dopo ogni fase completata
-3. **Test intermedi**: Testare la compilazione dopo ogni fase
-4. **Dipendenze incrociate**: Alcuni file potrebbero avere dipendenze non evidenti
-5. **Riferimenti rimanenti**: Potrebbero esserci riferimenti in file non ancora identificati
-
-## Riepilogo File da Rimuovere
-
-### Totale file stimati: ~80-100 file
-
-### Categorie:
-- Utils: 3 file
-- GUI/DeviceManager: 2 file + 1 directory
-- GUI/Monitor: 12 file
-- GUI/BBL*: 8 file
-- GUI/AMS*: 14 file
-- GUI/Dialog: 15 file
-- GUI/Jobs: 6 file
-- GUI/Task: 6 file
-- GUI/Calibration: 18 file
-- GUI/Printer: 5 file + 1 directory
-- GUI/WebView: 6 file
-- GUI/Widgets: 4 file
-- libslic3r/Format: 2 file
-- libslic3r/Config: 4 file
-- libslic3r/Calib: 2 file
-- resources/web: directory
-
-## Prossimi Passi
-
-1. Iniziare con FASE 1 (rimozione NetworkAgent)
-2. Procedere fase per fase
-3. Testare dopo ogni fase
-4. Documentare eventuali problemi
-5. Adattare il piano se necessario
+- qualunque codice `AboutDialog`, `about()`, `create_about(...)`
+- contenuti informativi o schermate About presenti nei wizard, anche se menzionano BambuLab
+
+## Strategia generale
+
+L'ordine corretto è:
+
+1. rimuovere UI e workflow terminali Bambu/AMS
+2. rimuovere integrazioni `MainFrame`, `Plater`, `Tab`, `GUI_App`
+3. rimuovere servizi e manager non più referenziati
+4. rimuovere backend networking e streaming Bambu
+5. rimuovere configurazioni, eventi, CMake e risorse residue
+
+Questo ordine evita di cancellare troppo presto componenti condivisi o classi ancora usate.
+
+## Checklist di analisi prima di ogni rimozione
+
+Per ogni funzione o file da rimuovere, la IA deve verificare sempre:
+
+- se è usata solo da flow Bambu/AMS
+- se compare in `MainFrame`, `Plater`, `GUI_App`, `Tab`, `Monitor`, `Calibration*`
+- se la classe ha nome BBL ma comportamento generico
+- se serve solo come widget di progresso o UI comune
+- se ci sono stringhe o opzioni config corrispondenti in `PrintConfig`, `AppConfig`, preset o risorse
+
+## Piano di rimozione passo-passo
+
+## Fase 1 - Rimuovere i workflow utente esplicitamente Bambu
+
+### Step 1 - Rimuovere il dialog di login web BambuLab
+
+- **Target**: `src/slic3r/GUI/WebUserLoginDialog.hpp`, `src/slic3r/GUI/WebUserLoginDialog.cpp`
+- **Motivo**: usa `NetworkAgent::get_bambulab_host()` e il login cloud BambuLab.
+- **Da aggiornare**:
+  - menu o azioni che aprono il login
+  - chiamate in `GUI_App` o flussi di autenticazione
+- **Non toccare**:
+  - finestre web generiche non dedicate a login Bambu
+
+### Step 2 - Rimuovere il workflow di bind stampante
+
+- **Target**: `src/slic3r/GUI/BindDialog.hpp`, `src/slic3r/GUI/BindDialog.cpp`
+- **Motivo**: dialog dedicato a bind/unbind verso ecosistema BambuLab.
+- **Da aggiornare**:
+  - azioni da menu e toolbar che aprono il bind
+  - callback di successo/fallimento bind
+  - job o worker collegati
+- **Nota**: se usa `BBLStatusBarBind`, non rimuovere subito la status bar; rimuovere prima il dialog consumatore.
+
+### Step 3 - Rimuovere la selezione macchina Bambu per invio stampa
+
+- **Target**: `src/slic3r/GUI/SelectMachine.hpp`, `src/slic3r/GUI/SelectMachine.cpp`
+- **Motivo**: è parte del flow di selezione device Bambu per invio/remoto.
+- **Da aggiornare**:
+  - entry point da `Plater`, `MainFrame`, menu contestuali
+  - worker di send/print collegati
+- **Attenzione**:
+  - `BBLTopbar.hpp` include `SelectMachine.hpp`; dopo la rimozione va ripulita l'inclusione se non più necessaria, ma **la topbar resta**.
+
+### Step 4 - Rimuovere popup e varianti del flow Select Machine
+
+- **Target**: `src/slic3r/GUI/SelectMachinePop.hpp`, `src/slic3r/GUI/SelectMachinePop.cpp`
+- **Motivo**: variante dello stesso workflow Bambu.
+- **Da aggiornare**:
+  - riferimenti da `SendToPrinter`, `SelectMachine`, `MainFrame`
+
+### Step 5 - Rimuovere il dialog di invio stampa a device Bambu
+
+- **Target**: `src/slic3r/GUI/SendToPrinter.hpp`, `src/slic3r/GUI/SendToPrinter.cpp`
+- **Motivo**: invio G-code/stampa verso stampanti connessi via stack Bambu.
+- **Da aggiornare**:
+  - azioni `send to printer`
+  - pulsanti e menu nel `MainFrame`
+  - riferimenti in `Plater`
+- **Nota**: se usa `BBLStatusBarSend`, non cancellarla ancora se ancora referenziata altrove.
+
+### Step 6 - Rimuovere la pagina multi-macchina di invio
+
+- **Target**: `src/slic3r/GUI/SendMultiMachinePage.hpp`, `src/slic3r/GUI/SendMultiMachinePage.cpp`
+- **Motivo**: UI dedicata all'invio a più device con stato AMS.
+- **Da aggiornare**:
+  - dialog o container padre
+  - sort, colonne AMS, refresh device
+
+### Step 7 - Rimuovere i flussi multi-device Bambu residui
+
+- **Target candidati**:
+  - `src/slic3r/GUI/MultiMachine.hpp`
+  - `src/slic3r/GUI/MultiMachine.cpp`
+  - `src/slic3r/GUI/MultiMachineManagerPage.hpp`
+  - `src/slic3r/GUI/MultiMachineManagerPage.cpp`
+  - `src/slic3r/GUI/MultiTaskManagerPage.hpp`
+  - `src/slic3r/GUI/MultiTaskManagerPage.cpp`
+  - `src/slic3r/GUI/MultiTaskModel.hpp`
+  - `src/slic3r/GUI/MultiTaskModel.cpp`
+- **Motivo**: gestione cloud/device multipli fortemente legata a Bambu ecosystem.
+- **Da fare prima**: confermare che non siano riusati da funzioni Ginger generiche.
+
+## Fase 2 - Rimuovere tutta la UI AMS
+
+### Step 8 - Rimuovere il popup di mapping AMS
+
+- **Target**: `src/slic3r/GUI/AmsMappingPopup.hpp`, `src/slic3r/GUI/AmsMappingPopup.cpp`
+- **Motivo**: funzione esclusivamente AMS.
+- **Da aggiornare**:
+  - chiamanti in `AMSControl`, `AMSItem`, `Plater`, sidebar device
+
+### Step 9 - Rimuovere le impostazioni AMS principali
+
+- **Target**: `src/slic3r/GUI/AMSSetting.hpp`, `src/slic3r/GUI/AMSSetting.cpp`
+- **Motivo**: dialog dedicato a opzioni AMS come auto read, backup spool, remain capacity.
+- **Da aggiornare**:
+  - pulsanti impostazioni AMS
+  - callback `EVT_AMS_SETTINGS`
+
+### Step 10 - Rimuovere le impostazioni materiali AMS
+
+- **Target**: `src/slic3r/GUI/AMSMaterialsSetting.hpp`, `src/slic3r/GUI/AMSMaterialsSetting.cpp`
+- **Motivo**: gestione materiali e tray AMS.
+- **Da aggiornare**:
+  - aperture da popup o monitor
+  - riferimenti in `StatusPanel` o componenti device
+
+### Step 11 - Rimuovere il widget principale `AMSControl`
+
+- **Target**: `src/slic3r/GUI/Widgets/AMSControl.hpp`, `src/slic3r/GUI/Widgets/AMSControl.cpp`
+- **Motivo**: widget centrale di visualizzazione e comando AMS.
+- **Da aggiornare**:
+  - `StatusPanel`
+  - `DeviceTab`
+  - eventuali pannelli monitor che lo ospitano
+
+### Step 12 - Rimuovere i widget `AMSItem` e sottocomponenti grafici AMS
+
+- **Target**: `src/slic3r/GUI/Widgets/AMSItem.hpp`, `src/slic3r/GUI/Widgets/AMSItem.cpp`
+- **Motivo**: interfaccia slot/tray/road/humidity/preview interamente AMS.
+- **Da aggiornare**:
+  - eventi `EVT_AMS_*`
+  - include di `AMSItem.hpp`
+
+### Step 13 - Rimuovere `AmsWidgets`
+
+- **Target**: `src/slic3r/GUI/AmsWidgets.hpp`, `src/slic3r/GUI/AmsWidgets.cpp`
+- **Motivo**: wrapper o componentistica di supporto AMS.
+- **Da aggiornare**:
+  - `Plater`
+  - sidebar o pagine che caricano lista AMS
+
+### Step 14 - Rimuovere popup umidità AMS dal device tab
+
+- **Target**:
+  - `src/slic3r/GUI/DeviceTab/uiAmsHumidityPopup.h`
+  - `src/slic3r/GUI/DeviceTab/uiAmsHumidityPopup.cpp`
+- **Motivo**: funzione esclusivamente AMS.
+
+## Fase 3 - Rimuovere monitor e pannelli device Bambu
+
+### Step 15 - Rimuovere `StatusPanel`
+
+- **Target**: `src/slic3r/GUI/StatusPanel.hpp`, `src/slic3r/GUI/StatusPanel.cpp`
+- **Motivo**: pannello di stato device con forte integrazione AMS e macchina remota.
+- **Da aggiornare**:
+  - `Monitor`
+  - `DeviceTab`
+  - eventuali tab notebook del monitor
+
+### Step 16 - Rimuovere `UpgradePanel`
+
+- **Target**: `src/slic3r/GUI/UpgradePanel.hpp`, `src/slic3r/GUI/UpgradePanel.cpp`
+- **Motivo**: upgrade firmware device Bambu.
+
+### Step 17 - Rimuovere `HMSPanel`
+
+- **Target**: `src/slic3r/GUI/HMSPanel.hpp`, `src/slic3r/GUI/HMSPanel.cpp`
+- **Motivo**: diagnostica/HMS device remoti Bambu.
+
+### Step 18 - Rimuovere `MediaFilePanel`
+
+- **Target**: `src/slic3r/GUI/MediaFilePanel.hpp`, `src/slic3r/GUI/MediaFilePanel.cpp`
+- **Motivo**: browser media/file remoto del device.
+
+### Step 19 - Rimuovere `CameraPopup`
+
+- **Target**: `src/slic3r/GUI/CameraPopup.hpp`, `src/slic3r/GUI/CameraPopup.cpp`
+- **Motivo**: preview camera/stream remota Bambu.
+
+### Step 20 - Rimuovere `Monitor` e pannelli contenitore
+
+- **Target candidati**:
+  - `src/slic3r/GUI/Monitor.hpp`
+  - `src/slic3r/GUI/Monitor.cpp`
+  - `src/slic3r/GUI/MonitorBasePanel.h`
+  - `src/slic3r/GUI/MonitorBasePanel.cpp`
+  - `src/slic3r/GUI/MonitorPage.hpp`
+  - `src/slic3r/GUI/MonitorPage.cpp`
+- **Motivo**: contenitore principale del monitor device.
+- **Da aggiornare**:
+  - `MainFrame`
+  - creazione tab/pagine device
+
+## Fase 4 - Rimuovere i job e le progress bar rimaste solo se non più usate
+
+### Step 21 - Rimuovere `BindJob`
+
+- **Target**: `src/slic3r/GUI/Jobs/BindJob.hpp`, `src/slic3r/GUI/Jobs/BindJob.cpp`
+- **Precondizione**: `BindDialog` già rimosso.
+
+### Step 22 - Rimuovere `SendJob`
+
+- **Target**: `src/slic3r/GUI/Jobs/SendJob.hpp`, `src/slic3r/GUI/Jobs/SendJob.cpp`
+- **Precondizione**: `SendToPrinter` e multi-machine send già rimossi.
+
+### Step 23 - Rimuovere `PrintJob` se usato solo dal flusso Bambu
+
+- **Target**: `src/slic3r/GUI/Jobs/PrintJob.hpp`, `src/slic3r/GUI/Jobs/PrintJob.cpp`
+- **Attenzione**: verificare che non sia usato da workflow locali non Bambu.
+
+### Step 24 - Rimuovere `BBLStatusBarBind` solo dopo la scomparsa dei consumatori
+
+- **Target**: `src/slic3r/GUI/BBLStatusBarBind.hpp`, `src/slic3r/GUI/BBLStatusBarBind.cpp`
+- **Precondizione**: nessun riferimento da `BindDialog` o altri dialog.
+
+### Step 25 - Rimuovere `BBLStatusBarSend` solo dopo la scomparsa dei consumatori
+
+- **Target**: `src/slic3r/GUI/BBLStatusBarSend.hpp`, `src/slic3r/GUI/BBLStatusBarSend.cpp`
+- **Attenzione**: attualmente compare anche in pagine di calibrazione; non rimuoverla finché non si decide cosa fare di quei flussi.
+
+### Step 26 - Valutare `BBLStatusBar` base
+
+- **Target**: `src/slic3r/GUI/BBLStatusBar.hpp`, `src/slic3r/GUI/BBLStatusBar.cpp`
+- **Regola**: rimuoverla solo se dopo gli step precedenti non esistono più usi reali.
+- **Motivo del rinvio**: il nome è fuorviante; la classe sembra una progress/status UI abbastanza generica.
+
+## Fase 5 - Rimuovere il backend device/cloud Bambu
+
+### Step 27 - Rimuovere `UserManager`
+
+- **Target**: `src/slic3r/GUI/UserManager.hpp`, `src/slic3r/GUI/UserManager.cpp`
+- **Precondizione**: login, bind, sincronizzazioni cloud e funzioni account già scollegate.
+
+### Step 28 - Rimuovere `HttpServer`
+
+- **Target**: `src/slic3r/GUI/HttpServer.hpp`, `src/slic3r/GUI/HttpServer.cpp`
+- **Precondizione**: nessun flusso OAuth/login residuo.
+
+### Step 29 - Rimuovere `DeviceManager`
+
+- **Target**: `src/slic3r/GUI/DeviceManager.hpp`, `src/slic3r/GUI/DeviceManager.cpp`
+- **Precondizione**:
+  - monitor rimosso
+  - send/bind/login rimossi
+  - AMS UI rimossa
+  - `GUI_App` non deve più chiamare `getDeviceManager()` nei flussi ordinari
+- **Impatto**: è uno degli step più grandi, da fare tardi.
+
+### Step 30 - Rimuovere `NetworkAgent` e l'header `bambu_networking.hpp`
+
+- **Target**:
+  - `src/slic3r/Utils/NetworkAgent.hpp`
+  - `src/slic3r/Utils/NetworkAgent.cpp`
+  - `src/slic3r/Utils/bambu_networking.hpp`
+- **Precondizione**: nessun dialog, manager, login, monitor o print workflow deve più usarli.
+- **Motivo**: è il backend Bambu principale.
+
+## Fase 6 - Rimuovere streaming, camera, file system remoto e webview device
+
+### Step 31 - Rimuovere `PrinterFileSystem`
+
+- **Target**:
+  - `src/slic3r/GUI/Printer/PrinterFileSystem.hpp`
+  - `src/slic3r/GUI/Printer/PrinterFileSystem.cpp`
+
+### Step 32 - Rimuovere `BambuTunnel` e `gstbambusrc`
+
+- **Target**:
+  - `src/slic3r/GUI/Printer/BambuTunnel.h`
+  - `src/slic3r/GUI/Printer/gstbambusrc.h`
+  - `src/slic3r/GUI/Printer/gstbambusrc.c`
+- **Precondizione**: camera/stream non più disponibili.
+
+### Step 33 - Rimuovere `BambuPlayer` se presente solo per stream Bambu
+
+- **Target**: directory `src/slic3r/GUI/BambuPlayer/`
+- **Precondizione**: nessun riferimento residuo in camera o player UI.
+
+### Step 34 - Rimuovere `PrinterWebView` solo se serve solo al device remoto
+
+- **Target**:
+  - `src/slic3r/GUI/PrinterWebView.hpp`
+  - `src/slic3r/GUI/PrinterWebView.cpp`
+- **Attenzione**: verificare che non sia usata per contenuti generici.
+
+### Step 35 - Rimuovere `WebViewDialog` e `Widgets/WebView` solo se non condivisi
+
+- **Target**:
+  - `src/slic3r/GUI/WebViewDialog.hpp`
+  - `src/slic3r/GUI/WebViewDialog.cpp`
+  - `src/slic3r/GUI/Widgets/WebView.hpp`
+  - `src/slic3r/GUI/Widgets/WebView.cpp`
+- **Regola**: se sono usati anche fuori dai flow Bambu, non rimuoverli.
+
+## Fase 7 - Rimuovere integrazioni app-wide
+
+### Step 36 - Pulire `MainFrame` dai flow Bambu/AMS
+
+- **File**:
+  - `src/slic3r/GUI/MainFrame.hpp`
+  - `src/slic3r/GUI/MainFrame.cpp`
+- **Da rimuovere**:
+  - menu, comandi, tab e azioni per device/monitor/send/bind
+  - include dei dialog rimossi
+- **Da mantenere**:
+  - `BBLTopbar`
+  - qualsiasi flusso About
+
+### Step 37 - Pulire `Plater` dai flow di invio e AMS
+
+- **File**:
+  - `src/slic3r/GUI/Plater.hpp`
+  - `src/slic3r/GUI/Plater.cpp`
+- **Da rimuovere**:
+  - aperture di `SendToPrinter`
+  - gestione mappature AMS
+  - refresh AMS di sidebar o preset se davvero legati ai device Bambu
+
+### Step 38 - Pulire `Tab` e preset UI dalle opzioni Bambu/AMS
+
+- **File**:
+  - `src/slic3r/GUI/Tab.hpp`
+  - `src/slic3r/GUI/Tab.cpp`
+  - eventuali file preset UI correlati
+- **Da rimuovere**:
+  - pagine AMS
+  - opzioni visibili solo per Bambu/AMS
+  - collegamenti a calibrazione Bambu se si decide di eliminarla
+
+### Step 39 - Pulire `GUI_App` dai membri e callback Bambu
+
+- **File**:
+  - `src/slic3r/GUI/GUI_App.hpp`
+  - `src/slic3r/GUI/GUI_App.cpp`
+- **Da rimuovere solo alla fine**:
+  - `m_agent`
+  - `m_device_manager`
+  - `m_user_manager`
+  - `m_http_server`
+  - callback di subscribe, bind, machine alive, local connect, cloud sync
+- **Da mantenere**:
+  - top bar generale
+  - funzioni non legate ai device Bambu
+
+### Step 40 - Pulire `Event.hpp` dagli eventi AMS/BBL non più usati
+
+- **Target**: `src/slic3r/GUI/Event.hpp`
+- **Metodo**: rimuovere solo eventi rimasti orfani dopo i passi precedenti.
+
+## Fase 8 - Rimuovere configurazioni e formati specifici
+
+### Step 41 - Rimuovere opzioni AMS/BBL da `PrintConfig`
+
+- **File**:
+  - `src/libslic3r/PrintConfig.hpp`
+  - `src/libslic3r/PrintConfig.cpp`
+- **Esempi da verificare**:
+  - `ams_mapping`
+  - `ams_mapping_info`
+  - `task_use_ams`
+  - opzioni specifiche cloud/device Bambu
+
+### Step 42 - Rimuovere config Bambu/AMS da `AppConfig`
+
+- **File**:
+  - `src/libslic3r/AppConfig.hpp`
+  - `src/libslic3r/AppConfig.cpp`
+- **Da pulire**:
+  - preferenze cloud Bambu
+  - device selezionato
+  - cache AMS o device se presenti
+
+### Step 43 - Rimuovere `bbs_3mf` solo se non è richiesto per compatibilità file
+
+- **Target**:
+  - `src/libslic3r/Format/bbs_3mf.hpp`
+  - `src/libslic3r/Format/bbs_3mf.cpp`
+- **Regola**: farlo solo se GingerSlicer non deve più leggere/scrivere il formato Bambu Studio.
+
+## Fase 9 - Calibrazione Bambu: opzionale e separata
+
+### Step 44 - Decidere se la calibrazione Bambu è nel perimetro
+
+- **File candidati**:
+  - `CalibrationPanel*`
+  - `CalibrationWizard*`
+  - `ExtrusionCalibration*`
+  - `CalibUtils*`
+  - `libslic3r/calib.*`
+- **Regola**:
+  - rimuoverli solo se sono davvero una feature esclusiva delle stampanti Bambu
+  - non toccare mai le parti `About` contenute in questi wizard
+- **Nota importante**: alcune pagine di calibrazione usano `BBLStatusBarSend`; questo è un altro motivo per non rimuovere subito quella classe.
+
+## Fase 10 - Pulizia build e risorse
+
+### Step 45 - Pulire `src/slic3r/CMakeLists.txt`
+
+- **Da rimuovere**:
+  - sorgenti dei file eliminati nei passi precedenti
+  - eventuale `add_subdirectory(DeviceTab)` se non serve più
+  - dipendenze GStreamer usate solo per `bambu:///` o streaming Bambu
+- **Da mantenere**:
+  - sorgenti di componenti condivisi come `BBLTopbar`
+
+### Step 46 - Pulire risorse e preset specifici Bambu
+
+- **Controllare**:
+  - `resources/`
+  - preset macchina/materiale
+  - eventuali asset web o immagini device-specifiche
+- **Regola**: rimuovere solo risorse sicuramente dedicate a Bambu/AMS.
+
+## Regole decisionali per i casi ambigui
+
+Se un file o una classe ha nome `BBL*`, applicare questa regola:
+
+- **se rappresenta branding storico ma funzione generale, mantenere**
+- **se implementa un workflow esclusivo di login, bind, monitor, cloud, send, camera o AMS, rimuovere**
+
+Esempi pratici:
+
+- **Mantenere**: `BBLTopbar`
+- **Probabilmente mantenere fino a prova contraria**: `BBLStatusBar`, `BBLStatusBarSend`
+- **Rimuovere**: `WebUserLoginDialog`, `BindDialog`, `SelectMachine`, `SendToPrinter`, `AMSSetting`, `AMSControl`
+
+## Ordine consigliato di esecuzione
+
+1. `WebUserLoginDialog`
+2. `BindDialog`
+3. `SelectMachine`
+4. `SelectMachinePop`
+5. `SendToPrinter`
+6. `SendMultiMachinePage`
+7. multi-device pages
+8. `AmsMappingPopup`
+9. `AMSSetting`
+10. `AMSMaterialsSetting`
+11. `AMSControl`
+12. `AMSItem`
+13. `AmsWidgets`
+14. `uiAmsHumidityPopup`
+15. `StatusPanel`
+16. `UpgradePanel`
+17. `HMSPanel`
+18. `MediaFilePanel`
+19. `CameraPopup`
+20. `Monitor*`
+21. `BindJob`
+22. `SendJob`
+23. `PrintJob` se davvero Bambu-only
+24. `BBLStatusBarBind`
+25. `BBLStatusBarSend` solo se rimasta orfana
+26. `BBLStatusBar` solo se rimasta orfana
+27. `UserManager`
+28. `HttpServer`
+29. `DeviceManager`
+30. `NetworkAgent` e `bambu_networking.hpp`
+31. `PrinterFileSystem`
+32. `BambuTunnel` e `gstbambusrc`
+33. `BambuPlayer`
+34. `PrinterWebView` se non condivisa
+35. `WebViewDialog` e `Widgets/WebView` se non condivisi
+36. pulizia `MainFrame`
+37. pulizia `Plater`
+38. pulizia `Tab`
+39. pulizia `GUI_App`
+40. pulizia `Event.hpp`
+41. pulizia `PrintConfig`
+42. pulizia `AppConfig`
+43. `bbs_3mf` se non più richiesto
+44. calibrazione Bambu solo se confermata nel perimetro
+45. pulizia `CMakeLists.txt`
+46. pulizia risorse e preset
+
+## Verifica dopo ogni step
+
+- compilare il progetto
+- cercare simboli orfani del file appena rimosso
+- rimuovere include morti
+- rimuovere eventi morti
+- rimuovere sorgenti dal CMake solo quando il file è davvero sparito
+- evitare refactor non richiesti
+
+## Esito atteso finale
+
+Alla fine devono sparire:
+
+- login cloud BambuLab
+- bind/unbind device BambuLab
+- invio stampa a device BambuLab
+- monitor remoto BambuLab
+- streaming/camera/file browser BambuLab
+- tutta la UI AMS
+- configurazioni AMS/BBL non più usate
+
+Alla fine devono restare:
+
+- slicing locale
+- export normali
+- UI generale condivisa
+- `BBLTopbar`
+- tutto l'`About`
