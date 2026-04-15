@@ -118,6 +118,13 @@ static t_config_enum_values s_keys_map_GCodeFlavor {
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(GCodeFlavor)
 
+static t_config_enum_values s_keys_map_PelletERSRampProfile {
+    { "linear",      int(PelletERSRampProfile::Linear) },
+    { "sqrt",        int(PelletERSRampProfile::Sqrt) },
+    { "exponential", int(PelletERSRampProfile::Exponential) }
+};
+CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(PelletERSRampProfile)
+
 static t_config_enum_values s_keys_map_FuzzySkinType {
     { "none",           int(FuzzySkinType::None) },
     { "external",       int(FuzzySkinType::External) },
@@ -3940,16 +3947,11 @@ void PrintConfigDef::init_fff_params()
         "Pellet extruders have high mechanical inertia in the screw and molten material "
         "in the barrel, so pressure persists through gaps. This mode removes the 3mm gap "
         "limit and treats the entire layer as one continuous flow segment.\n\n"
-        "DEBUG GUIDE:\n"
-        "1. Slice a model with this OFF, then ON, and compare G-code around travel moves.\n"
-        "2. With this ON, you should see ;_EXTRUDE_SET_SPEED feedrate ramps on extrusion "
-        "segments immediately AFTER travel moves (not just within continuous extrusions).\n"
-        "3. Use the G-code viewer to check that feedrate transitions are smooth across "
-        "travel gaps, especially on multi-island layers.\n"
-        "4. If you see over-extrusion after travel (blobs), the slope value is too low — "
-        "increase 'Extrusion rate smoothing' to allow faster ramp-up.\n"
-        "5. If you see under-extrusion at segment starts, the slope value may be too high — "
-        "decrease it for a more gradual ramp.\n\n"
+        "Enabling this unlocks additional pellet-specific settings:\n"
+        "• ERS travel threshold — minimum travel distance that triggers ramp-up/down\n"
+        "• ERS ramp profile — feedrate curve shape (Linear, Sqrt, Exponential)\n"
+        "• ERS deceleration slope — separate slope for ramp-down\n"
+        "• ERS minimum flow rate — volumetric rate at ramp boundaries\n\n"
         "Requires 'Extrusion rate smoothing' > 0 to have any effect."
     );
     def->mode = comAdvanced;
@@ -3973,6 +3975,65 @@ void PrintConfigDef::init_fff_params()
     def->set_default_value(new ConfigOptionFloat(3.0));
     def->min = 0;
     def->max = 100;
+
+    def = this->add("pellet_ers_ramp_profile", coEnum);
+    def->label = L("ERS ramp profile");
+    def->tooltip = L(
+        "Shape of the feedrate curve during ramp-up and ramp-down in Pellet ERS mode.\n\n"
+        "• Linear: constant acceleration — feedrate increases at a fixed rate. "
+        "Simple but may feel sluggish at the start and abrupt at the end.\n\n"
+        "• Sqrt (recommended): based on the kinematic equation v² = v₀² + 2as. "
+        "Produces a concave curve — fast initial acceleration that gradually tapers off "
+        "as the target rate is approached. Best match for mechanical screw inertia.\n\n"
+        "• Exponential: first-order response model. Even faster initial ramp than Sqrt, "
+        "with a very gentle asymptotic approach to target. "
+        "Suitable for systems with high viscous damping in the barrel.\n\n"
+        "Only affects Pellet ERS mode."
+    );
+    def->enum_keys_map = &ConfigOptionEnum<PelletERSRampProfile>::get_enum_values();
+    def->enum_values.push_back("linear");
+    def->enum_values.push_back("sqrt");
+    def->enum_values.push_back("exponential");
+    def->enum_labels.push_back(L("Linear"));
+    def->enum_labels.push_back(L("Sqrt (kinematic)"));
+    def->enum_labels.push_back(L("Exponential"));
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionEnum<PelletERSRampProfile>(PelletERSRampProfile::Sqrt));
+
+    def = this->add("pellet_ers_deceleration_slope", coFloat);
+    def->label = L("ERS deceleration slope");
+    def->tooltip = L(
+        "Separate volumetric extrusion rate slope for ramp-down (deceleration).\n\n"
+        "When set to 0, ramp-down uses the same slope as ramp-up "
+        "(the main 'Extrusion rate smoothing' value).\n\n"
+        "When set to a positive value, ramp-down uses this independent slope instead. "
+        "This is useful for pellet/screw extruders where the mechanical response "
+        "to deceleration differs from acceleration — for example, residual pressure "
+        "in the barrel may cause the flow to decay slower than it builds up.\n\n"
+        "Only affects Pellet ERS mode."
+    );
+    def->sidetext = u8"mm³/s²";
+    def->min = 0;
+    def->max = 500;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(0));
+
+    def = this->add("pellet_ers_min_rate", coFloat);
+    def->label = L("ERS minimum flow rate");
+    def->tooltip = L(
+        "Minimum volumetric extrusion rate at the start of a ramp-up "
+        "and at the end of a ramp-down, in mm³/s.\n\n"
+        "This is the flow rate the extruder starts from after a travel move "
+        "(ramp-up) or decelerates to before a travel move (ramp-down). "
+        "A higher value reduces the initial slow phase but may cause blobs "
+        "if set above the extruder's minimum reliable flow.\n\n"
+        "Only affects Pellet ERS mode."
+    );
+    def->sidetext = u8"mm³/s";
+    def->min = 0.1;
+    def->max = 50;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(0.5));
 
     def = this->add("fan_min_speed", coFloats);
     def->label = L("Fan speed");

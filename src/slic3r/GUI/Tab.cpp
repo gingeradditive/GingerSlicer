@@ -2342,6 +2342,9 @@ void TabPrint::build()
         optgroup->append_single_option_line("extrusion_rate_smoothing_external_perimeter_only", "speed_settings_advanced");
         optgroup->append_single_option_line("pellet_ers_mode", "speed_settings_advanced");
         optgroup->append_single_option_line("pellet_ers_travel_threshold_mm", "speed_settings_advanced");
+        optgroup->append_single_option_line("pellet_ers_ramp_profile", "speed_settings_advanced");
+        optgroup->append_single_option_line("pellet_ers_deceleration_slope", "speed_settings_advanced");
+        optgroup->append_single_option_line("pellet_ers_min_rate", "speed_settings_advanced");
 
     page = add_options_page(L("Support"), "custom-gcode_support"); // ORCA: icon only visible on placeholders
         optgroup = page->new_optgroup(L("Support"), L"param_support");

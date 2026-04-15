@@ -91,6 +91,12 @@ private:
     bool                           m_pellet_ers_mode { false };
     // Travel threshold below which ramp-up/ramp-down is skipped (treated as continuous)
     float                          m_pellet_ers_travel_threshold { 3.0f };
+    // Feedrate interpolation curve shape during ramp-up/ramp-down
+    PelletERSRampProfile           m_pellet_ers_ramp_profile { PelletERSRampProfile::Sqrt };
+    // Separate deceleration slope (mm³/min²). 0 = use main slope for both directions.
+    float                          m_pellet_ers_deceleration_slope { 0.f };
+    // Minimum volumetric rate at ramp boundaries (mm³/min, converted from mm³/s at init)
+    float                          m_pellet_ers_min_rate { 30.f }; // 0.5 mm³/s * 60
 
     // Indicate if extrude set speed block was opened using the tag ";_EXTRUDE_SET_SPEED"
     // or not (not opened, or it was closed using the tag ";_EXTRUDE_END").

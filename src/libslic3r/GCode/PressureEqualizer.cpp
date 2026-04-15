@@ -130,6 +130,9 @@ PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config) : m_use_
 
         m_pellet_ers_mode = bool(config.pellet_ers_mode.value);
         m_pellet_ers_travel_threshold = float(config.pellet_ers_travel_threshold_mm.value);
+        m_pellet_ers_ramp_profile = config.pellet_ers_ramp_profile.value;
+        m_pellet_ers_deceleration_slope = float(config.pellet_ers_deceleration_slope.value) * 60.f * 60.f; // mm³/s² → mm³/min²
+        m_pellet_ers_min_rate = float(config.pellet_ers_min_rate.value) * 60.f; // mm³/s → mm³/min
 
     }
 
@@ -1070,6 +1073,33 @@ bool PressureEqualizer::process_line(const char *line, const char *line_end, GCo
 
 
 
+/// Interpolates feedrate at parametric position t ∈ [0,1] within a ramp zone.
+///
+/// @param f_start  Feedrate at zone start (mm/min)
+/// @param f_end    Feedrate at zone end   (mm/min)
+/// @param t        Parametric position within the zone, 0 = start, 1 = end
+/// @param profile  Curve shape selector
+/// @return         Interpolated feedrate (mm/min)
+///
+/// Profile shapes (ramp-up, f_start < f_end):
+///   Linear:      constant acceleration — f(t) = f_start + (f_end - f_start) * t
+///   Sqrt:        kinematic v² = v₀²+2as — fast initial ramp, gentle approach to target
+///   Exponential: first-order response   — fastest initial ramp, asymptotic approach (k=3 → ~95% at t=1)
+///
+/// For ramp-down (f_start > f_end) the same formulas apply; the curve is automatically mirrored.
+static float interpolate_ramp(float f_start, float f_end, float t, PelletERSRampProfile profile)
+{
+    switch (profile) {
+    case PelletERSRampProfile::Sqrt:
+        return sqrtf(f_start * f_start + (f_end * f_end - f_start * f_start) * t);
+    case PelletERSRampProfile::Exponential:
+        return f_end - (f_end - f_start) * expf(-3.f * t);
+    case PelletERSRampProfile::Linear:
+    default:
+        return f_start + (f_end - f_start) * t;
+    }
+}
+
 void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
 {
@@ -1225,7 +1255,8 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
                     }
 
-                    float f_interp = f_start + (f_end - f_start) * (float(i) - 0.5f) / float(nSeg);
+                    float t_mid = (float(i) - 0.5f) / float(nSeg);
+                    float f_interp = interpolate_ramp(f_start, f_end, t_mid, m_pellet_ers_ramp_profile);
 
                     push_line_to_output(line_idx, f_interp, comment, ";_ERS_RAMPUP");
 
@@ -1291,7 +1322,8 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
 
                     }
 
-                    float f_interp = f_start + (f_end - f_start) * (float(i) - 0.5f) / float(nSeg);
+                    float t_mid = (float(i) - 0.5f) / float(nSeg);
+                    float f_interp = interpolate_ramp(f_start, f_end, t_mid, m_pellet_ers_ramp_profile);
 
                     push_line_to_output(line_idx, f_interp, comment, ";_ERS_RAMPDOWN");
 
@@ -1360,7 +1392,8 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
                         line.pos_provided[j] = true;
                     }
 
-                    float f_interp = f_start_up + (f_peak - f_start_up) * (float(i) - 0.5f) / float(nSeg);
+                    float t_mid = (float(i) - 0.5f) / float(nSeg);
+                    float f_interp = interpolate_ramp(f_start_up, f_peak, t_mid, m_pellet_ers_ramp_profile);
                     push_line_to_output(line_idx, f_interp, comment, ";_ERS_RAMPUP");
                     comment = nullptr;
                     memcpy(line.pos_start, line.pos_end, sizeof(float) * 5);
@@ -1381,7 +1414,8 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
                         line.pos_provided[j] = true;
                     }
 
-                    float f_interp = f_peak + (f_end_down - f_peak) * (float(i) - 0.5f) / float(nSeg);
+                    float t_mid = (float(i) - 0.5f) / float(nSeg);
+                    float f_interp = interpolate_ramp(f_peak, f_end_down, t_mid, m_pellet_ers_ramp_profile);
                     push_line_to_output(line_idx, f_interp, comment, ";_ERS_RAMPDOWN");
                     comment = nullptr;
                     memcpy(line.pos_start, line.pos_end, sizeof(float) * 5);
@@ -2018,12 +2052,11 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
             }
 
             if (ramp_slope > 0.f) {
-                float rate_start_min = 0.5f;
                 float ramp_target = first_line.volumetric_extrusion_rate;
 
                 // Walk forward through extruding lines, distributing the ramp-up
                 // across as many GCodeLines as needed until the target rate is reached.
-                float rate_prec = rate_start_min;
+                float rate_prec = m_pellet_ers_min_rate;
                 for (size_t idx = first_extruding_idx; idx <= last_extruding_idx; ++idx) {
                     GCodeLine &line = m_gcode_lines[idx];
                     if (!line.extruding() || !line.adjustable_flow)
@@ -2067,23 +2100,27 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
             // No boundary ramp-down needed
         } else if (last_line.adjustable_flow) {
 
-            // Find the negative slope for the last line's extrusion role
+            // Find the negative slope for the last line's extrusion role.
+            // Use the dedicated deceleration slope if configured, otherwise the role-based slope.
             float ramp_slope = 0.f;
-            for (size_t iRole = 1; iRole < size_t(ExtrusionRole::erCount); ++iRole) {
-                if (m_max_volumetric_extrusion_rate_slopes[iRole].negative > 0 &&
-                    last_line.extrusion_role == ExtrusionRole(iRole)) {
-                    ramp_slope = m_max_volumetric_extrusion_rate_slopes[iRole].negative;
-                    break;
+            if (m_pellet_ers_deceleration_slope > 0.f) {
+                ramp_slope = m_pellet_ers_deceleration_slope;
+            } else {
+                for (size_t iRole = 1; iRole < size_t(ExtrusionRole::erCount); ++iRole) {
+                    if (m_max_volumetric_extrusion_rate_slopes[iRole].negative > 0 &&
+                        last_line.extrusion_role == ExtrusionRole(iRole)) {
+                        ramp_slope = m_max_volumetric_extrusion_rate_slopes[iRole].negative;
+                        break;
+                    }
                 }
             }
 
             if (ramp_slope > 0.f) {
-                float rate_end_min = 0.5f;
                 float ramp_target = last_line.volumetric_extrusion_rate;
 
                 // Walk backward through extruding lines, distributing the ramp-down
                 // across as many GCodeLines as needed until the target rate is reached.
-                float rate_succ = rate_end_min;
+                float rate_succ = m_pellet_ers_min_rate;
                 size_t idx = last_extruding_idx;
                 while (true) {
                     GCodeLine &line = m_gcode_lines[idx];
