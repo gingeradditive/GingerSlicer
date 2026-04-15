@@ -762,15 +762,7 @@ void ModeButton::focus_button(const bool focus)
 #ifdef _WIN32
     GetParent()->Refresh(); // force redraw a background of the selected mode button
 #else
-    SetForegroundColour(wxSystemSettings::GetColour(focus ? wxSYS_COLOUR_BTNTEXT : 
-#if defined (__linux__) && defined (__WXGTK3__)
-        wxSYS_COLOUR_GRAYTEXT
-#elif defined (__linux__) && defined (__WXGTK2__)
-        wxSYS_COLOUR_BTNTEXT
-#else 
-        wxSYS_COLOUR_BTNSHADOW
-#endif    
-    ));
+    SetForegroundColour(focus ? wxGetApp().get_label_clr_default() : wxColour(128, 128, 128));
 #endif /* no _WIN32 */
 
     Refresh();

@@ -174,11 +174,7 @@ FileArchiveDialog::FileArchiveDialog(wxWindow* parent_window, mz_zip_archive* ar
         wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER | wxMAXIMIZE_BOX)
     , m_selected_paths_w_size (selected_paths_w_size)
 {
-#ifdef _WIN32
-    SetBackgroundColour(*wxWHITE);
-#else
-    SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
-#endif
+    SetBackgroundColour(wxGetApp().get_window_default_clr());
 
     int em = em_unit();
 

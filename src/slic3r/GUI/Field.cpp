@@ -115,7 +115,7 @@ Field::~Field()
 
 void Field::PostInitialize()
 {
-	auto color = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
+	auto color = wxGetApp().get_window_default_clr();
 
 	switch (m_opt.type)
 	{

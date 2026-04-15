@@ -214,7 +214,7 @@ void Tab::create_preset_tab()
         });
     }
 
-    auto color = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
+    auto color = wxGetApp().get_window_default_clr();
 
     //buttons
     m_scaled_buttons.reserve(6);

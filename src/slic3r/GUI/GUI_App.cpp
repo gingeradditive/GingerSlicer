@@ -2946,17 +2946,13 @@ void GUI_App::init_label_colours()
     m_color_label_modified = wxColour("#F1754E");
     m_color_label_sys      = wxColour("#363636");
 
-#if defined(_WIN32) || defined(__linux__) || defined(__APPLE__)
-    m_color_label_default           = m_color_label_sys; // wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
-    m_color_highlight_label_default = wxSystemSettings::GetColour(/*wxSYS_COLOUR_HIGHLIGHTTEXT*/wxSYS_COLOUR_WINDOWTEXT);
+    m_color_label_default           = m_color_label_sys;
+    m_color_highlight_label_default = m_color_label_sys;
     m_color_highlight_default       = wxColour("#F1F1F1"); // ORCA row highlighting
     m_color_hovered_btn_label       = wxColour(0,0,0);
     m_color_default_btn_label       = wxColour(0,0,0);
     m_color_selected_btn_bg         = wxColour(206, 206, 206);
-#else
-    m_color_label_default = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
-#endif
-    m_color_window_default          = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
+    m_color_window_default          = wxColour(255, 255, 255);
 }
 
 void GUI_App::update_label_colours_from_appconfig()

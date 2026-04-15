@@ -3923,7 +3923,7 @@ SettingsDialog::SettingsDialog(MainFrame* mainframe)
     this->SetFont(wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT));
 #else
     this->SetFont(wxGetApp().normal_font());
-    this->SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
+    this->SetBackgroundColour(wxGetApp().get_window_default_clr());
 #endif // __WXMSW__
 
     // Load the icon either from the exe, or from the ico file.

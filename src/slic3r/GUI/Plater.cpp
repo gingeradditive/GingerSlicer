@@ -655,14 +655,11 @@ Sidebar::Sidebar(Plater *parent)
     // But if we set this value to 5, layout will be better
     //p->scrolled->SetScrollRate(0, 5);
     p->scrolled->SetBackgroundColour(*wxWHITE);
+    p->scrolled->SetForegroundColour(wxGetApp().get_label_clr_default());
 
 
     SetFont(wxGetApp().normal_font());
-#ifndef __APPLE__
-#ifdef _WIN32
-    SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
-#endif
-#endif
+    SetBackgroundColour(wxGetApp().get_window_default_clr());
 
     int em = wxGetApp().em_unit();
     //BBS refine layout and styles
@@ -733,6 +730,7 @@ Sidebar::Sidebar(Plater *parent)
         /*************************** 2. add printer content ************************/
         p->m_panel_printer_content = new wxPanel(p->scrolled, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL);
         p->m_panel_printer_content->SetBackgroundColour(wxColour(255, 255, 255));
+        p->m_panel_printer_content->SetForegroundColour(wxGetApp().get_label_clr_default());
 
         PlaterPresetComboBox* combo_printer = new PlaterPresetComboBox(p->m_panel_printer_content, Preset::TYPE_PRINTER);
         ScalableButton* edit_btn = new ScalableButton(p->m_panel_printer_content, wxID_ANY, "edit");

@@ -59,7 +59,7 @@ static std::string get_icon_name(Preset::Type type, PrinterTechnology pt) {
 
 static std::string def_text_color()
 {
-    wxColour def_colour = wxGetApp().get_label_clr_default();//wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT);
+    wxColour def_colour = wxGetApp().get_label_clr_default();
     return encode_color(ColorRGB(def_colour.Red(), def_colour.Green(), def_colour.Blue()));
 }
 static std::string grey     = "#808080";
