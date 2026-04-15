@@ -1035,9 +1035,6 @@ void MainFrame::init_tabpanel() {
         }
         //else if (panel == m_param_panel)
         //    m_param_panel->OnActivate();
-        else if (panel == m_monitor) {
-            //monitor
-        }
 #ifndef __APPLE__
         if (sel == tp3DEditor) {
             m_topbar->EnableUndoRedoItems();
@@ -1088,19 +1085,13 @@ void MainFrame::init_tabpanel() {
 
     create_preset_tabs();
 
-        //BBS add pages
-    m_monitor = new MonitorPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
-    m_monitor->SetBackgroundColour(*wxWHITE);
-    m_tabpanel->AddPage(m_monitor, "", std::string("tab_monitor_active"), std::string("tab_monitor_active"), false);
-
     m_printer_view = new PrinterWebView(m_tabpanel);
     Bind(EVT_LOAD_PRINTER_URL, [this](LoadPrinterViewEvent &evt) {
         wxString url = evt.GetString();
         wxString key = evt.GetAPIkey();
-        //select_tab(MainFrame::tpMonitor);
         m_printer_view->load_url(url, key);
     });
-    m_printer_view->Hide();
+    m_tabpanel->AddPage(m_printer_view, _L("Device"), std::string("tab_monitor_active"), std::string("tab_monitor_active"), false);
 
 
     // m_project = new ProjectPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
@@ -1121,61 +1112,6 @@ void MainFrame::init_tabpanel() {
     }
 }
 
-// SoftFever
-void MainFrame::show_device(bool bBBLPrinter) {
-    auto idx = -1;
-    if (bBBLPrinter) {
-        if (m_tabpanel->FindPage(m_monitor) != wxNOT_FOUND)
-            return;
-        // Remove printer view
-        if ((idx = m_tabpanel->FindPage(m_printer_view)) != wxNOT_FOUND) {
-            m_printer_view->Show(false);
-            m_tabpanel->RemovePage(idx);
-        }
-
-        // Create/insert monitor page
-        if (!m_monitor) {
-            m_monitor = new MonitorPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
-            m_monitor->SetBackgroundColour(*wxWHITE);
-        }
-        m_monitor->Show(false);
-        m_tabpanel->InsertPage(tpMonitor, m_monitor, "", std::string("tab_monitor_active"), std::string("tab_monitor_active"));
-
-        if (!m_calibration) {
-            m_calibration = new CalibrationPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
-            m_calibration->SetBackgroundColour(*wxWHITE);
-        }
-        m_calibration->Show(false);
-        // Calibration is always the last page, so don't use InsertPage here. Otherwise, if multi_machine page is not enabled,
-        // the calibration tab won't be properly added as well, due to the TabPosition::tpCalibration no longer matches the real tab position.
-        // m_tabpanel->AddPage(m_calibration, _L("Calibration"), std::string("tab_calibration_active"),
-        //                        std::string("tab_calibration_active"), false);
-#ifdef _MSW_DARK_MODE
-        wxGetApp().UpdateDarkUIWin(this);
-#endif // _MSW_DARK_MODE
-
-    } else {
-        if (m_tabpanel->FindPage(m_printer_view) != wxNOT_FOUND)
-            return;
-
-        if ((idx = m_tabpanel->FindPage(m_monitor)) != wxNOT_FOUND) {
-            m_monitor->Show(false);
-            m_tabpanel->RemovePage(idx);
-        }
-        if (m_printer_view == nullptr) {
-            m_printer_view = new PrinterWebView(m_tabpanel);
-            Bind(EVT_LOAD_PRINTER_URL, [this](LoadPrinterViewEvent& evt) {
-                wxString url = evt.GetString();
-                wxString key = evt.GetAPIkey();
-                // select_tab(MainFrame::tpMonitor);
-                m_printer_view->load_url(url, key);
-            });
-        }
-        m_printer_view->Show(false);
-        m_tabpanel->InsertPage(tpMonitor, m_printer_view, "", std::string("tab_monitor_active"),
-                               std::string("tab_monitor_active"));
-    }
-}
 
 bool MainFrame::preview_only_hint()
 {
@@ -1988,8 +1924,6 @@ void MainFrame::on_dpi_changed(const wxRect& suggested_rect)
     //if (m_layout != ESettingsLayout::Dlg) // Do not update tabs if the Settings are in the separated dialog
     m_param_panel->msw_rescale();
     m_project->msw_rescale();
-    if(m_monitor)
-        m_monitor->msw_rescale();
 
     // BBS
 #if 0
@@ -2040,8 +1974,6 @@ void MainFrame::on_sys_color_changed()
 
     // update Plater
     wxGetApp().plater()->sys_color_changed();
-    if(m_monitor)
-        m_monitor->on_sys_color_changed();
     // update Tabs
     for (auto tab : wxGetApp().tabs_list)
         tab->sys_color_changed();
@@ -3365,14 +3297,6 @@ void MainFrame::select_tab(wxPanel* panel)
     select_tab(size_t(page_idx));
 }
 
-//BBS
-void MainFrame::jump_to_monitor(std::string dev_id)
-{
-    if(!m_monitor)
-        return;
-    m_tabpanel->SetSelection(tpMonitor);
-    ((MonitorPanel*)m_monitor)->select_machine(dev_id);
-}
 
 
 //BBS GUI refactor: remove unused layout new/dlg

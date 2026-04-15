@@ -60,8 +60,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/CaliHistoryDialog.hpp
     GUI/Camera.cpp
     GUI/Camera.hpp
-    GUI/CameraPopup.cpp
-    GUI/CameraPopup.hpp
     GUI/CameraUtils.cpp
     GUI/CameraUtils.hpp
     GUI/CloneDialog.cpp
@@ -196,8 +194,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/HintNotification.hpp
     GUI/HMS.cpp
     GUI/HMS.hpp
-    GUI/HMSPanel.cpp
-    GUI/HMSPanel.hpp
     GUI/HttpServer.cpp
     GUI/HttpServer.hpp
     GUI/I18N.cpp
@@ -257,20 +253,12 @@ set(SLIC3R_GUI_SOURCES
     GUI/MainFrame.hpp
     GUI/MarkdownTip.cpp
     GUI/MarkdownTip.hpp
-    GUI/MediaFilePanel.cpp
-    GUI/MediaFilePanel.h
     GUI/MediaPlayCtrl.cpp
     GUI/MediaPlayCtrl.h
     GUI/MeshUtils.cpp
     GUI/MeshUtils.hpp
     GUI/ModelMall.cpp
     GUI/ModelMall.hpp
-    GUI/MonitorBasePanel.cpp
-    GUI/MonitorBasePanel.h
-    GUI/Monitor.cpp
-    GUI/Monitor.hpp
-    GUI/MonitorPage.cpp
-    GUI/MonitorPage.hpp
     GUI/Mouse3DController.cpp
     GUI/Mouse3DController.hpp
     GUI/MsgDialog.cpp
@@ -355,8 +343,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/SliceInfoPanel.hpp
     GUI/SlicingProgressNotification.cpp
     GUI/SlicingProgressNotification.hpp
-    GUI/StatusPanel.cpp
-    GUI/StatusPanel.hpp
     GUI/StepMeshDialog.cpp
     GUI/StepMeshDialog.hpp
     GUI/SurfaceDrag.cpp
@@ -377,8 +363,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/UnsavedChangesDialog.hpp
     GUI/UpdateDialogs.cpp
     GUI/UpdateDialogs.hpp
-    GUI/UpgradePanel.cpp
-    GUI/UpgradePanel.hpp
     GUI/UserManager.cpp
     GUI/UserManager.hpp
     GUI/UserNotification.cpp

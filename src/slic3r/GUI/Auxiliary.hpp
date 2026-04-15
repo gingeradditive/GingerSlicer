@@ -41,9 +41,6 @@
 #include "libslic3r/ProjectTask.hpp"
 #include "wxExtensions.hpp"
 #include "slic3r/GUI/DeviceManager.hpp"
-#include "slic3r/GUI/MonitorBasePanel.h"
-#include "slic3r/GUI/StatusPanel.hpp"
-#include "slic3r/GUI/UpgradePanel.hpp"
 #include "Widgets/SideTools.hpp"
 
 #define AUFILE_GREY700 wxColour(107, 107, 107)

@@ -18,7 +18,6 @@
 #include "Event.hpp"
 //BBS: GUI refactor
 #include "ParamsPanel.hpp"
-#include "Monitor.hpp"
 #include "Auxiliary.hpp"
 #include "Project.hpp"
 #include "UnsavedChangesDialog.hpp"
@@ -300,8 +299,6 @@ public:
     //void        export_configbundle(bool export_physical_printers = false);
     //void        load_configbundle(wxString file = wxEmptyString);
     void        load_config(const DynamicPrintConfig& config);
-    //BBS: jump to monitor
-    void        jump_to_monitor(std::string dev_id = "");
     //BBS: hint when jump to 3Deditor under preview only mode
     bool        preview_only_hint();
     // Select tab in m_tabpanel
@@ -337,8 +334,6 @@ public:
     void        refresh_plugin_tips();
     void RunScript(wxString js);
 
-    //SoftFever
-    void show_device(bool bBBLPrinter);
 
     PA_Calibration_Dlg* m_pa_calib_dlg{ nullptr };
     Temp_Calibration_Dlg* m_temp_calib_dlg{ nullptr };
@@ -353,9 +348,6 @@ public:
     BBLTopbar*            m_topbar{ nullptr };
     PrintHostQueueDialog* printhost_queue_dlg() { return m_printhost_queue_dlg; }
     Plater*               m_plater { nullptr };
-    //BBS: GUI refactor
-    MonitorPanel*         m_monitor{ nullptr };
-
     //AuxiliaryPanel*       m_auxiliary{ nullptr };
     ProjectPanel*         m_project{ nullptr };
 

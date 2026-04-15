@@ -169,12 +169,6 @@ void CalibrationCaliPage::update(MachineObject* obj)
     // enable calibration when finished
     bool enable_cali = false;
     if (obj) {
-        if (obj->print_error > 0) {
-            StatusPanel* status_panel = Slic3r::GUI::wxGetApp().mainframe->m_monitor->get_status_panel();
-            status_panel->obj = obj;
-            status_panel->update_error_message();
-        }
-
         if (obj->print_status == "RUNNING")
             m_is_between_start_and_running = false;
         if (obj->is_connecting() || !obj->is_connected() || m_is_between_start_and_running) {

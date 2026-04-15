@@ -2,7 +2,6 @@
 #define slic3r_GUI_CalibrationWizardCaliPage_hpp_
 
 #include "CalibrationWizardPage.hpp"
-#include "StatusPanel.hpp"
 
 namespace Slic3r { namespace GUI {
 

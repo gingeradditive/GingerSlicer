@@ -1,10 +1,10 @@
 #ifndef slic3r_SliceInfoPanel_hpp_
 #define slic3r_SliceInfoPanel_hpp_
 
-#include "slic3r/GUI/MonitorBasePanel.h"
 #include "libslic3r/ProjectTask.hpp"
 #include "DeviceManager.hpp"
 #include "GUI.hpp"
+#include "wxExtensions.hpp"
 #include <wx/panel.h>
 #include <wx/bitmap.h>
 #include <wx/image.h>

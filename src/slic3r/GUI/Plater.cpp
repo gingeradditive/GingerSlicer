@@ -1330,8 +1330,6 @@ void Sidebar::update_all_preset_comboboxes()
     if (p->combo_printer)
         p->combo_printer->update();
 
-    // Orca:: show device tab based on vendor type
-    p_mainframe->show_device(preset_bundle.use_bbl_device_tab());
     p_mainframe->m_tabpanel->SetSelection(p_mainframe->m_tabpanel->GetSelection());
 }
 
@@ -12699,10 +12697,6 @@ void Plater::print_job_finished(wxCommandEvent &evt)
 
     dev->set_selected_machine(evt.GetString().ToStdString());
     p->main_frame->request_select_tab(MainFrame::TabPosition::tpMonitor);
-    //jump to monitor and select device status panel
-    MonitorPanel* curr_monitor = p->main_frame->m_monitor;
-    if(curr_monitor)
-       curr_monitor->get_tabpanel()->ChangeSelection(MonitorPanel::PrinterTab::PT_STATUS);
 }
 
 void Plater::send_job_finished(wxCommandEvent& evt)
@@ -12712,11 +12706,6 @@ void Plater::send_job_finished(wxCommandEvent& evt)
     //dev->set_selected_machine(evt.GetString().ToStdString());
 
     send_gcode_finish(evt.GetString());
-    //p->main_frame->request_select_tab(MainFrame::TabPosition::tpMonitor);
-    ////jump to monitor and select device status panel
-    //MonitorPanel* curr_monitor = p->main_frame->m_monitor;
-    //if (curr_monitor)
-    //    curr_monitor->get_tabpanel()->ChangeSelection(MonitorPanel::PrinterTab::PT_STATUS);
 }
 
 void Plater::publish_job_finished(wxCommandEvent &evt)
