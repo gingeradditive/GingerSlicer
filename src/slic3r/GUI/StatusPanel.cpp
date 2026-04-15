@@ -1992,7 +1992,6 @@ void StatusPanel::on_webrequest_state(wxWebRequestEvent &evt)
             img_list.insert(std::make_pair(m_request_url, img));
             wxImage resize_img = img.Scale(m_project_task_panel->get_bitmap_thumbnail()->GetSize().x, m_project_task_panel->get_bitmap_thumbnail()->GetSize().y, wxIMAGE_QUALITY_HIGH);
             m_project_task_panel->set_thumbnail_img(resize_img);
-            m_project_task_panel->set_brightness_value(get_brightness_value(resize_img));
         }
         if (obj) {
             m_project_task_panel->set_plate_index(obj->m_plate_index);
@@ -3236,7 +3235,6 @@ void StatusPanel::update_cloud_subtask(MachineObject *obj)
                         img = it->second;
                         wxImage resize_img = img.Scale(m_project_task_panel->get_bitmap_thumbnail()->GetSize().x, m_project_task_panel->get_bitmap_thumbnail()->GetSize().y);
                         m_project_task_panel->set_thumbnail_img(resize_img);
-                        m_project_task_panel->set_brightness_value(get_brightness_value(resize_img));
                     }
                     if (this->obj) {
                         m_project_task_panel->set_plate_index(obj->m_plate_index);

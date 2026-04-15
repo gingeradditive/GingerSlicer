@@ -623,7 +623,7 @@ MachineObject::MachineObject(NetworkAgent* agent, std::string name, std::string 
     mc_left_time = 0;
     home_flag = -1;
     hw_switch_state = 0;
-    printing_speed_lvl   = PrintingSpeedLevel::SPEED_LEVEL_INVALID;
+    printing_speed_lvl   = PrintingSpeedLevel::SPEED_LEVEL_NORMAL;
 
     has_ipcam = true; // default true
 
@@ -1584,7 +1584,7 @@ PrintingSpeedLevel MachineObject::_parse_printing_speed_lvl(int lvl)
     if (lvl < (int)SPEED_LEVEL_COUNT)
         return PrintingSpeedLevel(lvl);
 
-    return PrintingSpeedLevel::SPEED_LEVEL_INVALID;
+    return PrintingSpeedLevel::SPEED_LEVEL_NORMAL;
 }
 
 int MachineObject::get_bed_temperature_limit()

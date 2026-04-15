@@ -398,9 +398,6 @@ void PrintJob::process(Ctl &ctl)
                         }
                         else if (stage == BBL::SendingPrintJobStage::PrintingStageFinished) {
                             msg = format(_u8L("Successfully sent. Will automatically jump to the device page in %ss"), info);
-                            if (m_print_job_completed_id == wxGetApp().plater()->get_send_calibration_finished_event()) {
-                                msg = format(_u8L("Successfully sent. Will automatically jump to the next page in %ss"), info);
-                            }
                             ctl.clear_percent();
                         } else {
                             if (this->connection_type == "lan") {
@@ -606,12 +603,6 @@ void PrintJob::process(Ctl &ctl)
             evt->SetString(m_completed_evt_data);
         else
             evt->SetString(m_dev_id);
-        if (m_print_job_completed_id == wxGetApp().plater()->get_send_calibration_finished_event()) {
-            int sel = wxGetApp().mainframe->get_calibration_curr_tab();
-            if (sel >= 0) {
-                evt->SetInt(sel);
-            }
-        }
         wxQueueEvent(m_plater, evt);
         m_job_finished = true;
     }

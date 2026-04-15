@@ -1107,10 +1107,6 @@ void MainFrame::init_tabpanel() {
     // m_project->SetBackgroundColour(*wxWHITE);
     // m_tabpanel->AddPage(m_project, _L("Project"), std::string("tab_auxiliary_active"), std::string("tab_auxiliary_active"), false);
 
-    // m_calibration = new CalibrationPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
-    // m_calibration->SetBackgroundColour(*wxWHITE);
-    // m_tabpanel->AddPage(m_calibration, _L("Calibration"), std::string("tab_calibration_active"), std::string("tab_calibration_active"), false);
-
     if (m_plater) {
         // load initial config
         auto full_config = wxGetApp().preset_bundle->full_config();
@@ -1154,15 +1150,14 @@ void MainFrame::show_device(bool bBBLPrinter) {
         // the calibration tab won't be properly added as well, due to the TabPosition::tpCalibration no longer matches the real tab position.
         // m_tabpanel->AddPage(m_calibration, _L("Calibration"), std::string("tab_calibration_active"),
         //                        std::string("tab_calibration_active"), false);
+#ifdef _MSW_DARK_MODE
+        wxGetApp().UpdateDarkUIWin(this);
+#endif // _MSW_DARK_MODE
 
     } else {
         if (m_tabpanel->FindPage(m_printer_view) != wxNOT_FOUND)
             return;
 
-        if ((idx = m_tabpanel->FindPage(m_calibration)) != wxNOT_FOUND) {
-            m_calibration->Show(false);
-            m_tabpanel->RemovePage(idx);
-        }
         if ((idx = m_tabpanel->FindPage(m_monitor)) != wxNOT_FOUND) {
             m_monitor->Show(false);
             m_tabpanel->RemovePage(idx);
@@ -1995,8 +1990,6 @@ void MainFrame::on_dpi_changed(const wxRect& suggested_rect)
     m_project->msw_rescale();
     if(m_monitor)
         m_monitor->msw_rescale();
-    if(m_calibration)
-        m_calibration->msw_rescale();
 
     // BBS
 #if 0
@@ -2049,8 +2042,6 @@ void MainFrame::on_sys_color_changed()
     wxGetApp().plater()->sys_color_changed();
     if(m_monitor)
         m_monitor->on_sys_color_changed();
-    if(m_calibration)
-        m_calibration->on_sys_color_changed();
     // update Tabs
     for (auto tab : wxGetApp().tabs_list)
         tab->sys_color_changed();
@@ -3418,11 +3409,6 @@ void MainFrame::request_select_tab(TabPosition pos)
     wxQueueEvent(this, evt);
 }
 
-int MainFrame::get_calibration_curr_tab() {
-    if (m_calibration)
-        return m_calibration->get_tabpanel()->GetSelection();
-    return -1;
-}
 
 // Set a camera direction, zoom to all objects.
 void MainFrame::select_view(const std::string& direction)

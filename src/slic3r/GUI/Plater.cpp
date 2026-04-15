@@ -179,7 +179,6 @@ wxDEFINE_EVENT(EVT_OPEN_PLATESETTINGSDIALOG,        wxCommandEvent);
 // BBS: backup & restore
 wxDEFINE_EVENT(EVT_RESTORE_PROJECT,                 wxCommandEvent);
 wxDEFINE_EVENT(EVT_PRINT_FINISHED,                  wxCommandEvent);
-wxDEFINE_EVENT(EVT_SEND_CALIBRATION_FINISHED,       wxCommandEvent);
 wxDEFINE_EVENT(EVT_SEND_FINISHED,                   wxCommandEvent);
 wxDEFINE_EVENT(EVT_PUBLISH_FINISHED,                wxCommandEvent);
 //BBS: repair model
@@ -3078,7 +3077,6 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         q->Bind(EVT_DOWNLOAD_PROJECT, &priv::on_action_download_project, this);
         q->Bind(EVT_IMPORT_MODEL_ID, &priv::on_action_request_model_id, this);
         q->Bind(EVT_PRINT_FINISHED, [q](wxCommandEvent& evt) { q->print_job_finished(evt); });
-        q->Bind(EVT_SEND_CALIBRATION_FINISHED, [q](wxCommandEvent& evt) { q->send_calibration_job_finished(evt); });
         q->Bind(EVT_SEND_FINISHED, [q](wxCommandEvent& evt) { q->send_job_finished(evt); });
         q->Bind(EVT_PUBLISH_FINISHED, [q](wxCommandEvent& evt) { q->publish_job_finished(evt);});
         q->Bind(EVT_OPEN_PLATESETTINGSDIALOG, [q](wxCommandEvent& evt) { q->open_platesettings_dialog(evt);});
@@ -7740,10 +7738,6 @@ void Plater::get_print_job_data(PrintPrepareData* data)
     }
 }
 
-int Plater::get_send_calibration_finished_event()
-{
-    return EVT_SEND_CALIBRATION_FINISHED;
-}
 
 int Plater::get_print_finished_event()
 {
@@ -12698,21 +12692,6 @@ int Plater::export_config_3mf(int plate_idx, Export3mfProgressFn proFn)
     return result;
 }
 
-//BBS
-void Plater::send_calibration_job_finished(wxCommandEvent & evt)
-{
-    p->main_frame->request_select_tab(MainFrame::TabPosition::tpCalibration);
-    auto calibration_panel = p->main_frame->m_calibration;
-    if (calibration_panel) {
-        auto curr_wizard = static_cast<CalibrationWizard*>(calibration_panel->get_tabpanel()->GetPage(evt.GetInt()));
-        wxCommandEvent event(EVT_CALIBRATION_JOB_FINISHED);
-        event.SetString(evt.GetString());
-        event.SetEventObject(curr_wizard);
-        wxPostEvent(curr_wizard, event);
-    }
-    evt.Skip();
-}
-
 void Plater::print_job_finished(wxCommandEvent &evt)
 {
     Slic3r::DeviceManager* dev = Slic3r::GUI::wxGetApp().getDeviceManager();
@@ -13093,8 +13072,6 @@ wxWindow* Plater::get_select_machine_dialog()
 
 void Plater::update_print_error_info(int code, std::string msg, std::string extra)
 {
-    if (p->main_frame->m_calibration)
-        p->main_frame->m_calibration->update_print_error_info(code, msg, extra);
 }
 
 wxString Plater::get_project_filename(const wxString& extension) const

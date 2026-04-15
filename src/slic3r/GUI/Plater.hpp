@@ -447,8 +447,7 @@ public:
     int send_gcode(int plate_idx = -1, Export3mfProgressFn proFn = nullptr);
     void send_gcode_legacy(int plate_idx = -1, Export3mfProgressFn proFn = nullptr, bool use_3mf = false);
     int export_config_3mf(int plate_idx = -1, Export3mfProgressFn proFn = nullptr);
-    //BBS jump to nonitor after print job finished
-    void send_calibration_job_finished(wxCommandEvent &evt);
+    //BBS jump to monitor after print job finished
     void print_job_finished(wxCommandEvent &evt);
     void send_job_finished(wxCommandEvent& evt);
     void publish_job_finished(wxCommandEvent& evt);
@@ -515,9 +514,8 @@ public:
     //BBS: add job state related functions
     void set_prepare_state(int state);
     int get_prepare_state();
-    //BBS: add print job releated functions
+    //BBS: add print job related functions
     void get_print_job_data(PrintPrepareData* data);
-    int get_send_calibration_finished_event();
     int get_print_finished_event();
     int get_send_finished_event();
     int get_publish_finished_event();

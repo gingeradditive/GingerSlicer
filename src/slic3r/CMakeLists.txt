@@ -52,8 +52,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/calib_dlg.hpp
     GUI/Calibration.cpp
     GUI/Calibration.hpp
-    GUI/CalibrationPanel.cpp
-    GUI/CalibrationPanel.hpp
     GUI/CalibrationWizardCaliPage.cpp
     GUI/CalibrationWizardCaliPage.hpp
     GUI/CalibrationWizard.cpp

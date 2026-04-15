@@ -74,10 +74,7 @@ enum PrinterFunction {
     FUNC_MAX
 };
 
-
 enum PrintingSpeedLevel {
-    SPEED_LEVEL_INVALID = 0,
-    SPEED_LEVEL_SILENCE = 1,
     SPEED_LEVEL_NORMAL = 2,
     SPEED_LEVEL_RAPID = 3,
     SPEED_LEVEL_RAMPAGE = 4,
