@@ -608,25 +608,7 @@ void CalibrationPresetPage::create_filament_list_panel(wxWindow* parent)
     m_filament_list_tips->Wrap(CALIBRATION_TEXT_MAX_LENGTH);
     panel_sizer->Add(m_filament_list_tips, 0, wxBOTTOM, FromDIP(10));
 
-    // ams panel
     m_multi_ams_panel = new wxPanel(parent);
-    auto multi_ams_sizer = new wxBoxSizer(wxVERTICAL);
-    auto ams_items_sizer = new wxBoxSizer(wxHORIZONTAL);
-    for (int i = 0; i < 4; i++) {
-        AMSinfo temp_info = AMSinfo{ std::to_string(i), std::vector<Caninfo>{} };
-        auto amsitem = new AMSPreview(m_multi_ams_panel, wxID_ANY, temp_info);
-        amsitem->Bind(wxEVT_LEFT_DOWN, [this, amsitem](wxMouseEvent& e) {
-            on_switch_ams(amsitem->get_ams_id());
-            e.Skip();
-            });
-        m_ams_preview_list.push_back(amsitem);
-        ams_items_sizer->Add(amsitem, 0, wxALIGN_CENTER | wxRIGHT, FromDIP(6));
-    }
-    multi_ams_sizer->Add(ams_items_sizer, 0);
-    multi_ams_sizer->AddSpacer(FromDIP(10));
-    m_multi_ams_panel->SetSizer(multi_ams_sizer);
-
-    panel_sizer->Add(m_multi_ams_panel);
     m_multi_ams_panel->Hide();
 
     auto filament_fgSizer = new wxFlexGridSizer(2, 2, FromDIP(10), CALIBRATION_FGSIZER_HGAP);
@@ -896,19 +878,8 @@ void CalibrationPresetPage::on_select_tray(wxCommandEvent& event)
 
 void CalibrationPresetPage::on_switch_ams(std::string ams_id)
 {
-    for (auto i = 0; i < m_ams_preview_list.size(); i++) {
-        AMSPreview *item = m_ams_preview_list[i];
-        if (item->get_ams_id() == ams_id) {
-            item->OnSelected();
-        } else {
-            item->UnSelected();
-        }
-    }
-
     update_filament_combobox(ams_id);
-
     select_default_compatible_filament();
-
     Layout();
 }
 
@@ -1603,30 +1574,6 @@ void CalibrationPresetPage::sync_ams_info(MachineObject* obj)
     else {
         update_filament_combobox();
         m_multi_ams_panel->Hide();
-    }
-
-    std::vector<AMSinfo> ams_info;
-    for (auto ams = obj->amsList.begin(); ams != obj->amsList.end(); ams++) {
-        AMSinfo info;
-        info.ams_id = ams->first;
-        if (ams->second->is_exists 
-            && info.parse_ams_info(obj, ams->second, obj->ams_calibrate_remain_flag, obj->is_support_ams_humidity)) {
-            ams_info.push_back(info);
-        }
-    }
-    
-    for (auto i = 0; i < m_ams_preview_list.size(); i++) {
-        AMSPreview* item = m_ams_preview_list[i];
-        if (ams_info.size() > 1) {
-            if (i < ams_info.size()) {
-                item->Update(ams_info[i]);
-                item->Open();
-            } else {
-                item->Close();
-            }
-        } else {
-            item->Close();
-        }
     }
 
     Layout();

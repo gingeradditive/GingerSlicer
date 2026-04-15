@@ -4,8 +4,6 @@
 # status -- Building
 
 list(APPEND SLIC3R_GUI_SOURCES
-    GUI/DeviceTab/uiAmsHumidityPopup.h
-    GUI/DeviceTab/uiAmsHumidityPopup.cpp
     GUI/DeviceTab/uiDeviceUpdateVersion.h
     GUI/DeviceTab/uiDeviceUpdateVersion.cpp
 )

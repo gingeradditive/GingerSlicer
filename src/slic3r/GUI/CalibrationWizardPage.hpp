@@ -5,7 +5,6 @@
 #include "Widgets/Button.hpp"
 #include "Widgets/ComboBox.hpp"
 #include "Widgets/TextInput.hpp"
-#include "Widgets/AMSControl.hpp"
 #include "Widgets/ProgressBar.hpp"
 #include "wxExtensions.hpp"
 #include "PresetComboBoxes.hpp"

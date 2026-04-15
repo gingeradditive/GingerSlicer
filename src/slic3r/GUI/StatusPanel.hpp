@@ -15,11 +15,9 @@
 #include <wx/webrequest.h>
 #include "wxMediaCtrl2.h"
 #include "MediaPlayCtrl.h"
-#include "AMSSetting.hpp"
 #include "Calibration.hpp"
 #include "CalibrationWizardPage.hpp"
 #include "PrintOptionsDialog.hpp"
-#include "AMSMaterialsSetting.hpp"
 #include "ExtrusionCalibration.hpp"
 #include "ReleaseNote.hpp"
 #include "Widgets/SwitchButton.hpp"
@@ -29,7 +27,6 @@
 #include "Widgets/StaticLine.hpp"
 #include "Widgets/ProgressBar.hpp"
 #include "Widgets/ImageSwitchButton.hpp"
-#include "Widgets/AMSControl.hpp"
 #include "Widgets/FanControl.hpp"
 #include "HMS.hpp"
 
@@ -374,12 +371,6 @@ protected:
     Button *        m_bpButton_e_10;
     Button *        m_bpButton_e_down_10;
     StaticLine *    m_temp_extruder_line;
-    wxBoxSizer*     m_ams_list;
-    wxStaticText *  m_ams_debug;
-    bool            m_show_ams_group{false};
-    AMSControl*     m_ams_control;
-    StaticBox*      m_ams_control_box;
-    wxStaticBitmap *m_ams_extruder_img;
     wxStaticBitmap* m_bitmap_extruder_img;
     wxPanel *       m_panel_separator_right;
     wxPanel *       m_panel_separotor_bottom;
@@ -450,10 +441,8 @@ public:
     void reset_temp_misc_control();
     int before_error_code = 0;
     int skip_print_error = 0;
-    wxBoxSizer *create_ams_group(wxWindow *parent);
     wxBoxSizer *create_settings_group(wxWindow *parent);
 
-    void show_ams_group(bool show = true);
     MediaPlayCtrl* get_media_play_ctrl() {return m_media_play_ctrl;};
 };
 
@@ -468,12 +457,9 @@ protected:
     std::shared_ptr<ImageTransientPopup> m_image_popup;
     std::shared_ptr<CameraPopup> m_camera_popup;
     std::set<int> rated_model_id;
-    AMSSetting *m_ams_setting_dlg{nullptr};
     PrinterPartsDialog*  print_parts_dlg { nullptr };
     PrintOptionsDialog*  print_options_dlg { nullptr };
     CalibrationDialog*   calibration_dlg {nullptr};
-    AMSMaterialsSetting *m_filament_setting_dlg{nullptr};
-
     PrintErrorDialog* m_print_error_dlg = nullptr;
     SecondaryCheckDialog* m_print_error_dlg_no_action = nullptr;
     SecondaryCheckDialog* abort_dlg = nullptr;
@@ -555,20 +541,9 @@ protected:
     void on_set_chamber_temp();
 
     /* extruder apis */
-    void on_ams_load(SimpleEvent &event);
-    void update_filament_step();
-    void on_ams_load_curr();
-    void on_ams_load_vams(wxCommandEvent& event);
-    void on_ams_unload(SimpleEvent &event);
-    void on_ams_filament_backup(SimpleEvent& event);
-    void on_ams_setting_click(SimpleEvent& event);
     void on_filament_edit(wxCommandEvent &event);
     void on_ext_spool_edit(wxCommandEvent &event);
     void on_filament_extrusion_cali(wxCommandEvent &event);
-    void on_ams_refresh_rfid(wxCommandEvent &event);
-    void on_ams_selected(wxCommandEvent &event);
-    void on_ams_guide(wxCommandEvent &event);
-    void on_ams_retry(wxCommandEvent &event);
     void on_print_error_done(wxCommandEvent& event);
 
     void on_fan_changed(wxCommandEvent& event);
@@ -606,10 +581,7 @@ protected:
     void update_sdcard_subtask(MachineObject *obj);
     void update_temp_ctrl(MachineObject *obj);
     void update_misc_ctrl(MachineObject *obj);
-    void update_ams(MachineObject* obj);
-    void update_ams_insert_material(MachineObject* obj);
     void update_extruder_status(MachineObject* obj);
-    void update_ams_control_state(bool is_curr_tray_selected);
     void update_cali(MachineObject* obj);
     void update_calib_bitmap();
 
@@ -645,11 +617,9 @@ public:
     std::string    last_profile_id;
     std::string    last_task_id;
     long           last_tray_exist_bits { -1 };
-    long           last_ams_exist_bits { -1 };
     long           last_tray_is_bbl_bits{ -1 };
     long           last_read_done_bits{ -1 };
     long           last_reading_bits { -1 };
-    long           last_ams_version { -1 };
     int            last_cali_version{-1};
 
     enum ThumbnailState task_thumbnail_state {ThumbnailState::PLACE_HOLDER};

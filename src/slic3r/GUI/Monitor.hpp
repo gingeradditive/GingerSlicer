@@ -46,7 +46,6 @@
 #include "slic3r/GUI/StatusPanel.hpp"
 #include "slic3r/GUI/UpgradePanel.hpp"
 #include "slic3r/GUI/HMSPanel.hpp"
-#include "slic3r/GUI/AmsWidgets.hpp"
 #include "Widgets/SideTools.hpp"
 
 namespace Slic3r {

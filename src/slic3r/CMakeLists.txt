@@ -16,14 +16,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/3DScene.hpp
     GUI/AboutDialog.cpp
     GUI/AboutDialog.hpp
-    GUI/AmsMappingPopup.cpp
-    GUI/AmsMappingPopup.hpp
-    GUI/AMSMaterialsSetting.cpp
-    GUI/AMSMaterialsSetting.hpp
-    GUI/AMSSetting.cpp
-    GUI/AMSSetting.hpp
-    GUI/AmsWidgets.cpp
-    GUI/AmsWidgets.hpp
     GUI/Auxiliary.cpp
     GUI/AuxiliaryDataViewModel.cpp
     GUI/AuxiliaryDataViewModel.hpp
@@ -393,10 +385,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/UserNotification.hpp
     GUI/WebViewDialog.cpp
     GUI/WebViewDialog.hpp
-    GUI/Widgets/AMSControl.cpp
-    GUI/Widgets/AMSControl.hpp
-    GUI/Widgets/AMSItem.cpp
-    GUI/Widgets/AMSItem.hpp
     GUI/Widgets/AxisCtrlButton.cpp
     GUI/Widgets/AxisCtrlButton.hpp
     GUI/Widgets/Button.cpp

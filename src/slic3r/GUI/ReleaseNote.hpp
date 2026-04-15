@@ -26,7 +26,6 @@
 #include <wx/hyperlink.h>
 #include <wx/richtext/richtextctrl.h>
 
-#include "AmsMappingPopup.hpp"
 #include "GUI_Utils.hpp"
 #include "wxExtensions.hpp"
 #include "DeviceManager.hpp"
@@ -47,7 +46,6 @@ wxDECLARE_EVENT(EVT_SECONDARY_CHECK_DONE, wxCommandEvent);
 wxDECLARE_EVENT(EVT_SECONDARY_CHECK_RESUME, wxCommandEvent);
 wxDECLARE_EVENT(EVT_PRINT_ERROR_STOP, wxCommandEvent);
 wxDECLARE_EVENT(EVT_UPDATE_NOZZLE, wxCommandEvent);
-wxDECLARE_EVENT(EVT_LOAD_VAMS_TRAY, wxCommandEvent);
 wxDECLARE_EVENT(EVT_JUMP_TO_HMS, wxCommandEvent);
 wxDECLARE_EVENT(EVT_JUMP_TO_LIVEVIEW, wxCommandEvent);
 wxDECLARE_EVENT(EVT_UPDATE_TEXT_MSG, wxCommandEvent);

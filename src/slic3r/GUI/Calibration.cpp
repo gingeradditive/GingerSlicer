@@ -113,11 +113,11 @@ CalibrationDialog::CalibrationDialog(Plater *plater)
     auto cali_text_right_top = new wxStaticText(cali_right_panel, wxID_ANY, _L("Calibration Flow"), wxDefaultPosition, wxDefaultSize, 0);
     cali_text_right_top->Wrap(-1);
     cali_text_right_top->SetFont(::Label::Head_14);
-    cali_text_right_top->SetForegroundColour(AMS_CONTROL_BRAND_COLOUR);
+    cali_text_right_top->SetForegroundColour(wxColour(215, 40, 40));
     cali_text_right_top->SetBackgroundColour(BG_COLOR);
 
     auto staticline = new ::StaticLine(cali_right_panel);
-    staticline->SetLineColour(AMS_CONTROL_BRAND_COLOUR);
+    staticline->SetLineColour(wxColour(215, 40, 40));
     auto calibration_panel = new wxPanel(cali_right_panel);
     calibration_panel->SetBackgroundColour(BG_COLOR);
     auto calibration_sizer = new wxBoxSizer(wxVERTICAL);
@@ -136,9 +136,9 @@ CalibrationDialog::CalibrationDialog(Plater *plater)
     calibration_panel->Layout();
     calibration_sizer->Add(m_calibration_flow, 0, wxEXPAND, 0);
 
-    StateColor btn_bg_green(std::pair<wxColour, int>(AMS_CONTROL_DISABLE_COLOUR, StateColor::Disabled), std::pair<wxColour, int>(wxColour( 202, 37, 37), StateColor::Pressed),
-                            std::pair<wxColour, int>(wxColour(253, 47, 47), StateColor::Hovered), std::pair<wxColour, int>(AMS_CONTROL_BRAND_COLOUR, StateColor::Normal));
-    StateColor btn_bd_green(std::pair<wxColour, int>(AMS_CONTROL_WHITE_COLOUR, StateColor::Disabled), std::pair<wxColour, int>(AMS_CONTROL_BRAND_COLOUR, StateColor::Enabled));
+    StateColor btn_bg_green(std::pair<wxColour, int>(wxColour(206, 206, 206), StateColor::Disabled), std::pair<wxColour, int>(wxColour( 202, 37, 37), StateColor::Pressed),
+                            std::pair<wxColour, int>(wxColour(253, 47, 47), StateColor::Hovered), std::pair<wxColour, int>(wxColour(215, 40, 40), StateColor::Normal));
+    StateColor btn_bd_green(std::pair<wxColour, int>(wxColour(255, 255, 255), StateColor::Disabled), std::pair<wxColour, int>(wxColour(215, 40, 40), StateColor::Enabled));
 
     m_calibration_btn = new Button(cali_right_panel, _L("Start Calibration"));
     m_calibration_btn->SetBackgroundColor(btn_bg_green);
