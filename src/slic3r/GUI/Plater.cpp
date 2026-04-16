@@ -94,7 +94,6 @@
 #include "Jobs/RotoptimizeJob.hpp"
 #include "Jobs/SLAImportJob.hpp"
 #include "Jobs/SLAImportDialog.hpp"
-#include "Jobs/PrintJob.hpp"
 #include "Jobs/NotificationProgressIndicator.hpp"
 #include "Jobs/PlaterWorker.hpp"
 #include "Jobs/BoostThreadWorker.hpp"
@@ -122,7 +121,6 @@
 
 // BBS
 #include "Widgets/ProgressDialog.hpp"
-#include "BBLStatusBar.hpp"
 #include "BitmapCache.hpp"
 #include "ParamsDialog.hpp"
 #include "Widgets/Label.hpp"
@@ -180,9 +178,6 @@ wxDEFINE_EVENT(EVT_PUBLISH,                         wxCommandEvent);
 wxDEFINE_EVENT(EVT_OPEN_PLATESETTINGSDIALOG,        wxCommandEvent);
 // BBS: backup & restore
 wxDEFINE_EVENT(EVT_RESTORE_PROJECT,                 wxCommandEvent);
-wxDEFINE_EVENT(EVT_PRINT_FINISHED,                  wxCommandEvent);
-wxDEFINE_EVENT(EVT_SEND_FINISHED,                   wxCommandEvent);
-wxDEFINE_EVENT(EVT_PUBLISH_FINISHED,                wxCommandEvent);
 //BBS: repair model
 wxDEFINE_EVENT(EVT_REPAIR_MODEL,                    wxCommandEvent);
 wxDEFINE_EVENT(EVT_FILAMENT_COLOR_CHANGED,          wxCommandEvent);
@@ -2380,8 +2375,6 @@ struct Plater::priv
     void reset_all_gizmos();
     void apply_free_camera_correction(bool apply = true);
     void update_ui_from_settings();
-    // BBS
-    std::shared_ptr<BBLStatusBar> statusbar();
     std::string get_config(const std::string &key) const;
     BoundingBoxf bed_shape_bb() const;
     BoundingBox scaled_bed_shape_bb() const;
@@ -2636,7 +2629,6 @@ struct Plater::priv
     ExportingStatus             exporting_status { NOT_EXPORTING };
     std::string                 last_output_path;
     std::string                 last_output_dir_path;
-    //BBS store machine_sn and 3mf_path for PrintJob
     PrintPrepareData            m_print_job_data;
     bool                        inside_snapshot_capture() { return m_prevent_snapshots != 0; }
     int                         process_completed_with_error { -1 }; //-1 means no error
@@ -3076,9 +3068,6 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         q->Bind(EVT_GLCANVAS_PLATE_SELECT, &priv::on_plate_selected, this);
         q->Bind(EVT_DOWNLOAD_PROJECT, &priv::on_action_download_project, this);
         q->Bind(EVT_IMPORT_MODEL_ID, &priv::on_action_request_model_id, this);
-        q->Bind(EVT_PRINT_FINISHED, [q](wxCommandEvent& evt) { q->print_job_finished(evt); });
-        q->Bind(EVT_SEND_FINISHED, [q](wxCommandEvent& evt) { q->send_job_finished(evt); });
-        q->Bind(EVT_PUBLISH_FINISHED, [q](wxCommandEvent& evt) { q->publish_job_finished(evt);});
         q->Bind(EVT_OPEN_PLATESETTINGSDIALOG, [q](wxCommandEvent& evt) { q->open_platesettings_dialog(evt);});
         //q->Bind(EVT_GLVIEWTOOLBAR_ASSEMBLE, [q](SimpleEvent&) { q->select_view_3D("Assemble"); });
     }
@@ -3483,12 +3472,6 @@ void Plater::priv::update_ui_from_settings()
     preview->get_canvas3d()->update_ui_from_settings();
 
     sidebar->update_ui_from_settings();
-}
-
-// BBS
-std::shared_ptr<BBLStatusBar> Plater::priv::statusbar()
-{
-    return nullptr;
 }
 
 std::string Plater::priv::get_config(const std::string &key) const
@@ -7729,30 +7712,6 @@ int Plater::get_prepare_state()
     return p->m_job_prepare_state;
 }
 
-void Plater::get_print_job_data(PrintPrepareData* data)
-{
-    if (data) {
-        data->plate_idx = p->m_print_job_data.plate_idx;
-        data->_3mf_path = p->m_print_job_data._3mf_path;
-        data->_3mf_config_path = p->m_print_job_data._3mf_config_path;
-    }
-}
-
-
-int Plater::get_print_finished_event()
-{
-    return EVT_PRINT_FINISHED;
-}
-
-int Plater::get_send_finished_event()
-{
-    return EVT_SEND_FINISHED;
-}
-
-int Plater::get_publish_finished_event()
-{
-    return EVT_PUBLISH_FINISHED;
-}
 
 void Plater::priv::set_current_canvas_as_dirty()
 {
@@ -11565,12 +11524,6 @@ void Plater::export_gcode_3mf(bool export_all)
     }
 }
 
-void Plater::send_gcode_finish(wxString name)
-{
-    auto out_str = GUI::format(_L("The file %s has been sent to the printer's storage space and can be viewed on the printer."), name);
-    p->notification_manager->push_exporting_finished_notification(out_str, "", false);
-}
-
 void Plater::export_core_3mf()
 {
     wxString path = p->get_export_file(FT_3MF);
@@ -12692,30 +12645,6 @@ int Plater::export_config_3mf(int plate_idx, Export3mfProgressFn proFn)
     return result;
 }
 
-void Plater::print_job_finished(wxCommandEvent &evt)
-{
-    Slic3r::DeviceManager* dev = Slic3r::GUI::wxGetApp().getDeviceManager();
-    if (!dev) return;
-
-    dev->set_selected_machine(evt.GetString().ToStdString());
-    p->main_frame->request_select_tab(MainFrame::TabPosition::tpMonitor);
-}
-
-void Plater::send_job_finished(wxCommandEvent& evt)
-{
-    Slic3r::DeviceManager* dev = Slic3r::GUI::wxGetApp().getDeviceManager();
-    if (!dev) return;
-    //dev->set_selected_machine(evt.GetString().ToStdString());
-
-    send_gcode_finish(evt.GetString());
-}
-
-void Plater::publish_job_finished(wxCommandEvent &evt)
-{
-    p->m_publish_dlg->EndModal(wxID_OK);
-   // GUI::wxGetApp().load_url(evt.GetString());
-   //GUI::wxGetApp().open_publish_page_dialog(evt.GetString());
-}
 
 // Called when the Eject button is pressed.
 void Plater::eject_drive()

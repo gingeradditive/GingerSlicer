@@ -24,8 +24,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/Auxiliary.hpp
     GUI/BackgroundSlicingProcess.cpp
     GUI/BackgroundSlicingProcess.hpp
-    GUI/BBLStatusBarBind.cpp
-    GUI/BBLStatusBarBind.hpp
     GUI/BBLStatusBar.cpp
     GUI/BBLStatusBar.hpp
     GUI/BBLStatusBarSend.cpp
@@ -212,8 +210,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/InstanceCheck.hpp
     GUI/Jobs/ArrangeJob.cpp
     GUI/Jobs/ArrangeJob.hpp
-    GUI/Jobs/BindJob.cpp
-    GUI/Jobs/BindJob.hpp
     GUI/Jobs/BoostThreadWorker.cpp
     GUI/Jobs/BoostThreadWorker.hpp
     GUI/Jobs/BusyCursorJob.hpp
@@ -233,13 +229,9 @@ set(SLIC3R_GUI_SOURCES
     GUI/Jobs/OrientJob.cpp
     GUI/Jobs/OrientJob.hpp
     GUI/Jobs/PlaterWorker.hpp
-    GUI/Jobs/PrintJob.cpp
-    GUI/Jobs/PrintJob.hpp
     GUI/Jobs/ProgressIndicator.hpp
     GUI/Jobs/RotoptimizeJob.cpp
     GUI/Jobs/RotoptimizeJob.hpp
-    GUI/Jobs/SendJob.cpp
-    GUI/Jobs/SendJob.hpp
     GUI/Jobs/SLAImportDialog.hpp
     GUI/Jobs/SLAImportJob.cpp
     GUI/Jobs/SLAImportJob.hpp

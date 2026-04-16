@@ -7,10 +7,11 @@
 #include "libslic3r/CutUtils.hpp"
 
 #include "libslic3r/Model.hpp"
-#include "slic3r/GUI/Jobs/BoostThreadWorker.hpp"
-#include "slic3r/GUI/Jobs/PlaterWorker.hpp"
 #include "../GUI/MsgDialog.hpp"
 
+#include <boost/filesystem/path.hpp>
+#include <boost/filesystem/operations.hpp>
+namespace fs = boost::filesystem;
 
 namespace Slic3r {
 namespace GUI {
@@ -1131,120 +1132,7 @@ bool CalibUtils::process_and_store_3mf(Model *model, const DynamicPrintConfig &f
 
 void CalibUtils::send_to_print(const CalibInfo &calib_info, wxString &error_message, int flow_ratio_mode)
 {
-    {  // before send
-        json j;
-        j["print"]["cali_mode"]       = calib_info.params.mode;
-        j["print"]["start"]           = calib_info.params.start;
-        j["print"]["end"]             = calib_info.params.end;
-        j["print"]["step"]            = calib_info.params.step;
-        j["print"]["print_numbers"]   = calib_info.params.print_numbers;
-        j["print"]["flow_ratio_mode"] = flow_ratio_mode;
-        j["print"]["tray_id"]         = calib_info.select_ams;
-        j["print"]["dev_id"]          = calib_info.dev_id;
-        j["print"]["bed_type"]        = calib_info.bed_type;
-        j["print"]["printer_prest"]   = calib_info.printer_prest ? calib_info.printer_prest->name : "";
-        j["print"]["filament_prest"]  = calib_info.filament_prest ? calib_info.filament_prest->name : "";
-        j["print"]["print_prest"]     = calib_info.print_prest ? calib_info.print_prest->name : "";
-        BOOST_LOG_TRIVIAL(info) << "send_cali_job - before send: " << j.dump();
-    }
-
-    std::string dev_id = calib_info.dev_id;
-    std::string select_ams = calib_info.select_ams;
-    std::shared_ptr<ProgressIndicator> process_bar = calib_info.process_bar;
-    BedType bed_type = calib_info.bed_type;
-
-    DeviceManager* dev = Slic3r::GUI::wxGetApp().getDeviceManager();
-    if (!dev) {
-        error_message = _L("Need select printer");
-        return;
-    }
-
-    MachineObject* obj_ = dev->get_selected_machine();
-    if (obj_ == nullptr) {
-        error_message = _L("Need select printer");
-        return;
-    }
-
-    if (obj_->is_in_upgrading()) {
-        error_message = _L("Cannot send the print job when the printer is updating firmware");
-        return;
-    }
-    else if (obj_->is_system_printing()) {
-        error_message = _L("The printer is executing instructions. Please restart printing after it ends");
-        return;
-    }
-    else if (obj_->is_in_printing()) {
-        error_message = _L("The printer is busy on other print job");
-        return;
-    }
-
-    else if (!obj_->is_support_print_without_sd && (obj_->get_sdcard_state() == MachineObject::SdcardState::NO_SDCARD)) {
-        error_message = _L("An SD card needs to be inserted before printing.");
-        return;
-    }
-    if (obj_->is_lan_mode_printer()) {
-        if (obj_->get_sdcard_state() == MachineObject::SdcardState::NO_SDCARD) {
-            error_message = _L("An SD card needs to be inserted before printing via LAN.");
-            return;
-        }
-    }
-
-    print_worker = std::make_unique<PlaterWorker<BoostThreadWorker>>(wxGetApp().plater(), std::move(process_bar), "calib_worker");
-
-    auto print_job              = std::make_unique<PrintJob>(dev_id);
-    print_job->m_dev_ip         = obj_->dev_ip;
-    print_job->m_ftp_folder     = obj_->get_ftp_folder();
-    print_job->m_access_code    = obj_->get_access_code();
-
-
-#if !BBL_RELEASE_TO_PUBLIC
-    print_job->m_local_use_ssl_for_ftp = wxGetApp().app_config->get("enable_ssl_for_ftp") == "true" ? true : false;
-    print_job->m_local_use_ssl_for_mqtt = wxGetApp().app_config->get("enable_ssl_for_mqtt") == "true" ? true : false;
-#else
-    print_job->m_local_use_ssl_for_ftp = obj_->local_use_ssl_for_ftp;
-    print_job->m_local_use_ssl_for_mqtt = obj_->local_use_ssl_for_mqtt;
-#endif
-
-    print_job->connection_type  = obj_->connection_type();
-    print_job->cloud_print_only = obj_->is_support_cloud_print_only;
-
-    PrintPrepareData job_data;
-    job_data.is_from_plater = false;
-    job_data.plate_idx = 0;
-    job_data._3mf_config_path = config_3mf_path;
-    job_data._3mf_path = path;
-    job_data._temp_path = temp_dir;
-
-    PlateListData plate_data;
-    plate_data.is_valid = true;
-    plate_data.plate_count = 1;
-    plate_data.cur_plate_index = 0;
-    plate_data.bed_type = bed_type;
-
-    print_job->job_data = job_data;
-    print_job->plate_data = plate_data;
-    print_job->m_print_type = "from_normal";
-
-    print_job->task_ams_mapping = select_ams;
-    print_job->task_ams_mapping_info = "";
-    print_job->task_use_ams = select_ams == "[254]" ? false : true;
-
-    CalibMode cali_mode       = calib_info.params.mode;
-    print_job->m_project_name = get_calib_mode_name(cali_mode, flow_ratio_mode);
-    print_job->set_calibration_task(true);
-
-    print_job->has_sdcard = obj_->get_sdcard_state() == MachineObject::SdcardState::HAS_SDCARD_NORMAL;
-    print_job->set_print_config(MachineBedTypeString[bed_type], true, false, false, false, true, 0, 0, 0);
-    print_job->set_print_job_finished_event(0, print_job->m_project_name);
-
-    {  // after send: record the print job
-        json j;
-        j["print"]["project_name"]    = print_job->m_project_name;
-        j["print"]["is_cali_task"]    = print_job->m_is_calibration_task;
-        BOOST_LOG_TRIVIAL(info) << "send_cali_job - after send: " << j.dump();
-    }
-
-    replace_job(*print_worker, std::move(print_job));
+    error_message = _L("Remote calibration print is not available.");
 }
 
 }

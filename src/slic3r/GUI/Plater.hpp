@@ -20,8 +20,6 @@
 #include "Search.hpp"
 #include "PartPlate.hpp"
 #include "GUI_App.hpp"
-#include "Jobs/PrintJob.hpp"
-#include "Jobs/SendJob.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/PrintBase.hpp"
 
@@ -80,6 +78,19 @@ class PlaterPresetComboBox;
 class PartPlateList;
 
 using t_optgroups = std::vector <std::shared_ptr<ConfigOptionsGroup>>;
+
+class PrintPrepareData
+{
+public:
+    bool            is_from_plater = true;
+    int             plate_idx;
+    boost::filesystem::path _3mf_path;
+    boost::filesystem::path _3mf_config_path;
+    boost::filesystem::path _temp_path;
+    PrintPrepareData() {
+        plate_idx = 0;
+    }
+};
 
 class Plater;
 enum class ActionButtonType : int;
@@ -409,7 +420,6 @@ public:
 
     void export_gcode(bool prefer_removable);
     void export_gcode_3mf(bool export_all = false);
-    void send_gcode_finish(wxString name);
     void export_core_3mf();
     static TriangleMesh combine_mesh_fff(const ModelObject& mo, int instance_id, std::function<void(const std::string&)> notify_func = {});
     void export_stl(bool extended = false, bool selection_only = false, bool multi_stls = false);
@@ -447,9 +457,6 @@ public:
     int send_gcode(int plate_idx = -1, Export3mfProgressFn proFn = nullptr);
     void send_gcode_legacy(int plate_idx = -1, Export3mfProgressFn proFn = nullptr, bool use_3mf = false);
     int export_config_3mf(int plate_idx = -1, Export3mfProgressFn proFn = nullptr);
-    void print_job_finished(wxCommandEvent &evt);
-    void send_job_finished(wxCommandEvent& evt);
-    void publish_job_finished(wxCommandEvent& evt);
     void open_platesettings_dialog(wxCommandEvent& evt);
 	void eject_drive();
 
@@ -513,11 +520,6 @@ public:
     //BBS: add job state related functions
     void set_prepare_state(int state);
     int get_prepare_state();
-    //BBS: add print job related functions
-    void get_print_job_data(PrintPrepareData* data);
-    int get_print_finished_event();
-    int get_send_finished_event();
-    int get_publish_finished_event();
 
     void set_current_canvas_as_dirty();
     void unbind_canvas_event_handlers();

@@ -1,7 +1,6 @@
 #pragma once
 #include "libslic3r/calib.hpp"
 #include "../GUI/DeviceManager.hpp"
-#include "../GUI/Jobs/PrintJob.hpp"
 #include "slic3r/GUI/Jobs/Worker.hpp"
 
 namespace Slic3r {
