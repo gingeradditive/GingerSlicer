@@ -59,6 +59,11 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, wxBoxSizer* side_tools) :
     //this->Bind(wxEVT_PAINT, &ButtonsListCtrl::OnPaint, this);
     Bind(wxEVT_SYS_COLOUR_CHANGED, [this](auto& e){
     });
+    Bind(wxEVT_DPI_CHANGED, [this](wxDPIChangedEvent& e) {
+        // Rescale buttons when DPI changes (moving between monitors)
+        Rescale();
+        e.Skip();
+    });
 }
 
 void ButtonsListCtrl::OnPaint(wxPaintEvent&)
@@ -123,8 +128,8 @@ void ButtonsListCtrl::Rescale()
     //m_mode_sizer->msw_rescale();
     int em = em_unit(this);
     for (Button* btn : m_pageButtons) {
-        //BBS
-        btn->SetMinSize({(btn->GetLabel().empty() ? 40 : 132) * em / 10, 36 * em / 10});
+        //BBS - Use same sizing as InsertPage to maintain consistency
+        btn->SetMinSize({(int)((btn->GetLabel().empty() ? 36 : 136) * em / 10 * 1.5), (int)(36 * em / 10 * 1.5)});
         btn->Rescale();
     }
 
