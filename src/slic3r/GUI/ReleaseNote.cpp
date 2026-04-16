@@ -5,6 +5,7 @@
 #include "libslic3r/Thread.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
+#include "GUI_Utils.hpp"
 #include "GUI_Preview.hpp"
 #include "MainFrame.hpp"
 #include "format.hpp"

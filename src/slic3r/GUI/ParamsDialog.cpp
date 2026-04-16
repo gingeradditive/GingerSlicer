@@ -4,6 +4,7 @@
 #include "GUI_App.hpp"
 #include "MainFrame.hpp"
 #include "Tab.hpp"
+#include "Plater.hpp"
 
 #include "libslic3r/Utils.hpp"
 
@@ -55,7 +56,7 @@ ParamsDialog::ParamsDialog(wxWindow * parent)
         if (!m_editing_filament_id.empty()) {
             Filamentinformation *filament_info = new Filamentinformation();
             filament_info->filament_id        = m_editing_filament_id;
-            wxQueueEvent(wxGetApp().plater(), new SimpleEvent(EVT_MODIFY_FILAMENT, filament_info));
+            wxQueueEvent(static_cast<wxEvtHandler*>(wxGetApp().plater()), new SimpleEvent(EVT_MODIFY_FILAMENT, filament_info));
             m_editing_filament_id.clear();
         }
 #endif

@@ -6,6 +6,8 @@
 #include "MsgDialog.hpp"
 #include "I18N.hpp"
 #include "libslic3r/AppConfig.hpp"
+#include "Widgets/SwitchButton.hpp"
+#include "ReleaseNote.hpp"
 #include <wx/language.h>
 #include <wx/notebook.h>
 #include "Notebook.hpp"

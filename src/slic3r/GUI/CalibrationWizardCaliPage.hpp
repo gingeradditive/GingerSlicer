@@ -2,6 +2,7 @@
 #define slic3r_GUI_CalibrationWizardCaliPage_hpp_
 
 #include "CalibrationWizardPage.hpp"
+#include "ReleaseNote.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -41,7 +42,6 @@ protected:
     bool                m_is_between_start_and_running { false };
     wxBoxSizer*         m_top_sizer;
     CaliPageStepGuide*  m_step_panel { nullptr };
-    PrintingTaskPanel*  m_printing_panel { nullptr };
     CaliPagePicture*    m_picture_panel;
     SecondaryCheckDialog* abort_dlg { nullptr };
 };

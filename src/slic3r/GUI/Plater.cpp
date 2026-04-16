@@ -1,6 +1,8 @@
 #include "Plater.hpp"
 #include "libslic3r/Config.hpp"
 #include "libslic3r_version.h"
+#include "Widgets/StaticLine.hpp"
+#include "ReleaseNote.hpp"
 
 #include <cstddef>
 #include <algorithm>
@@ -718,7 +720,7 @@ Sidebar::Sidebar(Plater *parent)
         });
 
         // add spliter 2
-        auto spliter_2 = new ::StaticLine(p->scrolled);
+        auto spliter_2 = new StaticLine(p->scrolled);
         spliter_2->SetLineColour("#CECECE");
         scrolled_sizer->Add(spliter_2, 0, wxEXPAND);
 
@@ -915,11 +917,11 @@ Sidebar::Sidebar(Plater *parent)
 
     p->m_panel_filament_title->SetSizer( bSizer39 );
     p->m_panel_filament_title->Layout();
-    auto spliter_1 = new ::StaticLine(p->scrolled);
+    auto spliter_1 = new StaticLine(p->scrolled);
     spliter_1->SetLineColour("#A6A9AA");
     scrolled_sizer->Add(spliter_1, 0, wxEXPAND);
     scrolled_sizer->Add(p->m_panel_filament_title, 0, wxEXPAND | wxALL, 0);
-    auto spliter_2 = new ::StaticLine(p->scrolled);
+    auto spliter_2 = new StaticLine(p->scrolled);
     spliter_2->SetLineColour("#CECECE");
     scrolled_sizer->Add(spliter_2, 0, wxEXPAND);
 
@@ -1028,11 +1030,11 @@ Sidebar::Sidebar(Plater *parent)
     auto params_panel = ((MainFrame*)parent->GetParent())->m_param_panel;
     if (params_panel) {
         params_panel->get_top_panel()->Reparent(p->scrolled);
-        auto spliter_1 = new ::StaticLine(p->scrolled);
+        auto spliter_1 = new StaticLine(p->scrolled);
         spliter_1->SetLineColour("#A6A9AA");
         scrolled_sizer->Add(spliter_1, 0, wxEXPAND);
         scrolled_sizer->Add(params_panel->get_top_panel(), 0, wxEXPAND);
-        auto spliter_2 = new ::StaticLine(p->scrolled);
+        auto spliter_2 = new StaticLine(p->scrolled);
         spliter_2->SetLineColour("#CECECE");
         scrolled_sizer->Add(spliter_2, 0, wxEXPAND);
     }

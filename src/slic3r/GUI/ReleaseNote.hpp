@@ -38,6 +38,7 @@
 #include "Widgets/ScrolledWindow.hpp"
 #include <wx/hashmap.h>
 #include <wx/webview.h>
+#include <wx/webrequest.h>
 
 namespace Slic3r { namespace GUI {
 

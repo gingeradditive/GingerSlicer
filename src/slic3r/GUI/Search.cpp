@@ -784,7 +784,7 @@ void SearchListModel::GetValueByRow(wxVariant &variant, unsigned int row, unsign
 SearchObjectDialog::SearchObjectDialog(GUI::ObjectList* object_list, wxWindow* parent, TextInput* input)
     : PopupWindow(parent, wxBORDER_NONE | wxPU_CONTAINS_CONTROLS), m_object_list(object_list)
 {
-    search_line = input;
+    m_input_field = input;
 
     Freeze();
     SetBackgroundColour(wxColour(238, 238, 238));
@@ -811,15 +811,16 @@ SearchObjectDialog::SearchObjectDialog(GUI::ObjectList* object_list, wxWindow* p
 
     // search line
 #ifdef __WXGTK__
-    search_line = new TextInput(m_client_panel, wxEmptyString, wxEmptyString, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0);
+    TextInput* search_line = new TextInput(m_client_panel, wxEmptyString, wxEmptyString, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0);
     search_line->SetBackgroundColour(wxColour(238, 238, 238));
     search_line->SetForegroundColour(wxColour(43, 52, 54));
     search_line->SetFont(GUI::wxGetApp().bold_font());
-#endif
-
-    search_line->Bind(wxEVT_TEXT, &SearchObjectDialog::OnInputText, this);
-    search_line->Bind(wxEVT_LEFT_UP, &SearchObjectDialog::OnLeftUpInTextCtrl, this);
     search_line2 = search_line->GetTextCtrl();
+#else
+    m_input_field->Bind(wxEVT_TEXT, &SearchObjectDialog::OnInputText, this);
+    m_input_field->Bind(wxEVT_LEFT_UP, &SearchObjectDialog::OnLeftUpInTextCtrl, this);
+    search_line2 = m_input_field->GetTextCtrl();
+#endif
 
 
     // scroll window
@@ -893,7 +894,7 @@ void SearchObjectDialog::Dismiss()
     auto focus_window = wxWindow::FindFocus();
     if (!focus_window)
         Die();
-    else if (!search_line->GetScreenRect().Contains(pos) && !this->GetScreenRect().Contains(pos)) {
+    else if (!m_input_field->GetScreenRect().Contains(pos) && !this->GetScreenRect().Contains(pos)) {
         Die();
     }
 }

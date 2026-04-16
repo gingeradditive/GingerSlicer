@@ -44,7 +44,6 @@ public:
 
 WX_DECLARE_LIST(RadioSelector, RadioSelectorList);
 class CheckBox;
-class TextInput;
 
 
 

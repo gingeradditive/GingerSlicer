@@ -14,6 +14,7 @@
 #include <wx/wupdlock.h>
 #include <wx/debug.h>
 #include <wx/msgdlg.h>
+#include "Widgets/RadioGroup.hpp"
 
 #include <boost/log/trivial.hpp>
 #include <boost/filesystem.hpp>
@@ -795,22 +796,22 @@ void ElegooPrintHostSendDialog::init() {
     }
 
     {
-        auto radioBoxA = new ::RadioBox(this);
-        auto radioBoxB = new ::RadioBox(this);
+        auto radioBoxA = new RadioGroup(this);
+        auto radioBoxB = new RadioGroup(this);
         if (m_BedType == BedType::btPC)
-            radioBoxB->SetValue(true);
+            radioBoxB->SetSelection(0);
         else
-            radioBoxA->SetValue(true);
+            radioBoxA->SetSelection(0);
 
         radioBoxA->Bind(wxEVT_LEFT_DOWN, [this, radioBoxA, radioBoxB](wxMouseEvent& e) {
-            radioBoxA->SetValue(true);
-            radioBoxB->SetValue(false);
+            radioBoxA->SetSelection(0);
+            radioBoxB->SetSelection(0);
             m_BedType = BedType::btPTE;
             refresh();
         });
         radioBoxB->Bind(wxEVT_LEFT_DOWN, [this, radioBoxA, radioBoxB](wxMouseEvent& e) {
-            radioBoxA->SetValue(false);
-            radioBoxB->SetValue(true);
+            radioBoxA->SetSelection(0);
+            radioBoxB->SetSelection(0);
             m_BedType = BedType::btPC;
             refresh();
         });

@@ -4,12 +4,13 @@
 #include "GUI_Utils.hpp"
 #include "wxExtensions.hpp"
 #include "Widgets/ComboBox.hpp"
+#include "Widgets/Label.hpp"
 #include "DeviceManager.hpp"
 
 namespace Slic3r { 
 namespace GUI {
 
-class HistoryWindow : public DPIDialog {
+class HistoryWindow : public wxDialog {
 public:
     HistoryWindow(wxWindow* parent, const std::vector<PACalibResult>& calib_results_history, bool& show);
     ~HistoryWindow();

@@ -11,6 +11,7 @@
 
 #include "Search.hpp"
 #include "OG_CustomCtrl.hpp"
+#include "Widgets/SwitchButton.hpp"
 
 #include <wx/app.h>
 #include <wx/button.h>

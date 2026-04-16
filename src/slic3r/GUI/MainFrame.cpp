@@ -1,4 +1,5 @@
 #include "MainFrame.hpp"
+#include "ReleaseNote.hpp"
 
 #include <wx/panel.h>
 #include <wx/notebook.h>

@@ -6,6 +6,9 @@
 #include "../../libslic3r/calib.hpp"
 #include "Tabbook.hpp"
 #include "CaliHistoryDialog.hpp"
+#include "Plater.hpp"
+#include "DeviceManager.hpp"
+#include "ReleaseNote.hpp"
 
 namespace Slic3r { namespace GUI {
 

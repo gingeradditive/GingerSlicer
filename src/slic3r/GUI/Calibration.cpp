@@ -10,6 +10,7 @@
 #include "format.hpp"
 #include "Widgets/RoundedRectangle.hpp"
 #include "Widgets/StaticBox.hpp"
+#include "Widgets/StaticLine.hpp"
 
 static wxColour FG_COLOR = wxColour(0x32, 0x3A, 0x3D);
 static wxColour BG_COLOR = wxColour(0xF8, 0xF8, 0xF8);

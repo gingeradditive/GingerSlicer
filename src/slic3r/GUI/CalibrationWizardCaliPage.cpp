@@ -1,7 +1,9 @@
 #include "CalibrationWizardCaliPage.hpp"
+#include "ReleaseNote.hpp"
 #include "MainFrame.hpp"
 #include "I18N.hpp"
 #include "Widgets/Label.hpp"
+#include "wxExtensions.hpp"
 
 namespace Slic3r { namespace GUI {
 
@@ -27,8 +29,6 @@ CalibrationCaliPage::CalibrationCaliPage(wxWindow* parent, CalibMode cali_mode, 
 
 CalibrationCaliPage::~CalibrationCaliPage()
 {
-    m_printing_panel->get_pause_resume_button()->Disconnect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(CalibrationCaliPage::on_subtask_pause_resume), NULL, this);
-    m_printing_panel->get_abort_button()->Disconnect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(CalibrationCaliPage::on_subtask_abort), NULL, this);
 }
 
 void CalibrationCaliPage::create_page(wxWindow* parent)
@@ -47,23 +47,12 @@ void CalibrationCaliPage::create_page(wxWindow* parent)
 
     m_picture_panel = new CaliPagePicture(parent);
     m_top_sizer->Add(m_picture_panel, 0, wxEXPAND, 0);
-    m_top_sizer->AddSpacer(FromDIP(20));
+    m_top_sizer->AddSpacer(FromDIP(20, parent));
 
     set_cali_img();
 
-    m_printing_panel = new PrintingTaskPanel(parent, PrintingTaskType::CALIBRATION);
-    m_printing_panel->SetDoubleBuffered(true);
-    m_printing_panel->SetSize({ CALIBRATION_PROGRESSBAR_LENGTH, -1 });
-    m_printing_panel->SetMinSize({ CALIBRATION_PROGRESSBAR_LENGTH, -1 });
-    m_printing_panel->enable_pause_resume_button(false, "resume_disable");
-    m_printing_panel->enable_abort_button(false);
-
-    m_top_sizer->Add(m_printing_panel, 0, wxALIGN_CENTER, 0);
     m_action_panel = new CaliPageActionPanel(parent, m_cali_mode, CaliPageType::CALI_PAGE_CALI);
     m_top_sizer->Add(m_action_panel, 0, wxEXPAND, 0);
-
-    m_printing_panel->get_pause_resume_button()->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(CalibrationCaliPage::on_subtask_pause_resume), NULL, this);
-    m_printing_panel->get_abort_button()->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(CalibrationCaliPage::on_subtask_abort), NULL, this);
 }
 
 void CalibrationCaliPage::on_subtask_pause_resume(wxCommandEvent& event)
@@ -271,117 +260,15 @@ void CalibrationCaliPage::update_subtask(MachineObject* obj)
 {
     if (!obj) return;
 
-    if (obj->is_support_layer_num) {
-        m_printing_panel->update_layers_num(true);
-    }
-    else {
-        m_printing_panel->update_layers_num(false);
-    }
-
     if (obj->is_system_printing()
         || obj->is_in_calibration()) {
         reset_printing_values();
     }
     else if (obj->is_in_printing() || obj->print_status == "FINISH") {
         if (obj->is_in_prepare() || obj->print_status == "SLICING") {
-            m_printing_panel->get_market_scoring_button()->Hide();
-            m_printing_panel->enable_abort_button(false);
-            m_printing_panel->enable_pause_resume_button(false, "pause_disable");
-            wxString prepare_text;
-            bool show_percent = true;
-
-            if (obj->is_in_prepare()) {
-                prepare_text = wxString::Format(_L("Downloading..."));
-            }
-            else if (obj->print_status == "SLICING") {
-                if (obj->queue_number <= 0) {
-                    prepare_text = wxString::Format(_L("Cloud Slicing..."));
-                }
-                else {
-                    prepare_text = wxString::Format(_L("In Cloud Slicing Queue, there are %s tasks ahead."), std::to_string(obj->queue_number));
-                    show_percent = false;
-                }
-            }
-            else
-                prepare_text = wxString::Format(_L("Downloading..."));
-
-            if (obj->gcode_file_prepare_percent >= 0 && obj->gcode_file_prepare_percent <= 100 && show_percent)
-                prepare_text += wxString::Format("(%d%%)", obj->gcode_file_prepare_percent);
-
-            m_printing_panel->update_stage_value(prepare_text, 0);
-            m_printing_panel->update_progress_percent(NA_STR, wxEmptyString);
-            m_printing_panel->update_left_time(NA_STR);
-            m_printing_panel->update_layers_num(true, wxString::Format(_L("Layer: %s"), NA_STR));
-            m_printing_panel->update_subtask_name(wxString::Format("%s", GUI::from_u8(obj->subtask_name)));
-
-
-            if (obj->get_modeltask() && obj->get_modeltask()->design_id > 0) {
-                m_printing_panel->show_profile_info(true, wxString::FromUTF8(obj->get_modeltask()->profile_name));
-            }
-            else {
-                m_printing_panel->show_profile_info(false);
-            }
-
             if (obj->slice_info)
                 update_basic_print_data(false, obj->slice_info->weight, obj->slice_info->prediction);
         }
-        else {
-            if (obj->can_resume()) {
-                m_printing_panel->enable_pause_resume_button(true, "resume");
-
-            }
-            else {
-                m_printing_panel->enable_pause_resume_button(true, "pause");
-            }
-            if (obj->print_status == "FINISH") {
-
-                m_printing_panel->enable_abort_button(false);
-                m_printing_panel->enable_pause_resume_button(false, "resume_disable");
-
-                bool is_market_task = obj->get_modeltask() && obj->get_modeltask()->design_id > 0;
-                if (is_market_task) {
-                    m_printing_panel->get_market_scoring_button()->Show();
-                    BOOST_LOG_TRIVIAL(info) << "SHOW_SCORE_BTU: design_id [" << obj->get_modeltask()->design_id << "] print_finish [" << m_print_finish << "]";
-                    if (!m_print_finish && IsShownOnScreen()) {
-                        m_print_finish = true;
-                    }
-                }
-                else {
-                    m_printing_panel->get_market_scoring_button()->Hide();
-                }
-            }
-            else {
-                m_printing_panel->enable_abort_button(true);
-                m_printing_panel->get_market_scoring_button()->Hide();
-                if (m_print_finish) {
-                    m_print_finish = false;
-                }
-            }
-            // update printing stage
-
-            m_printing_panel->update_left_time(obj->mc_left_time);
-            if (obj->subtask_) {
-                m_printing_panel->update_stage_value(obj->get_curr_stage(), obj->subtask_->task_progress);
-                m_printing_panel->update_progress_percent(wxString::Format("%d", obj->subtask_->task_progress), "%");
-                m_printing_panel->update_layers_num(true, wxString::Format(_L("Layer: %d/%d"), obj->curr_layer, obj->total_layers));
-
-            }
-            else {
-                m_printing_panel->update_stage_value(obj->get_curr_stage(), 0);
-                m_printing_panel->update_progress_percent(NA_STR, wxEmptyString);
-                m_printing_panel->update_layers_num(true, wxString::Format(_L("Layer: %s"), NA_STR));
-            }
-        }
-
-        m_printing_panel->update_subtask_name(wxString::Format("%s", GUI::from_u8(obj->subtask_name)));
-
-        if (obj->get_modeltask() && obj->get_modeltask()->design_id > 0) {
-            m_printing_panel->show_profile_info(wxString::FromUTF8(obj->get_modeltask()->profile_name));
-        }
-        else {
-            m_printing_panel->show_profile_info(false);
-        }
-
     }
     else {
         reset_printing_values();
@@ -393,32 +280,11 @@ void CalibrationCaliPage::update_subtask(MachineObject* obj)
 
 void CalibrationCaliPage::update_basic_print_data(bool def, float weight, int prediction)
 {
-    if (def) {
-        wxString str_prediction = wxString::Format("%s", get_bbl_time_dhms(prediction));
-        wxString str_weight = wxString::Format("%.2fg", weight);
-
-        m_printing_panel->show_priting_use_info(true, str_prediction, str_weight);
-    }
-    else {
-        m_printing_panel->show_priting_use_info(false, "0m", "0g");
-    }
 }
 
 void CalibrationCaliPage::reset_printing_values()
 {
-    m_printing_panel->enable_pause_resume_button(false, "pause_disable");
-    m_printing_panel->enable_abort_button(false);
-    m_printing_panel->reset_printing_value();
-    m_printing_panel->update_subtask_name(NA_STR);
-    m_printing_panel->show_profile_info(false);
-    m_printing_panel->update_stage_value(wxEmptyString, 0);
-    m_printing_panel->update_progress_percent(NA_STR, wxEmptyString);
-    m_printing_panel->get_market_scoring_button()->Hide();
-    m_printing_panel->update_left_time(NA_STR);
-    m_printing_panel->update_layers_num(true, wxString::Format(_L("Layer: %s"), NA_STR));
     update_basic_print_data(false);
-    this->Layout();
-    this->Fit();
 }
 
 void CalibrationCaliPage::on_device_connected(MachineObject* obj)

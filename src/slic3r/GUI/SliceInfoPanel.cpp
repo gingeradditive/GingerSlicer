@@ -3,6 +3,8 @@
 #include <boost/log/trivial.hpp>
 #include "I18N.hpp"
 #include "Widgets/Label.hpp"
+#include "Widgets/StaticLine.hpp"
+#include "Widgets/Button.hpp"
 #include "libslic3r/Utils.hpp"
 
 namespace Slic3r {

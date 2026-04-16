@@ -2,6 +2,7 @@
 
 #include "wx/wxprec.h"
 #include "wx/aui/auibar.h"
+#include "GUI.hpp"
 
 #include "DeviceManager.hpp"
 

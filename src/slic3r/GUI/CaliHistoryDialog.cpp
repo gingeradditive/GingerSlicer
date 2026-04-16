@@ -7,14 +7,15 @@
 #include "format.hpp"
 #include "MsgDialog.hpp"
 #include "slic3r/Utils/CalibUtils.hpp"
+#include <wx/sizer.h>
 
 namespace Slic3r {
 namespace GUI {
 
 
-#define HISTORY_WINDOW_SIZE                wxSize(FromDIP(700), FromDIP(600))
-#define EDIT_HISTORY_DIALOG_INPUT_SIZE     wxSize(FromDIP(160), FromDIP(24))
-#define NEW_HISTORY_DIALOG_INPUT_SIZE      wxSize(FromDIP(250), FromDIP(24))
+#define HISTORY_WINDOW_SIZE                wxSize(700, 600)
+#define EDIT_HISTORY_DIALOG_INPUT_SIZE     wxSize(160, 24)
+#define NEW_HISTORY_DIALOG_INPUT_SIZE      wxSize(250, 24)
 #define HISTORY_WINDOW_ITEMS_COUNT         5
 
 static wxString get_preset_name_by_filament_id(std::string filament_id)
@@ -55,7 +56,7 @@ static wxString get_preset_name_by_filament_id(std::string filament_id)
 }
 
 HistoryWindow::HistoryWindow(wxWindow* parent, const std::vector<PACalibResult>& calib_results_history, bool& show)
-    : DPIDialog(parent, wxID_ANY, _L("Flow Dynamics Calibration Result"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE)
+    : wxDialog(parent, wxID_ANY, _L("Flow Dynamics Calibration Result"), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE)
     , m_calib_results_history(calib_results_history)
     , m_show_history_dialog(show)
 {
@@ -143,7 +144,10 @@ HistoryWindow::HistoryWindow(wxWindow* parent, const std::vector<PACalibResult>&
 
 HistoryWindow::~HistoryWindow()
 {
-    m_refresh_timer->Stop();
+    if (m_refresh_timer) {
+        m_refresh_timer->Stop();
+        delete m_refresh_timer;
+    }
     m_show_history_dialog = false;
 }
 
@@ -249,36 +253,34 @@ void HistoryWindow::enbale_action_buttons(bool enable) {
 }
 
 void HistoryWindow::sync_history_data() {
-    Freeze();
+    m_history_data_panel->Freeze();
     m_history_data_panel->DestroyChildren();
     m_history_data_panel->Enable();
-    wxGridBagSizer* gbSizer;
-    gbSizer = new wxGridBagSizer(FromDIP(0), FromDIP(50));
-    gbSizer->SetFlexibleDirection(wxBOTH);
-    gbSizer->SetNonFlexibleGrowMode(wxFLEX_GROWMODE_SPECIFIED);
+    wxGridSizer* gbSizer;
+    gbSizer = new wxGridSizer(5, 5, FromDIP(15, m_history_data_panel), FromDIP(50, m_history_data_panel));
 
     m_history_data_panel->SetSizer(gbSizer, true);
 
     auto title_name = new Label(m_history_data_panel, _L("Name"));
     title_name->SetFont(Label::Head_14);
-    gbSizer->Add(title_name, { 0, 0 }, { 1, 1 }, wxBOTTOM, FromDIP(15));
+    gbSizer->Add(title_name, 0, wxBOTTOM, FromDIP(15, m_history_data_panel));
 
     auto title_preset_name = new Label(m_history_data_panel, _L("Filament"));
     title_preset_name->SetFont(Label::Head_14);
-    gbSizer->Add(title_preset_name, { 0, 1 }, { 1, 1 }, wxBOTTOM, FromDIP(15));
+    gbSizer->Add(title_preset_name, 0, wxBOTTOM, FromDIP(15, m_history_data_panel));
 
     auto title_k = new Label(m_history_data_panel, _L("Factor K"));
     title_k->SetFont(Label::Head_14);
-    gbSizer->Add(title_k, { 0, 2 }, { 1, 1 }, wxBOTTOM, FromDIP(15));
+    gbSizer->Add(title_k, 0, wxBOTTOM, FromDIP(15, m_history_data_panel));
 
     // Hide
     //auto title_n = new Label(m_history_data_panel, wxID_ANY, _L("N"));
     //title_n->SetFont(Label::Head_14);
-    //gbSizer->Add(title_n, { 0, 3 }, { 1, 1 }, wxBOTTOM, FromDIP(15));
+    //gbSizer->Add(title_n, 0, wxBOTTOM, FromDIP(15, m_history_data_panel));
 
     auto title_action = new Label(m_history_data_panel, _L("Action"));
     title_action->SetFont(Label::Head_14);
-    gbSizer->Add(title_action, { 0, 3 }, { 1, 1 });
+    gbSizer->Add(title_action, 0, wxBOTTOM, FromDIP(15, m_history_data_panel));
 
     int i = 1;
     for (auto& result : m_calib_results_history) {
@@ -294,14 +296,10 @@ void HistoryWindow::sync_history_data() {
         n_value->Hide();
         auto delete_button = new Button(m_history_data_panel, _L("Delete"));
         delete_button->SetBackgroundColour(*wxWHITE);
-        delete_button->SetMinSize(wxSize(-1, FromDIP(24)));
-        delete_button->SetCornerRadius(FromDIP(12));
-        delete_button->Bind(wxEVT_BUTTON, [this, gbSizer, i, &result](auto& e) {
-            for (int j = 0; j < HISTORY_WINDOW_ITEMS_COUNT; j++) {
-                auto item = gbSizer->FindItemAtPosition({ i, j });
-                item->GetWindow()->Hide();
-            }
-            gbSizer->SetEmptyCellSize({ 0,0 });
+        delete_button->SetMinSize(wxSize(-1, FromDIP(24, m_history_data_panel)));
+        delete_button->SetCornerRadius(FromDIP(12, m_history_data_panel));
+        delete_button->Bind(wxEVT_BUTTON, [this, &result](auto& e) {
+            m_history_data_panel->DestroyChildren();
             m_history_data_panel->Layout();
             m_history_data_panel->Fit();
             PACalibIndexInfo cali_info;
@@ -320,40 +318,41 @@ void HistoryWindow::sync_history_data() {
         edit_button->SetBackgroundColor(btn_bg_green);
         edit_button->SetBorderColor(wxColour(215, 40, 40));
         edit_button->SetTextColor(wxColour("#FFFFFE"));
-        edit_button->SetMinSize(wxSize(-1, FromDIP(24)));
-        edit_button->SetCornerRadius(FromDIP(12));
-        edit_button->Bind(wxEVT_BUTTON, [this, result, k_value, name_value, edit_button](auto& e) {
+        edit_button->SetMinSize(wxSize(-1, FromDIP(24, m_history_data_panel)));
+        edit_button->SetCornerRadius(FromDIP(12, m_history_data_panel));
+        edit_button->Bind(wxEVT_BUTTON, [result, k_value, name_value](auto& e) {
             PACalibResult result_buffer = result;
             result_buffer.k_value = stof(k_value->GetLabel().ToStdString());
             result_buffer.name = name_value->GetLabel().ToUTF8().data();
-            EditCalibrationHistoryDialog dlg(this, result_buffer);
-            if (dlg.ShowModal() == wxID_OK) {
-                auto new_result = dlg.get_result();
+            // EditCalibrationHistoryDialog dlg(this, result_buffer);
+            // if (dlg.ShowModal() == wxID_OK) {
+            //     auto new_result = dlg.get_result();
 
-                wxString new_k_str = wxString::Format("%.3f", new_result.k_value);
-                k_value->SetLabel(new_k_str);
-                name_value->SetLabel(from_u8(new_result.name));
+            //     wxString new_k_str = wxString::Format("%.3f", new_result.k_value);
+            //     k_value->SetLabel(new_k_str);
+            //     name_value->SetLabel(from_u8(new_result.name));
 
-                new_result.tray_id = -1;
-                CalibUtils::set_PA_calib_result({ new_result }, true);
+            //     new_result.tray_id = -1;
+            //     CalibUtils::set_PA_calib_result({ new_result }, true);
 
-                enbale_action_buttons(false);
-            }
+            //     enbale_action_buttons(false);
+            // }
             });
 
-        gbSizer->Add(name_value, { i, 0 }, { 1, 1 }, wxBOTTOM, FromDIP(15));
-        gbSizer->Add(preset_name_value, { i, 1 }, { 1, 1 }, wxBOTTOM, FromDIP(15));
-        gbSizer->Add(k_value, { i, 2 }, { 1, 1 }, wxBOTTOM, FromDIP(15));
-        //gbSizer->Add(n_value, { i, 3 }, { 1, 1 }, wxBOTTOM, FromDIP(15));
-        gbSizer->Add(delete_button, { i, 3 }, { 1, 1 }, wxBOTTOM, FromDIP(15));
-        gbSizer->Add(edit_button, { i, 4 }, { 1, 1 }, wxBOTTOM, FromDIP(15));
+        gbSizer->Add(name_value, 0, wxBOTTOM, FromDIP(15, m_history_data_panel));
+        gbSizer->Add(preset_name_value, 0, wxBOTTOM, FromDIP(15, m_history_data_panel));
+        gbSizer->Add(k_value, 0, wxBOTTOM, FromDIP(15, m_history_data_panel));
+        //gbSizer->Add(n_value, 0, wxBOTTOM, FromDIP(15, m_history_data_panel));
+        gbSizer->Add(delete_button, 0, wxBOTTOM, FromDIP(15, m_history_data_panel));
+        gbSizer->Add(edit_button, 0, wxBOTTOM, FromDIP(15, m_history_data_panel));
         i++;
     }
 
+    // wxGetApp().UpdateDlgDarkUI(static_cast<wxDialog*>(this));
 
-    Layout();
-    Fit();
-    Thaw();
+    m_history_data_panel->Layout();
+    // Fit();
+    m_history_data_panel->Thaw();
 }
 
 float HistoryWindow::get_nozzle_value()
@@ -378,8 +377,8 @@ void HistoryWindow::on_click_new_button(wxCommandEvent& event)
         return;
     }
 
-    NewCalibrationHistoryDialog dlg(this, m_calib_results_history);
-    dlg.ShowModal();
+    // NewCalibrationHistoryDialog dlg(this, m_calib_results_history);
+    // dlg.ShowModal();
 }
 
 EditCalibrationHistoryDialog::EditCalibrationHistoryDialog(wxWindow* parent, const PACalibResult& result)

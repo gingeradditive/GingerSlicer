@@ -4,6 +4,7 @@
 #include "slic3r/GUI/wxExtensions.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/MainFrame.hpp"
+#include "slic3r/GUI/Plater.hpp"
 #include "libslic3r_version.h"
 #include "../Utils/Http.hpp"
 

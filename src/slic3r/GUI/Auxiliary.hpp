@@ -42,6 +42,8 @@
 #include "wxExtensions.hpp"
 #include "slic3r/GUI/DeviceManager.hpp"
 #include "Widgets/SideTools.hpp"
+#include "Widgets/ComboBox.hpp"
+#include <wx/wrapsizer.h>
 
 #define AUFILE_GREY700 wxColour(107, 107, 107)
 #define AUFILE_GREY500 wxColour(158, 158, 158)

@@ -11,6 +11,7 @@
 #include "Widgets/Button.hpp"
 #include "Widgets/TextInput.hpp"
 #include "Widgets/DialogButtons.hpp"
+#include "MsgDialog.hpp"
 #include <chrono>
 
 using namespace Slic3r;

@@ -3,6 +3,7 @@
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/Format/bbs_3mf.hpp"
+#include "Plater.hpp"
 
 #include <boost/log/trivial.hpp>
 
