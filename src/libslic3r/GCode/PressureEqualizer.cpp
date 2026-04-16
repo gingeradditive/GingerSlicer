@@ -1350,7 +1350,23 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
                 float f_avg = rate_end * original_feedrate / vol_rate;
 
                 push_line_to_output(line_idx, f_avg, comment, ";_ERS_RAMPDOWN");
+                memcpy(line.pos_start, line.pos_end, sizeof(float) * 5);
 
+            }
+
+            // Catch-all: ensure the entire original line is covered.
+            // If short steady/ramp-down zones were skipped due to minimum length
+            // filtering, emit one final segment to reach the original endpoint.
+            {
+                float dx = pos_orig_end[0] - line.pos_start[0];
+                float dy = pos_orig_end[1] - line.pos_start[1];
+                if (dx * dx + dy * dy > 0.0001f) {
+                    for (int j = 0; j < 4; ++j) {
+                        line.pos_end[j] = pos_orig_end[j];
+                        line.pos_provided[j] = true;
+                    }
+                    push_line_to_output(line_idx, original_feedrate, comment, ";_ERS_STEADY");
+                }
             }
 
             return;
@@ -1421,6 +1437,20 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
                     push_line_to_output(line_idx, f_interp, comment, ";_ERS_RAMPDOWN");
                     comment = nullptr;
                     memcpy(line.pos_start, line.pos_end, sizeof(float) * 5);
+                }
+            }
+
+            // Catch-all: ensure the entire original line is covered.
+            {
+                float dx = pos_orig_end[0] - line.pos_start[0];
+                float dy = pos_orig_end[1] - line.pos_start[1];
+                if (dx * dx + dy * dy > 0.0001f) {
+                    for (int j = 0; j < 4; ++j) {
+                        line.pos_end[j] = pos_orig_end[j];
+                        line.pos_provided[j] = true;
+                    }
+                    float f_end = rate_end * original_feedrate / vol_rate;
+                    push_line_to_output(line_idx, std::max(f_end, original_feedrate * 0.1f), comment, ";_ERS_STEADY");
                 }
             }
 
