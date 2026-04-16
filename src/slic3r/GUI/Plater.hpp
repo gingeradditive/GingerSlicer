@@ -153,7 +153,6 @@ public:
     void delete_filament();
     void add_custom_filament(wxColour new_col);
     // BBS
-    void on_bed_type_change(BedType bed_type);
     void load_ams_list(std::string const & device, MachineObject* obj);
     std::map<int, DynamicPrintConfig> build_filament_ams_list(MachineObject* obj);
     void sync_ams_list();
@@ -201,7 +200,6 @@ private:
     std::unique_ptr<priv> p;
 
     wxBoxSizer* m_scrolled_sizer = nullptr;
-    ComboBox* m_bed_type_list = nullptr;
     ComboBox* m_printer_host_list = nullptr;
     ScalableButton* m_btn_add_host = nullptr;
     ScalableButton* m_btn_remove_host = nullptr;
@@ -481,7 +479,6 @@ public:
 
     void on_filaments_change(size_t extruders_count);
     // BBS
-    void on_bed_type_change(BedType bed_type);
     bool update_filament_colors_in_full_config();
     void config_change_notification(const DynamicPrintConfig &config, const std::string& key);
     void on_config_change(const DynamicPrintConfig &config);
