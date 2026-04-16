@@ -237,46 +237,6 @@ wxFont get_default_font_for_dpi(const wxWindow *window, int dpi)
     return wxSystemSettings::GetFont(wxSYS_DEFAULT_GUI_FONT);
 }
 
-bool check_dark_mode() {
-#if 0 //#ifdef _WIN32  // #ysDarkMSW - Allow it when we deside to support the sustem colors for application
-    wxRegKey rk(wxRegKey::HKCU,
-        "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize");
-    if (rk.Exists() && rk.HasValue("AppsUseLightTheme")) {
-        long value = -1;
-        rk.QueryValue("AppsUseLightTheme", &value);
-        return value <= 0;
-    }
-#endif
-#if wxCHECK_VERSION(3,1,3)
-    return wxSystemSettings::GetAppearance().IsDark();
-#else
-    const unsigned luma = wxGetApp().get_colour_approx_luma(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
-    return luma < 128;
-#endif
-}
-
-
-#ifdef _WIN32
-void update_dark_ui(wxWindow* window)
-{
-#ifdef SUPPORT_DARK_MODE
-    bool is_dark = wxGetApp().app_config->get("dark_color_mode") == "1";
-#else
-    bool is_dark = false;
-#endif
-    //window->SetBackgroundColour(is_dark ? wxColour(43,  43,  43)  : wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
-    //window->SetForegroundColour(is_dark ? wxColour(250, 250, 250) : wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOWTEXT));
-}
-#endif
-
-void update_dark_config()
-{
-    wxSystemAppearance app = wxSystemSettings::GetAppearance();
-    GUI::wxGetApp().app_config->set("dark_color_mode", app.IsDark() ? "1" : "0");
-    wxGetApp().Update_dark_mode_flag();
-}
-
-
 CheckboxFileDialog::ExtraPanel::ExtraPanel(wxWindow *parent)
     : wxPanel(parent, wxID_ANY)
 {

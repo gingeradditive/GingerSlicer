@@ -263,7 +263,6 @@ bool ProgressDialog::Create(const wxString &title, const wxString &message, int 
     m_sizer_main->Add(m_sizer_bottom, 0, wxEXPAND | wxLEFT | wxRIGHT, FromDIP(28));
     m_sizer_main->Add(0, 0, 0, wxEXPAND | wxTOP, FromDIP(10));
 
-    wxGetApp().UpdateDlgDarkUI(this);
 
     SetSizer(m_sizer_main);
     Layout();

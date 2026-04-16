@@ -47,7 +47,6 @@ wxDEFINE_EVENT(EVT_SET_FINISH_MAPPING, wxCommandEvent);
     SetBackgroundColour(*wxWHITE);
 
     Bind(wxEVT_PAINT, &MaterialItem::paintEvent, this);
-    wxGetApp().UpdateDarkUI(this);
  }
 
  MaterialItem::~MaterialItem() {}
@@ -677,7 +676,7 @@ void AmsMapingPopup::paintEvent(wxPaintEvent &evt)
 #endif //__WINDOWS__
 
     m_transparent_mapping_item = ScalableBitmap(this, "transparent_mapping_item", FromDIP(44));
-    SetBackgroundColour(StateColor::darkModeColorFor(*wxWHITE));
+    SetBackgroundColour(*wxWHITE);
     Bind(wxEVT_PAINT, &MappingItem::paintEvent, this);
 }
 
@@ -974,7 +973,6 @@ AmsHumidityTipPopup::AmsHumidityTipPopup(wxWindow* parent)
     Fit();
 
     Bind(wxEVT_PAINT, &AmsHumidityTipPopup::paintEvent, this);
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 void AmsHumidityTipPopup::paintEvent(wxPaintEvent& evt)
@@ -994,9 +992,7 @@ void AmsHumidityTipPopup::set_humidity_level(int level)
     current_humidity_level = level;
     if (current_humidity_level<= 0) {return;}
 
-    std::string mode_string = wxGetApp().dark_mode()?"_dark":"_light";
-
-    curr_humidity_img->SetBitmap(create_scaled_bitmap("hum_level" + std::to_string(current_humidity_level) + mode_string, this, 132));
+    curr_humidity_img->SetBitmap(create_scaled_bitmap("hum_level" + std::to_string(current_humidity_level) + "_light", this, 132));
     curr_humidity_img->Refresh();
     curr_humidity_img->Update();
 }
@@ -1181,8 +1177,6 @@ AmsIntroducePopup::AmsIntroducePopup(wxWindow* parent)
     SetSizer(bSizer4);
     Layout();
     Fit();
-
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 void AmsIntroducePopup::set_mode(bool enable_ams) 
@@ -1227,7 +1221,7 @@ MappingContainer::MappingContainer(wxWindow* parent)
 #ifdef __WINDOWS__
     SetDoubleBuffered(true);
 #endif //__WINDOWS__
-    SetBackgroundColour(StateColor::darkModeColorFor(*wxWHITE));
+    SetBackgroundColour(*wxWHITE);
     Bind(wxEVT_PAINT, &MappingContainer::paintEvent, this);
 
     ams_mapping_item_container = create_scaled_bitmap("ams_mapping_container", this, 78);
@@ -1282,7 +1276,6 @@ AmsReplaceMaterialDialog::AmsReplaceMaterialDialog(wxWindow* parent)
 #endif //__WINDOWS__
     SetBackgroundColour(*wxWHITE);
     create();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 void AmsReplaceMaterialDialog::create()
@@ -1302,7 +1295,7 @@ void AmsReplaceMaterialDialog::create()
     label_title->SetForegroundColour(0xd72828);
     label_txt = new Label(this, _L("When the current material run out, the printer will continue to print in the following order."));
     label_txt->SetFont(Label::Body_13);
-    label_txt->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#323A3C")));
+    label_txt->SetForegroundColour(wxColour("#323A3C"));
     label_txt->SetMinSize(wxSize(FromDIP(380), -1));
     label_txt->SetMaxSize(wxSize(FromDIP(380), -1));
     label_txt->Wrap(FromDIP(380));
@@ -1509,7 +1502,6 @@ AmsRMGroup::AmsRMGroup(wxWindow* parent, std::map<std::string, wxColour> group_i
 
     Bind(wxEVT_PAINT, &AmsRMGroup::paintEvent, this);
     Bind(wxEVT_LEFT_DOWN, &AmsRMGroup::on_mouse_move, this);
-    wxGetApp().UpdateDarkUI(this);
 }
 
 double AmsRMGroup::GetAngle(wxPoint pointA, wxPoint pointB)
@@ -1619,11 +1611,7 @@ void AmsRMGroup::doRender(wxDC& dc)
 
         int x = size.x / 2;
         int y = size.y / 2;
-        int radius;
-        if (wxGetApp().dark_mode())
-            radius = size.x / 2 - int(size.x * 0.02);
-        else
-            radius = size.x / 2;
+        int radius = size.x / 2;
         endAngle += ev_angle;
 
  
@@ -1721,11 +1709,9 @@ AmsHumidityLevelList::AmsHumidityLevelList(wxWindow* parent)
 
     for (int i = 5; i > 0; i--) {
         hum_level_img_light.push_back(ScalableBitmap(this, ("hum_level" + std::to_string(i) + "_light"), 54));
-        hum_level_img_dark.push_back(ScalableBitmap(this, ("hum_level" + std::to_string(i) + "_dark"), 54));
     }
 
     Bind(wxEVT_PAINT, &AmsHumidityLevelList::paintEvent, this);
-    wxGetApp().UpdateDarkUI(this);
 }
 
 void AmsHumidityLevelList::msw_rescale()
@@ -1780,13 +1766,7 @@ void AmsHumidityLevelList::doRender(wxDC& dc)
     //level list
     
     for (int i = 0; i < hum_level_img_light.size(); i++) {
-        if (wxGetApp().dark_mode()) {
-            dc.DrawBitmap(hum_level_img_dark[i].bmp(), left, (GetSize().y - FromDIP(54)) / 2);
-        }
-        else {
-             dc.DrawBitmap(hum_level_img_light[i].bmp(), left, (GetSize().y - FromDIP(54)) / 2);
-        }
-        
+        dc.DrawBitmap(hum_level_img_light[i].bmp(), left, (GetSize().y - FromDIP(54)) / 2);
         left += FromDIP(46) + FromDIP(54);
     }
 }

@@ -37,7 +37,6 @@ SingleChoiceDialog::SingleChoiceDialog(const wxString &message, const wxString &
     this->SetSizer(bSizer);
     this->Layout();
     bSizer->Fit(this);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 SingleChoiceDialog::~SingleChoiceDialog() {}
 int SingleChoiceDialog::GetSingleChoiceIndex() { return this->ShowModal() == wxID_OK ? GetTypeComboBox()->GetSelection() : -1; }

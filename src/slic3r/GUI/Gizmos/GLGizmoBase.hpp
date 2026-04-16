@@ -148,8 +148,6 @@ protected:
     bool m_first_input_window_render{ true };
     CommonGizmosDataPool* m_c{ nullptr };
 
-    bool m_is_dark_mode = false;
-
     bool render_combo(const std::string &label, const std::vector<std::string> &lines,
         int &selection_idx, float label_width, float item_width);
     void render_cross_mark(const Vec3f& target,bool is_single =false);
@@ -205,7 +203,6 @@ public:
 
     void render() { on_render(); }
     void render_input_window(float x, float y, float bottom_limit);
-    virtual void on_change_color_mode(bool is_dark) {  m_is_dark_mode = is_dark; }
 
     /// <summary>
     /// Mouse tooltip text

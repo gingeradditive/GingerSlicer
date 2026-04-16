@@ -24,7 +24,6 @@ public:
     void update_data(const DailyTipsData& data);
     void render(const ImVec2& pos, const ImVec2& size) const;
     bool has_image() const;
-    void on_change_color_mode(bool is_dark);
     void set_fade_opacity(float opacity);
 
 protected:
@@ -38,7 +37,6 @@ private:
     DailyTipsData m_data;
     GLTexture* m_texture{ nullptr };
     GLTexture* m_placeholder_texture{ nullptr };
-    bool m_is_dark{ false };
     DailyTipsLayout m_layout;
     float m_fade_opacity{ 1.0f };
 };
@@ -126,11 +124,6 @@ bool DailyTipsDataRenderer::has_image() const
     return !m_data.img_url.empty();
 }
 
-void DailyTipsDataRenderer::on_change_color_mode(bool is_dark)
-{
-    m_is_dark = is_dark;
-}
-
 void DailyTipsDataRenderer::set_fade_opacity(float opacity)
 {
     m_fade_opacity = opacity;
@@ -139,9 +132,9 @@ void DailyTipsDataRenderer::set_fade_opacity(float opacity)
 void DailyTipsDataRenderer::render_img(const ImVec2& start_pos, const ImVec2& size) const
 {
     if (has_image())
-        ImGui::Image((ImTextureID)(intptr_t)m_texture->get_id(), size, ImVec2(0, 0), ImVec2(1, 1), m_is_dark ? ImVec4(0.8, 0.8, 0.8, m_fade_opacity) : ImVec4(1, 1, 1, m_fade_opacity));
+        ImGui::Image((ImTextureID)(intptr_t)m_texture->get_id(), size, ImVec2(0, 0), ImVec2(1, 1), ImVec4(1, 1, 1, m_fade_opacity));
     // else {
-    //     ImGui::Image((ImTextureID)(intptr_t)m_placeholder_texture->get_id(), size, ImVec2(0, 0), ImVec2(1, 1), m_is_dark ? ImVec4(0.8, 0.8, 0.8, m_fade_opacity) : ImVec4(1, 1, 1, m_fade_opacity));
+    //     ImGui::Image((ImTextureID)(intptr_t)m_placeholder_texture->get_id(), size, ImVec2(0, 0), ImVec2(1, 1), ImVec4(1, 1, 1, m_fade_opacity));
     // }
 }
 
@@ -149,7 +142,7 @@ void DailyTipsDataRenderer::render_text(const ImVec2& start_pos, const ImVec2& s
 {
     ImGuiWrapper& imgui = *wxGetApp().imgui();
 
-    ImGui::PushStyleColor(ImGuiCol_Text, m_is_dark ? ImVec4(1.0f, 1.0f, 1.0f, 0.88f * m_fade_opacity) : ImVec4(38 / 255.0f, 46 / 255.0f, 48 / 255.0f, m_fade_opacity));
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(38 / 255.0f, 46 / 255.0f, 48 / 255.0f, m_fade_opacity));
     // main text
     // first line is headline (for hint notification it must be divided by \n)
     std::string title_line;
@@ -353,12 +346,6 @@ bool DailyTipsPanel::is_expanded()
     return m_is_expanded;
 }
 
-void DailyTipsPanel::on_change_color_mode(bool is_dark)
-{
-    m_is_dark = is_dark;
-    m_dailytips_renderer->on_change_color_mode(is_dark);
-}
-
 void DailyTipsPanel::set_fade_opacity(float opacity)
 {
     m_fade_opacity = opacity;
@@ -429,7 +416,7 @@ void DailyTipsPanel::render_controller_buttons(const ImVec2& pos, const ImVec2& 
                 ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(.0f, .0f, .0f, .0f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(.0f, .0f, .0f, .0f));
                 ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
-                ImGui::PushStyleColor(ImGuiCol_Text, m_is_dark ? ImColor(230, 230, 230, (int)(255 * m_fade_opacity)).Value : ImColor(48, 38, 38, (int)(255 * m_fade_opacity)).Value);
+                ImGui::PushStyleColor(ImGuiCol_Text, ImColor(48, 38, 38, (int)(255 * m_fade_opacity)).Value);
 
                 // for bold font text, split text and icon-font button
                 imgui.push_bold_font();
@@ -448,7 +435,7 @@ void DailyTipsPanel::render_controller_buttons(const ImVec2& pos, const ImVec2& 
                     lineEnd.y -= 2;
                     ImVec2 lineStart = lineEnd;
                     lineStart.x = ImGui::GetItemRectMin().x - expand_btn_size.x;
-                    ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, m_is_dark ? ImColor(230, 230, 230, (int)(255 * m_fade_opacity)) : ImColor(48, 38, 38, (int)(255 * m_fade_opacity)));
+                    ImGui::GetWindowDrawList()->AddLine(lineStart, lineEnd, ImColor(48, 38, 38, (int)(255 * m_fade_opacity)));
 
                     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
                         expand();
@@ -470,7 +457,7 @@ void DailyTipsPanel::render_controller_buttons(const ImVec2& pos, const ImVec2& 
         float text_pos_x = (pos + size).x - button_margin_x * 2 - button_size.x * 2 - text_item_width;
         float text_pos_y = pos.y + (size.y - ImGui::CalcTextSize("A").y) / 2;
         ImGui::SetCursorScreenPos(ImVec2(text_pos_x, text_pos_y));
-        ImGui::PushStyleColor(ImGuiCol_Text, m_is_dark ? ImColor(230, 230, 230, (int)(255 * m_fade_opacity)).Value : ImColor(48, 38, 38, (int)(255 * m_fade_opacity)).Value);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImColor(48, 38, 38, (int)(255 * m_fade_opacity)).Value);
         imgui.text(text_str);
         ImGui::PopStyleColor();
         ImGui::PopItemWidth();
@@ -481,7 +468,7 @@ void DailyTipsPanel::render_controller_buttons(const ImVec2& pos, const ImVec2& 
         ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(.0f, .0f, .0f, .0f));
 
         // prev button
-        ImColor button_text_color = m_is_dark ? ImColor(228, 228, 228, (int)(255 * m_fade_opacity)) : ImColor(48, 38, 38, (int)(255 * m_fade_opacity));
+        ImColor button_text_color = ImColor(48, 38, 38, (int)(255 * m_fade_opacity));
         ImVec2 prev_button_pos = pos + size + ImVec2(-button_margin_x - button_size.x * 2, -size.y + (size.y - button_size.y) / 2);
         ImGui::SetCursorScreenPos(prev_button_pos);
         button_text = ImGui::PrevArrowBtnIcon;
@@ -496,7 +483,7 @@ void DailyTipsPanel::render_controller_buttons(const ImVec2& pos, const ImVec2& 
         ImGui::PopStyleColor();
 
         // next button
-        button_text_color = m_is_dark ? ImColor(228, 228, 228, (int)(255 * m_fade_opacity)) : ImColor(48, 38, 38, (int)(255 * m_fade_opacity));
+        button_text_color = ImColor(48, 38, 38, (int)(255 * m_fade_opacity));
         ImVec2 next_button_pos = pos + size + ImVec2(-button_size.x, -size.y + (size.y - button_size.y) / 2);
         ImGui::SetCursorScreenPos(next_button_pos);
         button_text = ImGui::NextArrowBtnIcon;
@@ -527,7 +514,7 @@ void DailyTipsPanel::push_styles()
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(0.0f, 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 4.0f * scale);
-    ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, m_is_dark ? ImGuiWrapper::COL_WINDOW_BG_DARK : ImGuiWrapper::COL_WINDOW_BG);
+    ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImGuiWrapper::COL_WINDOW_BG);
     ImGui::PushStyleColor(ImGuiCol_ScrollbarGrab, ImVec4(0.42f, 0.42f, 0.42f, 1.00f));
     ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabHovered, ImVec4(0.93f, 0.93f, 0.93f, 1.00f));
     ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, ImVec4(0.93f, 0.93f, 0.93f, 1.00f));
@@ -578,7 +565,7 @@ void DailyTipsWindow::render()
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 12.f * scale);
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 3) * scale);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10, 7) * scale);
-    ImGui::PushStyleColor(ImGuiCol_TitleBgActive, m_is_dark ? ImVec4(54 / 255.0f, 54 / 255.0f, 60 / 255.0f, 1.00f) : ImVec4(245 / 255.0f, 245 / 255.0f, 245 / 255.0f, 1.00f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImVec4(245 / 255.0f, 245 / 255.0f, 245 / 255.0f, 1.00f));
     ImGui::GetCurrentContext()->DimBgRatio = 1.0f;
     int windows_flag =
         ImGuiWindowFlags_NoCollapse
@@ -611,12 +598,6 @@ void DailyTipsWindow::render()
     ImGui::PopStyleVar(4);
     ImGui::PopStyleColor();
     imgui.pop_menu_style();
-}
-
-void DailyTipsWindow::on_change_color_mode(bool is_dark)
-{
-    m_is_dark = is_dark;
-    m_panel->on_change_color_mode(is_dark);
 }
 
 }}

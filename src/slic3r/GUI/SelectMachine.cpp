@@ -288,7 +288,7 @@ SelectMachineDialog::SelectMachineDialog(Plater *plater)
     m_button_refresh = new Button(m_basic_panel, _L("Refresh"));
     m_button_refresh->SetBackgroundColor(m_btn_bg_enable);
     m_button_refresh->SetBorderColor(m_btn_bg_enable);
-    m_button_refresh->SetTextColor(StateColor::darkModeColorFor("#FFFFFE"));
+    m_button_refresh->SetTextColor(StateColor(wxString("#FFFFFE")));
     m_button_refresh->SetSize(SELECT_MACHINE_DIALOG_BUTTON_SIZE);
     m_button_refresh->SetMinSize(SELECT_MACHINE_DIALOG_BUTTON_SIZE);
     m_button_refresh->SetCornerRadius(FromDIP(10));
@@ -478,7 +478,7 @@ SelectMachineDialog::SelectMachineDialog(Plater *plater)
     m_button_ensure = new Button(m_panel_prepare, _L("Send"));
     m_button_ensure->SetBackgroundColor(m_btn_bg_enable);
     m_button_ensure->SetBorderColor(m_btn_bg_enable);
-    m_button_ensure->SetTextColor(StateColor::darkModeColorFor("#FFFFFE"));
+    m_button_ensure->SetTextColor(StateColor(wxString("#FFFFFE")));
     m_button_ensure->SetSize(SELECT_MACHINE_DIALOG_BUTTON_SIZE);
     m_button_ensure->SetMinSize(SELECT_MACHINE_DIALOG_BUTTON_SIZE);
     m_button_ensure->SetMinSize(SELECT_MACHINE_DIALOG_BUTTON_SIZE);
@@ -635,7 +635,6 @@ SelectMachineDialog::SelectMachineDialog(Plater *plater)
     init_bind();
     init_timer();
     Centre(wxBOTH);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 void SelectMachineDialog::init_bind()
@@ -762,7 +761,7 @@ wxWindow *SelectMachineDialog::create_ams_checkbox(wxString title, wxWindow *par
 
     auto text = new wxStaticText(checkbox, wxID_ANY, title, wxDefaultPosition, wxDefaultSize, 0);
     text->SetFont(::Label::Body_12);
-    text->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#323A3C")));
+    text->SetForegroundColour(wxColour("#323A3C"));
     text->Wrap(-1);
     sizer_checkbox->Add(text, 0, wxALIGN_CENTER, 0);
 
@@ -821,7 +820,7 @@ wxWindow *SelectMachineDialog::create_item_checkbox(wxString title, wxWindow *pa
 
     auto text = new wxStaticText(checkbox, wxID_ANY, title, wxDefaultPosition, wxDefaultSize, wxST_ELLIPSIZE_END);
     text->SetFont(::Label::Body_12);
-    text->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#323A3C")));
+    text->SetForegroundColour(wxColour("#323A3C"));
     text->Wrap(-1);
     text->SetMinSize(wxSize(FromDIP(140), -1));
     text->SetMaxSize(wxSize(FromDIP(140), -1));
@@ -3790,14 +3789,7 @@ void SelectMachineDialog::update_page_turn_state(bool show)
 
 void SelectMachineDialog::sys_color_changed()
 {
-    if (wxGetApp(). dark_mode()) {
-        //rename_button->SetIcon("ams_editable_light");
-        m_rename_button->SetBitmap(rename_editable_light->bmp());
-
-    }
-    else {
-        m_rename_button->SetBitmap(rename_editable->bmp());
-    }
+    m_rename_button->SetBitmap(rename_editable->bmp());
     m_rename_button->Refresh();
 }
 
@@ -3842,7 +3834,6 @@ bool SelectMachineDialog::Show(bool show)
     }
 
     // set default value when show this dialog
-    wxGetApp().UpdateDlgDarkUI(this);
     wxGetApp().reset_to_active();
     set_default();
     update_user_machine_list();
@@ -3956,22 +3947,8 @@ std::string SelectMachineDialog::get_print_status_info(PrintDialogStatus status)
  }
 
  void ThumbnailPanel::render(wxDC& dc) {
-
-     if (wxGetApp().dark_mode() && m_brightness_value < SHOW_BACKGROUND_BITMAP_PIXEL_THRESHOLD) {
-         #ifdef __WXMSW__
-             wxMemoryDC memdc;
-             wxBitmap bmp(GetSize());
-             memdc.SelectObject(bmp);
-             memdc.DrawBitmap(bitmap_with_background, 0, 0);
-             dc.Blit(0, 0, GetSize().GetWidth(), GetSize().GetHeight(), &memdc, 0, 0);
-        #else
-             dc.DrawBitmap(bitmap_with_background, 0, 0);
-        #endif
-     }
-     else
-         dc.DrawBitmap(m_bitmap, 0, 0);
-
- }
+    dc.DrawBitmap(m_bitmap, 0, 0);
+}
 
  ThumbnailPanel::~ThumbnailPanel() {}
 

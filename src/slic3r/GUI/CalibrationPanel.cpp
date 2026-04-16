@@ -39,7 +39,7 @@ MObjectPanel::MObjectPanel(wxWindow* parent, wxWindowID id, const wxPoint& pos, 
 {
     wxPanel::Create(parent, id, pos, SELECT_MACHINE_ITEM_SIZE, style, name);
     Bind(wxEVT_PAINT, &MObjectPanel::OnPaint, this);
-    SetBackgroundColour(StateColor::darkModeColorFor(*wxWHITE));
+    SetBackgroundColour(*wxWHITE);
 
 
     m_printer_status_offline = ScalableBitmap(this, "printer_status_offline", 12);
@@ -109,7 +109,7 @@ void MObjectPanel::doRender(wxDC& dc)
     left += dwbitmap.GetBmpSize().x + 8;
     dc.SetFont(Label::Body_13);
     dc.SetBackgroundMode(wxTRANSPARENT);
-    dc.SetTextForeground(StateColor::darkModeColorFor(SELECT_MACHINE_GREY900));
+    dc.SetTextForeground(SELECT_MACHINE_GREY900);
     wxString dev_name = "";
     if (m_info) {
         dev_name = from_u8(m_info->dev_name);

@@ -105,6 +105,7 @@
 #include "ConfigWizard.hpp"
 #include "../Utils/ASCIIFolding.hpp"
 #include "../Utils/FixModelByWin10.hpp"
+#include "../Utils/PrintHost.hpp"
 #include "../Utils/UndoRedo.hpp"
 #include "../Utils/PresetUpdater.hpp"
 #include "../Utils/Process.hpp"
@@ -118,7 +119,7 @@
 #include "Gizmos/GLGizmoSVG.hpp" // Drop SVG file
 #include "Gizmos/GizmoObjectManipulation.hpp"
 
-#include <wx/textdlg.h>
+#include <wx/textctrl.h>
 
 // BBS
 #include "Widgets/ProgressDialog.hpp"
@@ -148,7 +149,6 @@
 #include "libslic3r/Platform.hpp"
 #include "nlohmann/json.hpp"
 
-#include "PhysicalPrinterDialog.hpp"
 #include "PrintHostDialogs.hpp"
 #include "PlateSettingsDialog.hpp"
 #include "DailyTips.hpp"
@@ -192,8 +192,6 @@ wxDEFINE_EVENT(EVT_INSTALL_PLUGIN_NETWORKING,       wxCommandEvent);
 wxDEFINE_EVENT(EVT_UPDATE_PLUGINS_WHEN_LAUNCH,       wxCommandEvent);
 wxDEFINE_EVENT(EVT_INSTALL_PLUGIN_HINT,             wxCommandEvent);
 wxDEFINE_EVENT(EVT_PREVIEW_ONLY_MODE_HINT,          wxCommandEvent);
-//BBS: change light/dark mode
-wxDEFINE_EVENT(EVT_GLCANVAS_COLOR_MODE_CHANGED,     SimpleEvent);
 //BBS: print
 wxDEFINE_EVENT(EVT_PRINT_FROM_SDCARD_VIEW,          SimpleEvent);
 
@@ -266,7 +264,6 @@ SlicedInfo::SlicedInfo(wxWindow *parent) :
     wxStaticBoxSizer(new wxStaticBox(parent, wxID_ANY, _L("Sliced Info")), wxVERTICAL)
 {
     GetStaticBox()->SetFont(wxGetApp().bold_font());
-    wxGetApp().UpdateDarkUI(GetStaticBox());
 
     auto *grid_sizer = new wxFlexGridSizer(2, 5, 15);
     grid_sizer->SetFlexibleDirection(wxVERTICAL);
@@ -658,17 +655,11 @@ Sidebar::Sidebar(Plater *parent)
     // But if we set this value to 5, layout will be better
     //p->scrolled->SetScrollRate(0, 5);
     p->scrolled->SetBackgroundColour(*wxWHITE);
+    p->scrolled->SetForegroundColour(wxGetApp().get_label_clr_default());
 
 
     SetFont(wxGetApp().normal_font());
-#ifndef __APPLE__
-#ifdef _WIN32
-    wxGetApp().UpdateDarkUI(this);
-    wxGetApp().UpdateDarkUI(p->scrolled);
-#else
-    SetBackgroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW));
-#endif
-#endif
+    SetBackgroundColour(wxGetApp().get_window_default_clr());
 
     int em = wxGetApp().em_unit();
     //BBS refine layout and styles
@@ -739,6 +730,7 @@ Sidebar::Sidebar(Plater *parent)
         /*************************** 2. add printer content ************************/
         p->m_panel_printer_content = new wxPanel(p->scrolled, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL);
         p->m_panel_printer_content->SetBackgroundColour(wxColour(255, 255, 255));
+        p->m_panel_printer_content->SetForegroundColour(wxGetApp().get_label_clr_default());
 
         PlaterPresetComboBox* combo_printer = new PlaterPresetComboBox(p->m_panel_printer_content, Preset::TYPE_PRINTER);
         ScalableButton* edit_btn = new ScalableButton(p->m_panel_printer_content, wxID_ANY, "edit");
@@ -753,15 +745,6 @@ Sidebar::Sidebar(Plater *parent)
         combo_printer->edit_btn = edit_btn;
         p->combo_printer = combo_printer;
 
-        connection_btn = new ScalableButton(p->m_panel_printer_content, wxID_ANY, "monitor_signal_strong");
-        connection_btn->SetBackgroundColour(wxColour(255, 255, 255));
-        connection_btn->SetToolTip(_L("Connection"));
-        connection_btn->Bind(wxEVT_BUTTON, [this, combo_printer](wxCommandEvent)
-            {
-                PhysicalPrinterDialog dlg(this->GetParent());
-                dlg.ShowModal();
-            });
-
         wxBoxSizer* vsizer_printer = new wxBoxSizer(wxVERTICAL);
 
         vsizer_printer->AddSpacer(FromDIP(16));
@@ -769,7 +752,7 @@ Sidebar::Sidebar(Plater *parent)
         // Printer host selection (above machine preset)
         {
             wxBoxSizer* host_sizer = new wxBoxSizer(wxHORIZONTAL);
-            wxStaticText* host_title = new wxStaticText(p->m_panel_printer_content, wxID_ANY, _L("Host"));
+            wxStaticText* host_title = new wxStaticText(p->m_panel_printer_content, wxID_ANY, _L("Connection"));
             host_title->Wrap(-1);
             host_title->SetFont(Label::Body_14);
 
@@ -798,9 +781,63 @@ Sidebar::Sidebar(Plater *parent)
             });
 
             m_btn_add_host->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
-                wxTextEntryDialog dlg(this, _L("Enter printer host address:"), _L("Add Printer Host"), "");
+                wxDialog dlg(this, wxID_ANY, _L("Add Printer Host"));
+                auto* main_sizer = new wxBoxSizer(wxVERTICAL);
+
+                auto* label = new wxStaticText(&dlg, wxID_ANY, _L("Enter printer host address:"));
+                auto* host_input = new wxTextCtrl(&dlg, wxID_ANY, "", wxDefaultPosition, wxSize(FromDIP(320), -1));
+
+                auto* button_sizer = new wxBoxSizer(wxHORIZONTAL);
+                auto* test_btn = new wxButton(&dlg, wxID_ANY, _L("Test"));
+                auto* cancel_btn = new wxButton(&dlg, wxID_CANCEL, _L("Cancel"));
+                auto* ok_btn = new wxButton(&dlg, wxID_OK, _L("OK"));
+
+                test_btn->Bind(wxEVT_BUTTON, [this, host_input](wxCommandEvent&) {
+                    std::string host = host_input->GetValue().ToUTF8().data();
+                    boost::trim(host);
+                    if (host.empty()) {
+                        show_error(this, _L("Please enter printer host address."));
+                        return;
+                    }
+
+                    DynamicPrintConfig test_cfg = wxGetApp().preset_bundle->printers.get_edited_preset().config;
+                    test_cfg.opt_string("print_host") = host;
+
+                    std::unique_ptr<PrintHost> print_host(PrintHost::get_print_host(&test_cfg));
+                    if (!print_host) {
+                        show_error(this, _L("Could not get a valid Printer Host reference"));
+                        return;
+                    }
+
+                    wxString msg;
+                    bool result;
+                    {
+                        wxBusyCursor wait;
+                        result = print_host->test(msg);
+                    }
+
+                    if (result)
+                        show_info(this, print_host->get_test_ok_msg(), _L("Success!"));
+                    else
+                        show_error(this, print_host->get_test_failed_msg(msg));
+                });
+
+                main_sizer->Add(label, 0, wxLEFT | wxRIGHT | wxTOP, FromDIP(12));
+                main_sizer->Add(host_input, 0, wxEXPAND | wxALL, FromDIP(12));
+
+                button_sizer->Add(test_btn, 0, wxRIGHT, FromDIP(8));
+                button_sizer->AddStretchSpacer(1);
+                button_sizer->Add(cancel_btn, 0, wxRIGHT, FromDIP(8));
+                button_sizer->Add(ok_btn, 0);
+                main_sizer->Add(button_sizer, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, FromDIP(12));
+
+                dlg.SetSizerAndFit(main_sizer);
+                dlg.SetMinSize(dlg.GetSize());
+                host_input->SetFocus();
+
                 if (dlg.ShowModal() == wxID_OK) {
-                    std::string new_host = dlg.GetValue().ToUTF8().data();
+                    std::string new_host = host_input->GetValue().ToUTF8().data();
+                    boost::trim(new_host);
                     if (!new_host.empty()) {
                         AppConfig *app_config = wxGetApp().app_config;
                         app_config->add_printer_host(new_host);
@@ -838,70 +875,16 @@ Sidebar::Sidebar(Plater *parent)
         }
 
         wxBoxSizer* hsizer_printer = new wxBoxSizer(wxHORIZONTAL);
-        wxStaticText* printer_title = new wxStaticText(p->m_panel_printer_content, wxID_ANY, _L("Nozzle"));
+        wxStaticText* printer_title = new wxStaticText(p->m_panel_printer_content, wxID_ANY, _L("Printer"));
         printer_title->Wrap(-1);
         printer_title->SetFont(Label::Body_14);
         hsizer_printer->Add(printer_title, 0, wxLEFT | wxALIGN_CENTER_VERTICAL, FromDIP(SidebarProps::ContentMargin()));
         hsizer_printer->Add(combo_printer, 1, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()));
         hsizer_printer->Add(edit_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()));
-        hsizer_printer->Add(connection_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::IconSpacing()));
         hsizer_printer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
         vsizer_printer->Add(hsizer_printer, 0, wxEXPAND, 0);
 
-        // Bed type selection
-        wxBoxSizer* bed_type_sizer = new wxBoxSizer(wxHORIZONTAL);
-        wxStaticText* bed_type_title = new wxStaticText(p->m_panel_printer_content, wxID_ANY, _L("Bed type"));
-        bed_type_title->Wrap(-1);
-        bed_type_title->SetFont(Label::Body_14);
-        m_bed_type_list = new ComboBox(p->m_panel_printer_content, wxID_ANY, wxString(""), wxDefaultPosition, {-1, FromDIP(30)}, 0, nullptr, wxCB_READONLY);
-        const ConfigOptionDef* bed_type_def = print_config_def.get("curr_bed_type");
-        if (bed_type_def && bed_type_def->enum_keys_map) {
-            for (auto item : bed_type_def->enum_labels) {
-                m_bed_type_list->AppendString(_L(item));
-            }
-        }
-
-        bed_type_title->Bind(wxEVT_ENTER_WINDOW, [bed_type_title, this](wxMouseEvent &e) {
-            e.Skip();
-            auto font = bed_type_title->GetFont();
-            font.SetUnderlined(true);
-            bed_type_title->SetFont(font);
-            SetCursor(wxCURSOR_HAND);
-        });
-        bed_type_title->Bind(wxEVT_LEAVE_WINDOW, [bed_type_title, this](wxMouseEvent &e) {
-            e.Skip();
-            auto font = bed_type_title->GetFont();
-            font.SetUnderlined(false);
-            bed_type_title->SetFont(font);
-            SetCursor(wxCURSOR_ARROW);
-        });
-
-        AppConfig *app_config = wxGetApp().app_config;
-        std::string str_bed_type = app_config->get("curr_bed_type");
-        int bed_type_value = atoi(str_bed_type.c_str());
-        // hotfix: btDefault is added as the first one in BedType, and app_config should not be btDefault
-        if (bed_type_value == 0) {
-            app_config->set("curr_bed_type", "1");
-            bed_type_value = 1;
-        }
-
-        int bed_type_idx = bed_type_value - 1;
-        m_bed_type_list->Select(bed_type_idx);
-        bed_type_sizer->Add(bed_type_title, 0, wxLEFT | wxALIGN_CENTER_VERTICAL, FromDIP(SidebarProps::ContentMargin()));
-        bed_type_sizer->Add(m_bed_type_list, 1, wxLEFT | wxEXPAND, FromDIP(SidebarProps::ElementSpacing()));
-        bed_type_sizer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
-        vsizer_printer->Add(bed_type_sizer, 0, wxEXPAND | wxTOP, FromDIP(5));
         vsizer_printer->AddSpacer(FromDIP(16));
-
-        auto& project_config = wxGetApp().preset_bundle->project_config;
-        /*const t_config_enum_values* keys_map = print_config_def.get("curr_bed_type")->enum_keys_map;
-        BedType bed_type = btCount;
-        for (auto item : *keys_map) {
-            if (item.first == str_bed_type)
-                bed_type = (BedType)item.second;
-        }*/
-        BedType bed_type = (BedType)bed_type_value;
-        project_config.set_key_value("curr_bed_type", new ConfigOptionEnum<BedType>(bed_type));
 
         p->m_panel_printer_content->SetSizer(vsizer_printer);
         p->m_panel_printer_content->Layout();
@@ -1299,12 +1282,9 @@ void Sidebar::update_all_preset_comboboxes()
     auto cfg = preset_bundle.printers.get_edited_preset().config;
 
     if (preset_bundle.use_bbl_network()) {
-        //only show connection button for not-BBL printer
-        connection_btn->Hide();
         //update print button default value for bbl or third-party printer
         p_mainframe->set_print_button_to_default(MainFrame::PrintSelectType::ePrintPlate);
     } else {
-        connection_btn->Show();
         auto print_btn_type = MainFrame::PrintSelectType::eExportGcode;
         wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
         wxString apikey;
@@ -1338,30 +1318,6 @@ void Sidebar::update_all_preset_comboboxes()
 
     //p->m_staticText_filament_settings->Update();
 
-    if (is_bbl_vendor || cfg.opt_bool("support_multi_bed_types")) {
-        m_bed_type_list->Enable();
-        // Orca: don't update bed type if loading project
-        if (!p->plater->is_loading_project()) {
-            auto str_bed_type = wxGetApp().app_config->get_printer_setting(wxGetApp().preset_bundle->printers.get_selected_preset_name(),
-                                                                           "curr_bed_type");
-            if (!str_bed_type.empty()) {
-                int bed_type_value = atoi(str_bed_type.c_str());
-                if (bed_type_value <= 0 || bed_type_value >= btCount) {
-                    bed_type_value = preset_bundle.printers.get_edited_preset().get_default_bed_type(&preset_bundle);
-                }
-
-                m_bed_type_list->SelectAndNotify(bed_type_value - 1);
-            } else {
-                BedType bed_type = preset_bundle.printers.get_edited_preset().get_default_bed_type(&preset_bundle);
-                m_bed_type_list->SelectAndNotify((int) bed_type - 1);
-            }
-        }
-    } else {
-        // m_bed_type_list->SelectAndNotify(btPEI - 1);
-        BedType bed_type = preset_bundle.printers.get_edited_preset().get_default_bed_type(&preset_bundle);
-        m_bed_type_list->SelectAndNotify((int) bed_type - 1);
-        m_bed_type_list->Disable();
-    }
 
     // Update the print choosers to only contain the compatible presets, update the dirty flags.
     //BBS
@@ -1521,9 +1477,6 @@ void Sidebar::msw_rescale()
         p->m_printer_setting->msw_rescale();
     p->m_filament_icon->msw_rescale();
     p->m_flushing_volume_btn->Rescale();
-    //BBS
-    m_bed_type_list->Rescale();
-    m_bed_type_list->SetMinSize({-1, 3 * wxGetApp().em_unit()});
 #if 0
     if (p->mode_sizer)
         p->mode_sizer->msw_rescale();
@@ -1576,14 +1529,12 @@ void Sidebar::sys_color_changed()
 
 #if 0
     for (wxWindow* win : std::vector<wxWindow*>{ this, p->sliced_info->GetStaticBox(), p->object_info->GetStaticBox(), p->btn_reslice, p->btn_export_gcode })
-        wxGetApp().UpdateDarkUI(win);
     p->object_info->msw_rescale();
 
     for (wxWindow* win : std::vector<wxWindow*>{ p->scrolled, p->presets_panel })
-        wxGetApp().UpdateAllStaticTextDarkUI(win);
+        (void)win; // unused
 #endif
     //for (wxWindow* btn : std::vector<wxWindow*>{ p->btn_reslice, p->btn_export_gcode })
-    //    wxGetApp().UpdateDarkUI(btn, true);
     p->m_printer_icon->msw_rescale();
     if (p->m_printer_setting)
         p->m_printer_setting->msw_rescale();
@@ -1735,13 +1686,6 @@ void Sidebar::add_custom_filament(wxColour new_col) {
     auto_calc_flushing_volumes(filament_count - 1);
 }
 
-void Sidebar::on_bed_type_change(BedType bed_type)
-{
-    // btDefault option is not included in global bed type setting
-    int sel_idx = (int)bed_type - 1;
-    if (m_bed_type_list != nullptr)
-        m_bed_type_list->SetSelection(sel_idx);
-}
 
 std::map<int, DynamicPrintConfig> Sidebar::build_filament_ams_list(MachineObject* obj)
 {
@@ -2033,13 +1977,6 @@ bool Sidebar::is_collapsed() { return p->plater->is_sidebar_collapsed(); }
 
 void Sidebar::collapse(bool collapse) { p->plater->collapse_sidebar(collapse); }
 
-#ifdef _MSW_DARK_MODE
-void Sidebar::show_mode_sizer(bool show)
-{
-    //p->mode_sizer->Show(show);
-}
-#endif
-
 void Sidebar::update_ui_from_settings()
 {
     // BBS
@@ -2240,13 +2177,11 @@ enum ExportingStatus{
 };
 
 
-// TODO: listen on dark ui change
 class FloatFrame : public wxAuiFloatingFrame
 {
 public:
     FloatFrame(wxWindow* parent, wxAuiManager* ownerMgr, const wxAuiPaneInfo& pane) : wxAuiFloatingFrame(parent, ownerMgr, pane)
     {
-        wxGetApp().UpdateFrameDarkUI(this);
     }
 };
 
@@ -2360,8 +2295,6 @@ struct Plater::priv
     static const std::regex pattern_zip_amf;
     static const std::regex pattern_any_amf;
     static const std::regex pattern_prusa;
-
-    bool m_is_dark = false;
 
     priv(Plater *q, MainFrame *main_frame);
     ~priv();
@@ -2594,7 +2527,6 @@ struct Plater::priv
     void set_current_panel(wxPanel* panel, bool no_slice = true);
 
     void on_combobox_select(wxCommandEvent&);
-    void on_select_bed_type(wxCommandEvent&);
     void on_select_preset(wxCommandEvent&);
     void on_slicing_update(SlicingStatusEvent&);
     void on_slicing_completed(wxCommandEvent&);
@@ -2652,9 +2584,7 @@ struct Plater::priv
     void on_action_export_sliced_file(SimpleEvent&);
     void on_action_export_all_sliced_file(SimpleEvent&);
     void on_action_select_sliced_plate(wxCommandEvent& evt);
-    //BBS: change dark/light mode
-    void on_change_color_mode(SimpleEvent& evt);
-    void on_apple_change_color_mode(wxSysColourChangedEvent& evt);
+    //BBS
     void apply_color_mode();
     void on_update_geometry(Vec3dsEvent<2>&);
     void on_3dcanvas_mouse_dragging_started(SimpleEvent&);
@@ -2852,8 +2782,6 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     //BBS :partplatelist construction
     , partplate_list(this->q, &model)
 {
-    m_is_dark = wxGetApp().app_config->get("dark_color_mode") == "1";
-
     m_aui_mgr.SetManagedWindow(q);
     m_aui_mgr.SetDockSizeConstraint(1, 1);
     //m_aui_mgr.GetArtProvider()->SetMetric(wxAUI_DOCKART_PANE_BORDER_SIZE, 0);
@@ -2897,8 +2825,6 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     this->q->Bind(EVT_INSTALL_PLUGIN_HINT, &priv::show_install_plugin_hint, this);
     this->q->Bind(EVT_UPDATE_PLUGINS_WHEN_LAUNCH, &priv::update_plugin_when_launch, this);
     this->q->Bind(EVT_PREVIEW_ONLY_MODE_HINT, &priv::show_preview_only_hint, this);
-    this->q->Bind(EVT_GLCANVAS_COLOR_MODE_CHANGED, &priv::on_change_color_mode, this);
-    this->q->Bind(wxEVT_SYS_COLOUR_CHANGED, &priv::on_apple_change_color_mode, this);
     this->q->Bind(EVT_CREATE_FILAMENT, &priv::on_create_filament, this);
     this->q->Bind(EVT_MODIFY_FILAMENT, &priv::on_modify_filament, this);
     this->q->Bind(EVT_ADD_CUSTOM_FILAMENT, &priv::on_add_custom_filament, this);
@@ -2938,6 +2864,9 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
                                    .TopDockable(false)
                                    .BottomDockable(false)
                                    .Floatable(true)
+                                   .CaptionVisible(false)
+                                   .PaneBorder(false)
+                                   .Gripper(false)
                                    .BestSize(wxSize(42 * wxGetApp().em_unit(), 90 * wxGetApp().em_unit())));
 
     auto* panel_sizer = new wxBoxSizer(wxHORIZONTAL);
@@ -2959,6 +2888,8 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
             m_aui_mgr.LoadPerspective(layout, false);
             sidebar_layout.is_collapsed = !sidebar.IsShown();
         }
+        // Always enforce no caption/border on sidebar after loading perspective
+        sidebar.CaptionVisible(false).PaneBorder(false).Gripper(false);
 
         // Keep tracking the current sidebar size, by storing it using `best_size`, which will be stored
         // in the config and re-applied when the app is opened again.
@@ -3550,6 +3481,8 @@ void Plater::priv::update_sidebar(bool force_update) {
 void Plater::priv::reset_window_layout()
 {
     m_aui_mgr.LoadPerspective(m_default_window_layout, false);
+    auto& pane = m_aui_mgr.GetPane(sidebar);
+    pane.CaptionVisible(false).PaneBorder(false).Gripper(false);
     sidebar_layout.is_collapsed = false;
     update_sidebar(true);
 }
@@ -4103,18 +4036,6 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
 
                             preset_bundle->load_config_model(filename.string(), std::move(config), file_version);
 
-                            ConfigOption* bed_type_opt = preset_bundle->project_config.option("curr_bed_type");
-                            if (bed_type_opt != nullptr) {
-                                BedType bed_type = (BedType)bed_type_opt->getInt();
-                                // update app config for bed type
-                                bool is_bbl_preset = preset_bundle->is_bbl_vendor();
-                                if (is_bbl_preset) {
-                                    AppConfig* app_config = wxGetApp().app_config;
-                                    if (app_config)
-                                        app_config->set("curr_bed_type", std::to_string(int(bed_type)));
-                                }
-                                q->on_bed_type_change(bed_type);
-                            }
 
                             // BBS: moved this logic to presetcollection
                             //{
@@ -6574,64 +6495,7 @@ void Plater::priv::set_current_panel(wxPanel* panel, bool no_slice)
 // BBS
 void Plater::priv::on_combobox_select(wxCommandEvent &evt)
 {
-    PlaterPresetComboBox* preset_combo_box = dynamic_cast<PlaterPresetComboBox*>(evt.GetEventObject());
-    if (preset_combo_box) {
-        this->on_select_preset(evt);
-    }
-    else {
-        this->on_select_bed_type(evt);
-    }
-}
-
-void Plater::priv::on_select_bed_type(wxCommandEvent &evt)
-{
-    ComboBox* combo = static_cast<ComboBox*>(evt.GetEventObject());
-    int selection = combo->GetSelection();
-    std::string bed_type_name = print_config_def.get("curr_bed_type")->enum_values[selection];
-
-    PresetBundle& preset_bundle = *wxGetApp().preset_bundle;
-    DynamicPrintConfig& proj_config = wxGetApp().preset_bundle->project_config;
-    const t_config_enum_values* keys_map = print_config_def.get("curr_bed_type")->enum_keys_map;
-
-    if (keys_map) {
-        BedType new_bed_type = btCount;
-        for (auto item : *keys_map) {
-            if (item.first == bed_type_name) {
-                new_bed_type = (BedType)item.second;
-                break;
-            }
-        }
-
-        if (new_bed_type != btCount) {
-            BedType old_bed_type = proj_config.opt_enum<BedType>("curr_bed_type");
-            if (old_bed_type != new_bed_type) {
-                proj_config.set_key_value("curr_bed_type", new ConfigOptionEnum<BedType>(new_bed_type));
-
-                wxGetApp().plater()->update_project_dirty_from_presets();
-
-                // update plater with new config
-                q->on_config_change(wxGetApp().preset_bundle->full_config());
-
-                // update app_config
-                AppConfig* app_config = wxGetApp().app_config;
-                app_config->set("curr_bed_type", std::to_string(int(new_bed_type)));
-                app_config->set_printer_setting(wxGetApp().preset_bundle->printers.get_selected_preset_name(),
-                                                "curr_bed_type", std::to_string(int(new_bed_type)));
-
-                //update slice status
-                auto plate_list = partplate_list.get_plate_list();
-                for (auto plate : plate_list) {
-                    if (plate->get_bed_type() == btDefault) {
-                        plate->update_slice_result_valid_state(false);
-                    }
-                }
-
-                // update render
-                view3D->get_canvas3d()->render();
-                preview->msw_rescale();
-            }
-        }
-    }
+    this->on_select_preset(evt);
 }
 
 void Plater::priv::on_select_preset(wxCommandEvent &evt)
@@ -7560,37 +7424,15 @@ void Plater::priv::show_preview_only_hint(wxCommandEvent &event)
     notification_manager->bbl_show_preview_only_notification(into_u8(_L("Preview only mode:\nThe loaded file contains G-code only, cannot enter the Prepare page.")));
 }
 
-void Plater::priv::on_apple_change_color_mode(wxSysColourChangedEvent& evt) {
-    m_is_dark = wxSystemSettings::GetAppearance().IsDark();
-    if (view3D->get_canvas3d() && view3D->get_canvas3d()->is_initialized()) {
-        view3D->get_canvas3d()->on_change_color_mode(m_is_dark);
-        preview->get_canvas3d()->on_change_color_mode(m_is_dark);
-        assemble_view->get_canvas3d()->on_change_color_mode(m_is_dark);
-    }
-
-    apply_color_mode();
-}
-
-void Plater::priv::on_change_color_mode(SimpleEvent& evt) {
-    m_is_dark = wxGetApp().app_config->get("dark_color_mode") == "1";
-    view3D->get_canvas3d()->on_change_color_mode(m_is_dark);
-    preview->get_canvas3d()->on_change_color_mode(m_is_dark);
-    assemble_view->get_canvas3d()->on_change_color_mode(m_is_dark);
-    if (m_send_to_sdcard_dlg) m_send_to_sdcard_dlg->on_change_color_mode();
-
-    apply_color_mode();
-}
-
 void Plater::priv::apply_color_mode()
 {
-    const bool is_dark         = wxGetApp().dark_mode();
     wxColour   orca_color      = wxColour(70, 59, 59);//wxColour(ColorRGBA::ORCA().r_uchar(), ColorRGBA::ORCA().g_uchar(), ColorRGBA::ORCA().b_uchar());
-    orca_color                 = is_dark ? StateColor::darkModeColorFor(orca_color) : StateColor::lightModeColorFor(orca_color);
-    wxColour sash_color = is_dark ? wxColour(48, 38, 38) : wxColour(206, 206, 206);
+    orca_color                 = StateColor::lightModeColorFor(orca_color);
+    wxColour sash_color = wxColour(206, 206, 206);
     m_aui_mgr.GetArtProvider()->SetColour(wxAUI_DOCKART_INACTIVE_CAPTION_COLOUR, sash_color);
     m_aui_mgr.GetArtProvider()->SetColour(wxAUI_DOCKART_INACTIVE_CAPTION_TEXT_COLOUR, *wxWHITE);
     m_aui_mgr.GetArtProvider()->SetColour(wxAUI_DOCKART_SASH_COLOUR, sash_color);
-    m_aui_mgr.GetArtProvider()->SetColour(wxAUI_DOCKART_BORDER_COLOUR, is_dark ? *wxBLACK : wxColour(165, 165, 165));
+    m_aui_mgr.GetArtProvider()->SetColour(wxAUI_DOCKART_BORDER_COLOUR, wxColour(165, 165, 165));
 }
 
 static void get_position(wxWindowBase* child, wxWindowBase* until_parent, int& x, int& y) {
@@ -8051,7 +7893,7 @@ bool Plater::priv::init_collapse_toolbar()
         return true;
 
     BackgroundTexture::Metadata background_data;
-    background_data.filename = m_is_dark ? "toolbar_background_dark.png" : "toolbar_background.png";
+    background_data.filename = "toolbar_background.png";
     background_data.left = 16;
     background_data.top = 16;
     background_data.right = 16;
@@ -10488,13 +10330,6 @@ void Plater::load_gcode(const wxString& filename)
     *current_result = std::move(processor.extract_result());
     //current_result->filename = filename;
 
-    BedType bed_type = current_result->bed_type;
-    if (bed_type != BedType::btCount) {
-        DynamicPrintConfig &proj_config = wxGetApp().preset_bundle->project_config;
-        proj_config.set_key_value("curr_bed_type", new ConfigOptionEnum<BedType>(bed_type));
-        on_bed_type_change(bed_type);
-    }
-
     current_print.apply(this->model(), wxGetApp().preset_bundle->full_config());
 
     //BBS: add cost info when drag in gcode
@@ -10931,8 +10766,6 @@ ProjectDropDialog::ProjectDropDialog(const std::string &filename)
 
     m_fname_f->SetLabel(fstring);
     m_fname_s->SetLabel(bstring);
-
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 wxBoxSizer *ProjectDropDialog::create_remember_checkbox(wxString title, wxWindow *parent, wxString tooltip)
@@ -11570,7 +11403,6 @@ static long GetNumberFromUser(  const wxString& msg,
 {
 #ifdef _WIN32
     wxNumberEntryDialog dialog(parent, msg, prompt, title, value, min, max, wxDefaultPosition);
-    wxGetApp().UpdateDlgDarkUI(&dialog);
     if (dialog.ShowModal() == wxID_OK)
         return dialog.GetValue();
 
@@ -13157,11 +12989,6 @@ void Plater::on_filaments_change(size_t num_filaments)
             mv->update_extruder_count(num_filaments);
         }
     }
-}
-
-void Plater::on_bed_type_change(BedType bed_type)
-{
-    sidebar().on_bed_type_change(bed_type);
 }
 
 bool Plater::update_filament_colors_in_full_config()

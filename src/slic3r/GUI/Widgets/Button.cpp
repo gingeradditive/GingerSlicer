@@ -152,7 +152,7 @@ void Button::SetCenter(bool isCenter)
 }
 
 //                           Background                                             Foreground                       Border on focus
-// Button Colors             0-Disabled 1-Pressed  2-Hover    3-Normal   4-Enabled  5-Disabled 6-Normal   7-Hover    8-Dark     9-Light
+// Button Colors             0-Disabled 1-Pressed  2-Hover    3-Normal   4-Enabled  5-Disabled 6-Normal   7-Hover    8-Focus
 wxString btn_regular[10]  = {"#DFDFDF", "#DFDFDF", "#D4D4D4", "#DFDFDF", "#DFDFDF", "#6B6A6A", "#262E30", "#262E30", "#d72828", "#d72828"};
 wxString btn_confirm[10]  = {"#DFDFDF", "#d72828", "#26A69A", "#d72828", "#d72828", "#6B6A6A", "#FEFEFE", "#FEFEFE", "#26A69A", "#00FFD4"};
 wxString btn_alert[10]    = {"#DFDFDF", "#DFDFDF", "#E14747", "#DFDFDF", "#DFDFDF", "#6B6A6A", "#262E30", "#FFFFFD", "#d72828", "#d72828"};
@@ -192,8 +192,6 @@ void Button::SetStyle(const ButtonStyle style, const ButtonType type)
 
     this->SetBorderWidth(this->FromDIP(1));
 
-    bool is_dark = StateColor::darkModeColorFor("#FFFFFF") != wxColour("#FFFFFF");
-
     auto clr_arr = style == ButtonStyle::Regular  ? btn_regular  :
                    style == ButtonStyle::Confirm  ? btn_confirm  :
                    style == ButtonStyle::Alert    ? btn_alert    :
@@ -211,7 +209,7 @@ void Button::SetStyle(const ButtonStyle style, const ButtonType type)
     this->SetBorderColor(StateColor(
         std::pair(wxColour(clr_arr[3]), (int)StateColor::NotFocused),
         std::pair(wxColour(clr_arr[0]), (int)StateColor::Disabled),
-        std::pair(wxColour(clr_arr[is_dark ? 8 : 9]), (int)StateColor::Focused)
+        std::pair(wxColour(clr_arr[8]), (int)StateColor::Focused)
     ));
     this->SetTextColor(StateColor(
         std::pair(wxColour(clr_arr[5]), (int)StateColor::Disabled),

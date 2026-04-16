@@ -43,11 +43,8 @@ public:
 void BBLTopbarArt::DrawLabel(wxDC& dc, wxWindow* wnd, const wxAuiToolBarItem& item, const wxRect& rect)
 {
     dc.SetFont(m_font);
-#ifdef __WINDOWS__
-    dc.SetTextForeground(wxSystemSettings::GetColour(wxSYS_COLOUR_HIGHLIGHTTEXT));
-#else
+
     dc.SetTextForeground(*wxWHITE);
-#endif
 
     int textWidth = 0, textHeight = 0;
     dc.GetTextExtent(item.GetLabel(), &textWidth, &textHeight);
@@ -134,19 +131,19 @@ void BBLTopbarArt::DrawButton(wxDC& dc, wxWindow* wnd, const wxAuiToolBarItem& i
     {
         if (item.GetState() & wxAUI_BUTTON_STATE_PRESSED)
         {
-            dc.SetPen(wxPen(StateColor::darkModeColorFor("#d72828"))); // ORCA
-            dc.SetBrush(wxBrush(StateColor::darkModeColorFor("#d72828"))); // ORCA
+            dc.SetPen(wxPen("#d72828")); // ORCA
+            dc.SetBrush(wxBrush("#d72828")); // ORCA
             dc.DrawRectangle(rect);
         }
         else if ((item.GetState() & wxAUI_BUTTON_STATE_HOVER) || item.IsSticky())
         {
-            dc.SetPen(wxPen(StateColor::darkModeColorFor("#d72828"))); // ORCA
-            dc.SetBrush(wxBrush(StateColor::darkModeColorFor("#d72828"))); // ORCA
+            dc.SetPen(wxPen("#d72828")); // ORCA
+            dc.SetBrush(wxBrush("#d72828")); // ORCA
 
             // draw an even lighter background for checked item hovers (since
             // the hover background is the same color as the check background)
             if (item.GetState() & wxAUI_BUTTON_STATE_CHECKED)
-                dc.SetBrush(wxBrush(StateColor::darkModeColorFor("#d72828"))); // ORCA
+                dc.SetBrush(wxBrush("#d72828")); // ORCA
 
             dc.DrawRectangle(rect);
         }
@@ -154,8 +151,8 @@ void BBLTopbarArt::DrawButton(wxDC& dc, wxWindow* wnd, const wxAuiToolBarItem& i
         {
             // it's important to put this code in an else statement after the
             // hover, otherwise hovers won't draw properly for checked items
-            dc.SetPen(wxPen(StateColor::darkModeColorFor("#d72828"))); // ORCA
-            dc.SetBrush(wxBrush(StateColor::darkModeColorFor("#d72828"))); // ORCA
+            dc.SetPen(wxPen("#d72828")); // ORCA
+            dc.SetBrush(wxBrush("#d72828")); // ORCA
             dc.DrawRectangle(rect);
         }
     }
@@ -163,15 +160,10 @@ void BBLTopbarArt::DrawButton(wxDC& dc, wxWindow* wnd, const wxAuiToolBarItem& i
     if (bmp.IsOk())
         dc.DrawBitmap(bmp, bmpX, bmpY, true);
 
-    // set the item's text color based on if it is disabled
-#ifdef __WINDOWS__
-    dc.SetTextForeground(wxSystemSettings::GetColour(wxSYS_COLOUR_HIGHLIGHTTEXT));
-#else
-    dc.SetTextForeground(*wxWHITE);
-#endif
+    dc.SetTextForeground(Slic3r::GUI::wxGetApp().get_label_clr_default());
     if (item.GetState() & wxAUI_BUTTON_STATE_DISABLED)
     {
-        dc.SetTextForeground(wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT));
+        dc.SetTextForeground(wxColour(128, 128, 128));
     }
 
     if ((m_flags & wxAUI_TB_TEXT) && !item.GetLabel().empty())
@@ -212,7 +204,7 @@ void BBLTopbar::Init(wxFrame* parent)
     wxBitmap file_bitmap = create_scaled_bitmap("topbar_file", nullptr, TOPBAR_ICON_SIZE);
     m_file_menu_item = this->AddTool(ID_TOP_FILE_MENU, _L("File"), file_bitmap, wxEmptyString, wxITEM_NORMAL);
 
-    this->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_HIGHLIGHTTEXT));
+    this->SetForegroundColour(Slic3r::GUI::wxGetApp().get_label_clr_default());
 
     this->AddSpacer(FromDIP(5));
 

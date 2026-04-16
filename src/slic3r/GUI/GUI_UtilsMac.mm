@@ -21,6 +21,19 @@ void staticbox_remove_margin(wxStaticBox* sb) {
     [nativeBox setBorderWidth:0];
 }
 
+float mac_max_scaling_factor() {
+    // Get the maximum scaling factor across all screens
+    float max_scale = 1.0f;
+    NSArray *screens = [NSScreen screens];
+    for (NSScreen *screen in screens) {
+        float scale = screen.backingScaleFactor;
+        if (scale > max_scale) {
+            max_scale = scale;
+        }
+    }
+    return max_scale;
+}
+
 bool is_debugger_present()
 // Returns true if the current process is being debugged (either
 // running under the debugger or has a debugger attached post facto).
@@ -53,6 +66,34 @@ bool is_debugger_present()
     // We're being debugged if the P_TRACED flag is set.
 
     return ( (info.kp_proc.p_flag & P_TRACED) != 0 );
+}
+
+void set_miniaturizable(WXWidget widget)
+{
+    id native_widget = (id)widget;
+    NSWindow* window = nil;
+
+    if ([native_widget isKindOfClass:[NSWindow class]]) {
+        window = (NSWindow*)native_widget;
+    } else if ([native_widget isKindOfClass:[NSView class]]) {
+        window = [(NSView*)native_widget window];
+    }
+
+    if (window) {
+        [window setStyleMask:([window styleMask] | NSWindowStyleMaskMiniaturizable)];
+    }
+}
+
+void set_title_colour_after_set_title(WXWidget widget)
+{
+    // This function is a no-op on modern macOS
+    // Title bar color is handled by the system
+}
+
+void set_tag_when_enter_full_screen(bool is_full_screen)
+{
+    // This function is a no-op
+    // Tagging behavior is handled by the system
 }
 
 }

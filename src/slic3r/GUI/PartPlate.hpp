@@ -202,13 +202,10 @@ public:
 
     static ColorRGBA SELECT_COLOR;
     static ColorRGBA UNSELECT_COLOR;
-    static ColorRGBA UNSELECT_DARK_COLOR;
     static ColorRGBA DEFAULT_COLOR;
     static ColorRGBA LINE_BOTTOM_COLOR;
     static ColorRGBA LINE_TOP_COLOR;
-    static ColorRGBA LINE_TOP_DARK_COLOR;
     static ColorRGBA LINE_TOP_SEL_COLOR;
-    static ColorRGBA LINE_TOP_SEL_DARK_COLOR;
     static ColorRGBA HEIGHT_LIMIT_BOTTOM_COLOR;
     static ColorRGBA HEIGHT_LIMIT_TOP_COLOR;
 
@@ -570,8 +567,6 @@ class PartPlateList : public ObjectBase
     bool render_plate_settings = true;
     bool render_cali_logo = true;
 
-    bool m_is_dark = false;
-
     void init();
     //compute the origin for printable plate with index i
     Vec3d compute_origin(int index, int column_count);
@@ -782,7 +777,6 @@ public:
     void postprocess_arrange_polygon(arrangement::ArrangePolygon& arrange_polygon, bool selected);
 
     /*rendering related functions*/
-    void on_change_color_mode(bool is_dark) { m_is_dark = is_dark; }
     void render(const Transform3d& view_matrix, const Transform3d& projection_matrix, bool bottom, bool only_current = false, bool only_body = false, int hover_id = -1, bool render_cali = false, bool show_grid = true);
     void set_render_option(bool bedtype_texture, bool plate_settings);
     void set_render_cali(bool value = true) { render_cali_logo = value; }

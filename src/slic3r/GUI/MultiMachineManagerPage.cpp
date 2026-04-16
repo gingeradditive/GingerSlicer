@@ -23,7 +23,6 @@ MultiMachineItem::MultiMachineItem(wxWindow* parent, MachineObject* obj)
             wxGetApp().mainframe->m_monitor->get_status_panel()->get_media_play_ctrl()->jump_to_play();
         }
     });
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 void MultiMachineItem::OnEnterWindow(wxMouseEvent& evt)
@@ -108,7 +107,7 @@ void MultiMachineItem::DrawTextWithEllipsis(wxDC& dc, const wxString& text, int 
     wxFont font = dc.GetFont();
 
     wxSize textSize = dc.GetTextExtent(text);
-    dc.SetTextForeground(StateColor::darkModeColorFor(wxColour(50, 58, 61)));
+    dc.SetTextForeground(wxColour(50, 58, 61));
     int textWidth = textSize.GetWidth();
 
     if (textWidth > maxWidth) {

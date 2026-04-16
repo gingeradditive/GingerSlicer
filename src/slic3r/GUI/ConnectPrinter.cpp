@@ -102,7 +102,6 @@ ConnectPrinterDialog::ConnectPrinterDialog(wxWindow *parent, wxWindowID id, cons
 
     m_textCtrl_code->Bind(wxEVT_TEXT, &ConnectPrinterDialog::on_input_enter, this);
     m_button_confirm->Bind(wxEVT_BUTTON, &ConnectPrinterDialog::on_button_confirm, this);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 ConnectPrinterDialog::~ConnectPrinterDialog() {}

@@ -66,7 +66,7 @@ AuFile::AuFile(wxWindow *parent, fs::path file_path, wxString file_name, Auxilia
 
     wxSize panel_size = m_type == MODEL_PICTURE ? AUFILE_PICTURES_PANEL_SIZE : AUFILE_PANEL_SIZE;
     wxPanel::Create(parent, id, pos, panel_size, style);
-    SetBackgroundColour(StateColor::darkModeColorFor(AUFILE_GREY300));
+    SetBackgroundColour(AUFILE_GREY300);
     wxBoxSizer *sizer_body = new wxBoxSizer(wxVERTICAL);
 
    SetSize(panel_size);
@@ -116,14 +116,14 @@ AuFile::AuFile(wxWindow *parent, fs::path file_path, wxString file_name, Auxilia
     
 
     auto m_text_panel = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(panel_size.x, AUFILE_TEXT_HEIGHT), wxTAB_TRAVERSAL);
-    m_text_panel->SetBackgroundColour(StateColor::darkModeColorFor(AUFILE_GREY300));
+    m_text_panel->SetBackgroundColour(AUFILE_GREY300);
     
 
     wxBoxSizer *m_text_sizer = new wxBoxSizer(wxHORIZONTAL);
     m_text_name              = new wxStaticText(m_text_panel, wxID_ANY, m_file_name, wxDefaultPosition, wxSize(panel_size.x, -1), wxST_ELLIPSIZE_END);
     m_text_name->Wrap(panel_size.x - FromDIP(10));
     m_text_name->SetFont(::Label::Body_14);
-    m_text_name->SetForegroundColour(StateColor::darkModeColorFor(*wxBLACK));
+    m_text_name->SetForegroundColour(*wxBLACK);
 
     m_input_name = new ::TextInput(m_text_panel, wxEmptyString, wxEmptyString, wxEmptyString, wxDefaultPosition, wxSize(panel_size.x - FromDIP(28), FromDIP(32)), wxTE_PROCESS_ENTER);
     m_input_name->GetTextCtrl()->SetFont(::Label::Body_13);
@@ -221,7 +221,7 @@ void AuFile::PaintBackground(wxDC &dc)
     {
         auto pen_width = FromDIP(2);
         dc.SetPen(wxPen(AUFILE_GREY500, pen_width));
-        dc.SetBrush(StateColor::darkModeColorFor(AUFILE_GREY200));
+        dc.SetBrush(AUFILE_GREY200);
         dc.DrawRoundedRectangle(pen_width / 2, pen_width / 2, size.x - pen_width / 2, size.y - pen_width / 2, AUFILE_ROUNDING);
 
         auto line_length = FromDIP(50);
@@ -240,7 +240,7 @@ void AuFile::PaintBackground(wxDC &dc)
         // ORCA match look with add button
         auto pen_width = FromDIP(2);
         dc.SetPen(wxPen(AUFILE_GREY500, pen_width));
-        dc.SetBrush(StateColor::darkModeColorFor(AUFILE_GREY200));
+        dc.SetBrush(AUFILE_GREY200);
         dc.DrawRoundedRectangle(pen_width / 2, pen_width / 2, size.x - pen_width / 2, size.y - pen_width / 2, AUFILE_ROUNDING);
         dc.DrawBitmap(m_file_bitmap.bmp(), (size.x - m_file_bitmap.GetBmpWidth()) / 2, (size.y - m_file_bitmap.GetBmpHeight()) / 2);
     }
@@ -869,11 +869,11 @@ void AuxiliaryPanel::init_tabpanel()
     m_assembly_panel          = new AuFolderPanel(m_tabpanel, AuxiliaryFolderType::ASSEMBLY_GUIDE);
     m_others_panel            = new AuFolderPanel(m_tabpanel, AuxiliaryFolderType::OTHERS);
 
-    m_tabpanel->AddPage(m_designer_panel, _L("Basic Info"), "", true);
-    m_tabpanel->AddPage(m_pictures_panel, _L("Pictures"), "", false);
-    m_tabpanel->AddPage(m_bill_of_materials_panel, _L("Bill of Materials"), "", false);
-    m_tabpanel->AddPage(m_assembly_panel, _L("Assembly Guide"), "", false);
-    m_tabpanel->AddPage(m_others_panel, _L("Others"), "", false);
+    m_tabpanel->AddPage(m_designer_panel, "", "", true);
+    m_tabpanel->AddPage(m_pictures_panel, "", "", false);
+    m_tabpanel->AddPage(m_bill_of_materials_panel, "", "", false);
+    m_tabpanel->AddPage(m_assembly_panel, "", "", false);
+    m_tabpanel->AddPage(m_others_panel, "", "", false);
 }
 
 wxWindow *AuxiliaryPanel::create_side_tools()

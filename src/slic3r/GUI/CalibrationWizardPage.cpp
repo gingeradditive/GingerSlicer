@@ -509,7 +509,6 @@ CaliPageStepGuide::CaliPageStepGuide(wxWindow* parent, wxArrayString steps,
     this->SetSizer(top_sizer);
     top_sizer->Fit(this);
 
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 void CaliPageStepGuide::set_steps(int index)
@@ -519,7 +518,6 @@ void CaliPageStepGuide::set_steps(int index)
     }
     m_text_steps[index]->SetForegroundColour(*wxBLACK);
 
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 void CaliPageStepGuide::set_steps_string(wxArrayString steps)
@@ -542,7 +540,6 @@ void CaliPageStepGuide::set_steps_string(wxArrayString steps)
     }
     m_step_sizer->AddSpacer(FromDIP(90));
 
-    wxGetApp().UpdateDarkUIWin(this);
 
     Layout();
 }

@@ -44,11 +44,6 @@ static const wxColour g_text_color = wxColour(107, 107, 107, 255);
 
 
 
-static void update_ui(wxWindow* window)
-{
-    Slic3r::GUI::wxGetApp().UpdateDarkUI(window);
-}
-
 RammingDialog::RammingDialog(wxWindow* parent,const std::string& parameters)
 : wxDialog(parent, wxID_ANY, _(L("Ramming customization")), wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE/* | wxRESIZE_BORDER*/)
 {
@@ -70,7 +65,6 @@ RammingDialog::RammingDialog(wxWindow* parent,const std::string& parameters)
         EndModal(wxID_OK);
         },wxID_OK);
 
-    wxGetApp().UpdateDlgDarkUI(this);
     this->Show();
 
     Slic3r::GUI::MessageDialog dlg(this, _(L("Ramming denotes the rapid extrusion just before a tool change in a single-extruder MM printer. Its purpose is to "
@@ -94,7 +88,6 @@ RammingPanel::RammingPanel(wxWindow* parent, const std::string& parameters)
 : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize/*,wxPoint(50,50), wxSize(800,350),wxBORDER_RAISED*/)
 {
     SetBackgroundColour(*wxWHITE);
-    update_ui(this);
 	auto sizer_chart = new wxBoxSizer(wxVERTICAL);
 	auto sizer_param = new wxBoxSizer(wxVERTICAL);
 
@@ -114,7 +107,6 @@ RammingPanel::RammingPanel(wxWindow* parent, const std::string& parameters)
 		buttons.push_back(std::make_pair(x, y));
 
 	m_chart = new Chart(this, wxRect(scale(10),scale(10),scale(480),scale(360)), buttons, ramming_speed_size, 0.25f, scale(10));
-    update_ui(m_chart);
  	sizer_chart->Add(m_chart, 0, wxALL, 5);
 
     // Create help text for constant flow rate dragging
@@ -126,7 +118,7 @@ RammingPanel::RammingPanel(wxWindow* parent, const std::string& parameters)
     wxClientDC dc(label);
     wxString multiline_message;
     label->SetFont(Label::Body_14);
-    label->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#363636")));
+    label->SetForegroundColour(wxColour("#363636"));
     label->split_lines(dc, scale(470), message, multiline_message);
     label->SetLabel(multiline_message);
     sizer_chart->Add(label, 0, wxEXPAND | wxALL, 5);
@@ -139,7 +131,7 @@ RammingPanel::RammingPanel(wxWindow* parent, const std::string& parameters)
     auto add_title = [this, sizer_param](wxString label){
         auto title = new StaticLine(this, 0, label);
         title->SetFont(Label::Head_14);
-        title->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#363636")));
+        title->SetForegroundColour(wxColour("#363636"));
         sizer_param->Add(title, 0, wxEXPAND | wxBOTTOM, scale(8));
     };
 
@@ -157,7 +149,7 @@ RammingPanel::RammingPanel(wxWindow* parent, const std::string& parameters)
         });
         auto h_sizer = new wxBoxSizer(wxHORIZONTAL);
         auto text = new wxStaticText(this, wxID_ANY, label, wxDefaultPosition, col_size);
-        text->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#363636")));
+        text->SetForegroundColour(wxColour("#363636"));
         h_sizer->Add(text, 0, wxALIGN_CENTER_VERTICAL);
         h_sizer->Add(spin);
         sizer_param->Add(h_sizer, 0, wxEXPAND | wxBOTTOM, scale(2));
@@ -345,8 +337,6 @@ WipingDialog::WipingDialog(wxWindow* parent, const std::vector<float>& matrix, c
         else
             e.Skip();
         });
-
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 void WipingPanel::create_panels(wxWindow* parent, const int num) {
@@ -403,9 +393,6 @@ WipingPanel::WipingPanel(wxWindow* parent, const std::vector<float>& matrix, con
     m_page_advanced->SetSizer(m_sizer_advanced);
     m_page_advanced->SetBackgroundColour(*wxWHITE);
 
-    update_ui(m_page_simple);
-    update_ui(m_page_advanced);
-
     auto gridsizer_simple   = new wxGridSizer(3, 5, 10);
     m_gridsizer_advanced = new wxGridSizer(m_number_of_extruders + 1, 5, 1);
 
@@ -416,7 +403,6 @@ WipingPanel::WipingPanel(wxWindow* parent, const std::vector<float>& matrix, con
         for (unsigned int j = 0; j < m_number_of_extruders; ++j) {
 #ifdef _WIN32
             wxTextCtrl* text = new wxTextCtrl(m_page_advanced, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(ITEM_WIDTH(), -1), wxTE_CENTER | wxBORDER_NONE | wxTE_PROCESS_ENTER);
-            update_ui(text);
             edit_boxes.back().push_back(text);
 #else
             edit_boxes.back().push_back(new wxTextCtrl(m_page_advanced, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(ITEM_WIDTH(), -1)));
@@ -573,7 +559,6 @@ WipingPanel::WipingPanel(wxWindow* parent, const std::vector<float>& matrix, con
     auto add_spin_ctrl = [this](std::vector<wxSpinCtrl*>& vec, float initial)
     {
         wxSpinCtrl* spin_ctrl = new wxSpinCtrl(m_page_simple, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(ITEM_WIDTH(), -1), style | wxALIGN_RIGHT, 0, 300, (int)initial);
-        update_ui(spin_ctrl);
         vec.push_back(spin_ctrl);
 
 #ifdef __WXOSX__
@@ -693,7 +678,7 @@ void WipingPanel::update_warning_texts()
             }
             else {
                 if (text_box->GetForegroundColour() != g_normal_color) {
-                    text_box->SetForegroundColour(StateColor::darkModeColorFor(g_normal_color));
+                    text_box->SetForegroundColour(g_normal_color);
                     text_box->Refresh();
                 }
             }

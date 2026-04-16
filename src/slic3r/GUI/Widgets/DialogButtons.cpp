@@ -12,7 +12,7 @@ DialogButtons::DialogButtons(wxWindow* parent, std::vector<wxString> non_transla
     m_sizer   = new wxBoxSizer(wxHORIZONTAL);
     m_primary = primary_btn_translated_label;
     m_alert   = wxEmptyString;
-    SetBackgroundColour(StateColor::darkModeColorFor(wxColour("#FFFFFF")));
+    SetBackgroundColour(wxColour("#FFFFFF"));
 
     // Add all to array
     for (wxString label : non_translated_labels) {
@@ -119,7 +119,7 @@ void DialogButtons::SetAlertButton(wxString translated_label) {
 
 void DialogButtons::UpdateButtons() {
     m_sizer->Clear();
-    SetBackgroundColour(StateColor::darkModeColorFor(wxColour("#FFFFFF")));
+    SetBackgroundColour(wxColour("#FFFFFF"));
 
     // Apply standard style to all
     for (Button* btn : m_buttons) {

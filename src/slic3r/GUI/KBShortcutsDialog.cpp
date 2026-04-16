@@ -82,7 +82,6 @@ KBShortcutsDialog::KBShortcutsDialog()
     event.SetInt(0);
     event.SetEventObject(this);
     wxPostEvent(this, event);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 void KBShortcutsDialog::OnSelectTabel(wxCommandEvent &event)
@@ -92,23 +91,22 @@ void KBShortcutsDialog::OnSelectTabel(wxCommandEvent &event)
     while (i != m_hash_selector.end()) {
         Select *sel = i->second;
         if (id == sel->m_index) {
-            sel->m_tab_button->SetBackgroundColour(StateColor::darkModeColorFor(wxColour("#BFE1DE"))); // ORCA color for selected tab background
-            sel->m_tab_text->SetBackgroundColour(StateColor::darkModeColorFor(wxColour("#BFE1DE"))); // ORCA color for selected tab background
+            sel->m_tab_button->SetBackgroundColour(wxColour("#BFE1DE")); // ORCA color for selected tab background
+            sel->m_tab_text->SetBackgroundColour(wxColour("#BFE1DE")); // ORCA color for selected tab background
             sel->m_tab_text->SetFont(::Label::Head_13);
             sel->m_tab_button->Refresh();
             sel->m_tab_text->Refresh();
 
             m_simplebook->SetSelection(id);
         } else {
-            sel->m_tab_button->SetBackgroundColour(StateColor::darkModeColorFor(wxColour("#F8F8F8")));
-            sel->m_tab_text->SetBackgroundColour(StateColor::darkModeColorFor(wxColour("#F8F8F8")));
+            sel->m_tab_button->SetBackgroundColour(wxColour("#F8F8F8"));
+            sel->m_tab_text->SetBackgroundColour(wxColour("#F8F8F8"));
             sel->m_tab_text->SetFont(::Label::Body_13);
             sel->m_tab_button->Refresh();
             sel->m_tab_text->Refresh();
         }
         i++;
     }
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 wxWindow *KBShortcutsDialog::create_button(int id, wxString text)
@@ -324,7 +322,6 @@ wxPanel* KBShortcutsDialog::create_page(wxWindow* parent, const ShortcutsItem& s
 
     int items_count = (int) shortcuts.second.size();
     wxScrolledWindow *scrollable_panel = new wxScrolledWindow(main_page);
-    wxGetApp().UpdateDarkUI(scrollable_panel);
     scrollable_panel->SetScrollbars(20, 20, 50, 50);
     scrollable_panel->SetInitialSize(wxSize(FromDIP(850), FromDIP(450)));
 

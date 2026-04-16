@@ -318,7 +318,6 @@ void CalibrationDialog::update_machine_obj(MachineObject *obj) { m_obj = obj; }
 bool CalibrationDialog::Show(bool show) 
 {
     if (show) { 
-        wxGetApp().UpdateDlgDarkUI(this);
         CentreOnParent(); 
     }
     return DPIDialog::Show(show);

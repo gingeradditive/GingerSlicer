@@ -37,9 +37,6 @@
 
 #define BE_UNACTED_ON               0x00200001
 #define SHOW_BACKGROUND_BITMAP_PIXEL_THRESHOLD 80
-#ifndef _MSW_DARK_MODE
-    #define _MSW_DARK_MODE            1
-#endif // _MSW_DARK_MODE
 
 class wxMenuItem;
 class wxMenuBar;
@@ -300,7 +297,6 @@ private:
 
     boost::thread    m_sync_update_thread;
     std::shared_ptr<int> m_user_sync_token;
-    bool             m_is_dark_mode{ false };
     bool             m_adding_script_handler { false };
     bool             m_side_popup_status{false};
     bool             m_show_http_errpr_msgdlg{false};
@@ -365,7 +361,6 @@ public:
     void            init_webview_runtime();
 #endif
     static unsigned get_colour_approx_luma(const wxColour& colour);
-    static bool     dark_mode();
     const wxColour  get_label_default_clr_system();
     const wxColour  get_label_default_clr_modified();
     void            init_label_colours();
@@ -373,17 +368,6 @@ public:
     void            update_publish_status();
     bool            has_model_mall();
     void            update_label_colours();
-    // update color mode for window
-    void            UpdateDarkUI(wxWindow *window, bool highlited = false, bool just_font = false);
-    void            UpdateDarkUIWin(wxWindow* win);
-    void            Update_dark_mode_flag();
-    // update color mode for whole dialog including all children
-    void            UpdateDlgDarkUI(wxDialog* dlg);
-    void            UpdateFrameDarkUI(wxFrame* dlg);
-    // update color mode for DataViewControl
-    void            UpdateDVCDarkUI(wxDataViewCtrl* dvc, bool highlited = false);
-    // update color mode for panel including all static texts controls
-    void            UpdateAllStaticTextDarkUI(wxWindow* parent);
     void            init_fonts();
 	void            update_fonts(const MainFrame *main_frame = nullptr);
     void            set_label_clr_modified(const wxColour& clr);
@@ -406,10 +390,6 @@ public:
     const wxColour& get_color_hovered_btn_label() { return m_color_hovered_btn_label; }
     const wxColour& get_color_selected_btn_bg() { return m_color_selected_btn_bg; }
     void            force_colors_update();
-#ifdef _MSW_DARK_MODE
-    void            force_menu_update();
-#endif //_MSW_DARK_MODE
-//#endif
 
     const wxFont&   small_font()            { return m_small_font; }
     const wxFont&   bold_font()             { return m_bold_font; }

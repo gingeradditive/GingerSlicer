@@ -1,6 +1,5 @@
 #include "WebView.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
-#include "slic3r/Utils/MacDarkMode.hpp"
 
 #include <boost/log/trivial.hpp>
 
@@ -103,8 +102,7 @@ class WebViewEdge : public wxWebViewEdge
 public:
     bool SetUserAgent(const wxString &userAgent)
     {
-        bool dark = userAgent.Contains("dark");
-        SetColorScheme(dark ? COREWEBVIEW2_PREFERRED_COLOR_SCHEME_DARK : COREWEBVIEW2_PREFERRED_COLOR_SCHEME_LIGHT);
+        SetColorScheme(COREWEBVIEW2_PREFERRED_COLOR_SCHEME_LIGHT);
 
         ICoreWebView2 *webView2 = (ICoreWebView2 *) GetNativeBackend();
         if (webView2) {
@@ -156,7 +154,7 @@ public:
             thiz->pendingUserAgent.clear();
             thiz->SetUserAgent(userAgent);
         }
-        if (pendingColorScheme) {
+        if (pendingColorScheme != COREWEBVIEW2_PREFERRED_COLOR_SCHEME_AUTO) {
             auto thiz      = const_cast<WebViewEdge *>(this);
             auto colorScheme = pendingColorScheme;
             thiz->pendingColorScheme = COREWEBVIEW2_PREFERRED_COLOR_SCHEME_AUTO;
@@ -263,11 +261,10 @@ wxWebView* WebView::CreateWebView(wxWindow * parent, wxString const & url)
     auto webView = wxWebView::New();
 #endif
     if (webView) {
-        webView->SetBackgroundColour(StateColor::darkModeColorFor(*wxWHITE));
+        webView->SetBackgroundColour(*wxWHITE);
 #ifdef __WIN32__
         webView->SetUserAgent(wxString::Format("BBL-Slicer/v%s (%s) Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 Edg/107.0.1418.52", SLIC3R_VERSION, 
-            Slic3r::GUI::wxGetApp().dark_mode() ? "dark" : "light"));
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36 Edg/107.0.1418.52", SLIC3R_VERSION, "light"));
         webView->Create(parent, wxID_ANY, url2, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
         // We register the wxfs:// protocol for testing purposes
         webView->RegisterHandler(wxSharedPtr<wxWebViewHandler>(new wxWebViewArchiveHandler("bbl")));
@@ -279,12 +276,10 @@ wxWebView* WebView::CreateWebView(wxWindow * parent, wxString const & url)
         // And the memory: file system
         webView->RegisterHandler(wxSharedPtr<wxWebViewHandler>(new wxWebViewFSHandler("memory")));
         webView->Create(parent, wxID_ANY, url2, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE);
-        webView->SetUserAgent(wxString::Format("BBL-Slicer/v%s (%s) Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)", SLIC3R_VERSION,
-                                               Slic3r::GUI::wxGetApp().dark_mode() ? "dark" : "light"));
+        webView->SetUserAgent(wxString::Format("BBL-Slicer/v%s (%s) Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)", SLIC3R_VERSION, "light"));
 #endif
 #ifdef __WXMAC__
         WKWebView * wkWebView = (WKWebView *) webView->GetNativeBackend();
-        Slic3r::GUI::WKWebView_setTransparentBackground(wkWebView);
 #endif
         auto addScriptMessageHandler = [] (wxWebView *webView) {
             BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": begin to add script message handler for wx.";
@@ -357,7 +352,6 @@ bool WebView::RunScript(wxWebView *webView, wxString const &javascript)
         return webView2->ExecuteScript(javascript, NULL) == 0;
 #elif defined __WXMAC__
         WKWebView * wkWebView = (WKWebView *) webView->GetNativeBackend();
-        Slic3r::GUI::WKWebView_evaluateJavaScript(wkWebView, javascript, nullptr);
         return true;
 #else
         WebKitWebView *wkWebView = (WebKitWebView *) webView->GetNativeBackend();
@@ -380,10 +374,8 @@ bool WebView::RunScript(wxWebView *webView, wxString const &javascript)
 
 void WebView::RecreateAll()
 {
-    auto dark = Slic3r::GUI::wxGetApp().dark_mode();
     for (auto webView : g_webviews) {
-        webView->SetUserAgent(wxString::Format("BBL-Slicer/v%s (%s) Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)", SLIC3R_VERSION,
-                                               dark ? "dark" : "light"));
+        webView->SetUserAgent(wxString::Format("BBL-Slicer/v%s (%s) Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)", SLIC3R_VERSION, "light"));
         webView->Reload();
     }
 }

@@ -1,7 +1,6 @@
 #include "BitmapCache.hpp"
 
 #include "libslic3r/Utils.hpp"
-#include "../Utils/MacDarkMode.hpp"
 #include "GUI.hpp"
 #include "GUI_Utils.hpp"
 
@@ -307,13 +306,12 @@ error:
 }
 
 wxBitmap* BitmapCache::load_svg(const std::string &bitmap_name, unsigned target_width, unsigned target_height, 
-    const bool grayscale/* = false*/, const bool dark_mode/* = false*/, const std::string& new_color /*= ""*/, const float scale_in_center/* = 0*/)
+    const bool grayscale/* = false*/, const std::string& new_color /*= ""*/, const float scale_in_center/* = 0*/)
 {
     std::string bitmap_key = bitmap_name + ( target_height !=0 ? 
                                            "-h" + std::to_string(target_height) : 
                                            "-w" + std::to_string(target_width))
                                          + (m_scale != 1.0f ? "-s" + float_to_string_decimal_point(m_scale) : "")
-                                         + (dark_mode ? "-dm" : "")
                                          + (grayscale ? "-gs" : "")
                                          + new_color;
 
@@ -325,25 +323,7 @@ wxBitmap* BitmapCache::load_svg(const std::string &bitmap_name, unsigned target_
     std::map<std::string, std::string> replaces;
     replaces["\"#0x00AE42\""] = "\"#d72828\"";
     replaces["\"#00FF00\""] = "\"#52c7b8\"";
-    if (dark_mode) {
-        replaces["\"#262E30\""] = "\"#EFEFF0\"";
-        replaces["\"#323A3D\""] = "\"#B3B3B5\"";
-        replaces["\"#808080\""] = "\"#818183\"";
-        //replaces["\"#ACACAC\""] = "\"#54545A\"";
-        replaces["\"#CECECE\""] = "\"#54545B\"";
-        replaces["\"#6B6B6B\""] = "\"#818182\"";
-        replaces["\"#909090\""] = "\"#FFFFFF\"";
-        replaces["\"#00FF00\""] = "\"#FF0000\"";
-        replaces["\"#d72828\""] = "\"#00675b\"";
-        replaces["#DBDBDB"] = "#4A4A51"; // ORCA border color
-        replaces["#F0F0F1"] = "#333337"; // ORCA disabled background color
-        replaces["#262E30"] = "#EFEFF0"; // ORCA
-    } else {
-        replaces["#949494"] = "#7C8282"; // ORCA replace icon line color for light theme
-    }
-
-    if (strstr(bitmap_name.c_str(), "toggle_on") != NULL && dark_mode) // ORCA only replace color of toggle button
-        replaces["#d72828"] = "#00675b";
+    replaces["#949494"] = "#7C8282"; // ORCA replace icon line color for light theme
 
     //if (!new_color.empty())
     //    replaces["\"#ED6B21\""] = "\"" + new_color + "\"";
@@ -398,7 +378,7 @@ wxBitmap* BitmapCache::load_svg(const std::string &bitmap_name, unsigned target_
 }
 
 wxBitmap* BitmapCache::load_svg2(const std::string& bitmap_name, unsigned target_width, unsigned target_height,
-    const bool grayscale/* = false*/, const bool dark_mode/* = false*/, const std::vector<std::string>& array_new_color /*= vector<std::string>()*/, const float scale_in_center/* = 0*/)
+    const bool grayscale/* = false*/, const std::vector<std::string>& array_new_color /*= vector<std::string>()*/, const float scale_in_center/* = 0*/)
 {
 
     std::map<std::string, std::string> replaces;
@@ -470,7 +450,7 @@ wxBitmap* BitmapCache::load_svg2(const std::string& bitmap_name, unsigned target
 }
 
 //we make scaled solid bitmaps only for the cases, when its will be used with scaled SVG icon in one output bitmap
-wxBitmap BitmapCache::mksolid(size_t width, size_t height, unsigned char r, unsigned char g, unsigned char b, unsigned char transparency, bool suppress_scaling/* = false*/, size_t border_width /*= 0*/, bool dark_mode/* = false*/)
+wxBitmap BitmapCache::mksolid(size_t width, size_t height, unsigned char r, unsigned char g, unsigned char b, unsigned char transparency, bool suppress_scaling/* = false*/, size_t border_width /*= 0*/)
 {
     double scale = suppress_scaling ? 1.0f : m_scale;
     width  *= scale;
@@ -503,7 +483,7 @@ wxBitmap BitmapCache::mksolid(size_t width, size_t height, unsigned char r, unsi
                     x >= (width - border_width) || y >= (height - border_width)) {
                     const size_t idx = (x + y * width);
                     const size_t idx_rgb = (x + y * width) * 3;
-                    px_data[idx_rgb] = px_data[idx_rgb + 1] = px_data[idx_rgb + 2] = dark_mode ? 245u : 110u;
+                    px_data[idx_rgb] = px_data[idx_rgb + 1] = px_data[idx_rgb + 2] = 110u;
                     a_data[idx] = 255u;
                 }
             }

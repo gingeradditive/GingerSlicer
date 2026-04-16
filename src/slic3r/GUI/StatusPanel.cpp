@@ -504,7 +504,7 @@ void PrintingTaskPanel::create_panel(wxWindow* parent)
     wxBoxSizer *static_score_star_sizer = new wxBoxSizer(wxHORIZONTAL);
     m_score_star.resize(5);
     for (int i = 0; i < m_score_star.size(); ++i) {
-        m_score_star[i] = new ScalableButton(m_score_subtask_info, wxID_ANY, "score_star_dark", wxEmptyString, wxSize(FromDIP(26), FromDIP(26)), wxDefaultPosition,
+        m_score_star[i] = new ScalableButton(m_score_subtask_info, wxID_ANY, "score_star_light", wxEmptyString, wxSize(FromDIP(26), FromDIP(26)), wxDefaultPosition,
                                              wxBU_EXACTFIT | wxNO_BORDER, true, 26);
         m_score_star[i]->Bind(wxEVT_LEFT_DOWN, [this, i](auto &e) {
             for (int j = 0; j < m_score_star.size(); ++j) {
@@ -516,7 +516,7 @@ void PrintingTaskPanel::create_panel(wxWindow* parent)
                 }
             }
             for (int k = m_star_count; k < m_score_star.size(); ++k) {
-                ScalableBitmap dark_star = ScalableBitmap(nullptr, "score_star_dark", 26);
+                ScalableBitmap dark_star = ScalableBitmap(nullptr, "score_star_light", 26);
                 m_score_star[k]->SetBitmap(dark_star.bmp());
             }
             m_star_count_dirty = true;
@@ -561,16 +561,7 @@ void PrintingTaskPanel::create_panel(wxWindow* parent)
 void PrintingTaskPanel::paint(wxPaintEvent&)
 {
     wxPaintDC dc(m_bitmap_thumbnail);
-    if (wxGetApp().dark_mode()) {
-        if (m_brightness_value > 0 && m_brightness_value < SHOW_BACKGROUND_BITMAP_PIXEL_THRESHOLD) {
-            dc.DrawBitmap(m_bitmap_background.bmp(), 0, 0);
-            dc.SetTextForeground(*wxBLACK);
-        }
-        else
-            dc.SetTextForeground(*wxWHITE);
-    }
-    else
-        dc.SetTextForeground(*wxBLACK);
+    dc.SetTextForeground(*wxBLACK);
     dc.DrawBitmap(m_thumbnail_bmp_display, wxPoint(0, 0));
     dc.SetFont(Label::Body_12);
     
@@ -818,7 +809,7 @@ void PrintingTaskPanel::set_star_count(int star_count)
             ScalableBitmap light_star = ScalableBitmap(nullptr, "score_star_light", 26);
             m_score_star[i]->SetBitmap(light_star.bmp());
         } else {
-            ScalableBitmap dark_star = ScalableBitmap(nullptr, "score_star_dark", 26);
+            ScalableBitmap dark_star = ScalableBitmap(nullptr, "score_star_light", 26);
             m_score_star[i]->SetBitmap(dark_star.bmp());
         }
     }
@@ -936,16 +927,16 @@ void StatusBasePanel::init_bitmaps()
     m_bitmap_extruder_empty_unload    = *cache.load_png("monitor_extruder_empty_unload", FromDIP(28), FromDIP(70), false, false);
     m_bitmap_extruder_filled_unload   = *cache.load_png("monitor_extruder_filled_unload", FromDIP(28), FromDIP(70), false, false);
 
-    m_bitmap_sdcard_state_abnormal = ScalableBitmap(this, wxGetApp().dark_mode() ? "sdcard_state_abnormal_dark" : "sdcard_state_abnormal", 20);
-    m_bitmap_sdcard_state_normal = ScalableBitmap(this, wxGetApp().dark_mode() ? "sdcard_state_normal_dark" : "sdcard_state_normal", 20);
-    m_bitmap_sdcard_state_no = ScalableBitmap(this, wxGetApp().dark_mode() ? "sdcard_state_no_dark" : "sdcard_state_no", 20);
-    m_bitmap_recording_on = ScalableBitmap(this, wxGetApp().dark_mode() ? "monitor_recording_on_dark" : "monitor_recording_on", 20);
-    m_bitmap_recording_off = ScalableBitmap(this, wxGetApp().dark_mode() ? "monitor_recording_off_dark" : "monitor_recording_off", 20);
-    m_bitmap_timelapse_on = ScalableBitmap(this, wxGetApp().dark_mode() ? "monitor_timelapse_on_dark" : "monitor_timelapse_on", 20);
-    m_bitmap_timelapse_off = ScalableBitmap(this, wxGetApp().dark_mode() ? "monitor_timelapse_off_dark" : "monitor_timelapse_off", 20);
-    m_bitmap_vcamera_on = ScalableBitmap(this, wxGetApp().dark_mode() ? "monitor_vcamera_on_dark" : "monitor_vcamera_on", 20);
-    m_bitmap_vcamera_off = ScalableBitmap(this, wxGetApp().dark_mode() ? "monitor_vcamera_off_dark" : "monitor_vcamera_off", 20);
-    m_bitmap_switch_camera = ScalableBitmap(this, wxGetApp().dark_mode() ? "camera_switch_dark" : "camera_switch", 20);
+    m_bitmap_sdcard_state_abnormal = ScalableBitmap(this, "sdcard_state_abnormal", 20);
+    m_bitmap_sdcard_state_normal = ScalableBitmap(this, "sdcard_state_normal", 20);
+    m_bitmap_sdcard_state_no = ScalableBitmap(this, "sdcard_state_no", 20);
+    m_bitmap_recording_on = ScalableBitmap(this, "monitor_recording_on", 20);
+    m_bitmap_recording_off = ScalableBitmap(this, "monitor_recording_off", 20);
+    m_bitmap_timelapse_on = ScalableBitmap(this, "monitor_timelapse_on", 20);
+    m_bitmap_timelapse_off = ScalableBitmap(this, "monitor_timelapse_off", 20);
+    m_bitmap_vcamera_on = ScalableBitmap(this, "monitor_vcamera_on", 20);
+    m_bitmap_vcamera_off = ScalableBitmap(this, "monitor_vcamera_off", 20);
+    m_bitmap_switch_camera = ScalableBitmap(this, "camera_switch", 20);
 
 }
 
@@ -4010,7 +4001,7 @@ void StatusPanel::on_switch_speed(wxCommandEvent &event)
 #else
     PopupWindow *popUp = new PopupWindow(m_switch_speed);
 #endif
-    popUp->SetBackgroundColour(StateColor::darkModeColorFor(0xeeeeee));
+    popUp->SetBackgroundColour(0xeeeeee);
     StepCtrl *step = new StepCtrl(popUp, wxID_ANY);
     wxSizer *sizer = new wxBoxSizer(wxHORIZONTAL);
     sizer->Add(step, 1, wxEXPAND, 0);
@@ -4395,15 +4386,15 @@ void StatusPanel::rescale_camera_icons()
     m_setting_button->msw_rescale();
 
 
-    m_bitmap_sdcard_state_abnormal = ScalableBitmap(this, wxGetApp().dark_mode()?"sdcard_state_abnormal_dark":"sdcard_state_abnormal", 20);
-    m_bitmap_sdcard_state_normal = ScalableBitmap(this, wxGetApp().dark_mode()?"sdcard_state_normal_dark":"sdcard_state_normal", 20);
-    m_bitmap_sdcard_state_no = ScalableBitmap(this, wxGetApp().dark_mode()?"sdcard_state_no_dark":"sdcard_state_no", 20);
-    m_bitmap_recording_on = ScalableBitmap(this, wxGetApp().dark_mode()?"monitor_recording_on_dark":"monitor_recording_on", 20);
-    m_bitmap_recording_off = ScalableBitmap(this, wxGetApp().dark_mode()?"monitor_recording_off_dark":"monitor_recording_off", 20);
-    m_bitmap_timelapse_on = ScalableBitmap(this, wxGetApp().dark_mode()?"monitor_timelapse_on_dark":"monitor_timelapse_on", 20);
-    m_bitmap_timelapse_off = ScalableBitmap(this, wxGetApp().dark_mode()?"monitor_timelapse_off_dark":"monitor_timelapse_off", 20);
-    m_bitmap_vcamera_on = ScalableBitmap(this, wxGetApp().dark_mode()?"monitor_vcamera_on_dark":"monitor_vcamera_on", 20);
-    m_bitmap_vcamera_off = ScalableBitmap(this, wxGetApp().dark_mode()?"monitor_vcamera_off_dark":"monitor_vcamera_off", 20);
+    m_bitmap_sdcard_state_abnormal = ScalableBitmap(this, "sdcard_state_abnormal", 20);
+    m_bitmap_sdcard_state_normal = ScalableBitmap(this, "sdcard_state_normal", 20);
+    m_bitmap_sdcard_state_no = ScalableBitmap(this, "sdcard_state_no", 20);
+    m_bitmap_recording_on = ScalableBitmap(this, "monitor_recording_on", 20);
+    m_bitmap_recording_off = ScalableBitmap(this, "monitor_recording_off", 20);
+    m_bitmap_timelapse_on = ScalableBitmap(this, "monitor_timelapse_on", 20);
+    m_bitmap_timelapse_off = ScalableBitmap(this, "monitor_timelapse_off", 20);
+    m_bitmap_vcamera_on = ScalableBitmap(this, "monitor_vcamera_on", 20);
+    m_bitmap_vcamera_off = ScalableBitmap(this, "monitor_vcamera_off", 20);
 
     if (m_media_play_ctrl->IsStreaming()) {
         m_bitmap_vcamera_img->SetBitmap(m_bitmap_vcamera_on.bmp());
@@ -4533,7 +4524,6 @@ ScoreDialog::ScoreDialog(wxWindow *parent, int design_id, std::string model_id, 
     this->SetSizer(m_main_sizer);
     Fit();
     Layout();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 ScoreDialog::ScoreDialog(wxWindow *parent, ScoreData *score_data)
@@ -4556,7 +4546,6 @@ ScoreDialog::ScoreDialog(wxWindow *parent, ScoreData *score_data)
     this->SetSizer(m_main_sizer);
     Fit();
     Layout();
-    wxGetApp().UpdateDlgDarkUI(this);
 
 }
 
@@ -4748,7 +4737,7 @@ wxBoxSizer *ScoreDialog::get_star_sizer()
             m_score_star[i] = new ScalableButton(this, wxID_ANY, "score_star_light", wxEmptyString, wxSize(FromDIP(26), FromDIP(26)), wxDefaultPosition,
                                                  wxBU_EXACTFIT | wxNO_BORDER, true, 26);
         } else
-            m_score_star[i] = new ScalableButton(this, wxID_ANY, "score_star_dark", wxEmptyString, wxSize(FromDIP(26), FromDIP(26)), wxDefaultPosition,
+            m_score_star[i] = new ScalableButton(this, wxID_ANY, "score_star_light", wxEmptyString, wxSize(FromDIP(26), FromDIP(26)), wxDefaultPosition,
                                                  wxBU_EXACTFIT | wxNO_BORDER, true, 26);
 
         m_score_star[i]->Bind(wxEVT_LEFT_DOWN, [this, i](auto &e) {
@@ -4771,7 +4760,7 @@ wxBoxSizer *ScoreDialog::get_star_sizer()
                 }
             }
             for (int k = m_star_count; k < m_score_star.size(); ++k) {
-                ScalableBitmap dark_star = ScalableBitmap(nullptr, "score_star_dark", 26);
+                ScalableBitmap dark_star = ScalableBitmap(nullptr, "score_star_light", 26);
                 m_score_star[k]->SetBitmap(dark_star.bmp());
             }
         });
@@ -4803,10 +4792,7 @@ void ScoreDialog::create_comment_text(const wxString& comment) {
     m_comment_text->SetMinSize(wxSize(FromDIP(492), FromDIP(104)));
 
     m_comment_text->Bind(wxEVT_SET_FOCUS, [this](auto &event) {
-        if (wxGetApp().dark_mode()) {
-            m_comment_text->SetForegroundColour(wxColor(*wxWHITE));
-        } else
-            m_comment_text->SetForegroundColour(wxColor(*wxBLACK));
+        m_comment_text->SetForegroundColour(wxColor(*wxBLACK));
         m_comment_text->Refresh();
         event.Skip();
     });
@@ -4814,7 +4800,7 @@ void ScoreDialog::create_comment_text(const wxString& comment) {
 
 wxBoxSizer *ScoreDialog::get_photo_btn_sizer() {
     wxBoxSizer *    m_photo_sizer    = new wxBoxSizer(wxHORIZONTAL);
-    ScalableBitmap little_photo  = wxGetApp().dark_mode() ? ScalableBitmap(this, "single_little_photo_dark", 20) : ScalableBitmap(this, "single_little_photo", 20);
+    ScalableBitmap little_photo  = ScalableBitmap(this, "single_little_photo", 20);
     wxStaticBitmap *little_photo_img   = new wxStaticBitmap(this, wxID_ANY, little_photo.bmp(), wxDefaultPosition, wxSize(FromDIP(20), FromDIP(20)), 0);
     m_photo_sizer->Add(little_photo_img, 0, wxEXPAND | wxLEFT, FromDIP(24));
     m_add_photo = new Label(this, _L("Add Photo"));

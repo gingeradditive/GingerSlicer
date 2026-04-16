@@ -175,18 +175,18 @@ void StaticBox::doRender(wxDC& dc)
             wxRect rc(0, 0, size.x, size.y);
             if (border_width && border_color.count() > 0) {
                 if (dc.GetContentScaleFactor() == 1.0) {
-                    int d  = floor(border_width / 2.0);
-                    int d2 = floor(border_width - 1);
+                    int d  = border_width;
+                    int d2 = border_width * 2;
                     rc.x += d;
                     rc.width -= d2;
                     rc.y += d;
                     rc.height -= d2;
                 } else {
-                    int d  = 1;
+                    int d  = border_width;
                     rc.x += d;
-                    rc.width -= d;
+                    rc.width -= d * 2;
                     rc.y += d;
-                    rc.height -= d;
+                    rc.height -= d * 2;
                 }
                 dc.SetPen(wxPen(border_color.colorForStates(states), border_width));
             } else {

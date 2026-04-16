@@ -66,7 +66,6 @@ MsgDialog::MsgDialog(wxWindow *parent, const wxString &title, const wxString &he
 
     apply_style(style);
 	SetSizerAndFit(main_sizer);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
  MsgDialog::~MsgDialog()
@@ -89,7 +88,7 @@ void MsgDialog::show_dsa_button(wxString const &title)
     auto  m_text_dsa = new wxStaticText(this, wxID_ANY, title.IsEmpty() ? _L("Don't show again") : title, wxDefaultPosition, wxDefaultSize, 0);
     m_dsa_sizer->Add(m_text_dsa, 0, wxALL | wxALIGN_CENTER, FromDIP(2));
     m_text_dsa->SetFont(::Label::Body_13);
-    m_text_dsa->SetForegroundColour(StateColor::darkModeColorFor(wxColour("#323A3D")));
+    m_text_dsa->SetForegroundColour(wxColour("#323A3D"));
     btn_sizer->Layout();
     Fit();
 }
@@ -204,7 +203,6 @@ void MsgDialog::apply_style(long style)
 
 void MsgDialog::finalize()
 {
-    wxGetApp().UpdateDlgDarkUI(this);
     Fit();
     CenterOnParent();
 }
@@ -214,7 +212,7 @@ void MsgDialog::finalize()
 static void add_msg_content(wxWindow* parent, wxBoxSizer* content_sizer, wxString msg, bool monospaced_font = false, bool is_marked_msg = false)
 {
     wxHtmlWindow* html = new wxHtmlWindow(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxHW_SCROLLBAR_AUTO);
-    html->SetBackgroundColour(StateColor::darkModeColorFor(*wxWHITE));
+    html->SetBackgroundColour(*wxWHITE);
 
     // count lines in the message
     int msg_lines = 0;
@@ -295,7 +293,6 @@ static void add_msg_content(wxWindow* parent, wxBoxSizer* content_sizer, wxStrin
         msg_escaped = std::string("<pre><code>") + msg_escaped + "</code></pre>";
     html->SetPage("<html><body bgcolor=\"" + bgr_clr_str + "\"><font color=\"" + text_clr_str + "\">" + wxString::FromUTF8(msg_escaped.data()) + "</font></body></html>");
     content_sizer->Add(html, 1, wxEXPAND|wxRIGHT, 8);
-    wxGetApp().UpdateDarkUIWin(html);
 }
 
 // ErrorDialog
@@ -339,7 +336,6 @@ MessageDialog::MessageDialog(wxWindow* parent,
 {
     add_msg_content(this, content_sizer, message);
     finalize();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 
@@ -488,7 +484,6 @@ DeleteConfirmDialog::DeleteConfirmDialog(wxWindow *parent, const wxString &title
     SetSizer(m_main_sizer);
     Layout();
     Fit();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 DeleteConfirmDialog::~DeleteConfirmDialog() {}
@@ -523,7 +518,6 @@ Newer3mfVersionDialog::Newer3mfVersionDialog(wxWindow *parent, const Semver *fil
     this->SetSizer(main_sizer);
     Layout();
     Fit();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 wxBoxSizer *Newer3mfVersionDialog::get_msg_sizer()

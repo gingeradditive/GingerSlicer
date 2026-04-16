@@ -335,8 +335,8 @@ void GCodeViewer::SequentialView::Marker::render(int canvas_width, int canvas_he
     static float last_window_width = 0.0f;
     size_t text_line = 0;
     static size_t last_text_line = 0;
-    const ImU32 text_name_clr = m_is_dark ? IM_COL32(255, 255, 255, 0.88 * 255) : IM_COL32(48, 38, 38, 255);
-    const ImU32 text_value_clr = m_is_dark ? IM_COL32(255, 255, 255, 0.4 * 255) : IM_COL32(144, 144, 144, 255);
+    const ImU32 text_name_clr = IM_COL32(48, 38, 38, 255);
+    const ImU32 text_value_clr = IM_COL32(144, 144, 144, 255);
 
     ImGuiWrapper& imgui = *wxGetApp().imgui();
     //BBS: GUI refactor: add canvas size from parameters
@@ -547,7 +547,7 @@ void GCodeViewer::SequentialView::GCodeWindow::render(float top, float bottom, f
     };
 
     static const ImVec4 LINE_NUMBER_COLOR    = ImGuiWrapper::COL_ORANGE_LIGHT;
-    static const ImVec4 SELECTION_RECT_COLOR = ImGuiWrapper::COL_ORANGE_DARK;
+    static const ImVec4 SELECTION_RECT_COLOR = ImGuiWrapper::COL_ORANGE_LIGHT;
     static const ImVec4 COMMAND_COLOR        = {0.8f, 0.8f, 0.0f, 1.0f};
     static const ImVec4 PARAMETERS_COLOR     = { 1.0f, 1.0f, 1.0f, 1.0f };
     static const ImVec4 COMMENT_COLOR        = { 0.7f, 0.7f, 0.7f, 1.0f };
@@ -866,12 +866,6 @@ void GCodeViewer::init(ConfigOptionMode mode, PresetBundle* preset_bundle)
 
     m_gl_data_initialized = true;
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": finished");
-}
-
-void GCodeViewer::on_change_color_mode(bool is_dark) {
-    m_is_dark = is_dark;
-    m_sequential_view.marker.on_change_color_mode(m_is_dark);
-    m_sequential_view.gcode_window.on_change_color_mode(m_is_dark);
 }
 
 void GCodeViewer::set_scale(float scale)

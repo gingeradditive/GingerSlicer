@@ -153,7 +153,6 @@ public:
     void delete_filament();
     void add_custom_filament(wxColour new_col);
     // BBS
-    void on_bed_type_change(BedType bed_type);
     void load_ams_list(std::string const & device, MachineObject* obj);
     std::map<int, DynamicPrintConfig> build_filament_ams_list(MachineObject* obj);
     void sync_ams_list();
@@ -191,9 +190,6 @@ public:
     void                    auto_calc_flushing_volumes(const int modify_id);
     void                    jump_to_object(ObjectDataViewModelNode* item);
     void                    can_search();
-#ifdef _MSW_DARK_MODE
-    void                    show_mode_sizer(bool show);
-#endif
 
     std::vector<PlaterPresetComboBox*>&   combos_filament();
     Search::OptionsSearcher&        get_searcher();
@@ -204,11 +200,9 @@ private:
     std::unique_ptr<priv> p;
 
     wxBoxSizer* m_scrolled_sizer = nullptr;
-    ComboBox* m_bed_type_list = nullptr;
     ComboBox* m_printer_host_list = nullptr;
     ScalableButton* m_btn_add_host = nullptr;
     ScalableButton* m_btn_remove_host = nullptr;
-    ScalableButton* connection_btn = nullptr;
     ScalableButton* ams_btn = nullptr;
 
     void update_printer_host_list();
@@ -460,7 +454,6 @@ public:
     void send_job_finished(wxCommandEvent& evt);
     void publish_job_finished(wxCommandEvent& evt);
     void open_platesettings_dialog(wxCommandEvent& evt);
-    void on_change_color_mode(SimpleEvent& evt);
 	void eject_drive();
 
     void take_snapshot(const std::string &snapshot_name);
@@ -486,7 +479,6 @@ public:
 
     void on_filaments_change(size_t extruders_count);
     // BBS
-    void on_bed_type_change(BedType bed_type);
     bool update_filament_colors_in_full_config();
     void config_change_notification(const DynamicPrintConfig &config, const std::string& key);
     void on_config_change(const DynamicPrintConfig &config);

@@ -115,7 +115,7 @@ Field::~Field()
 
 void Field::PostInitialize()
 {
-	auto color = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
+	auto color = wxGetApp().get_window_default_clr();
 
 	switch (m_opt.type)
 	{
@@ -580,10 +580,7 @@ void Field::msw_rescale()
 
 void Field::sys_color_changed()
 {
-#ifdef _WIN32
-	if (wxWindow* win = this->getWindow())
-		wxGetApp().UpdateDarkUI(win);
-#endif
+;
 }
 
 std::vector<std::deque<wxWindow *>**> spools;
@@ -765,8 +762,7 @@ void TextCtrl::BUILD() {
         temp->SetFont(Slic3r::GUI::wxGetApp().normal_font());
 
 
-    temp->SetForegroundColour(StateColor::darkModeColorFor(*wxBLACK));
-	wxGetApp().UpdateDarkUI(temp);
+    temp->SetForegroundColour(*wxBLACK);
 
     if (! m_opt.multiline && !wxOSX)
 		// Only disable background refresh for single line input fields, as they are completely painted over by the edit control.
@@ -1125,7 +1121,6 @@ void SpinCtrl::BUILD() {
 #endif //__WXGTK3__
 	// temp->SetFont(Slic3r::GUI::wxGetApp().normal_font()); // BBS
     if (!wxOSX) temp->SetBackgroundStyle(wxBG_STYLE_PAINT);
-	wxGetApp().UpdateDarkUI(temp);
 
     if (m_opt.height < 0 && parent_is_custom_ctrl)
         opt_height = (double)temp->GetTextCtrl()->GetSize().GetHeight() / m_em_unit;
@@ -1797,7 +1792,6 @@ void ColourPicker::BUILD()
     convert_to_picker_widget(temp);
     if (!wxOSX) temp->SetBackgroundStyle(wxBG_STYLE_PAINT);
 
-	wxGetApp().UpdateDarkUI(temp->GetPickerCtrl());
 
 	// 	// recast as a wxWindow to fit the calling convention
 	window = dynamic_cast<wxWindow*>(temp);
@@ -1859,7 +1853,6 @@ void ColourPicker::draw_bmp_btn(wxColourPickerCtrl* field, wxColour color)
     if (!btn->GetBitmap().IsOk()) return;
     btn->SetWindowStyle(wxBORDER_NONE); // ORCA just in case to prevent any overflow
     btn->SetBackgroundColour(*wxWHITE);
-    wxGetApp().UpdateDarkUI(btn);
 
     auto create_bitmap = [btn](const wxColour& picker_color,const wxColour& bg_color, bool focus) -> wxBitmap {
         wxSize  btn_sz = btn->GetSize();
@@ -1871,8 +1864,8 @@ void ColourPicker::draw_bmp_btn(wxColourPickerCtrl* field, wxColour color)
         if (!dc.IsOk()) return bmp;
         wxGCDC dc2(dc); // just use wxGCDC since bitmap button only used for windows
 
-        dc2.SetPen(focus ? wxPen(wxColour(StateColor::darkModeColorFor(wxColour("#d72828"))), 1) : *wxTRANSPARENT_PEN);
-        dc2.SetBrush(wxBrush(StateColor::darkModeColorFor(bg_color)));
+        dc2.SetPen(focus ? wxPen(wxColour("#d72828"), 1) : *wxTRANSPARENT_PEN);
+        dc2.SetBrush(wxBrush(bg_color));
         dc2.DrawRoundedRectangle(btn->GetRect(), btn->FromDIP(4));
 
         int padding = btn->FromDIP(5);
@@ -1885,7 +1878,7 @@ void ColourPicker::draw_bmp_btn(wxColourPickerCtrl* field, wxColour color)
             dc2.SetFont(wxFont(11, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL));
             wxString text    = _L("Pick") + " " + dots;
             wxSize   text_sz = dc2.GetTextExtent(text);
-            dc2.SetTextForeground(StateColor::darkModeColorFor(wxColour("#262E30")));
+            dc2.SetTextForeground(wxColour("#262E30"));
             dc2.DrawText(text, (btn_sz.x - text_sz.x) / 2, (btn_sz.y - text_sz.y) / 2);
         }
         dc.SelectObject(wxNullBitmap);
@@ -1960,7 +1953,6 @@ void ColourPicker::sys_color_changed()
 #ifdef _WIN32
     if (wxWindow* win = this->getWindow())
         if (wxColourPickerCtrl* picker = dynamic_cast<wxColourPickerCtrl*>(win)){
-            wxGetApp().UpdateDarkUI(picker->GetPickerCtrl(), true);
             draw_bmp_btn(picker, picker->GetColour());
         }
 #endif
@@ -2045,10 +2037,6 @@ void PointCtrl::BUILD()
 	//static_text_y->SetFont(Slic3r::GUI::wxGetApp().normal_font());
 	//static_text_y->SetBackgroundStyle(wxBG_STYLE_PAINT);
 
-	wxGetApp().UpdateDarkUI(x_input);
-	wxGetApp().UpdateDarkUI(y_input);
-	//wxGetApp().UpdateDarkUI(static_text_x, false, true);
-	//wxGetApp().UpdateDarkUI(static_text_y, false, true);
 
 	//temp->Add(static_text_x, 0, wxALIGN_CENTER_VERTICAL, 0);
 	temp->Add(x_input);
@@ -2089,11 +2077,6 @@ void PointCtrl::msw_rescale()
 
 void PointCtrl::sys_color_changed()
 {
-#ifdef _WIN32
-    for (wxSizerItem* item: sizer->GetChildren())
-        if (item->IsWindow())
-            wxGetApp().UpdateDarkUI(item->GetWindow());
-#endif
 }
 
 bool PointCtrl::value_was_changed(wxTextCtrl* win)
@@ -2184,7 +2167,6 @@ void StaticText::BUILD()
 	temp->SetBackgroundStyle(wxBG_STYLE_PAINT);
     temp->SetFont(wxGetApp().bold_font());
 
-	wxGetApp().UpdateDarkUI(temp);
 
 	// 	// recast as a wxWindow to fit the calling convention
 	window = dynamic_cast<wxWindow*>(temp);

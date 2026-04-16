@@ -149,8 +149,6 @@ private:
     // key MENU_ICON_NAME, value = ImtextureID
     std::map<int, void*> icon_list;
 
-    bool m_is_dark = false;
-
     /// <summary>
     /// Process mouse event on gizmo toolbar
     /// </summary>
@@ -273,7 +271,6 @@ public:
     bool is_in_editing_mode(bool error_notification = false) const;
     bool is_hiding_instances() const;
 
-    void on_change_color_mode(bool is_dark);
     void render_current_gizmo() const;
     void render_painter_gizmo();
     void render_painter_assemble_view() const;

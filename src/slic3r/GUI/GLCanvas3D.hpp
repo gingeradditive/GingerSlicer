@@ -507,7 +507,6 @@ public:
     int GetHoverId();
 
 private:
-    bool m_is_dark = false;
     wxGLCanvas* m_canvas;
     wxGLContext* m_context;
     SceneRaycaster m_scene_raycaster;
@@ -746,8 +745,6 @@ public:
 
     float get_explosion_ratio() { return m_explosion_ratio; }
     void reset_explosion_ratio() { m_explosion_ratio = 1.0; }
-    void on_change_color_mode(bool is_dark, bool reinit = true);
-    const bool get_dark_mode_status() { return m_is_dark; }
     void set_as_dirty();
     void requires_check_outside_state() { m_requires_check_outside_state = true; }
 

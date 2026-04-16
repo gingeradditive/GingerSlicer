@@ -118,7 +118,6 @@ Tab::Tab(ParamsPanel* parent, const wxString& title, Preset::Type type) :
     Create(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBK_LEFT | wxTAB_TRAVERSAL/*, name*/);
     this->SetFont(Slic3r::GUI::wxGetApp().normal_font());
 
-    wxGetApp().UpdateDarkUI(this);
     SetBackgroundColour(*wxWHITE);
 
     m_compatible_printers.type			= Preset::TYPE_PRINTER;
@@ -215,7 +214,7 @@ void Tab::create_preset_tab()
         });
     }
 
-    auto color = wxSystemSettings::GetColour(wxSYS_COLOUR_WINDOW);
+    auto color = wxGetApp().get_window_default_clr();
 
     //buttons
     m_scaled_buttons.reserve(6);
@@ -280,7 +279,6 @@ void Tab::create_preset_tab()
     m_search_item->SetCornerRadius(5);
 
 
-    //StateColor::darkModeColorFor(wxColour(238, 238, 238)), wxDefaultPosition, wxSize(m_top_panel->GetSize().GetWidth(), 3 * wxGetApp().em_unit()), 8);
     auto search_sizer = new wxBoxSizer(wxHORIZONTAL);
     m_search_input = new TextInput(m_search_item, wxEmptyString, wxEmptyString, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 | wxBORDER_NONE);
     m_search_input->SetBackgroundColour(wxColour(238, 238, 238));
@@ -402,10 +400,7 @@ void Tab::create_preset_tab()
         m_top_panel->Hide();
 
 #if 0
-#ifdef _MSW_DARK_MODE
-    // Sizer with buttons for mode changing
-    if (wxGetApp().tabs_as_menu())
-#endif
+
         m_mode_sizer = new ModeSizer(panel, int (0.5*em_unit(this)));
 
     const float scale_factor = /*wxGetApp().*/em_unit(this)*0.1;// GetContentScaleFactor();
@@ -462,7 +457,6 @@ void Tab::create_preset_tab()
     // Index of the last icon inserted into $self->{icons}.
     m_icon_count = -1;
     m_tabctrl->AssignImageList(m_icons);
-    wxGetApp().UpdateDarkUI(m_tabctrl);
 
     // Delay processing of the following handler until the message queue is flushed.
     // This helps to process all the cursor key events on Windows in the tree control,
@@ -670,19 +664,6 @@ void Tab::OnActivate()
     //m_main_sizer->Layout();
     m_parent->Layout();
 
-#ifdef _MSW_DARK_MODE
-    // Because of DarkMode we use our own Notebook (inherited from wxSiplebook) instead of wxNotebook
-    // And it looks like first Layout of the page doesn't update a size of the m_presets_choice
-    // So we have to set correct size explicitely
-   /* if (wxSize ok_sz = wxSize(35 * m_em_unit, m_presets_choice->GetBestSize().y);
-        ok_sz != m_presets_choice->GetSize()) {
-        m_presets_choice->SetMinSize(ok_sz);
-        m_presets_choice->SetSize(ok_sz);
-        GetSizer()->GetItem(size_t(0))->GetSizer()->Layout();
-        if (wxGetApp().tabs_as_menu())
-            m_presets_choice->update();
-    }*/
-#endif // _MSW_DARK_MODE
     Refresh();
 
     //BBS: GUI refactor
@@ -1313,8 +1294,6 @@ void Tab::sys_color_changed()
     //BBS: GUI refactor
     //if (m_mode_sizer)
     //    m_mode_sizer->msw_rescale();
-    wxGetApp().UpdateDarkUI(this);
-    wxGetApp().UpdateDarkUI(m_tabctrl);
 #endif
     update_changed_tree_ui();
 
@@ -4960,15 +4939,6 @@ void Tab::load_current_preset()
                     }
                     if (tab->supports_printer_technology(printer_technology))
                     {
-#ifdef _MSW_DARK_MODE
-                        if (!wxGetApp().tabs_as_menu()) {
-                            std::string bmp_name = tab->type() == Slic3r::Preset::TYPE_FILAMENT      ? "spool" :
-                                                   tab->type() == Slic3r::Preset::TYPE_SLA_MATERIAL  ? "" : "cog";
-                            tab->Hide(); // #ys_WORKAROUND : Hide tab before inserting to avoid unwanted rendering of the tab
-                            dynamic_cast<Notebook*>(wxGetApp().tab_panel())->InsertPage(wxGetApp().tab_panel()->FindPage(this), tab, tab->title(), bmp_name);
-                        }
-                        else
-#endif
                             wxGetApp().tab_panel()->InsertPage(wxGetApp().tab_panel()->FindPage(this), tab, tab->title(), "");
                         #ifdef __linux__ // the tabs apparently need to be explicitly shown on Linux (pull request #1563)
                             int page_id = wxGetApp().tab_panel()->FindPage(tab);
@@ -4983,10 +4953,6 @@ void Tab::load_current_preset()
                 }
                 static_cast<TabPrinter*>(this)->m_printer_technology = printer_technology;
                 m_active_page = tmp_page;
-#ifdef _MSW_DARK_MODE
-                if (!wxGetApp().tabs_as_menu())
-                    dynamic_cast<Notebook*>(wxGetApp().tab_panel())->SetPageImage(wxGetApp().tab_panel()->FindPage(this), printer_technology == ptFFF ? "printer" : "sla_printer");
-#endif
             }
             on_presets_changed();
             if (printer_technology == ptFFF) {
@@ -6072,12 +6038,10 @@ void Tab::create_line_with_widget(ConfigOptionsGroup* optgroup, const std::strin
 wxSizer* Tab::compatible_widget_create(wxWindow* parent, PresetDependencies &deps)
 {
     deps.checkbox = new ::CheckBox(parent, wxID_ANY);
-    wxGetApp().UpdateDarkUI(deps.checkbox, false, true);
 
     deps.checkbox_title = new wxStaticText(parent, wxID_ANY, _L("All"));
     deps.checkbox_title->SetFont(Label::Body_14);
     deps.checkbox_title->SetForegroundColour(wxColour("#363636"));
-    wxGetApp().UpdateDarkUI(deps.checkbox_title, false, true);
 
     // ORCA modernize button style
     Button* btn = new Button(parent, _(L("Set")) + " " + dots);
@@ -6157,7 +6121,6 @@ wxSizer* Tab::compatible_widget_create(wxWindow* parent, PresetDependencies &dep
         }
 
         wxMultiChoiceDialog dlg(parent, deps.dialog_title, deps.dialog_label, presets);
-        wxGetApp().UpdateDlgDarkUI(&dlg);
         // Collect and set indices of depending_presets marked as compatible.
         wxArrayInt selections;
         auto *compatible_printers = dynamic_cast<const ConfigOptionStrings*>(m_config->option(deps.key_list));

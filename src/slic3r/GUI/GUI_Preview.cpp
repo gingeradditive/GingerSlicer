@@ -248,7 +248,6 @@ bool Preview::init(wxWindow* parent, Bed3D& bed, Model* model)
 
     // to match the background of the sliders
 #ifdef _WIN32
-    wxGetApp().UpdateDarkUI(this);
 #else
     SetBackgroundColour(GetParent()->GetBackgroundColour());
 #endif // _WIN32

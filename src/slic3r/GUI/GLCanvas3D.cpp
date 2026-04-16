@@ -34,7 +34,6 @@
 
 #include "slic3r/GUI/Gizmos/GLGizmoPainterBase.hpp"
 #include "slic3r/Utils/UndoRedo.hpp"
-#include "slic3r/Utils/MacDarkMode.hpp"
 
 #include <slic3r/GUI/GUI_Utils.hpp>
 
@@ -1199,9 +1198,6 @@ bool GLCanvas3D::init()
     if (m_canvas == nullptr || m_context == nullptr)
         return false;
 
-    // init dark mode status
-    on_change_color_mode(wxGetApp().app_config->get("dark_color_mode") == "1", false);
-
     BOOST_LOG_TRIVIAL(info) <<__FUNCTION__<< " enter";
     glsafe(::glClearColor(1.0f, 1.0f, 1.0f, 1.0f));
     glsafe(::glClearDepth(1.0f));
@@ -1247,54 +1243,6 @@ bool GLCanvas3D::init()
     m_initialized = true;
 
     return true;
-}
-
-void GLCanvas3D::on_change_color_mode(bool is_dark, bool reinit) {
-    m_is_dark = is_dark;
-    // Bed color
-    m_bed.on_change_color_mode(is_dark);
-    // GcodeViewer color
-    m_gcode_viewer.on_change_color_mode(is_dark);
-    // ImGui Style
-    wxGetApp().imgui()->on_change_color_mode(is_dark);
-    // Notification
-    wxGetApp().plater()->get_notification_manager()->on_change_color_mode(is_dark);
-    // DailyTips Window
-    wxGetApp().plater()->get_dailytips()->on_change_color_mode(is_dark);
-    // Preview Slider
-    IMSlider* m_layers_slider = get_gcode_viewer().get_layers_slider();
-    IMSlider* m_moves_slider = get_gcode_viewer().get_moves_slider();
-    m_layers_slider->on_change_color_mode(is_dark);
-    m_moves_slider->on_change_color_mode(is_dark);
-    // Partplate
-    wxGetApp().plater()->get_partplate_list().on_change_color_mode(is_dark);
-    // Plates toolbar - Reload All Stats button images
-    _init_select_plate_toolbar();
-
-    // Toolbar
-    if (m_canvas_type == CanvasView3D) {
-        m_gizmos.on_change_color_mode(is_dark);
-        if (reinit) {
-            // reset svg
-            _switch_toolbars_icon_filename();
-            m_gizmos.switch_gizmos_icon_filename();
-            // set dirty to re-generate icon texture
-            m_separator_toolbar.set_icon_dirty();
-            m_main_toolbar.set_icon_dirty();
-            wxGetApp().plater()->get_collapse_toolbar().set_icon_dirty();
-            m_assemble_view_toolbar.set_icon_dirty();
-            m_gizmos.set_icon_dirty();
-        }
-    }
-    if (m_canvas_type == CanvasAssembleView) {
-        m_gizmos.on_change_color_mode(is_dark);
-        if (reinit) {
-            // reset svg
-            m_gizmos.switch_gizmos_icon_filename();
-            // set dirty to re-generate icon texture
-            m_gizmos.set_icon_dirty();
-        }
-    }
 }
 
 void GLCanvas3D::set_as_dirty()
@@ -2992,7 +2940,7 @@ void GLCanvas3D::bind_event_handlers()
         m_canvas->Bind(wxEVT_GESTURE_ROTATE, &GLCanvas3D::on_gesture, this);
         m_canvas->EnableTouchEvents(wxTOUCH_ZOOM_GESTURE | wxTOUCH_ROTATE_GESTURE);
 #if __WXOSX__
-        initGestures(m_canvas->GetHandle(), m_canvas); // for UIPanGestureRecognizer allowedScrollTypesMask
+        // initGestures(m_canvas->GetHandle(), m_canvas); // for UIPanGestureRecognizer allowedScrollTypesMask - function not declared
 #endif
     }
 }
@@ -5777,8 +5725,8 @@ void GLCanvas3D::_render_3d_navigator()
     style.Colors[ImGuizmo::COLOR::DIRECTION_X] = ImGuiWrapper::to_ImVec4(ColorRGBA::Y());
     style.Colors[ImGuizmo::COLOR::DIRECTION_Y] = ImGuiWrapper::to_ImVec4(ColorRGBA::Z());
     style.Colors[ImGuizmo::COLOR::DIRECTION_Z] = ImGuiWrapper::to_ImVec4(ColorRGBA::X());
-    style.Colors[ImGuizmo::COLOR::TEXT] = m_is_dark ? ImVec4(224 / 255.f, 224 / 255.f, 224 / 255.f, 1.f) : ImVec4(.2f, .2f, .2f, 1.0f);
-    style.Colors[ImGuizmo::COLOR::FACE]        = m_is_dark ? ImVec4(0.23f, 0.23f, 0.23f, 1.f) : ImVec4(0.77f, 0.77f, 0.77f, 1);
+    style.Colors[ImGuizmo::COLOR::TEXT] = ImVec4(.2f, .2f, .2f, 1.0f);
+    style.Colors[ImGuizmo::COLOR::FACE]        = ImVec4(0.77f, 0.77f, 0.77f, 1);
     strcpy(style.AxisLabels[ImGuizmo::Axis::Axis_X], "Y"); // ORCA use uppercase to match text on tranform widgets
     strcpy(style.AxisLabels[ImGuizmo::Axis::Axis_Y], "Z"); // ORCA use uppercase to match text on tranform widgets
     strcpy(style.AxisLabels[ImGuizmo::Axis::Axis_Z], "X"); // ORCA use uppercase to match text on tranform widgets
@@ -6337,7 +6285,7 @@ void GLCanvas3D::render_thumbnail_legacy(ThumbnailData& thumbnail_data, unsigned
 void GLCanvas3D::_switch_toolbars_icon_filename()
 {
     BackgroundTexture::Metadata background_data;
-    background_data.filename = m_is_dark ? "toolbar_background_dark.png" : "toolbar_background.png";
+    background_data.filename = "toolbar_background.png";
     background_data.left = 16;
     background_data.top = 16;
     background_data.right = 16;
@@ -6351,35 +6299,35 @@ void GLCanvas3D::_switch_toolbars_icon_filename()
     {
         GLToolbarItem* item;
         item = m_main_toolbar.get_item("add");
-        item->set_icon_filename(m_is_dark ? "toolbar_open_dark.svg" : "toolbar_open.svg");
+        item->set_icon_filename("toolbar_open.svg");
 
         item = m_main_toolbar.get_item("addplate");
-        item->set_icon_filename(m_is_dark ? "toolbar_add_plate_dark.svg" : "toolbar_add_plate.svg");
+        item->set_icon_filename("toolbar_add_plate.svg");
 
         item = m_main_toolbar.get_item("orient");
-        item->set_icon_filename(m_is_dark ? "toolbar_orient_dark.svg" : "toolbar_orient.svg");
+        item->set_icon_filename("toolbar_orient.svg");
 
         item = m_main_toolbar.get_item("addplate");
-        item->set_icon_filename(m_is_dark ? "toolbar_add_plate_dark.svg" : "toolbar_add_plate.svg");
+        item->set_icon_filename("toolbar_add_plate.svg");
 
         item = m_main_toolbar.get_item("arrange");
-        item->set_icon_filename(m_is_dark ? "toolbar_arrange_dark.svg" : "toolbar_arrange.svg");
+        item->set_icon_filename("toolbar_arrange.svg");
 
         item = m_main_toolbar.get_item("splitobjects");
-        item->set_icon_filename(m_is_dark ? "split_objects_dark.svg" : "split_objects.svg");
+        item->set_icon_filename("split_objects.svg");
 
         item = m_main_toolbar.get_item("splitvolumes");
-        item->set_icon_filename(m_is_dark ? "split_parts_dark.svg" : "split_parts.svg");
+        item->set_icon_filename("split_parts.svg");
 
         item = m_main_toolbar.get_item("layersediting");
-        item->set_icon_filename(m_is_dark ? "toolbar_variable_layer_height_dark.svg" : "toolbar_variable_layer_height.svg");
+        item->set_icon_filename("toolbar_variable_layer_height.svg");
     }
 
     // assemble view toolbar
     {
         GLToolbarItem* item;
         item = m_assemble_view_toolbar.get_item("assembly_view");
-        item->set_icon_filename(m_is_dark ? "toolbar_assemble_dark.svg" : "toolbar_assemble.svg");
+        item->set_icon_filename("toolbar_assemble.svg");
     }
 }
 bool GLCanvas3D::_init_toolbars()
@@ -6418,7 +6366,7 @@ bool GLCanvas3D::_init_main_toolbar()
         return true;
 
     BackgroundTexture::Metadata background_data;
-    background_data.filename = m_is_dark ? "toolbar_background_dark.png" : "toolbar_background.png";
+    background_data.filename = "toolbar_background.png";
     background_data.left = 16;
     background_data.top = 16;
     background_data.right = 16;
@@ -6451,7 +6399,7 @@ bool GLCanvas3D::_init_main_toolbar()
     GLToolbarItem::Data item;
 
     item.name = "add";
-    item.icon_filename = m_is_dark ? "toolbar_open_dark.svg" : "toolbar_open.svg";
+    item.icon_filename = "toolbar_open.svg";
     item.tooltip = _utf8(L("Add")) + " [" + GUI::shortkey_ctrl_prefix() + "I]";
     item.sprite_id = 0;
     item.left.action_callback = [this]() { if (m_canvas != nullptr) wxPostEvent(m_canvas, SimpleEvent(EVT_GLTOOLBAR_ADD)); };
@@ -6460,7 +6408,7 @@ bool GLCanvas3D::_init_main_toolbar()
         return false;
 
     item.name = "addplate";
-    item.icon_filename = m_is_dark ? "toolbar_add_plate_dark.svg" : "toolbar_add_plate.svg";
+    item.icon_filename = "toolbar_add_plate.svg";
     item.tooltip = _utf8(L("Add plate"));
     item.sprite_id++;
     item.left.action_callback = [this]() { if (m_canvas != nullptr) wxPostEvent(m_canvas, SimpleEvent(EVT_GLTOOLBAR_ADD_PLATE)); };
@@ -6469,7 +6417,7 @@ bool GLCanvas3D::_init_main_toolbar()
         return false;
 
     item.name = "orient";
-    item.icon_filename = m_is_dark ? "toolbar_orient_dark.svg" : "toolbar_orient.svg";
+    item.icon_filename = "toolbar_orient.svg";
     item.tooltip = _utf8(L("Auto orient all/selected objects")) + " [Q]\n" + _utf8(L("Auto orient all objects on current plate")) + " [" + _utf8(L("Shift+")) + "Q]";
     item.sprite_id++;
     item.left.render_callback = nullptr;
@@ -6491,7 +6439,7 @@ bool GLCanvas3D::_init_main_toolbar()
         return false;
 
     item.name = "arrange";
-    item.icon_filename = m_is_dark ? "toolbar_arrange_dark.svg" : "toolbar_arrange.svg";
+    item.icon_filename = "toolbar_arrange.svg";
     item.tooltip = _utf8(L("Arrange all objects")) + " [A]\n" + _utf8(L("Arrange objects on selected plates")) + " [" + _utf8(L("Shift+")) + "A]";
     item.sprite_id++;
     item.left.action_callback = []() {};
@@ -6515,7 +6463,7 @@ bool GLCanvas3D::_init_main_toolbar()
         return false;
 
     item.name = "splitobjects";
-    item.icon_filename = m_is_dark ? "split_objects_dark.svg" : "split_objects.svg";
+    item.icon_filename = "split_objects.svg";
     item.tooltip = _utf8(L("Split to objects"));
     item.sprite_id++;
     item.left.render_callback = nullptr;
@@ -6527,7 +6475,7 @@ bool GLCanvas3D::_init_main_toolbar()
         return false;
 
     item.name = "splitvolumes";
-    item.icon_filename = m_is_dark ? "split_parts_dark.svg" : "split_parts.svg";
+    item.icon_filename = "split_parts.svg";
     item.tooltip = _utf8(L("Split to parts"));
     item.sprite_id++;
     item.left.action_callback = [this]() { if (m_canvas != nullptr) wxPostEvent(m_canvas, SimpleEvent(EVT_GLTOOLBAR_SPLIT_VOLUMES)); };
@@ -6537,7 +6485,7 @@ bool GLCanvas3D::_init_main_toolbar()
         return false;
 
     item.name = "layersediting";
-    item.icon_filename = m_is_dark ? "toolbar_variable_layer_height_dark.svg" : "toolbar_variable_layer_height.svg";
+    item.icon_filename = "toolbar_variable_layer_height.svg";
     item.tooltip = _utf8(L("Variable layer height"));
     item.sprite_id++;
     item.left.toggable = true; // ORCA Closes popup if other toolbar icon clicked and it allows closing popup when clicked its button
@@ -6562,8 +6510,7 @@ bool GLCanvas3D::_init_select_plate_toolbar()
 {
     std::string path = resources_dir() + "/images/";
     IMToolbarItem* item = new IMToolbarItem();
-    // ORCA add dark mode support and load images with 2x resolution to prevent blurry image on hi-dpi screens
-    std::string    ext  = m_is_dark ? "_dark.svg" : ".svg";
+    std::string    ext  = ".svg";
     bool result      = item->image_stats.load_from_svg_file(   path + "im_all_plates_stats"   + ext, false, false, false, 200);
     result = result && item->image_idle.load_from_svg_file(    path + "im_all_plates_idle"    + ext, false, false, false, 200);
     result = result && item->image_slicing.load_from_svg_file( path + "im_all_plates_slicing" + ext, false, false, false, 200);
@@ -6620,7 +6567,7 @@ bool GLCanvas3D::_init_assemble_view_toolbar()
         return true;
 
     BackgroundTexture::Metadata background_data;
-    background_data.filename = m_is_dark ? "toolbar_background_dark.png" : "toolbar_background.png";
+    background_data.filename = "toolbar_background.png";
     background_data.left = 16;
     background_data.top = 16;
     background_data.right = 16;
@@ -6645,7 +6592,7 @@ bool GLCanvas3D::_init_assemble_view_toolbar()
 
     GLToolbarItem::Data item;
     item.name = "assembly_view";
-    item.icon_filename = m_is_dark ? "toolbar_assemble_dark.svg" : "toolbar_assemble.svg";
+    item.icon_filename = false ? "toolbar_assemble_dark.svg" : "toolbar_assemble.svg";
     item.tooltip = _utf8(L("Assembly View"));
     item.sprite_id = 1;
     item.left.toggable = false;
@@ -6677,7 +6624,7 @@ bool GLCanvas3D::_init_separator_toolbar()
         return true;
 
     BackgroundTexture::Metadata background_data;
-    background_data.filename = m_is_dark ? "toolbar_background_dark.png" : "toolbar_background.png";
+    background_data.filename = "toolbar_background.png";
     background_data.left = 0;
     background_data.top = 0;
     background_data.right = 0;
@@ -7212,8 +7159,8 @@ void GLCanvas3D::_render_background()
     // Draws a bottom to top gradient over the complete screen.
     glsafe(::glDisable(GL_DEPTH_TEST));
 
-    ColorRGBA background_color = m_is_dark ? DEFAULT_BG_LIGHT_COLOR_DARK : DEFAULT_BG_LIGHT_COLOR;
-    ColorRGBA error_background_color = m_is_dark ? ERROR_BG_LIGHT_COLOR_DARK : ERROR_BG_LIGHT_COLOR;
+    ColorRGBA background_color = DEFAULT_BG_LIGHT_COLOR;
+    ColorRGBA error_background_color = ERROR_BG_LIGHT_COLOR;
     const ColorRGBA bottom_color = use_error_color ? error_background_color : background_color;
 
     if (!m_background.is_initialized()) {
@@ -7964,16 +7911,16 @@ void GLCanvas3D::_render_imgui_select_plate_toolbar()
     float window_height      = std::min(window_height_calc, window_height_max);
     float window_width       = button_width + (margin_size + button_margin + ImGui::GetStyle().WindowPadding.x) * 2 + (show_scroll ? scrollbar_size : 0);
 
-    ImVec4 window_bg     = m_is_dark ? ImVec4(.13f, .13f, .15f, .5f) : ImVec4(1.f, 1.f, 1.f, .7f);
-    ImVec4 button_active = ImGuiWrapper::COL_ORCA; // ORCA: Use orca color for selected sliced plate border
-    ImVec4 button_hover  = ImVec4(0.67f, 0.67f, 0.67, m_is_dark ? .6f : 1.0f);
-    ImVec4 scroll_col    = ImVec4(0.77f, 0.77f, 0.77f, m_is_dark ? .6f : 1.0f);
-    ImU32  plate_bg      = m_is_dark ? IM_COL32(255, 255, 255, 10) : IM_COL32(0, 0, 0, 10);
-    ImU32  plate_dim     = m_is_dark ? IM_COL32(30, 30, 30, 100) : IM_COL32(0, 0, 0, 50);
+    ImVec4 window_bg     = ImVec4(1.f, 1.f, 1.f, .7f);
+    ImVec4 button_active = ImGuiWrapper::COL_ORCA;
+    ImVec4 button_hover  = ImVec4(0.67f, 0.67f, 0.67, 1.0f);
+    ImVec4 scroll_col    = ImVec4(0.77f, 0.77f, 0.77f, 1.0f);
+    ImU32  plate_bg      = IM_COL32(0, 0, 0, 10);
+    ImU32  plate_dim     = IM_COL32(0, 0, 0, 50);
     float  button_radius = 1.0f * f_scale;
     //ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.f, 0.f, 0.f, 1.0f));
     //use white text as the background switch to black
-    ImGui::PushStyleColor(ImGuiCol_Text, m_is_dark ? ImVec4(.9f, .9f, .9f, 1) : ImVec4(.3f, .3f, .3f, 1)); // ORCA Plate number text > Add support for dark mode
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(.3f, .3f, .3f, 1));
     ImGui::PushStyleColor(ImGuiCol_WindowBg, window_bg);
     ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(0.f, 0.f, 0.f, 0.f)); // ORCA using background color with opacity creates a second color. This prevents secondary color
     ImGui::PushStyleColor(ImGuiCol_ScrollbarGrabActive, scroll_col);
@@ -8025,7 +7972,7 @@ void GLCanvas3D::_render_imgui_select_plate_toolbar()
             }
         }
 
-        ImVec4 text_clr = m_is_dark ? ImVec4(.9f, .9f, .9f, 1) : ImVec4(.3f, .3f, .3f, 1);;
+        ImVec4 text_clr = ImVec4(.3f, .3f, .3f, 1);
         ImTextureID btn_texture_id;
         if (all_plates_stats_item->slice_state == IMToolbarItem::SliceState::UNSLICED || all_plates_stats_item->slice_state == IMToolbarItem::SliceState::SLICING){
             btn_texture_id = (ImTextureID)(intptr_t)(m_process->running() ? all_plates_stats_item->image_slicing.get_id() : all_plates_stats_item->image_idle.get_id());
@@ -8171,7 +8118,7 @@ void GLCanvas3D::_render_imgui_select_plate_toolbar()
             ImVec2 end_pos = ImVec2(start_pos.x + button_width, start_pos.y + button_height);
             ImVec2 center  = ImVec2(start_pos.x + button_width/2, start_pos.y + button_height/2);
             auto draw_list =ImGui::GetWindowDrawList();
-            auto clr = m_is_dark ? IM_COL32(60, 44, 48, 255) : IM_COL32(202, 186, 186, 255);
+            auto clr = IM_COL32(202, 186, 186, 255);
             draw_list->AddRectFilled(start_pos, end_pos, IM_COL32(64, 1, 1, 64), button_radius);
             draw_list->AddCircleFilled(center, 14.f * f_scale,IM_COL32(225, 74, 74, 255));
             draw_list->AddRectFilled(center - ImVec2(2.f, 10.f) * f_scale, center + ImVec2(2.f, 4.f) * f_scale, clr, 2.f * f_scale);
@@ -8245,9 +8192,9 @@ void GLCanvas3D::_render_return_toolbar() const
     imgui.set_next_window_size(window_width, window_height, ImGuiCond_Always);
 #endif
 
-    ImVec4 fg_color = m_is_dark ? ImVec4(1.f, 1.f, 1.f, 0.88f) : ImVec4(50 / 255.f, 58 / 255.f, 61 / 255.f, 1.f);
-    ImVec4 bg_color = m_is_dark ? ImGuiWrapper::COL_TOOLBAR_BG_DARK : ImGuiWrapper::COL_TOOLBAR_BG;
-    ImVec4 bg_color_hover = bg_color +  (m_is_dark ? ImVec4(.03f, .03f, .03f, 0) : ImVec4(-.02f, -.02f, -.02f, 0));
+    ImVec4 fg_color = ImVec4(50 / 255.f, 58 / 255.f, 61 / 255.f, 1.f);
+    ImVec4 bg_color = ImGuiWrapper::COL_TOOLBAR_BG;
+    ImVec4 bg_color_hover = bg_color + ImVec4(-.02f, -.02f, -.02f, 0);
 
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 18.0f);
     ImGui::PushStyleColor(ImGuiCol_Button,        bg_color); // ORCA Toolbar color
@@ -8377,7 +8324,7 @@ void GLCanvas3D::_render_paint_toolbar() const
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(spacing, spacing));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacing, 0));
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, m_is_dark ? ImGuiWrapper::COL_TOOLBAR_BG_DARK : ImGuiWrapper::COL_TOOLBAR_BG); // ORCA Toolbar color
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImGuiWrapper::COL_TOOLBAR_BG); // ORCA Toolbar color
 
     imgui.set_next_window_pos(0.5f * canvas_w, 0, ImGuiCond_Always, 0.5f, 0.0f);
     float constraint_window_width = canvas_w - 2 * return_button_margin;

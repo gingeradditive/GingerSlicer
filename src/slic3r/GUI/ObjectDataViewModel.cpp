@@ -267,7 +267,7 @@ void ObjectDataViewModelNode::update_settings_digest_bitmaps()
     m_bmp = m_empty_bmp;
 
     std::string scaled_bitmap_name = m_name.ToUTF8().data();
-    scaled_bitmap_name += "-em" + std::to_string(wxGetApp().em_unit()) + (wxGetApp().dark_mode() ? "-dm" : "");
+    scaled_bitmap_name += "-em" + std::to_string(wxGetApp().em_unit()) + "-lm";
 
     wxBitmap *bmp = m_bitmap_cache->find(scaled_bitmap_name);
     if (bmp == nullptr) {
@@ -547,7 +547,7 @@ void ObjectDataViewModel::UpdateBitmapForNode(ObjectDataViewModelNode *node)
         scaled_bitmap_name += LockIcon;
     if (is_volume_node)
         scaled_bitmap_name += std::to_string(vol_type);
-    scaled_bitmap_name += (wxGetApp().dark_mode() ? "-dm" : "-lm");
+    scaled_bitmap_name += "-lm";
 
     wxBitmap* bmp = m_bitmap_cache->find(scaled_bitmap_name);
     if (bmp == nullptr) {

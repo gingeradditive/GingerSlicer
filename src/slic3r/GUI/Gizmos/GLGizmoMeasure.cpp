@@ -1859,7 +1859,7 @@ void GLGizmoMeasure::show_selection_ui()
             ImGui::SameLine(selection_cap_length + feature_first_text_length + space_size * 2);
             ImGui::PushItemWidth(space_size * 2);
             ImGui::PushID("Reset1"); // for image_button
-            if (m_imgui->image_button(m_is_dark_mode ? ImGui::RevertBtn : ImGui::RevertBtn, _L("Reset"))) { reset_feature1(); }
+            if (m_imgui->image_button(ImGui::RevertBtn, _L("Reset"))) { reset_feature1(); }
             ImGui::PopID();
         }
         ImGui::PopStyleColor();
@@ -1885,7 +1885,7 @@ void GLGizmoMeasure::show_selection_ui()
             ImGui::SameLine(selection_cap_length + feature_second_text_length + space_size * 2);
             ImGui::PushItemWidth(space_size * 2);
             ImGui::PushID("Reset2");
-            if (m_imgui->image_button(m_is_dark_mode ? ImGui::RevertBtn : ImGui::RevertBtn, _L("Reset"))) { reset_feature2(); }
+            if (m_imgui->image_button(ImGui::RevertBtn, _L("Reset"))) { reset_feature2(); }
             ImGui::PopID();
         }
         ImGui::PopStyleColor();
@@ -1927,7 +1927,7 @@ void GLGizmoMeasure::show_distance_xyz_ui()
         ImGui::TableSetColumnIndex(1);
         m_imgui->text_colored(col_2_color, col_2);
         ImGui::TableSetColumnIndex(2);
-        if (m_imgui->image_button(m_is_dark_mode ? ImGui::ClipboardBtnDarkIcon : ImGui::ClipboardBtnIcon, _L("Copy to clipboard"))) {
+        if (m_imgui->image_button(ImGui::ClipboardBtnIcon, _L("Copy to clipboard"))) {
             wxTheClipboard->Open();
             wxTheClipboard->SetData(new wxTextDataObject(wxString((col_1 + ": " + col_2).c_str(), wxConvUTF8)));
             wxTheClipboard->Close();

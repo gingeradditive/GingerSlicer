@@ -130,7 +130,6 @@ HistoryWindow::HistoryWindow(wxWindow* parent, const std::vector<PACalibResult>&
     main_sizer->Fit(this);
     CenterOnParent();
 
-    wxGetApp().UpdateDlgDarkUI(this);
 
     m_comboBox_nozzle_dia->Bind(wxEVT_COMBOBOX, &HistoryWindow::on_select_nozzle, this);
 
@@ -351,7 +350,6 @@ void HistoryWindow::sync_history_data() {
         i++;
     }
 
-    wxGetApp().UpdateDlgDarkUI(this);
 
     Layout();
     Fit();
@@ -459,7 +457,6 @@ EditCalibrationHistoryDialog::EditCalibrationHistoryDialog(wxWindow* parent, con
     Fit();
     CenterOnParent();
 
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 EditCalibrationHistoryDialog::~EditCalibrationHistoryDialog() {
@@ -673,7 +670,6 @@ NewCalibrationHistoryDialog::NewCalibrationHistoryDialog(wxWindow *parent, const
     Fit();
     CenterOnParent();
 
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 void NewCalibrationHistoryDialog::on_ok(wxCommandEvent &event)

@@ -692,7 +692,6 @@ CreateFilamentPresetDialog::CreateFilamentPresetDialog(wxWindow *parent)
     Layout();
     Fit();
 
-	wxGetApp().UpdateDlgDarkUI(this);
 }
 
 CreateFilamentPresetDialog::~CreateFilamentPresetDialog()
@@ -1577,7 +1576,6 @@ CreatePrinterPresetDialog::CreatePrinterPresetDialog(wxWindow *parent)
     int    dialogY     = (screen_size.GetHeight() - GetSize().GetHeight()) / 2;
     SetPosition(wxPoint(dialogX, dialogY));
 
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 CreatePrinterPresetDialog::~CreatePrinterPresetDialog()
@@ -1655,7 +1653,6 @@ void CreatePrinterPresetDialog::create_printer_page1(wxWindow *parent)
     parent->SetSizerAndFit(m_page1_sizer);
     Layout();
 
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 wxBoxSizer *CreatePrinterPresetDialog::create_type_item(wxWindow *parent)
@@ -2404,7 +2401,6 @@ void CreatePrinterPresetDialog::create_printer_page2(wxWindow *parent)
     Layout();
     Fit();
 
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 wxBoxSizer *CreatePrinterPresetDialog::create_printer_preset_item(wxWindow *parent)
@@ -3264,7 +3260,6 @@ CreatePresetSuccessfulDialog::CreatePresetSuccessfulDialog(wxWindow *parent, con
     SetSizer(m_main_sizer);
     Layout();
     Fit();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 CreatePresetSuccessfulDialog::~CreatePresetSuccessfulDialog() {}
@@ -3303,7 +3298,6 @@ ExportConfigsDialog::ExportConfigsDialog(wxWindow *parent)
     this->Layout();
     this->Fit();
 
-    wxGetApp().UpdateDlgDarkUI(this);
 
 }
 
@@ -4224,7 +4218,6 @@ EditFilamentPresetDialog::EditFilamentPresetDialog(wxWindow *parent, Filamentinf
     this->SetSizer(m_main_sizer);
     this->Layout();
     this->Fit();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 EditFilamentPresetDialog::~EditFilamentPresetDialog() {}
 
@@ -4287,7 +4280,6 @@ void EditFilamentPresetDialog::update_preset_tree()
     this->Layout();
     this->Fit();
     this->Refresh();
-    wxGetApp().UpdateDlgDarkUI(this);
     adjust_dialog_in_screen(this);
     this->Thaw();
 }
@@ -4584,7 +4576,6 @@ CreatePresetForPrinterDialog::CreatePresetForPrinterDialog(wxWindow *parent, std
     this->SetSizer(main_sizer);
     this->Layout();
     this->Fit();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 CreatePresetForPrinterDialog::~CreatePresetForPrinterDialog() {}

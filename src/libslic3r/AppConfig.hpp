@@ -24,10 +24,6 @@ using namespace nlohmann;
 #define OPTION_PROJECT_LOAD_BEHAVIOUR_ALWAYS_ASK "always_ask"
 #define OPTION_PROJECT_LOAD_BEHAVIOUR_LOAD_GEOMETRY "load_geometry_only"
 
-#define SUPPORT_DARK_MODE
-//#define _MSW_DARK_MODE
-
-
 namespace Slic3r {
 
 

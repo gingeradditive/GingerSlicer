@@ -3,7 +3,7 @@
 #include "StaticBox.hpp"
 
 #include "../wxExtensions.hpp"
-#include "../Utils/MacDarkMode.hpp"
+#include "../GUI_Utils.hpp"
 
 #include <wx/dcmemory.h>
 #include <wx/dcclient.h>

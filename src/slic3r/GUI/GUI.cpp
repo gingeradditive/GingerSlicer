@@ -4,9 +4,6 @@
 #include "I18N.hpp"
 
 #include "libslic3r/LocalesUtils.hpp"
-#ifdef __APPLE__
-#include "slic3r/Utils/MacDarkMode.hpp"
-#endif
 #include <string>
 
 #include <boost/algorithm/string.hpp>
@@ -391,7 +388,6 @@ void create_combochecklist(wxComboCtrl* comboCtrl, const std::string& text, cons
 {
     if (comboCtrl == nullptr)
         return;
-    wxGetApp().UpdateDarkUI(comboCtrl);
 
     wxCheckListBoxComboPopup* popup = new wxCheckListBoxComboPopup;
     if (popup != nullptr) {
@@ -429,7 +425,6 @@ void create_combochecklist(wxComboCtrl* comboCtrl, const std::string& text, cons
 		}
 
 		comboCtrl->SetMinClientSize(wxSize(max_width, -1));
-        wxGetApp().UpdateDarkUI(popup);
 	}
 }
 
@@ -560,7 +555,8 @@ void desktop_open_any_folder( const std::string& path )
     const wxString widepath = from_u8(path);
     ::wxExecute(L"explorer /select," + widepath, wxEXEC_ASYNC, nullptr);
 #elif __APPLE__
-    openFolderForFile(from_u8(path));
+    const char* argv[] = { "open", "-R", from_u8(path).c_str(), nullptr };
+    ::wxExecute(const_cast<char**>(argv), wxEXEC_ASYNC, nullptr);
 #else
 
     // Orca#6449: Open containing dir instead of opening the file directly.

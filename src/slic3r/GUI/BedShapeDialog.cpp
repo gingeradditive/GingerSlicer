@@ -151,7 +151,6 @@ void BedShapeDialog::build_dialog(const Pointfs& default_pt, const ConfigOptionS
 
     main_sizer->Add(dlg_btns, 0, wxEXPAND);
 
-    wxGetApp().UpdateDlgDarkUI(this);
 
 	SetSizer(main_sizer);
 	SetMinSize(GetSize());
@@ -185,7 +184,6 @@ const std::string BedShapePanel::EMPTY_STRING = "";
 
 void BedShapePanel::build_panel(const Pointfs& default_pt, const std::string& custom_texture, const std::string& custom_model)
 {
-    wxGetApp().UpdateDarkUI(this);
     m_shape = make_counter_clockwise(default_pt);
     m_custom_texture = custom_texture.empty() ? NONE : custom_texture;
     m_custom_model = custom_model.empty() ? NONE : custom_model;

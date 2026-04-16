@@ -30,12 +30,7 @@ public:
     static double GetColorDifference(const wxColour& c1, const wxColour& c2);
     static double LAB_Delta_E(const wxColour& c1, const wxColour& c2);
 
-    static void SetDarkMode(bool dark);
-
-    static std::map<wxColour, wxColour> const & GetDarkMap();
-    static wxColour darkModeColorFor(wxColour const &color);
     static wxColour lightModeColorFor(wxColour const &color);
-
 public:
     template<typename ...Colors>
     StateColor(std::pair<Colors, int>... colors) {
@@ -69,8 +64,6 @@ public:
     wxColour defaultColor();
 
     wxColour colorForStates(int states);
-
-    wxColour colorForStatesNoDark(int states);
 
     int colorIndexForStates(int states);
 

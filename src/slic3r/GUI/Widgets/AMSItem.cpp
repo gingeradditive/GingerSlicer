@@ -151,7 +151,7 @@ AMSrefresh::AMSrefresh(wxWindow *parent, int number, Caninfo info, const wxPoint
 void AMSrefresh::create(wxWindow *parent, wxWindowID id, const wxPoint &pos, const wxSize &size)
 {
     wxWindow::Create(parent, id, pos, size, wxBORDER_NONE);
-    SetBackgroundColour(StateColor::darkModeColorFor(AMS_CONTROL_DEF_LIB_BK_COLOUR));
+    SetBackgroundColour(AMS_CONTROL_DEF_LIB_BK_COLOUR);
 
     Bind(wxEVT_TIMER, &AMSrefresh::on_timer, this);
     Bind(wxEVT_PAINT, &AMSrefresh::paintEvent, this);
@@ -248,8 +248,8 @@ void AMSrefresh::paintEvent(wxPaintEvent &evt)
     wxSize    size = GetSize();
     wxPaintDC dc(this);
 
-    auto colour = StateColor::darkModeColorFor(AMS_CONTROL_GRAY700);
-    if (!wxWindow::IsEnabled()) { colour = StateColor::darkModeColorFor(AMS_CONTROL_GRAY500); }
+    auto colour = AMS_CONTROL_GRAY700;
+    if (!wxWindow::IsEnabled()) { colour = AMS_CONTROL_GRAY500; }
 
     auto pot = wxPoint((size.x - m_bitmap_selected.GetBmpSize().x) / 2, (size.y - m_bitmap_selected.GetBmpSize().y) / 2);
 
@@ -277,7 +277,7 @@ void AMSrefresh::paintEvent(wxPaintEvent &evt)
     dc.SetPen(wxPen(colour));
     dc.SetBrush(wxBrush(colour));
     dc.SetFont(Label::Body_11);
-    //dc.SetTextForeground(StateColor::darkModeColorFor(AMS_CONTROL_BLACK_COLOUR));
+    //dc.SetTextForeground(AMS_CONTROL_BLACK_COLOUR);
     dc.SetTextForeground(colour);
     auto tsize = dc.GetTextExtent(m_refresh_id);
     pot        = wxPoint((size.x - tsize.x) / 2, (size.y - tsize.y) / 2);
@@ -389,7 +389,7 @@ void AMSextruderImage::doRender(wxDC &dc)
 AMSextruderImage::AMSextruderImage(wxWindow *parent, wxWindowID id, const wxPoint &pos, const wxSize &size) 
 {
     wxWindow::Create(parent, id, pos, AMS_EXTRUDER_BITMAP_SIZE); 
-    SetBackgroundColour(StateColor::darkModeColorFor(*wxWHITE));
+    SetBackgroundColour(*wxWHITE);
 
     m_ams_extruder = ScalableBitmap(this, "monitor_ams_extruder",55);
     SetSize(AMS_EXTRUDER_BITMAP_SIZE);
@@ -508,7 +508,7 @@ void AMSextruder::doRender(wxDC& dc)
             else { dc.SetPen(wxPen(m_current_colur, 6, wxPENSTYLE_SOLID)); }
             dc.DrawRoundedRectangle(-size.x / 2, size.y * 0.1, size.x, size.y, 4);
 
-            if ((m_current_colur == *wxWHITE || m_current_colur.Alpha() == 0) && !wxGetApp().dark_mode()) {
+            if ((m_current_colur == *wxWHITE || m_current_colur.Alpha() == 0)) {
                 dc.SetPen(wxPen(AMS_CONTROL_DEF_BLOCK_BK_COLOUR, 1, wxPENSTYLE_SOLID));
                 dc.DrawRoundedRectangle(-size.x / 2 - FromDIP(3), size.y * 0.1 + FromDIP(3), size.x, size.y, 3);
                 dc.DrawRoundedRectangle(-size.x / 2 + FromDIP(3), size.y * 0.1 - FromDIP(3), size.x, size.y, 5);
@@ -520,7 +520,7 @@ void AMSextruder::doRender(wxDC& dc)
             else {dc.SetPen(wxPen(m_current_colur, 6, wxPENSTYLE_SOLID));}
             dc.DrawLine(size.x / 2, -1, size.x / 2, size.y * 0.6 - 1);
 
-            if ((m_current_colur == *wxWHITE || m_current_colur.Alpha() == 0) && !wxGetApp().dark_mode()) {
+            if ((m_current_colur == *wxWHITE || m_current_colur.Alpha() == 0)) {
                 dc.SetPen(wxPen(AMS_CONTROL_DEF_BLOCK_BK_COLOUR, 1, wxPENSTYLE_SOLID));
                 dc.DrawLine(size.x / 2 - FromDIP(4), -1, size.x / 2 - FromDIP(3), size.y * 0.6 - 1);
                 dc.DrawLine(size.x / 2 + FromDIP(3), -1, size.x / 2 + FromDIP(3), size.y * 0.6 - 1);
@@ -533,7 +533,7 @@ void AMSextruder::doRender(wxDC& dc)
             else { dc.SetPen(wxPen(m_current_colur, 6, wxPENSTYLE_SOLID)); }
             dc.DrawLine(size.x / 2, -1, size.x / 2, size.y * 0.6 - 1);
 
-            if ((m_current_colur == *wxWHITE || m_current_colur.Alpha() == 0) && !wxGetApp().dark_mode()) {
+            if ((m_current_colur == *wxWHITE || m_current_colur.Alpha() == 0)) {
                 dc.SetPen(wxPen(AMS_CONTROL_DEF_BLOCK_BK_COLOUR, 1, wxPENSTYLE_SOLID));
                 dc.DrawLine(size.x / 2 - FromDIP(4), -1, size.x / 2 - FromDIP(3), size.y * 0.6 - 1);
                 dc.DrawLine(size.x / 2 + FromDIP(3), -1, size.x / 2 + FromDIP(3), size.y * 0.6 - 1);
@@ -569,7 +569,7 @@ void AMSVirtualRoad::OnVamsLoading(bool load, wxColour col)
 void AMSVirtualRoad::create(wxWindow* parent, wxWindowID id, const wxPoint& pos, const wxSize& size)
 {
     wxWindow::Create(parent, id, pos, wxDefaultSize, wxBORDER_NONE);
-    SetBackgroundColour(StateColor::darkModeColorFor(AMS_CONTROL_WHITE_COLOUR));
+    SetBackgroundColour(AMS_CONTROL_WHITE_COLOUR);
     Layout();
     Bind(wxEVT_PAINT, &AMSVirtualRoad::paintEvent, this);
 }
@@ -617,7 +617,7 @@ void AMSVirtualRoad::doRender(wxDC& dc)
     dc.SetBrush(wxBrush(*wxTRANSPARENT_BRUSH));
     dc.DrawRoundedRectangle(size.x / 2, -size.y / 1.1 + FromDIP(1), size.x, size.y, 4);
 
-    if ((m_current_color == *wxWHITE || m_current_color.Alpha() == 0) && !wxGetApp().dark_mode()) {
+    if ((m_current_color == *wxWHITE || m_current_color.Alpha() == 0)) {
         dc.SetPen(wxPen(AMS_CONTROL_DEF_LIB_BK_COLOUR, 1, wxPENSTYLE_SOLID));
         dc.DrawRoundedRectangle(size.x / 2 - FromDIP(3), -size.y / 1.1 + FromDIP(4), size.x, size.y, 5);
         dc.DrawRoundedRectangle(size.x / 2 + FromDIP(3), -size.y / 1.1 - FromDIP(2), size.x, size.y, 3);
@@ -639,7 +639,7 @@ AMSLib::AMSLib(wxWindow *parent, std::string ams_idx, Caninfo info)
 {
     m_border_color   = (wxColour(130, 130, 128));
     m_road_def_color = AMS_CONTROL_GRAY500;
-    wxWindow::SetBackgroundColour(StateColor::darkModeColorFor(AMS_CONTROL_DEF_LIB_BK_COLOUR));
+    wxWindow::SetBackgroundColour(AMS_CONTROL_DEF_LIB_BK_COLOUR);
     create(parent);
 
     Bind(wxEVT_PAINT, &AMSLib::paintEvent, this);
@@ -1025,7 +1025,7 @@ void AMSLib::render_lite_lib(wxDC& dc)
 
     //draw def background
     dc.SetPen(wxPen(*wxTRANSPARENT_PEN));
-    dc.SetBrush(wxBrush(StateColor::darkModeColorFor(AMS_CONTROL_DEF_LIB_BK_COLOUR)));
+    dc.SetBrush(wxBrush(AMS_CONTROL_DEF_LIB_BK_COLOUR));
     dc.DrawRoundedRectangle(FromDIP(10), FromDIP(10), size.x - FromDIP(20), size.y - FromDIP(20), 0);
 
     if (tmp_lib_colour.GetLuminance() < 0.6) {
@@ -1422,7 +1422,7 @@ AMSRoad::AMSRoad(wxWindow *parent, wxWindowID id, Caninfo info, int canindex, in
     }
 
     Bind(wxEVT_PAINT, &AMSRoad::paintEvent, this);
-    wxWindow::SetBackgroundColour(StateColor::darkModeColorFor(AMS_CONTROL_DEF_LIB_BK_COLOUR));
+    wxWindow::SetBackgroundColour(AMS_CONTROL_DEF_LIB_BK_COLOUR);
 }
 
 void AMSRoad::create(wxWindow *parent, wxWindowID id, const wxPoint &pos, const wxSize &size) { wxWindow::Create(parent, id, pos, size); }
@@ -1660,7 +1660,7 @@ void AMSPreview::create(wxWindow *parent, wxWindowID id, const wxPoint &pos, con
     wxWindow::Create(parent, id, pos, size);
     SetMinSize(AMS_ITEM_SIZE);
     SetMaxSize(AMS_ITEM_SIZE);
-    SetBackgroundColour(StateColor::darkModeColorFor(AMS_CONTROL_WHITE_COLOUR));
+    SetBackgroundColour(AMS_CONTROL_WHITE_COLOUR);
     Refresh();
 }
 
@@ -1721,8 +1721,8 @@ void AMSPreview::render(wxDC &dc)
 void AMSPreview::doRender(wxDC &dc)
 {
     wxSize size = GetSize();
-    dc.SetPen(wxPen(StateColor::darkModeColorFor(m_background_colour)));
-    dc.SetBrush(wxBrush(StateColor::darkModeColorFor(m_background_colour)));
+    dc.SetPen(wxPen(m_background_colour));
+    dc.SetBrush(wxBrush(m_background_colour));
     dc.DrawRoundedRectangle(0, 0, size.x, size.y, 3);
 
     auto left = m_padding;
@@ -1761,7 +1761,7 @@ void AMSPreview::doRender(wxDC &dc)
                 }
             }
 
-            dc.SetPen(wxPen(StateColor::darkModeColorFor(m_background_colour)));
+            dc.SetPen(wxPen(m_background_colour));
             dc.SetBrush(*wxTRANSPARENT_BRUSH);
             dc.DrawRoundedRectangle(left - 1, (size.y - AMS_ITEM_CUBE_SIZE.y) / 2 - 1, AMS_ITEM_CUBE_SIZE.x + 2, AMS_ITEM_CUBE_SIZE.y + 2, 2);
 
@@ -1865,7 +1865,7 @@ AMSHumidity::AMSHumidity(wxWindow* parent, wxWindowID id, AMSinfo info, const wx
 
 void AMSHumidity::create(wxWindow* parent, wxWindowID id, const wxPoint& pos, const wxSize& size) {
     wxWindow::Create(parent, id, pos, size);
-    SetBackgroundColour(StateColor::darkModeColorFor(AMS_CONTROL_DEF_LIB_BK_COLOUR));
+    SetBackgroundColour(AMS_CONTROL_DEF_LIB_BK_COLOUR);
 }
 
 
@@ -1928,7 +1928,7 @@ void AMSHumidity::doRender(wxDC& dc)
     wxSize size = GetSize();
 
     dc.SetPen(wxPen(*wxTRANSPARENT_PEN));
-    dc.SetBrush(wxBrush(StateColor::darkModeColorFor(AMS_CONTROL_DEF_BLOCK_BK_COLOUR)));
+    dc.SetBrush(wxBrush(AMS_CONTROL_DEF_BLOCK_BK_COLOUR));
     // left mode
     if (m_amsinfo.ams_humidity >= 1 && m_amsinfo.ams_humidity <= 5) { m_show_humidity = true; }
     else { m_show_humidity = false; }
@@ -1936,7 +1936,7 @@ void AMSHumidity::doRender(wxDC& dc)
     if (m_show_humidity) {
         //background
         dc.SetPen(wxPen(*wxTRANSPARENT_PEN));
-        dc.SetBrush(wxBrush(StateColor::darkModeColorFor(AMS_CONTROL_DEF_BLOCK_BK_COLOUR)));
+        dc.SetBrush(wxBrush(AMS_CONTROL_DEF_BLOCK_BK_COLOUR));
         dc.DrawRoundedRectangle(0, 0, (size.x), (size.y), (size.y / 2));
 
         wxPoint pot;
@@ -1944,12 +1944,8 @@ void AMSHumidity::doRender(wxDC& dc)
         {
             // hum image
             ScalableBitmap hum_img;
-            if (!wxGetApp().dark_mode()) {
-                hum_img = ams_humidity_no_num_imgs[m_amsinfo.ams_humidity - 1];
-            } else {
-                hum_img = ams_humidity_no_num_dark_imgs[m_amsinfo.ams_humidity - 1];
-            }
-
+            hum_img = ams_humidity_no_num_imgs[m_amsinfo.ams_humidity - 1];
+            
             pot = wxPoint(FromDIP(5), ((size.y - hum_img.GetBmpSize().y) / 2));
             dc.DrawBitmap(hum_img.bmp(), pot);
             pot.x += hum_img.GetBmpSize().x + FromDIP(3);
@@ -1958,7 +1954,7 @@ void AMSHumidity::doRender(wxDC& dc)
             wxString hum_percentage(std::to_string(m_amsinfo.humidity_raw));
             dc.SetPen(wxPen(*wxTRANSPARENT_PEN));
             dc.SetFont(Label::Body_14);
-            dc.SetTextForeground(StateColor::darkModeColorFor(AMS_CONTROL_BLACK_COLOUR));
+            dc.SetTextForeground(AMS_CONTROL_BLACK_COLOUR);
 
             //WxFontUtils::get_suitable_font_size(0.7 * size.GetHeight(), dc);
             auto tsize1 = dc.GetMultiLineTextExtent(hum_percentage);
@@ -1979,12 +1975,8 @@ void AMSHumidity::doRender(wxDC& dc)
         {
             // hum image
             ScalableBitmap hum_img;
-            if (!wxGetApp().dark_mode()) {
-                hum_img = ams_humidity_imgs[m_amsinfo.ams_humidity - 1];
-            } else {
-                hum_img = ams_humidity_dark_imgs[m_amsinfo.ams_humidity - 1];
-            }
-
+            hum_img = ams_humidity_imgs[m_amsinfo.ams_humidity - 1];
+            
             pot = wxPoint(FromDIP(5), ((size.y - hum_img.GetBmpSize().y) / 2));
             dc.DrawBitmap(hum_img.bmp(), pot);
             pot.x = pot.x + hum_img.GetBmpSize().x;
@@ -2047,7 +2039,7 @@ AmsItem::AmsItem(wxWindow *parent,AMSinfo info,  AMSModel model) : AmsItem()
 
     create(parent);
 
-    SetBackgroundColour(StateColor::darkModeColorFor(AMS_CONTROL_DEF_LIB_BK_COLOUR));
+    SetBackgroundColour(AMS_CONTROL_DEF_LIB_BK_COLOUR);
     Bind(wxEVT_PAINT, &AmsItem::paintEvent, this);
 }
 
@@ -2110,7 +2102,7 @@ void AmsItem::AddCan(Caninfo caninfo, int canindex, int maxcan, wxBoxSizer* size
 {
     auto        amscan = new wxWindow(this, wxID_ANY);
 
-    amscan->SetBackgroundColour(StateColor::darkModeColorFor(AMS_CONTROL_DEF_LIB_BK_COLOUR));
+    amscan->SetBackgroundColour(AMS_CONTROL_DEF_LIB_BK_COLOUR);
 
     wxBoxSizer* m_sizer_ams = new wxBoxSizer(wxVERTICAL);
    

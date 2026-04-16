@@ -16,7 +16,6 @@ MultiMachinePage::MultiMachinePage(wxWindow* parent, wxWindowID id, const wxPoin
     Layout();
     Fit();
     
-    wxGetApp().UpdateDarkUIWin(this);
 
     init_timer();
     Bind(wxEVT_TIMER, &MultiMachinePage::on_timer, this);
@@ -84,9 +83,9 @@ void MultiMachinePage::init_tabpanel()
     m_cloud_task_manager = new CloudTaskManagerPage(m_tabpanel);
     m_machine_manager = new MultiMachineManagerPage(m_tabpanel);
 
-    m_tabpanel->AddPage(m_machine_manager, _L("Device"), "", true);
-    m_tabpanel->AddPage(m_local_task_manager, _L("Task Sending"), "", false);
-    m_tabpanel->AddPage(m_cloud_task_manager, _L("Task Sent"), "", false);
+    m_tabpanel->AddPage(m_machine_manager, "", "", true);
+    m_tabpanel->AddPage(m_local_task_manager, "", "", false);
+    m_tabpanel->AddPage(m_cloud_task_manager, "", "", false);
 }
 
 void MultiMachinePage::init_timer()
@@ -129,7 +128,6 @@ DevicePickItem::DevicePickItem(wxWindow* parent, MachineObject* obj)
     Bind(wxEVT_LEFT_DOWN, &DevicePickItem::OnLeftDown, this);
     Bind(wxEVT_MOTION, &DevicePickItem::OnMove, this);
     Bind(EVT_MULTI_DEVICE_SELECTED, &DevicePickItem::OnSelectedDevice, this);
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 void DevicePickItem::DrawTextWithEllipsis(wxDC& dc, const wxString& text, int maxWidth, int left, int top /*= 0*/)
@@ -138,7 +136,7 @@ void DevicePickItem::DrawTextWithEllipsis(wxDC& dc, const wxString& text, int ma
     wxFont font = dc.GetFont();
 
     wxSize textSize = dc.GetTextExtent(text);
-    dc.SetTextForeground(StateColor::darkModeColorFor(wxColour(50, 58, 61)));
+    dc.SetTextForeground(wxColour(50, 58, 61));
     int textWidth = textSize.GetWidth();
 
     if (textWidth > maxWidth) {
@@ -337,7 +335,6 @@ MultiMachinePickPage::MultiMachinePickPage(Plater* plater /*= nullptr*/)
     Fit();
     Centre(wxBOTH);
 
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 MultiMachinePickPage::~MultiMachinePickPage()

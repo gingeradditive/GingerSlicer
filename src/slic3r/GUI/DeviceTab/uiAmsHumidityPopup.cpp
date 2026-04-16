@@ -88,7 +88,7 @@ void uiAmsPercentHumidityDryPopup::doRender(wxDC &dc)
 {
     // background
     {
-        dc.SetBrush(StateColor::darkModeColorFor(*wxWHITE));
+        dc.SetBrush(*wxWHITE);
         dc.DrawRoundedRectangle(0, 0, GetSize().GetWidth(), GetSize().GetHeight(), 0);
     }
     dc.SetBrush(*wxTRANSPARENT_BRUSH);
@@ -98,7 +98,7 @@ void uiAmsPercentHumidityDryPopup::doRender(wxDC &dc)
     // Header
     {
         dc.SetFont(::Label::Head_24);
-        dc.SetTextForeground(StateColor::darkModeColorFor(*wxBLACK));
+        dc.SetTextForeground(*wxBLACK);
         //WxFontUtils::get_suitable_font_size(FromDIP(24), dc);
 
         auto extent = dc.GetTextExtent(_L("Current AMS humidity"));
@@ -113,15 +113,8 @@ void uiAmsPercentHumidityDryPopup::doRender(wxDC &dc)
     if (0 < m_humidity_level && m_humidity_level < 6)
     {
         ScalableBitmap humitidy_image;
-        if (wxGetApp().dark_mode())
-        {
-            humitidy_image = ScalableBitmap(this, "hum_level" + std::to_string(m_humidity_level) + "_no_num_light", 64);
-        }
-        else
-        {
-            humitidy_image = ScalableBitmap(this, "hum_level" + std::to_string(m_humidity_level) + "_no_num_light", 64);
-        }
-
+        humitidy_image = ScalableBitmap(this, "hum_level" + std::to_string(m_humidity_level) + "_no_num_light", 64);
+        
         p.y += 2 * FromDIP(24);
         dc.DrawBitmap(humitidy_image.bmp(), (GetSize().GetWidth() - humitidy_image.GetBmpWidth()) / 2, p.y);
         p.y += humitidy_image.GetBmpHeight();
@@ -162,8 +155,8 @@ void uiAmsPercentHumidityDryPopup::doRender(wxDC &dc)
 static vector<wxString> grid_header{ L("Humidity"), L("Temperature"), L("Left Time")};
 void uiAmsPercentHumidityDryPopup::DrawGridArea(wxDC &dc, wxPoint start_p)
 {
-    const wxColour& gray_clr = StateColor::darkModeColorFor(wxColour(194, 194, 194));
-    const wxColour& black_clr = StateColor::darkModeColorFor(*wxBLACK);
+    const wxColour& gray_clr = wxColour(194, 194, 194);
+    const wxColour& black_clr = *wxBLACK;
 
     // Horizontal line
     dc.SetPen(gray_clr);

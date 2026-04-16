@@ -146,8 +146,8 @@ void SideToolsPanel::doRender(wxDC &dc)
     //}
 
     if (m_none_printer) {
-        dc.SetPen(StateColor::darkModeColorFor(SIDE_TOOLS_BRAND));   // ORCA: Sidebar header background color - Fix for dark mode compability
-        dc.SetBrush(StateColor::darkModeColorFor(SIDE_TOOLS_BRAND)); // ORCA: Sidebar header background color - Fix for dark mode compability
+        dc.SetPen(SIDE_TOOLS_BRAND);
+        dc.SetBrush(SIDE_TOOLS_BRAND);
         dc.DrawRectangle(0, 0, size.x, size.y);
 
         dc.DrawBitmap(m_none_printing_img.bmp(), left, (size.y - m_none_printing_img.GetBmpSize().y) / 2);
@@ -192,7 +192,7 @@ void SideToolsPanel::doRender(wxDC &dc)
         left += (m_arrow_img.GetBmpSize().x + FromDIP(6));
         dc.SetFont(::Label::Body_14);
         dc.SetBackgroundMode(wxTRANSPARENT);
-        dc.SetTextForeground(StateColor::darkModeColorFor(SIDE_TOOLS_GREY900));
+        dc.SetTextForeground(SIDE_TOOLS_GREY900);
 
         auto sizet = dc.GetTextExtent(m_dev_name);
         auto text_end = size.x - m_wifi_none_img.GetBmpSize().x - 20;

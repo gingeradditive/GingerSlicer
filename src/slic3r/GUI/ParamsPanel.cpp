@@ -80,7 +80,6 @@ TipsDialog::TipsDialog(wxWindow *parent, const wxString &title, const wxString &
     Fit();
     Centre(wxBOTH);
 
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 wxBoxSizer *TipsDialog::create_item_checkbox(wxString title, wxWindow *parent, wxString tooltip, std::string param)

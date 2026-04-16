@@ -292,7 +292,6 @@ MachineInfoPanel::MachineInfoPanel(wxWindow* parent, wxWindowID id, const wxPoin
 
     m_staticText_release_note->Bind(wxEVT_LEFT_DOWN, &MachineInfoPanel::on_show_release_note, this);
     m_button_upgrade_firmware->Connect(wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler(MachineInfoPanel::on_upgrade_firmware), NULL, this);
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 
@@ -407,14 +406,8 @@ void MachineInfoPanel::init_bitmaps()
     m_img_printer        = ScalableBitmap(this, "printer_thumbnail", 160);
     m_img_monitor_ams    = ScalableBitmap(this, "monitor_upgrade_ams", 200);
     m_img_ext            = ScalableBitmap(this, "monitor_upgrade_ext", 200);
-    if (wxGetApp().dark_mode()) {
-        m_img_air_pump = ScalableBitmap(this, "air_pump_dark", 160);
-        m_img_extra_ams = ScalableBitmap(this, "extra_icon_dark", 160);
-    }
-    else {
-        m_img_air_pump  = ScalableBitmap(this, "air_pump", 160);
-        m_img_extra_ams = ScalableBitmap(this, "extra_icon", 160);
-    }
+    m_img_air_pump  = ScalableBitmap(this, "air_pump", 160);
+    m_img_extra_ams = ScalableBitmap(this, "extra_icon", 160);
 
     m_img_laser          = ScalableBitmap(this, "laser", 160);
     m_img_cutting        = ScalableBitmap(this, "cut", 160);
@@ -451,15 +444,8 @@ void MachineInfoPanel::update_printer_imgs(MachineObject* obj)
 {
     if (!obj) {return;}
     auto img = obj->get_printer_thumbnail_img_str();
-    if (wxGetApp().dark_mode()) {
-        img += "_dark";
-        m_img_extra_ams = ScalableBitmap(this, "extra_icon_dark", 160);
-    }
-    else {
-        m_img_extra_ams = ScalableBitmap(this, "extra_icon", 160);
-
-    }
-
+    m_img_extra_ams = ScalableBitmap(this, "extra_icon", 160);
+    
     m_img_printer = ScalableBitmap(this, img, 160);
     m_printer_img->SetBitmap(m_img_printer.bmp());
     m_printer_img->Refresh();
@@ -768,7 +754,6 @@ void MachineInfoPanel::update_ams_ext(MachineObject *obj)
                 if (add_count > 0) {
                     for (int i = 0; i < add_count; i++) {
                         auto amspanel = new AmsPanel(this, wxID_ANY);
-                        wxGetApp().UpdateDarkUIWin(amspanel);
                         m_ams_info_sizer->Add(amspanel, 1, wxEXPAND, 5);
                         m_amspanel_list.Add(amspanel);
                     }
@@ -1389,7 +1374,6 @@ void UpgradePanel::show_status(int status)
 
 void UpgradePanel::on_sys_color_changed()
 {
-    //add some protection for Dark mode
     if (m_push_upgrade_panel) {
         m_push_upgrade_panel->on_sys_color_changed();
     }

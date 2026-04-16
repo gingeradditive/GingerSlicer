@@ -249,7 +249,6 @@ struct GuiCfg
 {
     // Detect invalid config values when change monitor DPI
     double screen_scale;
-    bool   dark_mode = false;
 
     // Zero means it is calculated in init function
     float        height_of_volume_type_selector       = 0.f;
@@ -859,13 +858,10 @@ void GLGizmoEmboss::on_render_input_window(float x, float y, float bottom_limit)
 
     // Configuration creation
     if (m_gui_cfg == nullptr ||                   // Exist configuration - first run
-        m_gui_cfg->screen_scale != screen_scale  ||// change of DPI
-        m_gui_cfg->dark_mode != m_is_dark_mode // change of dark mode
-        ) {
+        m_gui_cfg->screen_scale != screen_scale) { // change of DPI
         // Create cache for gui offsets
         ::GuiCfg cfg = create_gui_configuration();
         cfg.screen_scale = screen_scale;
-        cfg.dark_mode    = m_is_dark_mode;
 
         GuiCfg gui_cfg{std::move(cfg)};
         m_gui_cfg = std::make_unique<const GuiCfg>(std::move(gui_cfg));
@@ -1396,7 +1392,7 @@ void GLGizmoEmboss::draw_window()
        
 #ifdef SHOW_WX_FONT_DESCRIPTOR
     if (is_selected_style)
-        m_imgui->text_colored(ImGuiWrapper::COL_GREY_DARK, m_style_manager.get_style().path);
+        m_imgui->text_colored(ImGuiWrapper::COL_GREY_LIGHT, m_style_manager.get_style().path);
 #endif // SHOW_WX_FONT_DESCRIPTOR
 
 #ifdef SHOW_CONTAIN_3MF_FIX
@@ -1404,7 +1400,7 @@ void GLGizmoEmboss::draw_window()
         m_volume->text_configuration.has_value() &&
         m_volume->text_configuration->fix_3mf_tr.has_value()) {
         ImGui::SameLine();
-        m_imgui->text_colored(ImGuiWrapper::COL_GREY_DARK, ".3mf");
+        m_imgui->text_colored(ImGuiWrapper::COL_GREY_LIGHT, ".3mf");
         if (ImGui::IsItemHovered()) {
             Transform3d &fix = *m_volume->text_configuration->fix_3mf_tr;
             std::stringstream ss;
@@ -1602,34 +1598,17 @@ bool GLGizmoEmboss::select_facename(const wxString &facename)
 
 void GLGizmoEmboss::push_button_style(bool pressed)
 {
-    if (m_is_dark_mode) {
-        if (pressed) {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(43 / 255.f, 64 / 255.f, 54 / 255.f, 1.f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(43 / 255.f, 64 / 255.f, 54 / 255.f, 1.f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(43 / 255.f, 64 / 255.f, 54 / 255.f, 1.f));
-            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.f, 174 / 255.f, 66 / 255.f, 1.f));
-        }
-        else {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(45.f / 255.f, 45.f / 255.f, 49.f / 255.f, 1.f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(84 / 255.f, 84 / 255.f, 90 / 255.f, 1.f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(84 / 255.f, 84 / 255.f, 90 / 255.f, 1.f));
-            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(45.f / 255.f, 45.f / 255.f, 49.f / 255.f, 1.f));
-        }
+    if (pressed) {
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(219 / 255.f, 253 / 255.f, 231 / 255.f, 1.f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(219 / 255.f, 253 / 255.f, 231 / 255.f, 1.f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(219 / 255.f, 253 / 255.f, 231 / 255.f, 1.f));
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.f, 174 / 255.f, 66 / 255.f, 1.f));
     }
     else {
-        if (pressed) {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(219 / 255.f, 253 / 255.f, 231 / 255.f, 1.f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(219 / 255.f, 253 / 255.f, 231 / 255.f, 1.f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(219 / 255.f, 253 / 255.f, 231 / 255.f, 1.f));
-            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.f, 174 / 255.f, 66 / 255.f, 1.f));
-        }
-        else {
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.f, 1.f, 1.f, 1.f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(238 / 255.f, 238 / 255.f, 238 / 255.f, 1.f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(238 / 255.f, 238 / 255.f, 238 / 255.f, 1.f));
-            ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.f, 1.f, 1.f, 1.f));
-        }
-    
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.f, 1.f, 1.f, 1.f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(238 / 255.f, 238 / 255.f, 238 / 255.f, 1.f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(238 / 255.f, 238 / 255.f, 238 / 255.f, 1.f));
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(1.f, 1.f, 1.f, 1.f));
     }
 }
 
@@ -1919,9 +1898,9 @@ void GLGizmoEmboss::draw_style_rename_popup() {
 
     bool allow_change = false;
     if (new_name.empty()) {
-        ImGuiWrapper::text_colored(ImGuiWrapper::COL_ORANGE_DARK, _u8L("Name can't be empty."));
+        ImGuiWrapper::text_colored(ImGuiWrapper::COL_ORANGE_LIGHT, _u8L("Name can't be empty."));
     }else if (!is_unique) { 
-        ImGuiWrapper::text_colored(ImGuiWrapper::COL_ORANGE_DARK, _u8L("Name has to be unique."));
+        ImGuiWrapper::text_colored(ImGuiWrapper::COL_ORANGE_LIGHT, _u8L("Name has to be unique."));
     } else {
         ImGui::NewLine();
         allow_change = true;
@@ -2000,9 +1979,9 @@ void GLGizmoEmboss::draw_style_save_as_popup() {
     bool is_unique = m_style_manager.is_unique_style_name(new_name);        
     bool allow_change = false;
     if (new_name.empty()) {
-        ImGuiWrapper::text_colored(ImGuiWrapper::COL_ORANGE_DARK, _u8L("Name can't be empty."));
+        ImGuiWrapper::text_colored(ImGuiWrapper::COL_ORANGE_LIGHT, _u8L("Name can't be empty."));
     }else if (!is_unique) { 
-        ImGuiWrapper::text_colored(ImGuiWrapper::COL_ORANGE_DARK, _u8L("Name has to be unique."));
+        ImGuiWrapper::text_colored(ImGuiWrapper::COL_ORANGE_LIGHT, _u8L("Name has to be unique."));
     } else {
         ImGui::NewLine();
         allow_change = true;
@@ -2654,7 +2633,7 @@ void GLGizmoEmboss::draw_advanced()
         unsigned int collection = current_prop.collection_number.value_or(0);
         ff_property += ", collect=" + std::to_string(collection+1) + "/" + std::to_string(font_file->infos.size());
     }
-    m_imgui->text_colored(ImGuiWrapper::COL_GREY_DARK, ff_property);
+    m_imgui->text_colored(ImGuiWrapper::COL_GREY_LIGHT, ff_property);
 #endif // SHOW_FONT_FILE_PROPERTY
 
     auto &tr = m_gui_cfg->translations;

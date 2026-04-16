@@ -244,8 +244,6 @@ bool GLTexture::load_from_svg_files_as_sprites_array(const std::vector<std::stri
     if (filenames.empty() || states.empty() || sprite_size_px == 0)
         return false;
 
-    bool dark_mode = wxGetApp().app_config->get("dark_color_mode") == "1";
-
     // every tile needs to have a 1px border around it to avoid artifacts when linear sampling on its edges
     unsigned int sprite_size_px_ex = sprite_size_px + 1;
 
@@ -277,10 +275,6 @@ bool GLTexture::load_from_svg_files_as_sprites_array(const std::vector<std::stri
     const unsigned char hover_color[3] = {255, 255, 255};
     const unsigned char normal_color[3] = {43, 52, 54};
     const unsigned char disable_color[3] = {200, 200, 200};
-    const unsigned char pressed_color_dark[3] = {60, 60, 65};
-    const unsigned char hover_color_dark[3] = {60, 60, 65};
-    const unsigned char normal_color_dark[3] = {182, 182, 182};
-    const unsigned char disable_color_dark[3] = {76, 76, 85};
 
     NSVGrasterizer* rast = nsvgCreateRasterizer();
     if (rast == nullptr) {
@@ -313,9 +307,9 @@ bool GLTexture::load_from_svg_files_as_sprites_array(const std::vector<std::stri
             if (pressed_data.data()[offset + 0] == 0 &&
                 pressed_data.data()[offset + 1] == 0 &&
                 pressed_data.data()[offset + 2] == 0) {
-                hover_data.data()[offset + 0] = dark_mode ? pressed_color_dark[0] : pressed_color[0];
-                hover_data.data()[offset + 0] = dark_mode ? pressed_color_dark[1] : pressed_color[1];
-                hover_data.data()[offset + 0] = dark_mode ? pressed_color_dark[2] : pressed_color[2];
+                hover_data.data()[offset + 0] = pressed_color[0];
+                hover_data.data()[offset + 1] = pressed_color[1];
+                hover_data.data()[offset + 2] = pressed_color[2];
             }
         }
 
@@ -333,9 +327,9 @@ bool GLTexture::load_from_svg_files_as_sprites_array(const std::vector<std::stri
                 hover_data.data()[offset + 1] == 0 &&
                 hover_data.data()[offset + 2] == 0)
             {
-                hover_data.data()[offset + 0] = dark_mode ? hover_color_dark[0] : hover_color[0];
-                hover_data.data()[offset + 1] = dark_mode ? hover_color_dark[1] : hover_color[1];
-                hover_data.data()[offset + 2] = dark_mode ? hover_color_dark[2] : hover_color[2];
+                hover_data.data()[offset + 0] = hover_color[0];
+                hover_data.data()[offset + 1] = hover_color[1];
+                hover_data.data()[offset + 2] = hover_color[2];
             }
         }
 
@@ -345,9 +339,9 @@ bool GLTexture::load_from_svg_files_as_sprites_array(const std::vector<std::stri
             if (sprite_white_only_data.data()[offset + 0] != 0 ||
                 sprite_white_only_data.data()[offset + 1] != 0 ||
                 sprite_white_only_data.data()[offset + 2] != 0) {
-                sprite_white_only_data.data()[offset + 0] = dark_mode ? normal_color_dark[0] : normal_color[0];
-                sprite_white_only_data.data()[offset + 1] = dark_mode ? normal_color_dark[1] : normal_color[1];
-                sprite_white_only_data.data()[offset + 2] = dark_mode ? normal_color_dark[2] : normal_color[2];
+                sprite_white_only_data.data()[offset + 0] = normal_color[0];
+                sprite_white_only_data.data()[offset + 1] = normal_color[1];
+                sprite_white_only_data.data()[offset + 2] = normal_color[2];
             }
         }
 
@@ -357,9 +351,9 @@ bool GLTexture::load_from_svg_files_as_sprites_array(const std::vector<std::stri
             if (sprite_gray_only_data.data()[offset + 0] != 0 ||
                 sprite_gray_only_data.data()[offset + 1] != 0 ||
                 sprite_gray_only_data.data()[offset + 2] != 0) {
-                sprite_gray_only_data.data()[offset + 0] = dark_mode ? disable_color_dark[0] : disable_color[0];
-                sprite_gray_only_data.data()[offset + 1] = dark_mode ? disable_color_dark[1] : disable_color[1];
-                sprite_gray_only_data.data()[offset + 2] = dark_mode ? disable_color_dark[2] : disable_color[2];
+                sprite_gray_only_data.data()[offset + 0] = disable_color[0];
+                sprite_gray_only_data.data()[offset + 1] = disable_color[1];
+                sprite_gray_only_data.data()[offset + 2] = disable_color[2];
             }
         }
 

@@ -49,7 +49,6 @@ class Bed3D
 public:
     // ORCA make bed colors accessable for 2D bed
     static ColorRGBA DEFAULT_MODEL_COLOR;
-    static ColorRGBA DEFAULT_MODEL_COLOR_DARK;
     static ColorRGBA DEFAULT_SOLID_GRID_COLOR;
     static ColorRGBA DEFAULT_TRANSPARENT_GRID_COLOR;
 
@@ -115,7 +114,6 @@ private:
     //BBS: add part plate related logic
     Vec2d m_position{ Vec2d::Zero() };
     std::vector<Vec2d>  m_bed_shape;
-    bool m_is_dark = false;
 
 public:
     Bed3D() = default;
@@ -153,8 +151,6 @@ public:
     Point point_projection(const Point& point) const;
 
     void render(GLCanvas3D& canvas, const Transform3d& view_matrix, const Transform3d& projection_matrix, bool bottom, float scale_factor, bool show_axes);
-
-    void on_change_color_mode(bool is_dark);
 
 private:
     //BBS: add partplate related logic

@@ -45,7 +45,7 @@ SideButton::SideButton(wxWindow* parent, wxString text, wxString icon, long stly
     background_color.append(0xd72828, StateColor::Normal);
     background_color.setTakeFocusedAsHovered(false);
 
-    SetBottomColour(wxColour("#463b3b"));
+    SetBottomColour(wxColour("#FFFFFF"));
 
     state_handler.attach({ &border_color, &text_color, &background_color });
     state_handler.update_binds();
@@ -199,7 +199,7 @@ void SideButton::dorender(wxDC& dc, wxDC& text_dc)
 
     // draw background
     dc.SetPen(wxNullPen);
-    dc.SetBrush(StateColor::darkModeColorFor(bottom_color));
+    dc.SetBrush(bottom_color);
     dc.DrawRectangle(0, 0, size.x, size.y);
 
     int states = state_handler.states();

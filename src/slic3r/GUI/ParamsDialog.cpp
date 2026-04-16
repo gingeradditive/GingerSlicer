@@ -62,12 +62,10 @@ ParamsDialog::ParamsDialog(wxWindow * parent)
         wxGetApp().sidebar().finish_param_edit();
     });
 
-    //wxGetApp().UpdateDlgDarkUI(this);
 }
 
 void ParamsDialog::Popup()
 {
-    wxGetApp().UpdateDlgDarkUI(this);
 #ifdef __WIN32__
     Reparent(wxGetApp().mainframe);
 #endif

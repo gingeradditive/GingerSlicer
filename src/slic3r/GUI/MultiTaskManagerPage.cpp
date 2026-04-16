@@ -43,7 +43,7 @@ MultiTaskItem::MultiTaskItem(wxWindow* parent, MachineObject* obj, int type)
     m_button_resume->SetBackgroundColor(m_btn_bg_enable);
     m_button_resume->SetBorderColor(m_btn_bg_enable);
     m_button_resume->SetFont(Label::Body_12);
-    m_button_resume->SetTextColor(StateColor::darkModeColorFor("#FFFFFE"));
+    m_button_resume->SetTextColor(StateColor(wxString("#FFFFFE")));
     m_button_resume->SetMinSize(wxSize(FromDIP(70), FromDIP(35)));
     m_button_resume->SetCornerRadius(6);
     
@@ -110,7 +110,6 @@ MultiTaskItem::MultiTaskItem(wxWindow* parent, MachineObject* obj, int type)
         onStop(); 
     });
 
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 void MultiTaskItem::update_info()
@@ -461,7 +460,7 @@ void MultiTaskItem::DrawTextWithEllipsis(wxDC& dc, const wxString& text, int max
 
     wxSize textSize = dc.GetTextExtent(text);
 
-    dc.SetTextForeground(StateColor::darkModeColorFor(wxColour(50, 58, 61)));
+    dc.SetTextForeground(wxColour(50, 58, 61));
 
     int textWidth = textSize.GetWidth();
 
@@ -718,7 +717,6 @@ LocalTaskManagerPage::LocalTaskManagerPage(wxWindow* parent)
     page_sizer = new wxBoxSizer(wxVERTICAL);
     page_sizer->Add(m_main_panel, 1, wxALL | wxEXPAND, FromDIP(25));
 
-    wxGetApp().UpdateDarkUIWin(this);
 
     SetSizer(page_sizer);
     Layout();
@@ -1185,7 +1183,6 @@ CloudTaskManagerPage::CloudTaskManagerPage(wxWindow* parent)
     page_sizer->Add(m_main_panel, 1, wxALL | wxEXPAND, FromDIP(25));
     Bind(wxEVT_TIMER, &CloudTaskManagerPage::on_timer, this);
 
-    wxGetApp().UpdateDarkUIWin(this);
 
     SetSizer(page_sizer);
     Layout();

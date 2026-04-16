@@ -87,21 +87,14 @@ void Bed_2D::repaint(const std::vector<Vec2d>& shape)
 	auto cw = GetSize().GetWidth();
 	auto ch = GetSize().GetHeight();
 	// when canvas is not rendered yet, size is 0, 0
-	if (cw == 0) return ; 
-    bool is_dark = wxGetApp().dark_mode();
+	if (cw == 0) return ;
 
 	if (m_user_drawn_background) {
 		// On all systems the AutoBufferedPaintDC() achieves double buffering.
 		// On MacOS the background is erased, on Windows the background is not erased
 		// and on Linux / GTK the background is erased to gray color.
 		// Fill DC with the background on Windows & Linux / GTK.
-		wxColour color;
-		if (is_dark) {// SetBackgroundColour
-			color = wxColour(45, 45, 49);
-		}
-		else {
-			color = *wxWHITE;
-		}
+		wxColour color = *wxWHITE;
 		dc.SetPen(*new wxPen(color, 1, wxPENSTYLE_SOLID));
 		dc.SetBrush(*new wxBrush(color, wxBRUSHSTYLE_SOLID));
 		auto rect = GetUpdateRegion().GetBox();
@@ -136,9 +129,9 @@ void Bed_2D::repaint(const std::vector<Vec2d>& shape)
     m_shift = Vec2d(shift(0) + cbb.min(0), shift(1) - (cbb.max(1) - ch));
 
     // ORCA match colors
-    ColorRGBA   bed_rgba   = is_dark ? Bed3D::DEFAULT_MODEL_COLOR_DARK    : Bed3D::DEFAULT_MODEL_COLOR;
+    ColorRGBA   bed_rgba   = Bed3D::DEFAULT_MODEL_COLOR;
     std::string bed_color  = encode_color(ColorRGBA(bed_rgba[0] * 0.8f, bed_rgba[1] * 0.8f,bed_rgba[2] * 0.8f, bed_rgba[3]));
-    ColorRGBA   grid_color = is_dark ? PartPlate::LINE_TOP_SEL_DARK_COLOR : PartPlate::LINE_TOP_SEL_COLOR;
+    ColorRGBA   grid_color = PartPlate::LINE_TOP_SEL_COLOR;
     std::string lines_bold_color = encode_color(grid_color);
     std::string lines_thin_color = encode_color(grid_color * 0.85);
     wxColour    text_color = wxColour(lines_bold_color);
@@ -227,7 +220,7 @@ void Bed_2D::repaint(const std::vector<Vec2d>& shape)
         std::min(m_pos(0),bb.min(0)),
         std::min(m_pos(1),bb.min(1))
     ),ch);
-    dc.SetTextForeground(wxColour(StateColor::darkModeColorFor("#262E30")));
+    dc.SetTextForeground(wxColour("#262E30"));
     dc.SetFont(wxFont(10, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL));
     dc.DrawText(grid_label, draw_bb(0), draw_bb(1) + 5);
 

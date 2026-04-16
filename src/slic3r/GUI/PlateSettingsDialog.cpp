@@ -486,7 +486,6 @@ PlateSettingsDialog::PlateSettingsDialog(wxWindow* parent, const wxString& title
 
     CenterOnParent();
 
-    wxGetApp().UpdateDlgDarkUI(this);
 
     if (only_layer_seq) {
         for (auto item : top_sizer->GetChildren()) {
@@ -662,7 +661,6 @@ PlateNameEditDialog::PlateNameEditDialog(wxWindow *parent, wxWindowID id, const 
 
     CenterOnParent();
 
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 PlateNameEditDialog::~PlateNameEditDialog() {}

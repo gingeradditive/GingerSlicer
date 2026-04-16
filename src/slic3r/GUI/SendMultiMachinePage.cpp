@@ -43,7 +43,6 @@ SendDeviceItem::SendDeviceItem(wxWindow* parent,  MachineObject* obj)
     Bind(wxEVT_LEFT_DOWN, &SendDeviceItem::OnLeftDown, this);
     Bind(wxEVT_MOTION, &SendDeviceItem::OnMove, this);
     Bind(EVT_MULTI_DEVICE_SELECTED, &SendDeviceItem::OnSelectedDevice, this);
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 void SendDeviceItem::DrawTextWithEllipsis(wxDC& dc, const wxString& text, int maxWidth, int left, int top /*= 0*/)
@@ -52,7 +51,7 @@ void SendDeviceItem::DrawTextWithEllipsis(wxDC& dc, const wxString& text, int ma
     wxFont font = dc.GetFont();
 
     wxSize textSize = dc.GetTextExtent(text);
-    dc.SetTextForeground(StateColor::darkModeColorFor(wxColour(50, 58, 61)));
+    dc.SetTextForeground(wxColour(50, 58, 61));
     int textWidth = textSize.GetWidth();
 
     if (textWidth > maxWidth) {
@@ -298,7 +297,6 @@ SendMultiMachinePage::SendMultiMachinePage(Plater* plater)
 
     init_timer();
     Bind(wxEVT_TIMER, &SendMultiMachinePage::on_timer, this);
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 SendMultiMachinePage::~SendMultiMachinePage()
@@ -1326,7 +1324,7 @@ wxPanel* SendMultiMachinePage::create_page()
     m_button_send = new Button(main_page, _L("Send"));
     m_button_send->SetBackgroundColor(btn_bg_enable);
     m_button_send->SetBorderColor(btn_bg_enable);
-    m_button_send->SetTextColor(StateColor::darkModeColorFor("#FFFFFE"));
+    m_button_send->SetTextColor(StateColor(wxString("#FFFFFE")));
     m_button_send->SetSize(wxSize(FromDIP(120), FromDIP(40)));
     m_button_send->SetMinSize(wxSize(FromDIP(120), FromDIP(40)));
     m_button_send->SetMinSize(wxSize(FromDIP(120), FromDIP(40)));

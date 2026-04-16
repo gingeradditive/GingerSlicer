@@ -2890,7 +2890,7 @@ void ObjectTablePanel::load_data()
     m_object_grid->SetColLabelValue(ObjectGridTable::col_speed_perimeter, _L("Outer wall speed"));
     m_object_grid->SetColLabelValue(ObjectGridTable::col_speed_perimeter_reset, "");
     m_object_grid->SetLabelFont(Label::Head_13);
-    m_object_grid->SetLabelTextColour(StateColor::darkModeColorFor(wxColour("#303A3C")));
+    m_object_grid->SetLabelTextColour(wxColour("#303A3C"));
     m_object_grid->SetLabelBackgroundColour( wxColour("#FFFFFF"));
 #else
     m_object_grid->HideColLabels();
@@ -2929,7 +2929,7 @@ void ObjectTablePanel::load_data()
 
     //m_object_grid->SetSelectionForeground(wxColour(0xDB,0xFD,0xE7));
     //m_object_grid->SetSelectionBackground(*wxWHITE);
-    m_object_grid->SetDefaultCellBackgroundColour(StateColor::darkModeColorFor(*wxWHITE));
+    m_object_grid->SetDefaultCellBackgroundColour(*wxWHITE);
     for (int col = 0; col < cols; col++)
     {
         ObjectGridTable::ObjectGridCol* grid_col = m_object_grid_table->get_grid_col(col);
@@ -2942,8 +2942,8 @@ void ObjectTablePanel::load_data()
             m_object_grid->SetCellAlignment(row, col, grid_col->horizontal_align, wxALIGN_CENTRE );
             m_object_grid->SetCellOverflow(row, col, false);
             //m_object_grid->SetCellBackgroundColour (row, col, *wxLIGHT_GREY);
-            m_object_grid->SetCellBackgroundColour (row, col, StateColor::darkModeColorFor(*wxWHITE));
-            m_object_grid->SetCellTextColour(row, col,StateColor::darkModeColorFor(wxColour(*wxBLACK)));
+            m_object_grid->SetCellBackgroundColour (row, col, *wxWHITE);
+            m_object_grid->SetCellTextColour(row, col,wxColour(*wxBLACK));
             //set the render and editor
             if (grid_col->b_icon) {
                 m_object_grid->SetCellRenderer(row, col, new GridCellIconRenderer());
@@ -3355,7 +3355,6 @@ ObjectTableDialog::ObjectTableDialog(wxWindow* parent, Plater* platerObj, Model 
     SetSizer(m_main_sizer);
     Fit();
     Layout();
-    wxGetApp().UpdateDlgDarkUI(this);
 }
 
 ObjectTableDialog::~ObjectTableDialog()

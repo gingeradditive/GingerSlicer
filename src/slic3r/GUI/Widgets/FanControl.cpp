@@ -285,7 +285,7 @@ void FanOperate::doRender(wxDC& dc)
 
     //txt
     dc.SetFont(::Label::Body_12);
-    dc.SetTextForeground(StateColor::darkModeColorFor(wxColour(0x898989)));
+    dc.SetTextForeground(wxColour(0x898989));
     wxString text = wxString::Format("%d%%", 10);
     wxSize text_size = dc.GetTextExtent(text);
     dc.DrawText(text, wxPoint(left_fir + (left_fir- text_size.x) / 2, (size.y- text_size.y) / 2));
@@ -660,7 +660,6 @@ bool FanControlPopup::ProcessLeftDown(wxMouseEvent& event)
 
 void FanControlPopup::on_show(wxShowEvent& evt)
 {
-    wxGetApp().UpdateDarkUIWin(this);
 }
 
 void FanControlPopup::paintEvent(wxPaintEvent& evt)

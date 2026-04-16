@@ -161,7 +161,6 @@ struct GuiCfg
 {
     // Detect invalid config values when change monitor DPI
     double screen_scale = -1.;
-    bool   dark_mode = false;
 
     // Define bigger size(width or height)
     unsigned texture_max_size_px = 256;
@@ -454,13 +453,11 @@ void GLGizmoSVG::on_render_input_window(float x, float y, float bottom_limit)
 
     // Configuration creation
     if (m_gui_cfg == nullptr || // Exist configuration - first run
-        m_gui_cfg->screen_scale != screen_scale || // change of DPI
-        m_gui_cfg->dark_mode != m_is_dark_mode // change of dark mode
+        m_gui_cfg->screen_scale != screen_scale // change of DPI
         ) {
         // Create cache for gui offsets
         ::GuiCfg cfg = create_gui_configuration();
         cfg.screen_scale = screen_scale;
-        cfg.dark_mode    = m_is_dark_mode;
 
         GuiCfg gui_cfg{std::move(cfg)};
         m_gui_cfg = std::make_unique<const GuiCfg>(std::move(gui_cfg));
@@ -1511,7 +1508,7 @@ void GLGizmoSVG::draw_filename(){
         if (m_volume->emboss_shape->svg_file->path.empty()){
             draw(get_icon(m_icons, IconType::bake, IconState::disabled));
             ImGui::SameLine();
-            m_imgui->text_colored(ImGuiWrapper::COL_GREY_DARK, forget_path.c_str());
+            m_imgui->text_colored(ImGuiWrapper::COL_GREY_LIGHT, forget_path.c_str());
         } else {
             draw(get_icon(m_icons, IconType::bake, IconState::hovered));
             ImGui::SameLine();
