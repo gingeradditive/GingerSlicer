@@ -8,13 +8,8 @@
 #include "OpenGLManager.hpp"
 #include "libslic3r/Preset.hpp"
 #include "libslic3r/PresetBundle.hpp"
-#include "slic3r/GUI/DeviceManager.hpp"
 #include "slic3r/GUI/UserNotification.hpp"
-#include "slic3r/Utils/NetworkAgent.hpp"
 #include "slic3r/GUI/WebViewDialog.hpp"
-#include "slic3r/GUI/HMS.hpp"
-#include "slic3r/GUI/Jobs/UpgradeNetworkJob.hpp"
-#include "slic3r/GUI/HttpServer.hpp"
 #include "../Utils/PrintHost.hpp"
 
 #include <wx/app.h>
@@ -51,9 +46,6 @@ class PresetBundle;
 class PresetUpdater;
 class ModelObject;
 class Model;
-class UserManager;
-class DeviceManager;
-class NetworkAgent;
 
 namespace GUI{
 
@@ -70,9 +62,7 @@ class NotificationManager;
 class Downloader;
 struct GUI_InitParams;
 class ParamsDialog;
-class HMSQuery;
 class ModelMallDialog;
-class NetworkErrorDialog;
 
 
 enum FileType
@@ -272,20 +262,12 @@ private:
 
     //BBS
     bool m_is_closing {false};
-    Slic3r::DeviceManager* m_device_manager { nullptr };
-    Slic3r::UserManager* m_user_manager { nullptr };
-    NetworkAgent* m_agent { nullptr };
     std::vector<std::string> need_delete_presets;   // store setting ids of preset
     std::vector<bool> m_create_preset_blocked { false, false, false, false, false, false }; // excceed limit
-    bool m_networking_compatible { false };
-    bool m_networking_need_update { false };
-    bool m_networking_cancel_update { false };
-    std::shared_ptr<UpgradeNetworkJob> m_upgrade_network_job;
 
     VersionInfo version_info;
     VersionInfo privacy_version_info;
     static std::string version_display;
-    HMSQuery    *hms_query { nullptr };
 
     boost::thread    m_sync_update_thread;
     std::shared_ptr<int> m_user_sync_token;
@@ -293,9 +275,7 @@ private:
     bool             m_side_popup_status{false};
     bool             m_show_http_errpr_msgdlg{false};
     wxString         m_info_dialog_content;
-    HttpServer       m_http_server;
     bool             m_show_gcode_window{true};
-    boost::thread    m_check_network_thread;
 public:
     //try again when subscription fails
     void            on_start_subscribe_again(std::string dev_id);
@@ -314,9 +294,6 @@ public:
 
     void show_message_box(std::string msg) { wxMessageBox(msg); }
     EAppMode get_app_mode() const { return m_app_mode; }
-    Slic3r::DeviceManager* getDeviceManager() { return m_device_manager; }
-    HMSQuery* get_hms_query() { return hms_query; }
-    NetworkAgent* getAgent() { return m_agent; }
     bool is_editor() const { return m_app_mode == EAppMode::Editor; }
     bool is_gcode_viewer() const { return m_app_mode == EAppMode::GCodeViewer; }
     bool is_recreating_gui() const { return m_is_recreating_gui; }
@@ -412,10 +389,6 @@ public:
     void            get_login_info();
     bool            is_user_login();
 
-    void            request_user_login(int online_login = 0);
-    void            request_user_handle(int online_login = 0);
-    void            request_user_logout();
-    int             request_user_unbind(std::string dev_id);
     std::string     handle_web_request(std::string cmd);
     void            handle_script_message(std::string msg);
     void            request_model_download(wxString url);
@@ -426,11 +399,6 @@ public:
 
     void            handle_http_error(unsigned int status, std::string body);
     void            on_http_error(wxCommandEvent &evt);
-    void            on_set_selected_machine(wxCommandEvent& evt);
-    void            on_update_machine_list(wxCommandEvent& evt);
-    void            on_user_login(wxCommandEvent &evt);
-    void            on_user_login_handle(wxCommandEvent& evt);
-    void            enable_user_preset_folder(bool enable);
 
     // BBS
     bool            is_studio_active();
@@ -441,7 +409,6 @@ public:
     void            check_update(bool show_tips, int by_user);
     void            check_new_version(bool show_tips = false, int by_user = 0);
     void            check_new_version_sf(bool show_tips = false, int by_user = 0);
-    void            process_network_msg(std::string dev_id, std::string msg);
     void            request_new_version(int by_user);
     void            enter_force_upgrade();
     void            set_skip_version(bool skip = true);
@@ -455,16 +422,7 @@ public:
     void            sync_preset(Preset* preset);
     void            start_sync_user_preset(bool with_progress_dlg = false);
     void            stop_sync_user_preset();
-    void            start_http_server();
-    void            stop_http_server();
-    void            switch_staff_pick(bool on);
 
-    void            on_show_check_privacy_dlg(int online_login = 0);
-    void            show_check_privacy_dlg(wxCommandEvent& evt);
-    void            on_check_privacy_update(wxCommandEvent &evt);
-    bool            check_privacy_update();
-    void            check_privacy_version(int online_login = 0);
-    void            check_track_enable();
 
     static bool     catch_error(std::function<void()> cb, const std::string& err);
 
@@ -542,7 +500,6 @@ public:
     std::string         m_mall_model_download_name;
     ModelMallDialog*    m_mall_publish_dialog{ nullptr };
 
-    NetworkErrorDialog* m_server_error_dialog { nullptr };
 
     void            set_download_model_url(std::string url) {m_mall_model_download_url = url;}
     void            set_download_model_name(std::string name) {m_mall_model_download_name = name;}
@@ -630,29 +587,13 @@ public:
     // URL download - PrusaSlicer gets system call to open prusaslicer:// URL which should contain address of download
     void            start_download(std::string url);
 
-    std::string     get_plugin_url(std::string name, std::string country_code);
-    int             download_plugin(std::string name, std::string package_name, InstallProgressFn pro_fn = nullptr, WasCancelledFn cancel_fn = nullptr);
-    int             install_plugin(std::string name, std::string package_name, InstallProgressFn pro_fn = nullptr, WasCancelledFn cancel_fn = nullptr);
     std::string     get_http_url(std::string country_code, std::string path = {});
     std::string     get_model_http_url(std::string country_code);
-    bool            is_compatibility_version();
-    bool            check_networking_version();
-    void            cancel_networking_install();
-    void            restart_networking();
     void            check_config_updates_from_updater() { check_updates(false); }
 
 private:
-    int             updating_bambu_networking();
     bool            on_init_inner();
-    void            copy_network_if_available();
-    bool            on_init_network(bool try_backup = false);
-    void            init_networking_callbacks();
     void            init_app_config();
-    void            remove_old_networking_plugins();
-    //BBS set extra header for http request
-    std::map<std::string, std::string> get_extra_header();
-    void            init_http_extra_header();
-    void            update_http_extra_header();
     bool            check_older_app_config(Semver current_version, bool backup);
     void            copy_older_config();
     void            window_pos_save(wxTopLevelWindow* window, const std::string &name);

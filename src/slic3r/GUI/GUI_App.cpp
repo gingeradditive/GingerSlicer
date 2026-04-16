@@ -3,7 +3,6 @@
 #include "GUI_Init.hpp"
 #include "GUI_ObjectList.hpp"
 #include "GUI_Factories.hpp"
-#include "slic3r/GUI/UserManager.hpp"
 
 #include "format.hpp"
 #include "libslic3r_version.h"
@@ -2154,25 +2153,6 @@ int GUI_App::OnExit()
 {
     stop_sync_user_preset();
 
-    if (m_device_manager) {
-        delete m_device_manager;
-        m_device_manager = nullptr;
-    }
-
-    if (m_user_manager) {
-        delete m_user_manager;
-        m_user_manager = nullptr;
-    }
-
-    if (m_agent) {
-        // BBS avoid a crash on mac platform
-#ifdef __WINDOWS__
-        m_agent->start_discovery(false, false);
-#endif
-        delete m_agent;
-        m_agent = nullptr;
-    }
-
     // Orca: clean up encrypted bbl network log file if plugin is used
     // No point to keep them as they are encrypted and can't be used for debugging
     try {
@@ -2785,106 +2765,7 @@ void GUI_App::copy_network_if_available()
     app_config->set("update_network_plugin", "false");
 }
 
-bool GUI_App::on_init_network(bool try_backup)
-{
-    bool create_network_agent = false;
-    auto should_load_networking_plugin = app_config->get_bool("installed_networking");
-    if(!should_load_networking_plugin) {
-        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << "Don't load plugin as installed_networking is false";
-    } else {
-    int load_agent_dll = Slic3r::NetworkAgent::initialize_network_module();
-__retry:
-    if (!load_agent_dll) {
-        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": on_init_network, load dll ok";
-        if (check_networking_version()) {
-            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": on_init_network, compatibility version";
-            auto bambu_source = Slic3r::NetworkAgent::get_bambu_source_entry();
-            if (!bambu_source) {
-                BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": can not get bambu source module!";
-                m_networking_compatible = false;
-                if (should_load_networking_plugin) {
-                    m_networking_need_update = true;
-                }
-            }
-            else
-                create_network_agent = true;
-        } else {
-            if (try_backup) {
-                int result = Slic3r::NetworkAgent::unload_network_module();
-                BOOST_LOG_TRIVIAL(info) << "on_init_network, version mismatch, unload_network_module, result = " << result;
-                load_agent_dll = Slic3r::NetworkAgent::initialize_network_module(true);
-                try_backup = false;
-                goto __retry;
-            }
-            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": on_init_network, version dismatch, need upload network module";
-            if (should_load_networking_plugin) {
-                m_networking_need_update = true;
-            }
-        }
-    } else {
-        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": on_init_network, load dll failed";
-        if (should_load_networking_plugin) {
-            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": on_init_network, need upload network module";
-            m_networking_need_update = true;
-        }
-    }
-    }
-
-    if (create_network_agent) {
-        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(", create network agent...");
-        //std::string data_dir = wxStandardPaths::Get().GetUserDataDir().ToUTF8().data();
-        std::string data_directory = data_dir();
-
-        m_agent = new Slic3r::NetworkAgent(data_directory);
-
-        if (!m_device_manager)
-            m_device_manager = new Slic3r::DeviceManager(m_agent);
-        else
-            m_device_manager->set_agent(m_agent);
-
-        if (!m_user_manager)
-            m_user_manager = new Slic3r::UserManager(m_agent);
-        else
-            m_user_manager->set_agent(m_agent);
-
-        m_agent->enable_multi_machine(false);
-        DeviceManager::EnableMultiMachine = false;
-
-        //BBS set config dir
-        if (m_agent) {
-            m_agent->set_config_dir(data_directory);
-        }
-        //BBS start http log
-        if (m_agent) {
-            m_agent->init_log();
-        }
-
-        //BBS set cert dir
-        if (m_agent)
-            m_agent->set_cert_file(resources_dir() + "/cert", "slicer_base64.cer");
-
-        init_http_extra_header();
-
-        if (m_agent) {
-            init_networking_callbacks();
-            std::string country_code = app_config->get_country_code();
-            m_agent->set_country_code(country_code);
-            m_agent->start();
-        }
-    }
-    else {
-        int result = Slic3r::NetworkAgent::unload_network_module();
-        BOOST_LOG_TRIVIAL(info) << "on_init_network, unload_network_module, result = " << result;
-
-        if (!m_device_manager)
-            m_device_manager = new Slic3r::DeviceManager();
-
-        if (!m_user_manager)
-            m_user_manager = new Slic3r::UserManager();
-    }
-
-    return true;
-}
+// Bambu networking removed
 
 unsigned GUI_App::get_colour_approx_luma(const wxColour &colour)
 {
