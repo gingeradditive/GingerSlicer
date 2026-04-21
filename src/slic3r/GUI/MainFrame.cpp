@@ -1088,7 +1088,7 @@ void MainFrame::init_tabpanel() {
         wxString key = evt.GetAPIkey();
         m_printer_view->load_url(url, key);
     });
-    m_tabpanel->AddPage(m_printer_view, _L("Device"), std::string("tab_monitor_active"), std::string("tab_monitor_active"), false);
+    m_tabpanel->AddPage(m_printer_view, "", std::string("tab_monitor_active"), std::string("tab_monitor_active"), false);
 
 
     // m_project = new ProjectPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
