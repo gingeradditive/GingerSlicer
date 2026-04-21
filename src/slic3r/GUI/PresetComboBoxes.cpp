@@ -1524,7 +1524,8 @@ void GUI::CalibrateFilamentComboBox::OnSelect(wxCommandEvent &evt)
         return;
     }
     m_is_compatible = true;
-    static_cast<FilamentComboBox*>(m_parent)->Enable(true);
+    // BambuLab FilamentComboBox removed
+    // static_cast<FilamentComboBox*>(m_parent)->Enable(true);
 
     wxString display_name = evt.GetString();
     std::string preset_name;
@@ -1543,9 +1544,10 @@ void GUI::CalibrateFilamentComboBox::OnSelect(wxCommandEvent &evt)
         return;
     }
 
-    wxCommandEvent e(EVT_CALI_TRAY_CHANGED);
-    e.SetEventObject(m_parent);
-    wxPostEvent(m_parent, e);
+    // BambuLab EVT_CALI_TRAY_CHANGED removed
+    // wxCommandEvent e(EVT_CALI_TRAY_CHANGED);
+    // e.SetEventObject(m_parent);
+    // wxPostEvent(m_parent, e);
 }
 
 } // namespace Slic3r

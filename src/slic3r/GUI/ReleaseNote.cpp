@@ -52,18 +52,18 @@ ReleaseNoteDialog::ReleaseNoteDialog(Plater *plater /*= nullptr*/)
     auto        m_line_top   = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(-1, 1));
     m_line_top->SetBackgroundColour(wxColour(166, 169, 170));
     m_sizer_main->Add(m_line_top, 0, wxEXPAND, 0);
-    m_sizer_main->Add(0, 0, 0, wxTOP, FromDIP(30));
+    m_sizer_main->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(30, static_cast<wxWindow*>(this)));
 
     wxBoxSizer *m_sizer_body = new wxBoxSizer(wxHORIZONTAL);
 
-    m_sizer_body->Add(0, 0, 0, wxLEFT, FromDIP(38));
+    m_sizer_body->Add(0, 0, 0, wxLEFT, wxWindow::FromDIP(38, static_cast<wxWindow*>(this)));
 
     auto sm = create_scaled_bitmap("OrcaSlicer", nullptr,  70);
-    auto brand = new wxStaticBitmap(this, wxID_ANY, sm, wxDefaultPosition, wxSize(FromDIP(70), FromDIP(70)));
+    auto brand = new wxStaticBitmap(this, wxID_ANY, sm, wxDefaultPosition, wxSize(wxWindow::FromDIP(70, static_cast<wxWindow*>(this)), wxWindow::FromDIP(70, static_cast<wxWindow*>(this))));
 
     m_sizer_body->Add(brand, 0, wxALL, 0);
 
-    m_sizer_body->Add(0, 0, 0, wxRIGHT, FromDIP(25));
+    m_sizer_body->Add(0, 0, 0, wxRIGHT, wxWindow::FromDIP(25, static_cast<wxWindow*>(this)));
 
     wxBoxSizer *m_sizer_right = new wxBoxSizer(wxVERTICAL);
 
@@ -71,15 +71,15 @@ ReleaseNoteDialog::ReleaseNoteDialog(Plater *plater /*= nullptr*/)
     m_text_up_info->SetForegroundColour(wxColour(0x26, 0x2E, 0x30));
     m_sizer_right->Add(m_text_up_info, 0, wxEXPAND, 0);
 
-    m_sizer_right->Add(0, 0, 1, wxTOP, FromDIP(15));
+    m_sizer_right->Add(0, 0, 1, wxTOP, wxWindow::FromDIP(15, static_cast<wxWindow*>(this)));
 
-    m_vebview_release_note = new wxScrolledWindow(this, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(560), FromDIP(430)), wxVSCROLL);
+    m_vebview_release_note = new wxScrolledWindow(this, wxID_ANY, wxDefaultPosition, wxSize(wxWindow::FromDIP(560, static_cast<wxWindow*>(this)), wxWindow::FromDIP(430, static_cast<wxWindow*>(this))), wxVSCROLL);
     m_vebview_release_note->SetScrollRate(5, 5);
     m_vebview_release_note->SetBackgroundColour(wxColour(0xF8, 0xF8, 0xF8));
-    m_vebview_release_note->SetMaxSize(wxSize(FromDIP(560), FromDIP(430)));
+    m_vebview_release_note->SetMaxSize(wxSize(wxWindow::FromDIP(560, static_cast<wxWindow*>(this)), wxWindow::FromDIP(430, static_cast<wxWindow*>(this))));
 
-    m_sizer_right->Add(m_vebview_release_note, 0, wxEXPAND | wxRIGHT, FromDIP(20));
-    m_sizer_body->Add(m_sizer_right, 1, wxBOTTOM | wxEXPAND, FromDIP(30));
+    m_sizer_right->Add(m_vebview_release_note, 0, wxEXPAND | wxRIGHT, wxWindow::FromDIP(20, static_cast<wxWindow*>(this)));
+    m_sizer_body->Add(m_sizer_right, 1, wxBOTTOM | wxEXPAND, wxWindow::FromDIP(30, static_cast<wxWindow*>(this)));
     m_sizer_main->Add(m_sizer_body, 0, wxEXPAND, 0);
 
     SetSizer(m_sizer_main);
@@ -101,8 +101,8 @@ void ReleaseNoteDialog::update_release_note(wxString release_note, std::string v
     m_text_up_info->SetLabel(wxString::Format(_L("version %s update information:"), version));
     wxBoxSizer * sizer_text_release_note = new wxBoxSizer(wxVERTICAL);
     auto        m_staticText_release_note = new ::Label(m_vebview_release_note, release_note, LB_AUTO_WRAP);
-    m_staticText_release_note->SetMinSize(wxSize(FromDIP(530), -1));
-    m_staticText_release_note->SetMaxSize(wxSize(FromDIP(530), -1));
+    m_staticText_release_note->SetMinSize(wxSize(wxWindow::FromDIP(530, static_cast<wxWindow*>(this)), -1));
+    m_staticText_release_note->SetMaxSize(wxSize(wxWindow::FromDIP(530, static_cast<wxWindow*>(this)), -1));
     sizer_text_release_note->Add(m_staticText_release_note, 0, wxALL, 5);
     m_vebview_release_note->SetSizer(sizer_text_release_note);
     m_vebview_release_note->Layout();
@@ -117,31 +117,31 @@ UpdatePluginDialog::UpdatePluginDialog(wxWindow* parent /*= nullptr*/)
     auto        m_line_top = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(-1, 1));
     m_line_top->SetBackgroundColour(wxColour(166, 169, 170));
     m_sizer_main->Add(m_line_top, 0, wxEXPAND, 0);
-    m_sizer_main->Add(0, 0, 0, wxTOP, FromDIP(30));
+    m_sizer_main->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(30, static_cast<wxWindow*>(this)));
 
     wxBoxSizer* m_sizer_body = new wxBoxSizer(wxHORIZONTAL);
 
 
 
     auto sm = create_scaled_bitmap("OrcaSlicer", nullptr, 55);
-    auto brand = new wxStaticBitmap(this, wxID_ANY, sm, wxDefaultPosition, wxSize(FromDIP(55), FromDIP(55)));
+    auto brand = new wxStaticBitmap(this, wxID_ANY, sm, wxDefaultPosition, wxSize(wxWindow::FromDIP(55, static_cast<wxWindow*>(this)), wxWindow::FromDIP(55, static_cast<wxWindow*>(this))));
 
     wxBoxSizer* m_sizer_right = new wxBoxSizer(wxVERTICAL);
 
     m_text_up_info = new Label(this, Label::Head_13, wxEmptyString, LB_AUTO_WRAP);
-    m_text_up_info->SetMaxSize(wxSize(FromDIP(260), -1));
+    m_text_up_info->SetMaxSize(wxSize(wxWindow::FromDIP(260, static_cast<wxWindow*>(this)), -1));
     m_text_up_info->SetForegroundColour(wxColour(0x26, 0x2E, 0x30));
 
 
     operation_tips = new ::Label(this, Label::Body_12, _L("Click OK to update the Network plug-in when Ginger Slicer launches next time."), LB_AUTO_WRAP);
-    operation_tips->SetMinSize(wxSize(FromDIP(260), -1));
-    operation_tips->SetMaxSize(wxSize(FromDIP(260), -1));
+    operation_tips->SetMinSize(wxSize(wxWindow::FromDIP(260, static_cast<wxWindow*>(this)), -1));
+    operation_tips->SetMaxSize(wxSize(wxWindow::FromDIP(260, static_cast<wxWindow*>(this)), -1));
 
     m_vebview_release_note = new wxScrolledWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxVSCROLL);
     m_vebview_release_note->SetScrollRate(5, 5);
     m_vebview_release_note->SetBackgroundColour(wxColour(0xF8, 0xF8, 0xF8));
-    m_vebview_release_note->SetMinSize(wxSize(FromDIP(260), FromDIP(150)));
-    m_vebview_release_note->SetMaxSize(wxSize(FromDIP(260), FromDIP(150)));
+    m_vebview_release_note->SetMinSize(wxSize(wxWindow::FromDIP(260, static_cast<wxWindow*>(this)), wxWindow::FromDIP(150, static_cast<wxWindow*>(this))));
+    m_vebview_release_note->SetMaxSize(wxSize(wxWindow::FromDIP(260, static_cast<wxWindow*>(this)), wxWindow::FromDIP(150, static_cast<wxWindow*>(this))));
 
     auto sizer_button = new wxBoxSizer(wxHORIZONTAL);
 
@@ -156,9 +156,9 @@ UpdatePluginDialog::UpdatePluginDialog(wxWindow* parent /*= nullptr*/)
     m_button_ok->SetBorderColor(*wxWHITE);
     m_button_ok->SetTextColor(wxColour(0xFFFFFE));
     m_button_ok->SetFont(Label::Body_12);
-    m_button_ok->SetSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_ok->SetMinSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_ok->SetCornerRadius(FromDIP(12));
+    m_button_ok->SetSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_ok->SetMinSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_ok->SetCornerRadius(wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
 
     m_button_ok->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) {
         EndModal(wxID_OK);
@@ -168,30 +168,30 @@ UpdatePluginDialog::UpdatePluginDialog(wxWindow* parent /*= nullptr*/)
     m_button_cancel->SetBackgroundColor(btn_bg_white);
     m_button_cancel->SetBorderColor(wxColour(48, 38, 38));
     m_button_cancel->SetFont(Label::Body_12);
-    m_button_cancel->SetSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_cancel->SetMinSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_cancel->SetCornerRadius(FromDIP(12));
+    m_button_cancel->SetSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_cancel->SetMinSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_cancel->SetCornerRadius(wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
 
     m_button_cancel->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) {
         EndModal(wxID_NO);
         });
 
     sizer_button->AddStretchSpacer();
-    sizer_button->Add(m_button_ok, 0, wxALL, FromDIP(5));
-    sizer_button->Add(m_button_cancel, 0, wxALL, FromDIP(5));
+    sizer_button->Add(m_button_ok, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    sizer_button->Add(m_button_cancel, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
 
     m_sizer_right->Add(m_text_up_info, 0, wxEXPAND, 0);
-    m_sizer_right->Add(0, 0, 0, wxTOP, FromDIP(5));
-    m_sizer_right->Add(m_vebview_release_note, 0, wxEXPAND | wxRIGHT, FromDIP(20));
-    m_sizer_right->Add(0, 0, 0, wxTOP, FromDIP(5));
-    m_sizer_right->Add(operation_tips, 1, wxEXPAND | wxRIGHT, FromDIP(20));
-    m_sizer_right->Add(0, 0, 0, wxTOP, FromDIP(5));
-    m_sizer_right->Add(sizer_button, 0, wxEXPAND | wxRIGHT, FromDIP(20));
+    m_sizer_right->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    m_sizer_right->Add(m_vebview_release_note, 0, wxEXPAND | wxRIGHT, wxWindow::FromDIP(20, static_cast<wxWindow*>(this)));
+    m_sizer_right->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    m_sizer_right->Add(operation_tips, 1, wxEXPAND | wxRIGHT, wxWindow::FromDIP(20, static_cast<wxWindow*>(this)));
+    m_sizer_right->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    m_sizer_right->Add(sizer_button, 0, wxEXPAND | wxRIGHT, wxWindow::FromDIP(20, static_cast<wxWindow*>(this)));
 
-    m_sizer_body->Add(0, 0, 0, wxLEFT, FromDIP(24));
+    m_sizer_body->Add(0, 0, 0, wxLEFT, wxWindow::FromDIP(24, static_cast<wxWindow*>(this)));
     m_sizer_body->Add(brand, 0, wxALL, 0);
-    m_sizer_body->Add(0, 0, 0, wxRIGHT, FromDIP(20));
-    m_sizer_body->Add(m_sizer_right, 1, wxBOTTOM | wxEXPAND, FromDIP(18));
+    m_sizer_body->Add(0, 0, 0, wxRIGHT, wxWindow::FromDIP(20, static_cast<wxWindow*>(this)));
+    m_sizer_body->Add(m_sizer_right, 1, wxBOTTOM | wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
     m_sizer_main->Add(m_sizer_body, 0, wxEXPAND, 0);
 
     SetSizer(m_sizer_main);
@@ -231,12 +231,12 @@ void UpdatePluginDialog::update_info(std::string json_path)
     description = from_u8(description_str);
 
     m_text_up_info->SetLabel(wxString::Format(_L("A new Network plug-in (%s) is available. Do you want to install it?"), version));
-    m_text_up_info->SetMinSize(wxSize(FromDIP(260), -1));
-    m_text_up_info->SetMaxSize(wxSize(FromDIP(260), -1));
+    m_text_up_info->SetMinSize(wxSize(wxWindow::FromDIP(260, static_cast<wxWindow*>(this)), -1));
+    m_text_up_info->SetMaxSize(wxSize(wxWindow::FromDIP(260, static_cast<wxWindow*>(this)), -1));
     wxBoxSizer* sizer_text_release_note = new wxBoxSizer(wxVERTICAL);
     auto        m_text_label            = new ::Label(m_vebview_release_note, Label::Body_13, description, LB_AUTO_WRAP);
-    m_text_label->SetMinSize(wxSize(FromDIP(235), -1));
-    m_text_label->SetMaxSize(wxSize(FromDIP(235), -1));
+    m_text_label->SetMinSize(wxSize(wxWindow::FromDIP(235, static_cast<wxWindow*>(this)), -1));
+    m_text_label->SetMaxSize(wxSize(wxWindow::FromDIP(235, static_cast<wxWindow*>(this)), -1));
 
     sizer_text_release_note->Add(m_text_label, 0, wxALL, 5);
     m_vebview_release_note->SetSizer(sizer_text_release_note);
@@ -261,7 +261,7 @@ UpdateVersionDialog::UpdateVersionDialog(wxWindow *parent)
     
 
     auto sm    = create_scaled_bitmap("OrcaSlicer", nullptr, 70);
-    m_brand = new wxStaticBitmap(this, wxID_ANY, sm, wxDefaultPosition, wxSize(FromDIP(70), FromDIP(70)));
+    m_brand = new wxStaticBitmap(this, wxID_ANY, sm, wxDefaultPosition, wxSize(wxWindow::FromDIP(70, static_cast<wxWindow*>(this)), wxWindow::FromDIP(70, static_cast<wxWindow*>(this))));
 
     
 
@@ -271,20 +271,20 @@ UpdateVersionDialog::UpdateVersionDialog(wxWindow *parent)
     m_text_up_info->SetForegroundColour(wxColour(0x26, 0x2E, 0x30));
 
     m_simplebook_release_note = new wxSimplebook(this);
-    m_simplebook_release_note->SetSize(wxSize(FromDIP(560), FromDIP(430)));
-    m_simplebook_release_note->SetMinSize(wxSize(FromDIP(560), FromDIP(430)));
+    m_simplebook_release_note->SetSize(wxSize(wxWindow::FromDIP(560, static_cast<wxWindow*>(this)), wxWindow::FromDIP(430, static_cast<wxWindow*>(this))));
+    m_simplebook_release_note->SetMinSize(wxSize(wxWindow::FromDIP(560, static_cast<wxWindow*>(this)), wxWindow::FromDIP(430, static_cast<wxWindow*>(this))));
     m_simplebook_release_note->SetBackgroundColour(wxColour(0xF8, 0xF8, 0xF8));
 
-    m_scrollwindows_release_note = new wxScrolledWindow(m_simplebook_release_note, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(560), FromDIP(430)), wxVSCROLL);
+    m_scrollwindows_release_note = new wxScrolledWindow(m_simplebook_release_note, wxID_ANY, wxDefaultPosition, wxSize(wxWindow::FromDIP(560, static_cast<wxWindow*>(this)), wxWindow::FromDIP(430, static_cast<wxWindow*>(this))), wxVSCROLL);
     m_scrollwindows_release_note->SetScrollRate(5, 5);
     m_scrollwindows_release_note->SetBackgroundColour(wxColour(0xF8, 0xF8, 0xF8));
 
     //webview
     m_vebview_release_note = CreateTipView(m_simplebook_release_note);
     m_vebview_release_note->SetBackgroundColour(wxColour(0xF8, 0xF8, 0xF8));
-    m_vebview_release_note->SetSize(wxSize(FromDIP(560), FromDIP(430)));
-    m_vebview_release_note->SetMinSize(wxSize(FromDIP(560), FromDIP(430)));
-    //m_vebview_release_note->SetMaxSize(wxSize(FromDIP(560), FromDIP(430)));
+    m_vebview_release_note->SetSize(wxSize(wxWindow::FromDIP(560, static_cast<wxWindow*>(this)), wxWindow::FromDIP(430, static_cast<wxWindow*>(this))));
+    m_vebview_release_note->SetMinSize(wxSize(wxWindow::FromDIP(560, static_cast<wxWindow*>(this)), wxWindow::FromDIP(430, static_cast<wxWindow*>(this))));
+    //m_vebview_release_note->SetMaxSize(wxSize(wxWindow::FromDIP(560, static_cast<wxWindow*>(this)), wxWindow::FromDIP(430, static_cast<wxWindow*>(this))));
     m_vebview_release_note->Bind(wxEVT_WEBVIEW_NAVIGATING,[=](wxWebViewEvent& event){
         static bool load_url_first = false;
         if(load_url_first){
@@ -327,9 +327,9 @@ UpdateVersionDialog::UpdateVersionDialog(wxWindow *parent)
     m_button_download->SetBorderColor(*wxWHITE);
     m_button_download->SetTextColor(wxColour("#FFFFFE"));
     m_button_download->SetFont(Label::Body_12);
-    m_button_download->SetSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_download->SetMinSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_download->SetCornerRadius(FromDIP(12));
+    m_button_download->SetSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_download->SetMinSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_download->SetCornerRadius(wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
 
     m_button_download->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent &e) {
         EndModal(wxID_YES);
@@ -339,9 +339,9 @@ UpdateVersionDialog::UpdateVersionDialog(wxWindow *parent)
     m_button_skip_version->SetBackgroundColor(btn_bg_white);
     m_button_skip_version->SetBorderColor(wxColour(48, 38, 38));
     m_button_skip_version->SetFont(Label::Body_12);
-    m_button_skip_version->SetSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_skip_version->SetMinSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_skip_version->SetCornerRadius(FromDIP(12));
+    m_button_skip_version->SetSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_skip_version->SetMinSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_skip_version->SetCornerRadius(wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
 
     m_button_skip_version->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent &e) { 
         wxGetApp().set_skip_version(true);
@@ -364,9 +364,9 @@ UpdateVersionDialog::UpdateVersionDialog(wxWindow *parent)
     m_button_cancel->SetBackgroundColor(btn_bg_white);
     m_button_cancel->SetBorderColor(wxColour(48, 38, 38));
     m_button_cancel->SetFont(Label::Body_12);
-    m_button_cancel->SetSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_cancel->SetMinSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_cancel->SetCornerRadius(FromDIP(12));
+    m_button_cancel->SetSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_cancel->SetMinSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_cancel->SetCornerRadius(wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
 
     m_button_cancel->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent &e) {
         EndModal(wxID_NO);
@@ -374,21 +374,21 @@ UpdateVersionDialog::UpdateVersionDialog(wxWindow *parent)
 
     m_sizer_main->Add(m_line_top, 0, wxEXPAND | wxBOTTOM, 0);
     
-    //sizer_button->Add(m_remind_choice, 0, wxALL | wxEXPAND, FromDIP(5));
+    //sizer_button->Add(m_remind_choice, 0, wxALL | wxEXPAND, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
     sizer_button->AddStretchSpacer();
-    sizer_button->Add(stable_only_label, 0, wxALIGN_CENTER | wxLEFT, FromDIP(7));
-    sizer_button->Add(m_cb_stable_only, 0, wxALIGN_CENTER | wxLEFT, FromDIP(5));
-    sizer_button->Add(m_button_download, 0, wxALL, FromDIP(5));
-    sizer_button->Add(m_button_skip_version, 0, wxALL, FromDIP(5));
-    sizer_button->Add(m_button_cancel, 0, wxALL, FromDIP(5));
+    sizer_button->Add(stable_only_label, 0, wxALIGN_CENTER | wxLEFT, wxWindow::FromDIP(7, static_cast<wxWindow*>(this)));
+    sizer_button->Add(m_cb_stable_only, 0, wxALIGN_CENTER | wxLEFT, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    sizer_button->Add(m_button_download, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    sizer_button->Add(m_button_skip_version, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    sizer_button->Add(m_button_cancel, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
 
-    m_sizer_right->Add(m_text_up_info, 0, wxEXPAND | wxBOTTOM | wxTOP, FromDIP(15));
+    m_sizer_right->Add(m_text_up_info, 0, wxEXPAND | wxBOTTOM | wxTOP, wxWindow::FromDIP(15, static_cast<wxWindow*>(this)));
     m_sizer_right->Add(m_simplebook_release_note, 1, wxEXPAND | wxRIGHT, 0);
-    m_sizer_right->Add(sizer_button, 0, wxEXPAND | wxRIGHT, FromDIP(20));
+    m_sizer_right->Add(sizer_button, 0, wxEXPAND | wxRIGHT, wxWindow::FromDIP(20, static_cast<wxWindow*>(this)));
 
-    m_sizer_body->Add(m_brand, 0, wxTOP|wxRIGHT|wxLEFT, FromDIP(15));
+    m_sizer_body->Add(m_brand, 0, wxTOP|wxRIGHT|wxLEFT, wxWindow::FromDIP(15, static_cast<wxWindow*>(this)));
     m_sizer_body->Add(0, 0, 0, wxRIGHT, 0);
-    m_sizer_body->Add(m_sizer_right, 1, wxBOTTOM | wxEXPAND, FromDIP(8));
+    m_sizer_body->Add(m_sizer_right, 1, wxBOTTOM | wxEXPAND, wxWindow::FromDIP(8, static_cast<wxWindow*>(this)));
     m_sizer_main->Add(m_sizer_body, 1, wxEXPAND, 0);
     m_sizer_main->Add(0, 0, 0, wxBOTTOM, 10);
 
@@ -512,13 +512,13 @@ void UpdateVersionDialog::update_version_info(wxString release_note, wxString ve
         m_vebview_release_note->LoadURL(from_u8(url_line));
     }
     else {
-        m_simplebook_release_note->SetMaxSize(wxSize(FromDIP(560), FromDIP(430)));
+        m_simplebook_release_note->SetMaxSize(wxSize(wxWindow::FromDIP(560, static_cast<wxWindow*>(this)), wxWindow::FromDIP(430, static_cast<wxWindow*>(this))));
         m_simplebook_release_note->SetSelection(0);
         m_text_up_info->SetLabel(wxString::Format(_L("Click to download new version in default browser: %s"), version));
         wxBoxSizer* sizer_text_release_note = new wxBoxSizer(wxVERTICAL);
         auto        m_staticText_release_note = new ::Label(m_scrollwindows_release_note, release_note, LB_AUTO_WRAP);
-        m_staticText_release_note->SetMinSize(wxSize(FromDIP(560), -1));
-        m_staticText_release_note->SetMaxSize(wxSize(FromDIP(560), -1));
+        m_staticText_release_note->SetMinSize(wxSize(wxWindow::FromDIP(560, static_cast<wxWindow*>(this)), -1));
+        m_staticText_release_note->SetMaxSize(wxSize(wxWindow::FromDIP(560, static_cast<wxWindow*>(this)), -1));
         sizer_text_release_note->Add(m_staticText_release_note, 0, wxALL, 5);
         m_scrollwindows_release_note->SetSizer(sizer_text_release_note);
         m_scrollwindows_release_note->Layout();
@@ -538,20 +538,20 @@ SecondaryCheckDialog::SecondaryCheckDialog(wxWindow* parent, wxWindowID id, cons
 
     SetBackgroundColour(*wxWHITE);
     m_sizer_main = new wxBoxSizer(wxVERTICAL);
-    auto        m_line_top = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(400), 1));
+    auto        m_line_top = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(wxWindow::FromDIP(400, static_cast<wxWindow*>(this)), 1));
     m_line_top->SetBackgroundColour(wxColour(166, 169, 170));
     m_sizer_main->Add(m_line_top, 0, wxEXPAND, 0);
-    m_sizer_main->Add(0, 0, 0, wxTOP, FromDIP(5));
+    m_sizer_main->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
 
     wxBoxSizer* m_sizer_right = new wxBoxSizer(wxVERTICAL);
 
-    m_sizer_right->Add(0, 0, 1, wxTOP, FromDIP(15));
+    m_sizer_right->Add(0, 0, 1, wxTOP, wxWindow::FromDIP(15, static_cast<wxWindow*>(this)));
 
     m_vebview_release_note = new wxScrolledWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxVSCROLL);
     m_vebview_release_note->SetScrollRate(0, 5);
     m_vebview_release_note->SetBackgroundColour(*wxWHITE);
-    m_vebview_release_note->SetMinSize(wxSize(FromDIP(400), FromDIP(380)));
-    m_sizer_right->Add(m_vebview_release_note, 0, wxEXPAND | wxRIGHT | wxLEFT, FromDIP(15));
+    m_vebview_release_note->SetMinSize(wxSize(wxWindow::FromDIP(400, static_cast<wxWindow*>(this)), wxWindow::FromDIP(380, static_cast<wxWindow*>(this))));
+    m_sizer_right->Add(m_vebview_release_note, 0, wxEXPAND | wxRIGHT | wxLEFT, wxWindow::FromDIP(15, static_cast<wxWindow*>(this)));
 
 
     auto bottom_sizer = new wxBoxSizer(wxVERTICAL);
@@ -570,8 +570,8 @@ SecondaryCheckDialog::SecondaryCheckDialog(wxWindow* parent, wxWindowID id, cons
             not_show_again = !not_show_again;
             m_show_again_checkbox->SetValue(not_show_again);
         });
-        checkbox_sizer->Add(FromDIP(15), 0, 0, 0);
-        checkbox_sizer->Add(m_show_again_checkbox, 0, wxALL, FromDIP(5));
+        checkbox_sizer->Add(wxWindow::FromDIP(15, static_cast<wxWindow*>(this)), 0, 0, 0);
+        checkbox_sizer->Add(m_show_again_checkbox, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
         bottom_sizer->Add(checkbox_sizer, 0, wxBOTTOM | wxEXPAND, 0);
     }
     m_button_ok = new Button(this, _L("Confirm"));
@@ -579,10 +579,10 @@ SecondaryCheckDialog::SecondaryCheckDialog(wxWindow* parent, wxWindowID id, cons
     m_button_ok->SetBorderColor(*wxWHITE);
     m_button_ok->SetTextColor(wxColour("#FFFFFE"));
     m_button_ok->SetFont(Label::Body_12);
-    m_button_ok->SetSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_ok->SetMinSize(wxSize(-1, FromDIP(24)));
-    m_button_ok->SetMaxSize(wxSize(-1, FromDIP(24)));
-    m_button_ok->SetCornerRadius(FromDIP(12));
+    m_button_ok->SetSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_ok->SetMinSize(wxSize(-1, wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_ok->SetMaxSize(wxSize(-1, wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_ok->SetCornerRadius(wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
 
     m_button_ok->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) {
         wxCommandEvent evt(EVT_SECONDARY_CHECK_CONFIRM, GetId());
@@ -596,10 +596,10 @@ SecondaryCheckDialog::SecondaryCheckDialog(wxWindow* parent, wxWindowID id, cons
     m_button_retry->SetBorderColor(*wxWHITE);
     m_button_retry->SetTextColor(wxColour("#FFFFFE"));
     m_button_retry->SetFont(Label::Body_12);
-    m_button_retry->SetSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_retry->SetMinSize(wxSize(-1, FromDIP(24)));
-    m_button_retry->SetMaxSize(wxSize(-1, FromDIP(24)));
-    m_button_retry->SetCornerRadius(FromDIP(12));
+    m_button_retry->SetSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_retry->SetMinSize(wxSize(-1, wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_retry->SetMaxSize(wxSize(-1, wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_retry->SetCornerRadius(wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
 
     m_button_retry->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) {
         wxCommandEvent evt(EVT_SECONDARY_CHECK_RETRY, GetId());
@@ -612,10 +612,10 @@ SecondaryCheckDialog::SecondaryCheckDialog(wxWindow* parent, wxWindowID id, cons
     m_button_cancel->SetBackgroundColor(btn_bg_white);
     m_button_cancel->SetBorderColor(wxColour(48, 38, 38));
     m_button_cancel->SetFont(Label::Body_12);
-    m_button_cancel->SetSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_cancel->SetMinSize(wxSize(-1, FromDIP(24)));
-    m_button_cancel->SetMaxSize(wxSize(-1, FromDIP(24)));
-    m_button_cancel->SetCornerRadius(FromDIP(12));
+    m_button_cancel->SetSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_cancel->SetMinSize(wxSize(-1, wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_cancel->SetMaxSize(wxSize(-1, wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_cancel->SetCornerRadius(wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
 
     m_button_cancel->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) {
             wxCommandEvent evt(EVT_SECONDARY_CHECK_CANCEL);
@@ -628,10 +628,10 @@ SecondaryCheckDialog::SecondaryCheckDialog(wxWindow* parent, wxWindowID id, cons
     m_button_fn->SetBackgroundColor(btn_bg_white);
     m_button_fn->SetBorderColor(wxColour(48, 38, 38));
     m_button_fn->SetFont(Label::Body_12);
-    m_button_fn->SetSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_fn->SetMinSize(wxSize(-1, FromDIP(24)));
-    m_button_fn->SetMaxSize(wxSize(-1, FromDIP(24)));
-    m_button_fn->SetCornerRadius(FromDIP(12));
+    m_button_fn->SetSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_fn->SetMinSize(wxSize(-1, wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_fn->SetMaxSize(wxSize(-1, wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_fn->SetCornerRadius(wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
 
     m_button_fn->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) {
             post_event(wxCommandEvent(EVT_SECONDARY_CHECK_DONE));
@@ -642,10 +642,10 @@ SecondaryCheckDialog::SecondaryCheckDialog(wxWindow* parent, wxWindowID id, cons
     m_button_resume->SetBackgroundColor(btn_bg_white);
     m_button_resume->SetBorderColor(wxColour(48, 38, 38));
     m_button_resume->SetFont(Label::Body_12);
-    m_button_resume->SetSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_resume->SetMinSize(wxSize(-1, FromDIP(24)));
-    m_button_resume->SetMaxSize(wxSize(-1, FromDIP(24)));
-    m_button_resume->SetCornerRadius(FromDIP(12));
+    m_button_resume->SetSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_resume->SetMinSize(wxSize(-1, wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_resume->SetMaxSize(wxSize(-1, wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_resume->SetCornerRadius(wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
 
     m_button_resume->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) {
         post_event(wxCommandEvent(EVT_SECONDARY_CHECK_RESUME));
@@ -677,19 +677,19 @@ SecondaryCheckDialog::SecondaryCheckDialog(wxWindow* parent, wxWindowID id, cons
     }
 
     sizer_button->AddStretchSpacer();
-    sizer_button->Add(m_button_resume, 0, wxALL, FromDIP(5));
-    sizer_button->Add(m_button_retry, 0, wxALL, FromDIP(5));
-    sizer_button->Add(m_button_fn, 0, wxALL, FromDIP(5));
-    sizer_button->Add(m_button_ok, 0, wxALL, FromDIP(5));
-    sizer_button->Add(m_button_cancel, 0, wxALL, FromDIP(5));
-    sizer_button->Add(FromDIP(5),0, 0, 0);
+    sizer_button->Add(m_button_resume, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    sizer_button->Add(m_button_retry, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    sizer_button->Add(m_button_fn, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    sizer_button->Add(m_button_ok, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    sizer_button->Add(m_button_cancel, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    sizer_button->Add(wxWindow::FromDIP(5, static_cast<wxWindow*>(this)),0, 0, 0);
     bottom_sizer->Add(sizer_button, 0, wxEXPAND | wxRIGHT | wxLEFT, 0);
 
 
-    m_sizer_right->Add(bottom_sizer, 0, wxEXPAND | wxRIGHT | wxLEFT, FromDIP(15));
-    m_sizer_right->Add(0, 0, 0, wxTOP,FromDIP(10));
+    m_sizer_right->Add(bottom_sizer, 0, wxEXPAND | wxRIGHT | wxLEFT, wxWindow::FromDIP(15, static_cast<wxWindow*>(this)));
+    m_sizer_right->Add(0, 0, 0, wxTOP,wxWindow::FromDIP(10, static_cast<wxWindow*>(this)));
 
-    m_sizer_main->Add(m_sizer_right, 0, wxBOTTOM | wxEXPAND, FromDIP(5));
+    m_sizer_main->Add(m_sizer_right, 0, wxBOTTOM | wxEXPAND, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
 
     Bind(wxEVT_CLOSE_WINDOW, [this](auto& e) {this->on_hide();});
     // Fix for #9874: Remove RequestUserAttention on deactivation to prevent focus stealing
@@ -721,24 +721,24 @@ void SecondaryCheckDialog::update_text(wxString text)
         m_staticText_release_note = new Label(m_vebview_release_note, text, LB_AUTO_WRAP);
         wxBoxSizer* top_blank_sizer = new wxBoxSizer(wxVERTICAL);
         wxBoxSizer* bottom_blank_sizer = new wxBoxSizer(wxVERTICAL);
-        top_blank_sizer->Add(FromDIP(5), 0, wxALIGN_CENTER | wxALL, FromDIP(5));
-        bottom_blank_sizer->Add(FromDIP(5), 0, wxALIGN_CENTER | wxALL, FromDIP(5));
+        top_blank_sizer->Add(wxWindow::FromDIP(5, static_cast<wxWindow*>(this)), 0, wxALIGN_CENTER | wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+        bottom_blank_sizer->Add(wxWindow::FromDIP(5, static_cast<wxWindow*>(this)), 0, wxALIGN_CENTER | wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
 
-        sizer_text_release_note->Add(top_blank_sizer, 0, wxALIGN_CENTER | wxALL, FromDIP(5));
-        sizer_text_release_note->Add(m_staticText_release_note, 0, wxALIGN_CENTER, FromDIP(5));
-        sizer_text_release_note->Add(bottom_blank_sizer, 0, wxALIGN_CENTER | wxALL, FromDIP(5));
+        sizer_text_release_note->Add(top_blank_sizer, 0, wxALIGN_CENTER | wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+        sizer_text_release_note->Add(m_staticText_release_note, 0, wxALIGN_CENTER, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+        sizer_text_release_note->Add(bottom_blank_sizer, 0, wxALIGN_CENTER | wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
         m_vebview_release_note->SetSizer(sizer_text_release_note);
     }
-    m_staticText_release_note->SetMaxSize(wxSize(FromDIP(330), -1));
-    m_staticText_release_note->SetMinSize(wxSize(FromDIP(330), -1));
+    m_staticText_release_note->SetMaxSize(wxSize(wxWindow::FromDIP(330, static_cast<wxWindow*>(this)), -1));
+    m_staticText_release_note->SetMinSize(wxSize(wxWindow::FromDIP(330, static_cast<wxWindow*>(this)), -1));
     m_staticText_release_note->SetLabelText(text);
     m_vebview_release_note->Layout();
 
     auto text_size = m_staticText_release_note->GetBestSize();
-    if (text_size.y < FromDIP(360))
-        m_vebview_release_note->SetMinSize(wxSize(FromDIP(360), text_size.y + FromDIP(25)));
+    if (text_size.y < wxWindow::FromDIP(360, static_cast<wxWindow*>(this)))
+        m_vebview_release_note->SetMinSize(wxSize(wxWindow::FromDIP(360, static_cast<wxWindow*>(this)), text_size.y + wxWindow::FromDIP(25, static_cast<wxWindow*>(this))));
     else {
-        m_vebview_release_note->SetMinSize(wxSize(FromDIP(360), FromDIP(360)));
+        m_vebview_release_note->SetMinSize(wxSize(wxWindow::FromDIP(360, static_cast<wxWindow*>(this)), wxWindow::FromDIP(360, static_cast<wxWindow*>(this))));
     }
 
     Layout();
@@ -856,32 +856,32 @@ PrintErrorDialog::PrintErrorDialog(wxWindow* parent, wxWindowID id, const wxStri
         std::pair<wxColour, int>(*wxWHITE, StateColor::Normal));
 
     m_sizer_main = new wxBoxSizer(wxVERTICAL);
-    auto        m_line_top = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(350), 1));
+    auto        m_line_top = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(wxWindow::FromDIP(350, static_cast<wxWindow*>(this)), 1));
     m_line_top->SetBackgroundColour(wxColour(166, 169, 170));
     m_sizer_main->Add(m_line_top, 0, wxEXPAND, 0);
-    m_sizer_main->Add(0, 0, 0, wxTOP, FromDIP(5));
+    m_sizer_main->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
 
     wxBoxSizer* m_sizer_right = new wxBoxSizer(wxVERTICAL);
 
-    m_sizer_right->Add(0, 0, 1, wxTOP, FromDIP(5));
+    m_sizer_right->Add(0, 0, 1, wxTOP, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
 
     m_vebview_release_note = new wxScrolledWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxVSCROLL);
     m_vebview_release_note->SetScrollRate(0, 5);
     m_vebview_release_note->SetBackgroundColour(*wxWHITE);
-    m_vebview_release_note->SetMinSize(wxSize(FromDIP(320), FromDIP(250)));
-    m_sizer_right->Add(m_vebview_release_note, 0, wxEXPAND | wxRIGHT | wxLEFT, FromDIP(15));
+    m_vebview_release_note->SetMinSize(wxSize(wxWindow::FromDIP(320, static_cast<wxWindow*>(this)), wxWindow::FromDIP(250, static_cast<wxWindow*>(this))));
+    m_sizer_right->Add(m_vebview_release_note, 0, wxEXPAND | wxRIGHT | wxLEFT, wxWindow::FromDIP(15, static_cast<wxWindow*>(this)));
 
-    m_error_prompt_pic_static = new wxStaticBitmap(m_vebview_release_note, wxID_ANY, wxBitmap(), wxDefaultPosition, wxSize(FromDIP(300), FromDIP(180)));
+    m_error_prompt_pic_static = new wxStaticBitmap(m_vebview_release_note, wxID_ANY, wxBitmap(), wxDefaultPosition, wxSize(wxWindow::FromDIP(300, static_cast<wxWindow*>(this)), wxWindow::FromDIP(180, static_cast<wxWindow*>(this))));
 
     auto bottom_sizer = new wxBoxSizer(wxVERTICAL);
     m_sizer_button = new wxBoxSizer(wxVERTICAL);
 
     bottom_sizer->Add(m_sizer_button, 0, wxEXPAND | wxRIGHT | wxLEFT, 0);
 
-    m_sizer_right->Add(bottom_sizer, 0, wxEXPAND | wxRIGHT | wxLEFT, FromDIP(20));
-    m_sizer_right->Add(0, 0, 0, wxTOP, FromDIP(10));
+    m_sizer_right->Add(bottom_sizer, 0, wxEXPAND | wxRIGHT | wxLEFT, wxWindow::FromDIP(20, static_cast<wxWindow*>(this)));
+    m_sizer_right->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(10, static_cast<wxWindow*>(this)));
 
-    m_sizer_main->Add(m_sizer_right, 0, wxBOTTOM | wxEXPAND, FromDIP(5));
+    m_sizer_main->Add(m_sizer_right, 0, wxBOTTOM | wxEXPAND, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
 
     Bind(wxEVT_CLOSE_WINDOW, [this](auto& e) {this->on_hide(); });
     // Fix for #9874: Remove RequestUserAttention on deactivation to prevent focus stealing
@@ -915,7 +915,7 @@ void PrintErrorDialog::on_webrequest_state(wxWebRequestEvent& evt)
     switch (evt.GetState()) {
     case wxWebRequest::State_Completed: {
             wxImage img(*evt.GetResponse().GetStream());
-            wxImage resize_img = img.Scale(FromDIP(320), FromDIP(180), wxIMAGE_QUALITY_HIGH);
+            wxImage resize_img = img.Scale(wxWindow::FromDIP(320, static_cast<wxWindow*>(this)), wxWindow::FromDIP(180, static_cast<wxWindow*>(this)), wxIMAGE_QUALITY_HIGH);
             wxBitmap error_prompt_pic = resize_img;
             m_error_prompt_pic_static->SetBitmap(error_prompt_pic);
             Layout();
@@ -951,14 +951,14 @@ void PrintErrorDialog::update_text_image(const wxString& text, const wxString& e
 
     if (!m_staticText_release_note) {
         m_staticText_release_note = new Label(m_vebview_release_note, text, LB_AUTO_WRAP);
-        sizer_text_release_note->Add(m_error_prompt_pic_static, 0, wxALIGN_CENTER, FromDIP(5));
+        sizer_text_release_note->Add(m_error_prompt_pic_static, 0, wxALIGN_CENTER, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
         sizer_text_release_note->AddSpacer(10);
-        sizer_text_release_note->Add(m_staticText_release_note, 0, wxALIGN_CENTER , FromDIP(5));
+        sizer_text_release_note->Add(m_staticText_release_note, 0, wxALIGN_CENTER , wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
     }
     if (!m_staticText_error_code) {
         m_staticText_error_code = new Label(m_vebview_release_note, error_code_msg, LB_AUTO_WRAP);
         sizer_text_release_note->AddSpacer(5);
-        sizer_text_release_note->Add(m_staticText_error_code, 0, wxALIGN_CENTER, FromDIP(5));
+        sizer_text_release_note->Add(m_staticText_error_code, 0, wxALIGN_CENTER, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
     }
 
     m_vebview_release_note->SetSizer(sizer_text_release_note);
@@ -976,24 +976,24 @@ void PrintErrorDialog::update_text_image(const wxString& text, const wxString& e
         m_error_prompt_pic_static->Hide();
     }
     sizer_text_release_note->Layout();
-    m_staticText_release_note->SetMaxSize(wxSize(FromDIP(300), -1));
-    m_staticText_release_note->SetMinSize(wxSize(FromDIP(300), -1));
+    m_staticText_release_note->SetMaxSize(wxSize(wxWindow::FromDIP(300, static_cast<wxWindow*>(this)), -1));
+    m_staticText_release_note->SetMinSize(wxSize(wxWindow::FromDIP(300, static_cast<wxWindow*>(this)), -1));
     m_staticText_release_note->SetLabelText(text);
-    m_staticText_error_code->SetMaxSize(wxSize(FromDIP(300), -1));
-    m_staticText_error_code->SetMinSize(wxSize(FromDIP(300), -1));
+    m_staticText_error_code->SetMaxSize(wxSize(wxWindow::FromDIP(300, static_cast<wxWindow*>(this)), -1));
+    m_staticText_error_code->SetMinSize(wxSize(wxWindow::FromDIP(300, static_cast<wxWindow*>(this)), -1));
     m_staticText_error_code->SetLabelText(error_code_msg);
     m_vebview_release_note->Layout();
 
     auto text_size = m_staticText_release_note->GetBestSize();
-    if (text_size.y < FromDIP(360))
+    if (text_size.y < wxWindow::FromDIP(360, static_cast<wxWindow*>(this)))
         if (!image_url.empty()) {
-            m_vebview_release_note->SetMinSize(wxSize(FromDIP(320), text_size.y + FromDIP(220)));
+            m_vebview_release_note->SetMinSize(wxSize(wxWindow::FromDIP(320, static_cast<wxWindow*>(this)), text_size.y + wxWindow::FromDIP(220, static_cast<wxWindow*>(this))));
         }
         else {
-            m_vebview_release_note->SetMinSize(wxSize(FromDIP(320), text_size.y + FromDIP(25)));
+            m_vebview_release_note->SetMinSize(wxSize(wxWindow::FromDIP(320, static_cast<wxWindow*>(this)), text_size.y + wxWindow::FromDIP(25, static_cast<wxWindow*>(this))));
         }
     else {
-        m_vebview_release_note->SetMinSize(wxSize(FromDIP(320), FromDIP(340)));
+        m_vebview_release_note->SetMinSize(wxSize(wxWindow::FromDIP(320, static_cast<wxWindow*>(this)), wxWindow::FromDIP(340, static_cast<wxWindow*>(this))));
     }
 
     Layout();
@@ -1038,7 +1038,7 @@ void PrintErrorDialog::update_title_style(wxString title, std::vector<int> butto
     m_used_button = button_style;
     for (int button_id : button_style) {
         if (m_button_list.find(button_id) != m_button_list.end()) {
-            m_sizer_button->Add(m_button_list[button_id], 0, wxALL, FromDIP(5));
+            m_sizer_button->Add(m_button_list[button_id], 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
             m_button_list[button_id]->Show();
         }
     }
@@ -1053,10 +1053,10 @@ void PrintErrorDialog::init_button(PrintErrorButton style,wxString buton_text)
     print_error_button->SetBackgroundColor(btn_bg_white);
     print_error_button->SetBorderColor(wxColour(48, 38, 38));
     print_error_button->SetFont(Label::Body_14);
-    print_error_button->SetSize(wxSize(FromDIP(300), FromDIP(30)));
-    print_error_button->SetMinSize(wxSize(FromDIP(300), FromDIP(30)));
-    print_error_button->SetMaxSize(wxSize(-1, FromDIP(30)));
-    print_error_button->SetCornerRadius(FromDIP(5));
+    print_error_button->SetSize(wxSize(wxWindow::FromDIP(300, static_cast<wxWindow*>(this)), wxWindow::FromDIP(30, static_cast<wxWindow*>(this))));
+    print_error_button->SetMinSize(wxSize(wxWindow::FromDIP(300, static_cast<wxWindow*>(this)), wxWindow::FromDIP(30, static_cast<wxWindow*>(this))));
+    print_error_button->SetMaxSize(wxSize(-1, wxWindow::FromDIP(30, static_cast<wxWindow*>(this))));
+    print_error_button->SetCornerRadius(wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
     print_error_button->Hide();
     m_button_list[style] = print_error_button;
 
@@ -1161,20 +1161,20 @@ ConfirmBeforeSendDialog::ConfirmBeforeSendDialog(wxWindow* parent, wxWindowID id
 {
     SetBackgroundColour(*wxWHITE);
     m_sizer_main = new wxBoxSizer(wxVERTICAL);
-    auto        m_line_top = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(400), 1));
+    auto        m_line_top = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(wxWindow::FromDIP(400, static_cast<wxWindow*>(this)), 1));
     m_line_top->SetBackgroundColour(wxColour(166, 169, 170));
     m_sizer_main->Add(m_line_top, 0, wxEXPAND, 0);
-    m_sizer_main->Add(0, 0, 0, wxTOP, FromDIP(5));
+    m_sizer_main->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
 
     wxBoxSizer* m_sizer_right = new wxBoxSizer(wxVERTICAL);
 
-    m_sizer_right->Add(0, 0, 1, wxTOP, FromDIP(15));
+    m_sizer_right->Add(0, 0, 1, wxTOP, wxWindow::FromDIP(15, static_cast<wxWindow*>(this)));
 
     m_vebview_release_note = new wxScrolledWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxVSCROLL);
     m_vebview_release_note->SetScrollRate(0, 5);
     m_vebview_release_note->SetBackgroundColour(*wxWHITE);
-    m_vebview_release_note->SetMinSize(wxSize(FromDIP(400), FromDIP(380)));
-    m_sizer_right->Add(m_vebview_release_note, 0, wxEXPAND | wxRIGHT | wxLEFT, FromDIP(15));
+    m_vebview_release_note->SetMinSize(wxSize(wxWindow::FromDIP(400, static_cast<wxWindow*>(this)), wxWindow::FromDIP(380, static_cast<wxWindow*>(this))));
+    m_sizer_right->Add(m_vebview_release_note, 0, wxEXPAND | wxRIGHT | wxLEFT, wxWindow::FromDIP(15, static_cast<wxWindow*>(this)));
 
 
     auto bottom_sizer = new wxBoxSizer(wxVERTICAL);
@@ -1193,8 +1193,8 @@ ConfirmBeforeSendDialog::ConfirmBeforeSendDialog(wxWindow* parent, wxWindowID id
             not_show_again = !not_show_again;
             m_show_again_checkbox->SetValue(not_show_again);
         });
-        checkbox_sizer->Add(FromDIP(15), 0, 0, 0);
-        checkbox_sizer->Add(m_show_again_checkbox, 0, wxALL, FromDIP(5));
+        checkbox_sizer->Add(wxWindow::FromDIP(15, static_cast<wxWindow*>(this)), 0, 0, 0);
+        checkbox_sizer->Add(m_show_again_checkbox, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
         bottom_sizer->Add(checkbox_sizer, 0, wxBOTTOM | wxEXPAND, 0);
     }
     m_button_ok = new Button(this, _L("Confirm"));
@@ -1202,9 +1202,9 @@ ConfirmBeforeSendDialog::ConfirmBeforeSendDialog(wxWindow* parent, wxWindowID id
     m_button_ok->SetBorderColor(*wxWHITE);
     m_button_ok->SetTextColor(wxColour("#FFFFFE"));
     m_button_ok->SetFont(Label::Body_12);
-    m_button_ok->SetSize(wxSize(-1, FromDIP(24)));
-    m_button_ok->SetMinSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_ok->SetCornerRadius(FromDIP(12));
+    m_button_ok->SetSize(wxSize(-1, wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_ok->SetMinSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_ok->SetCornerRadius(wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
 
     m_button_ok->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) {
         wxCommandEvent evt(EVT_SECONDARY_CHECK_CONFIRM, GetId());
@@ -1217,9 +1217,9 @@ ConfirmBeforeSendDialog::ConfirmBeforeSendDialog(wxWindow* parent, wxWindowID id
     m_button_cancel->SetBackgroundColor(btn_bg_white);
     m_button_cancel->SetBorderColor(wxColour(48, 38, 38));
     m_button_cancel->SetFont(Label::Body_12);
-    m_button_cancel->SetSize(wxSize(-1, FromDIP(24)));
-    m_button_cancel->SetMinSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_cancel->SetCornerRadius(FromDIP(12));
+    m_button_cancel->SetSize(wxSize(-1, wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_cancel->SetMinSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_cancel->SetCornerRadius(wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
 
     m_button_cancel->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) {
         wxCommandEvent evt(EVT_SECONDARY_CHECK_CANCEL);
@@ -1237,9 +1237,9 @@ ConfirmBeforeSendDialog::ConfirmBeforeSendDialog(wxWindow* parent, wxWindowID id
     m_button_update_nozzle->SetBackgroundColor(btn_bg_white);
     m_button_update_nozzle->SetBorderColor(wxColour(48, 38, 38));
     m_button_update_nozzle->SetFont(Label::Body_12);
-    m_button_update_nozzle->SetSize(wxSize(-1, FromDIP(24)));
-    m_button_update_nozzle->SetMinSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_update_nozzle->SetCornerRadius(FromDIP(12));
+    m_button_update_nozzle->SetSize(wxSize(-1, wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_update_nozzle->SetMinSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_update_nozzle->SetCornerRadius(wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
 
     m_button_update_nozzle->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) {
         wxCommandEvent evt(EVT_UPDATE_NOZZLE);
@@ -1251,17 +1251,17 @@ ConfirmBeforeSendDialog::ConfirmBeforeSendDialog(wxWindow* parent, wxWindowID id
     m_button_update_nozzle->Hide();
 
     sizer_button->AddStretchSpacer();
-    sizer_button->Add(m_button_ok, 0, wxALL, FromDIP(5));
-    sizer_button->Add(m_button_update_nozzle, 0, wxALL, FromDIP(5));
-    sizer_button->Add(m_button_cancel, 0, wxALL, FromDIP(5));
-    sizer_button->Add(FromDIP(5),0, 0, 0);
+    sizer_button->Add(m_button_ok, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    sizer_button->Add(m_button_update_nozzle, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    sizer_button->Add(m_button_cancel, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    sizer_button->Add(wxWindow::FromDIP(5, static_cast<wxWindow*>(this)),0, 0, 0);
     bottom_sizer->Add(sizer_button, 0, wxEXPAND | wxRIGHT | wxLEFT, 0);
 
 
-    m_sizer_right->Add(bottom_sizer, 0, wxEXPAND | wxRIGHT | wxLEFT, FromDIP(20));
-    m_sizer_right->Add(0, 0, 0, wxTOP, FromDIP(10));
+    m_sizer_right->Add(bottom_sizer, 0, wxEXPAND | wxRIGHT | wxLEFT, wxWindow::FromDIP(20, static_cast<wxWindow*>(this)));
+    m_sizer_right->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(10, static_cast<wxWindow*>(this)));
 
-    m_sizer_main->Add(m_sizer_right, 0, wxBOTTOM | wxEXPAND, FromDIP(5));
+    m_sizer_main->Add(m_sizer_right, 0, wxBOTTOM | wxEXPAND, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
 
     Bind(wxEVT_CLOSE_WINDOW, [this](auto& e) {this->on_hide(); });
 
@@ -1279,24 +1279,24 @@ void ConfirmBeforeSendDialog::update_text(wxString text)
         m_staticText_release_note = new Label(m_vebview_release_note, text, LB_AUTO_WRAP);
         wxBoxSizer* top_blank_sizer = new wxBoxSizer(wxVERTICAL);
         wxBoxSizer* bottom_blank_sizer = new wxBoxSizer(wxVERTICAL);
-        top_blank_sizer->Add(FromDIP(5), 0, wxALIGN_CENTER | wxALL, FromDIP(5));
-        bottom_blank_sizer->Add(FromDIP(5), 0, wxALIGN_CENTER | wxALL, FromDIP(5));
+        top_blank_sizer->Add(wxWindow::FromDIP(5, static_cast<wxWindow*>(this)), 0, wxALIGN_CENTER | wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+        bottom_blank_sizer->Add(wxWindow::FromDIP(5, static_cast<wxWindow*>(this)), 0, wxALIGN_CENTER | wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
 
-        sizer_text_release_note->Add(top_blank_sizer, 0, wxALIGN_CENTER | wxALL, FromDIP(5));
-        sizer_text_release_note->Add(m_staticText_release_note, 0, wxALIGN_CENTER, FromDIP(5));
-        sizer_text_release_note->Add(bottom_blank_sizer, 0, wxALIGN_CENTER | wxALL, FromDIP(5));
+        sizer_text_release_note->Add(top_blank_sizer, 0, wxALIGN_CENTER | wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+        sizer_text_release_note->Add(m_staticText_release_note, 0, wxALIGN_CENTER, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+        sizer_text_release_note->Add(bottom_blank_sizer, 0, wxALIGN_CENTER | wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
         m_vebview_release_note->SetSizer(sizer_text_release_note);
     }
-    m_staticText_release_note->SetMaxSize(wxSize(FromDIP(380), -1));
-    m_staticText_release_note->SetMinSize(wxSize(FromDIP(380), -1));
+    m_staticText_release_note->SetMaxSize(wxSize(wxWindow::FromDIP(380, static_cast<wxWindow*>(this)), -1));
+    m_staticText_release_note->SetMinSize(wxSize(wxWindow::FromDIP(380, static_cast<wxWindow*>(this)), -1));
     m_staticText_release_note->SetLabelText(text);
     m_vebview_release_note->Layout();
 
     auto text_size = m_staticText_release_note->GetBestSize();
-    if (text_size.y < FromDIP(380))
-        m_vebview_release_note->SetMinSize(wxSize(FromDIP(400), text_size.y + FromDIP(25)));
+    if (text_size.y < wxWindow::FromDIP(380, static_cast<wxWindow*>(this)))
+        m_vebview_release_note->SetMinSize(wxSize(wxWindow::FromDIP(400, static_cast<wxWindow*>(this)), text_size.y + wxWindow::FromDIP(25, static_cast<wxWindow*>(this))));
     else {
-        m_vebview_release_note->SetMinSize(wxSize(FromDIP(400), FromDIP(380)));
+        m_vebview_release_note->SetMinSize(wxSize(wxWindow::FromDIP(400, static_cast<wxWindow*>(this)), wxWindow::FromDIP(380, static_cast<wxWindow*>(this))));
     }
 
     Layout();
@@ -1314,19 +1314,19 @@ void ConfirmBeforeSendDialog::update_text(std::vector<ConfirmBeforeSendInfo> tex
         if (text.level == ConfirmBeforeSendInfo::InfoLevel::Warning) {
             label_item->SetForegroundColour(wxColour(0xFF, 0x6F, 0x00));
         }
-        label_item->SetMaxSize(wxSize(FromDIP(380), -1));
-        label_item->SetMinSize(wxSize(FromDIP(380), -1));
-        label_item->Wrap(FromDIP(380));
+        label_item->SetMaxSize(wxSize(wxWindow::FromDIP(380, static_cast<wxWindow*>(this)), -1));
+        label_item->SetMinSize(wxSize(wxWindow::FromDIP(380, static_cast<wxWindow*>(this)), -1));
+        label_item->Wrap(wxWindow::FromDIP(380, static_cast<wxWindow*>(this)));
         label_item->Layout();
-        sizer_text_release_note->Add(label_item, 0, wxALIGN_CENTER | wxALL, FromDIP(3));
+        sizer_text_release_note->Add(label_item, 0, wxALIGN_CENTER | wxALL, wxWindow::FromDIP(3, static_cast<wxWindow*>(this)));
         height += label_item->GetSize().y;
     }
     
     m_vebview_release_note->Layout();
-    if (height < FromDIP(380))
-        m_vebview_release_note->SetMinSize(wxSize(FromDIP(400), height + FromDIP(25)));
+    if (height < wxWindow::FromDIP(380, static_cast<wxWindow*>(this)))
+        m_vebview_release_note->SetMinSize(wxSize(wxWindow::FromDIP(400, static_cast<wxWindow*>(this)), height + wxWindow::FromDIP(25, static_cast<wxWindow*>(this))));
     else {
-        m_vebview_release_note->SetMinSize(wxSize(FromDIP(400), FromDIP(380)));
+        m_vebview_release_note->SetMinSize(wxSize(wxWindow::FromDIP(400, static_cast<wxWindow*>(this)), wxWindow::FromDIP(380, static_cast<wxWindow*>(this))));
     }
 
     Layout();
@@ -1447,17 +1447,17 @@ InputIpAddressDialog::InputIpAddressDialog(wxWindow *parent)
     comfirm_last_enter_text   = _L("Step 3. Please obtain the device SN from the printer side; it is usually found in the device information on the printer screen.");
 
     m_tip1 = new Label(this, ::Label::Body_13, comfirm_before_enter_text, LB_AUTO_WRAP);
-    m_tip1->SetMinSize(wxSize(FromDIP(352), -1));
-    m_tip1->SetMaxSize(wxSize(FromDIP(352), -1));
-    m_tip1->Wrap(FromDIP(352));
+    m_tip1->SetMinSize(wxSize(wxWindow::FromDIP(352, static_cast<wxWindow*>(this)), -1));
+    m_tip1->SetMaxSize(wxSize(wxWindow::FromDIP(352, static_cast<wxWindow*>(this)), -1));
+    m_tip1->Wrap(wxWindow::FromDIP(352, static_cast<wxWindow*>(this)));
 
     m_tip2 = new Label(this, ::Label::Body_13, comfirm_after_enter_text, LB_AUTO_WRAP);
-    m_tip2->SetMinSize(wxSize(FromDIP(352), -1));
-    m_tip2->SetMaxSize(wxSize(FromDIP(352), -1));
+    m_tip2->SetMinSize(wxSize(wxWindow::FromDIP(352, static_cast<wxWindow*>(this)), -1));
+    m_tip2->SetMaxSize(wxSize(wxWindow::FromDIP(352, static_cast<wxWindow*>(this)), -1));
 
     m_tip3 = new Label(this, ::Label::Body_13, comfirm_last_enter_text, LB_AUTO_WRAP);
-    m_tip3->SetMinSize(wxSize(FromDIP(352), -1));
-    m_tip3->SetMaxSize(wxSize(FromDIP(352), -1));
+    m_tip3->SetMinSize(wxSize(wxWindow::FromDIP(352, static_cast<wxWindow*>(this)), -1));
+    m_tip3->SetMaxSize(wxSize(wxWindow::FromDIP(352, static_cast<wxWindow*>(this)), -1));
 
     ip_input_top_panel = new wxPanel(this);
     ip_input_bot_panel = new wxPanel(this);
@@ -1473,34 +1473,34 @@ InputIpAddressDialog::InputIpAddressDialog(wxWindow *parent)
     auto m_input_area     = new wxBoxSizer(wxHORIZONTAL);
 
     m_tips_ip = new Label(ip_input_top_panel, _L("IP"));
-    m_tips_ip->SetMinSize(wxSize(FromDIP(168), -1));
-    m_tips_ip->SetMaxSize(wxSize(FromDIP(168), -1));
+    m_tips_ip->SetMinSize(wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), -1));
+    m_tips_ip->SetMaxSize(wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), -1));
 
     m_input_ip = new TextInput(ip_input_top_panel, wxEmptyString, wxEmptyString);
     m_input_ip->Bind(wxEVT_TEXT, &InputIpAddressDialog::on_text, this);
-    m_input_ip->SetMinSize(wxSize(FromDIP(168), FromDIP(28)));
-    m_input_ip->SetMaxSize(wxSize(FromDIP(168), FromDIP(28)));
+    m_input_ip->SetMinSize(wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), wxWindow::FromDIP(28, static_cast<wxWindow*>(this))));
+    m_input_ip->SetMaxSize(wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), wxWindow::FromDIP(28, static_cast<wxWindow*>(this))));
 
     m_tips_access_code = new Label(ip_input_top_panel, _L("Access Code"));
-    m_tips_access_code->SetMinSize(wxSize(FromDIP(168), -1));
-    m_tips_access_code->SetMaxSize(wxSize(FromDIP(168), -1));
+    m_tips_access_code->SetMinSize(wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), -1));
+    m_tips_access_code->SetMaxSize(wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), -1));
 
     m_input_access_code = new TextInput(ip_input_top_panel, wxEmptyString, wxEmptyString);
     m_input_access_code->Bind(wxEVT_TEXT, &InputIpAddressDialog::on_text, this);
-    m_input_access_code->SetMinSize(wxSize(FromDIP(168), FromDIP(28)));
-    m_input_access_code->SetMaxSize(wxSize(FromDIP(168), FromDIP(28)));
+    m_input_access_code->SetMinSize(wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), wxWindow::FromDIP(28, static_cast<wxWindow*>(this))));
+    m_input_access_code->SetMaxSize(wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), wxWindow::FromDIP(28, static_cast<wxWindow*>(this))));
 
     m_input_tip_area->Add(m_tips_ip, 0, wxALIGN_CENTER, 0);
-    m_input_tip_area->Add(0, 0, 0, wxLEFT, FromDIP(16));
+    m_input_tip_area->Add(0, 0, 0, wxLEFT, wxWindow::FromDIP(16, static_cast<wxWindow*>(this)));
     m_input_tip_area->Add(m_tips_access_code, 0, wxALIGN_CENTER, 0);
 
     m_input_area->Add(m_input_ip, 0, wxALIGN_CENTER, 0);
-    m_input_area->Add(0, 0, 0, wxLEFT, FromDIP(16));
+    m_input_area->Add(0, 0, 0, wxLEFT, wxWindow::FromDIP(16, static_cast<wxWindow*>(this)));
     m_input_area->Add(m_input_access_code, 0, wxALIGN_CENTER, 0);
 
-    m_input_top_sizer->Add(m_input_tip_area, 0, wxRIGHT | wxEXPAND, FromDIP(18));
-    m_input_top_sizer->Add(0, 0, 0, wxTOP, FromDIP(4));
-    m_input_top_sizer->Add(m_input_area, 0, wxRIGHT | wxEXPAND, FromDIP(18));
+    m_input_top_sizer->Add(m_input_tip_area, 0, wxRIGHT | wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
+    m_input_top_sizer->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(4, static_cast<wxWindow*>(this)));
+    m_input_top_sizer->Add(m_input_area, 0, wxRIGHT | wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
 
     ip_input_top_panel->SetSizer(m_input_top_sizer);
     ip_input_top_panel->Layout();
@@ -1511,22 +1511,22 @@ InputIpAddressDialog::InputIpAddressDialog(wxWindow *parent)
     auto m_input_modelID_area = new wxBoxSizer(wxHORIZONTAL);
 
     m_tips_sn = new Label(ip_input_bot_panel, "SN");
-    m_tips_sn->SetMinSize(wxSize(FromDIP(168), -1));
-    m_tips_sn->SetMaxSize(wxSize(FromDIP(168), -1));
+    m_tips_sn->SetMinSize(wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), -1));
+    m_tips_sn->SetMaxSize(wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), -1));
 
     m_input_sn = new TextInput(ip_input_bot_panel, wxEmptyString, wxEmptyString);
     m_input_sn->Bind(wxEVT_TEXT, &InputIpAddressDialog::on_text, this);
-    m_input_sn->SetMinSize(wxSize(FromDIP(168), FromDIP(28)));
-    m_input_sn->SetMaxSize(wxSize(FromDIP(168), FromDIP(28)));
+    m_input_sn->SetMinSize(wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), wxWindow::FromDIP(28, static_cast<wxWindow*>(this))));
+    m_input_sn->SetMaxSize(wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), wxWindow::FromDIP(28, static_cast<wxWindow*>(this))));
 
     m_tips_modelID = new Label(ip_input_bot_panel, _L("Printer model"));
-    m_tips_modelID->SetMinSize(wxSize(FromDIP(168), -1));
-    m_tips_modelID->SetMaxSize(wxSize(FromDIP(168), -1));
+    m_tips_modelID->SetMinSize(wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), -1));
+    m_tips_modelID->SetMaxSize(wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), -1));
 
-    m_input_modelID = new ComboBox(ip_input_bot_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(FromDIP(168), FromDIP(28)), 0, nullptr, wxCB_READONLY);
+    m_input_modelID = new ComboBox(ip_input_bot_panel, wxID_ANY, wxEmptyString, wxDefaultPosition, wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), wxWindow::FromDIP(28, static_cast<wxWindow*>(this))), 0, nullptr, wxCB_READONLY);
     // m_input_modelID->Bind(wxEVT_TEXT, &InputIpAddressDialog::on_text, this);
-    m_input_modelID->SetMinSize(wxSize(FromDIP(168), FromDIP(28)));
-    m_input_modelID->SetMaxSize(wxSize(FromDIP(168), FromDIP(28)));
+    m_input_modelID->SetMinSize(wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), wxWindow::FromDIP(28, static_cast<wxWindow*>(this))));
+    m_input_modelID->SetMaxSize(wxSize(wxWindow::FromDIP(168, static_cast<wxWindow*>(this)), wxWindow::FromDIP(28, static_cast<wxWindow*>(this))));
 
     for (auto it = m_models_map.begin(); it != m_models_map.end(); ++it) {
         m_input_modelID->Append(it->right);
@@ -1534,28 +1534,28 @@ InputIpAddressDialog::InputIpAddressDialog(wxWindow *parent)
     }
 
     m_input_sn_area->Add(m_tips_sn, 0, wxALIGN_CENTER, 0);
-    m_input_sn_area->Add(0, 0, 0, wxLEFT, FromDIP(16));
+    m_input_sn_area->Add(0, 0, 0, wxLEFT, wxWindow::FromDIP(16, static_cast<wxWindow*>(this)));
     m_input_sn_area->Add(m_tips_modelID, 0, wxALIGN_CENTER, 0);
 
     m_input_modelID_area->Add(m_input_sn, 0, wxALIGN_CENTER, 0);
-    m_input_modelID_area->Add(0, 0, 0, wxLEFT, FromDIP(16));
+    m_input_modelID_area->Add(0, 0, 0, wxLEFT, wxWindow::FromDIP(16, static_cast<wxWindow*>(this)));
     m_input_modelID_area->Add(m_input_modelID, 0, wxALIGN_CENTER, 0);
 
     auto* tips_printer_name = new Label(ip_input_bot_panel, _L("Printer name"));
 
     m_input_printer_name = new TextInput(ip_input_bot_panel, wxEmptyString, wxEmptyString);
     m_input_printer_name->Bind(wxEVT_TEXT, &InputIpAddressDialog::on_text, this);
-    m_input_printer_name->SetMinSize(wxSize(FromDIP(352), FromDIP(28)));
-    m_input_printer_name->SetMaxSize(wxSize(FromDIP(352), FromDIP(28)));
+    m_input_printer_name->SetMinSize(wxSize(wxWindow::FromDIP(352, static_cast<wxWindow*>(this)), wxWindow::FromDIP(28, static_cast<wxWindow*>(this))));
+    m_input_printer_name->SetMaxSize(wxSize(wxWindow::FromDIP(352, static_cast<wxWindow*>(this)), wxWindow::FromDIP(28, static_cast<wxWindow*>(this))));
 
-    m_input_bot_sizer->Add(tips_printer_name, 0, wxRIGHT | wxEXPAND, FromDIP(18));
-    m_input_bot_sizer->Add(0, 0, 0, wxTOP, FromDIP(4));
-    m_input_bot_sizer->Add(m_input_printer_name, 0, wxRIGHT | wxEXPAND, FromDIP(18));
-    m_input_bot_sizer->Add(0, 0, 0, wxTOP, FromDIP(4));
+    m_input_bot_sizer->Add(tips_printer_name, 0, wxRIGHT | wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
+    m_input_bot_sizer->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(4, static_cast<wxWindow*>(this)));
+    m_input_bot_sizer->Add(m_input_printer_name, 0, wxRIGHT | wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
+    m_input_bot_sizer->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(4, static_cast<wxWindow*>(this)));
 
-    m_input_bot_sizer->Add(m_input_sn_area, 0, wxRIGHT | wxEXPAND, FromDIP(18));
-    m_input_bot_sizer->Add(0, 0, 0, wxTOP, FromDIP(4));
-    m_input_bot_sizer->Add(m_input_modelID_area, 0, wxRIGHT | wxEXPAND, FromDIP(18));
+    m_input_bot_sizer->Add(m_input_sn_area, 0, wxRIGHT | wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
+    m_input_bot_sizer->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(4, static_cast<wxWindow*>(this)));
+    m_input_bot_sizer->Add(m_input_modelID_area, 0, wxRIGHT | wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
 
     ip_input_bot_panel->SetSizer(m_input_bot_sizer);
     ip_input_bot_panel->Layout();
@@ -1571,12 +1571,12 @@ InputIpAddressDialog::InputIpAddressDialog(wxWindow *parent)
     m_test_wrong_msg->Hide();
 
     m_tip4 = new Label(this, Label::Body_12, _L("Where to find your printer's IP and Access Code?"), LB_AUTO_WRAP);
-    m_tip4->SetMinSize(wxSize(FromDIP(352), -1));
-    m_tip4->SetMaxSize(wxSize(FromDIP(352), -1));
+    m_tip4->SetMinSize(wxSize(wxWindow::FromDIP(352, static_cast<wxWindow*>(this)), -1));
+    m_tip4->SetMaxSize(wxSize(wxWindow::FromDIP(352, static_cast<wxWindow*>(this)), -1));
 
     m_trouble_shoot = new wxHyperlinkCtrl(this, wxID_ANY, "How to trouble shooting", "");
 
-    m_img_help = new wxStaticBitmap(this, wxID_ANY, create_scaled_bitmap("input_access_code_x1_en", this, 198), wxDefaultPosition, wxSize(FromDIP(352), -1), 0);
+    m_img_help = new wxStaticBitmap(this, wxID_ANY, create_scaled_bitmap("input_access_code_x1_en", this, 198), wxDefaultPosition, wxSize(wxWindow::FromDIP(352, static_cast<wxWindow*>(this)), -1), 0);
 
     auto m_sizer_button = new wxBoxSizer(wxHORIZONTAL);
 
@@ -1591,9 +1591,9 @@ InputIpAddressDialog::InputIpAddressDialog(wxWindow *parent)
     m_button_ok->SetBorderColor(*wxWHITE);
     m_button_ok->SetTextColor(wxColour(0xFFFFFE));
     m_button_ok->SetFont(Label::Body_12);
-    m_button_ok->SetSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_ok->SetMinSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_ok->SetCornerRadius(FromDIP(12));
+    m_button_ok->SetSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_ok->SetMinSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_ok->SetCornerRadius(wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
     m_button_ok->Bind(wxEVT_LEFT_DOWN, &InputIpAddressDialog::on_ok, this);
     m_button_ok->Enable(false);
     m_button_ok->SetBackgroundColor(wxColour(0x90, 0x90, 0x90));
@@ -1604,9 +1604,9 @@ InputIpAddressDialog::InputIpAddressDialog(wxWindow *parent)
     m_button_manual_setup->SetBorderColor(*wxWHITE);
     m_button_manual_setup->SetTextColor(wxColour(0xFFFFFE));
     m_button_manual_setup->SetFont(Label::Body_12);
-    m_button_manual_setup->SetSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_manual_setup->SetMinSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_manual_setup->SetCornerRadius(FromDIP(12));
+    m_button_manual_setup->SetSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_manual_setup->SetMinSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_manual_setup->SetCornerRadius(wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
     m_button_manual_setup->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent&) {
         wxCommandEvent event(EVT_CHECK_IP_ADDRESS_LAYOUT);
         event.SetEventObject(this);
@@ -1621,18 +1621,18 @@ InputIpAddressDialog::InputIpAddressDialog(wxWindow *parent)
     m_button_cancel->SetBackgroundColor(btn_bg_white);
     m_button_cancel->SetBorderColor(wxColour(48, 38, 38));
     m_button_cancel->SetFont(Label::Body_12);
-    m_button_cancel->SetSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_cancel->SetMinSize(wxSize(FromDIP(58), FromDIP(24)));
-    m_button_cancel->SetCornerRadius(FromDIP(12));
+    m_button_cancel->SetSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_cancel->SetMinSize(wxSize(wxWindow::FromDIP(58, static_cast<wxWindow*>(this)), wxWindow::FromDIP(24, static_cast<wxWindow*>(this))));
+    m_button_cancel->SetCornerRadius(wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
 
     m_button_cancel->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) {
          on_cancel();
     });*/
 
     m_sizer_button->AddStretchSpacer();
-    m_sizer_button->Add(m_button_manual_setup, 0, wxALL, FromDIP(5));
-    m_sizer_button->Add(m_button_ok, 0, wxALL, FromDIP(5));
-    // m_sizer_button->Add(m_button_cancel, 0, wxALL, FromDIP(5));
+    m_sizer_button->Add(m_button_manual_setup, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    m_sizer_button->Add(m_button_ok, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    // m_sizer_button->Add(m_button_cancel, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
     m_sizer_button->Layout();
 
     m_status_bar = std::make_shared<BBLStatusBarSend>(this);
@@ -1650,9 +1650,9 @@ InputIpAddressDialog::InputIpAddressDialog(wxWindow *parent)
     auto m_sizer_step_icon_panel2 = new wxBoxSizer(wxVERTICAL);
     auto m_sizer_step_icon_panel3 = new wxBoxSizer(wxVERTICAL);
 
-    m_img_step1 = new wxStaticBitmap(m_step_icon_panel1, wxID_ANY, create_scaled_bitmap("ip_address_step", this, 6), wxDefaultPosition, wxSize(FromDIP(6), FromDIP(6)), 0);
-    m_img_step2 = new wxStaticBitmap(m_step_icon_panel2, wxID_ANY, create_scaled_bitmap("ip_address_step", this, 6), wxDefaultPosition, wxSize(FromDIP(6), FromDIP(6)), 0);
-    m_img_step3 = new wxStaticBitmap(m_step_icon_panel3, wxID_ANY, create_scaled_bitmap("ip_address_step", this, 6), wxDefaultPosition, wxSize(FromDIP(6), FromDIP(6)), 0);
+    m_img_step1 = new wxStaticBitmap(m_step_icon_panel1, wxID_ANY, create_scaled_bitmap("ip_address_step", this, 6), wxDefaultPosition, wxSize(wxWindow::FromDIP(6, static_cast<wxWindow*>(this)), wxWindow::FromDIP(6, static_cast<wxWindow*>(this))), 0);
+    m_img_step2 = new wxStaticBitmap(m_step_icon_panel2, wxID_ANY, create_scaled_bitmap("ip_address_step", this, 6), wxDefaultPosition, wxSize(wxWindow::FromDIP(6, static_cast<wxWindow*>(this)), wxWindow::FromDIP(6, static_cast<wxWindow*>(this))), 0);
+    m_img_step3 = new wxStaticBitmap(m_step_icon_panel3, wxID_ANY, create_scaled_bitmap("ip_address_step", this, 6), wxDefaultPosition, wxSize(wxWindow::FromDIP(6, static_cast<wxWindow*>(this)), wxWindow::FromDIP(6, static_cast<wxWindow*>(this))), 0);
 
     m_step_icon_panel1->SetSizer(m_sizer_step_icon_panel1);
     m_step_icon_panel1->Layout();
@@ -1666,9 +1666,9 @@ InputIpAddressDialog::InputIpAddressDialog(wxWindow *parent)
     m_step_icon_panel3->Layout();
     m_step_icon_panel3->Fit();
 
-    m_sizer_step_icon_panel1->Add(m_img_step1, 0, wxALIGN_CENTER | wxALL, FromDIP(5));
-    m_sizer_step_icon_panel2->Add(m_img_step2, 0, wxALIGN_CENTER | wxALL, FromDIP(5));
-    m_sizer_step_icon_panel3->Add(m_img_step3, 0, wxALIGN_CENTER | wxALL, FromDIP(5));
+    m_sizer_step_icon_panel1->Add(m_img_step1, 0, wxALIGN_CENTER | wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    m_sizer_step_icon_panel2->Add(m_img_step2, 0, wxALIGN_CENTER | wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
+    m_sizer_step_icon_panel3->Add(m_img_step3, 0, wxALIGN_CENTER | wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
 
     m_step_icon_panel1->SetMinSize(wxSize(-1, m_tip1->GetBestSize().y));
     m_step_icon_panel1->SetMaxSize(wxSize(-1, m_tip1->GetBestSize().y));
@@ -1680,51 +1680,51 @@ InputIpAddressDialog::InputIpAddressDialog(wxWindow *parent)
     m_sizer_msg->Layout();
 
     m_sizer_main_left->Add(m_step_icon_panel1, 0, wxEXPAND, 0);
-    m_sizer_main_left->Add(0, 0, 0, wxTOP, FromDIP(20));
+    m_sizer_main_left->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(20, static_cast<wxWindow*>(this)));
     m_sizer_main_left->Add(m_step_icon_panel2, 0, wxEXPAND, 0);
-    m_sizer_main_left->Add(0, 0, 0, wxTOP, FromDIP(20));
+    m_sizer_main_left->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(20, static_cast<wxWindow*>(this)));
     m_sizer_main_left->Add(m_step_icon_panel3, 0, wxEXPAND, 0);
 
     m_sizer_main_left->Layout();
 
     m_trouble_shoot->Hide();
 
-    m_sizer_main_right->Add(m_tip1, 0, wxRIGHT | wxEXPAND, FromDIP(18));
-    m_sizer_main_right->Add(0, 0, 0, wxTOP, FromDIP(20));
-    m_sizer_main_right->Add(m_tip2, 0, wxRIGHT | wxEXPAND, FromDIP(18));
-    m_sizer_main_right->Add(0, 0, 0, wxTOP, FromDIP(2));
-    m_sizer_main_right->Add(m_tip3, 0, wxTOP|wxRIGHT|wxEXPAND, FromDIP(18));
-    m_sizer_main_right->Add(0, 0, 0, wxTOP, FromDIP(12));
-    m_sizer_main_right->Add(m_tip4, 0, wxRIGHT | wxEXPAND, FromDIP(18));
-    m_sizer_main_right->Add(0, 0, 0, wxTOP, FromDIP(3));
+    m_sizer_main_right->Add(m_tip1, 0, wxRIGHT | wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
+    m_sizer_main_right->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(20, static_cast<wxWindow*>(this)));
+    m_sizer_main_right->Add(m_tip2, 0, wxRIGHT | wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
+    m_sizer_main_right->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(2, static_cast<wxWindow*>(this)));
+    m_sizer_main_right->Add(m_tip3, 0, wxTOP|wxRIGHT|wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
+    m_sizer_main_right->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
+    m_sizer_main_right->Add(m_tip4, 0, wxRIGHT | wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
+    m_sizer_main_right->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(3, static_cast<wxWindow*>(this)));
     m_sizer_main_right->Add(m_img_help, 0, 0, 0);
-    m_sizer_main_right->Add(0, 0, 0, wxTOP, FromDIP(12));
-    m_sizer_main_right->Add(ip_input_top_panel, 0, wxRIGHT|wxEXPAND, FromDIP(18));
-    m_sizer_main_right->Add(ip_input_bot_panel, 0, wxRIGHT|wxEXPAND, FromDIP(18));
-    m_sizer_main_right->Add(0, 0, 0, wxTOP, FromDIP(4));
-    //m_sizer_main_right->Add(m_button_ok, 0,  wxRIGHT, FromDIP(18));
-    m_sizer_main_right->Add(0, 0, 0, wxTOP, FromDIP(4));
-    m_sizer_main_right->Add(m_test_right_msg, 0, wxRIGHT|wxEXPAND, FromDIP(18));
-    m_sizer_main_right->Add(m_test_wrong_msg, 0, wxRIGHT|wxEXPAND, FromDIP(18));
+    m_sizer_main_right->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(12, static_cast<wxWindow*>(this)));
+    m_sizer_main_right->Add(ip_input_top_panel, 0, wxRIGHT|wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
+    m_sizer_main_right->Add(ip_input_bot_panel, 0, wxRIGHT|wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
+    m_sizer_main_right->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(4, static_cast<wxWindow*>(this)));
+    //m_sizer_main_right->Add(m_button_ok, 0,  wxRIGHT, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
+    m_sizer_main_right->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(4, static_cast<wxWindow*>(this)));
+    m_sizer_main_right->Add(m_test_right_msg, 0, wxRIGHT|wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
+    m_sizer_main_right->Add(m_test_wrong_msg, 0, wxRIGHT|wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
 
-    m_sizer_main_right->Add(0, 0, 0, wxTOP, FromDIP(4));
-    m_sizer_main_right->Add(m_status_bar->get_panel(), 0,wxRIGHT|wxEXPAND, FromDIP(18));
+    m_sizer_main_right->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(4, static_cast<wxWindow*>(this)));
+    m_sizer_main_right->Add(m_status_bar->get_panel(), 0,wxRIGHT|wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
     m_sizer_main_right->Layout();
    
-    m_sizer_main->Add(m_sizer_main_left, 0, wxLEFT, FromDIP(18));
-    m_sizer_main->Add(m_sizer_main_right, 0, wxLEFT|wxEXPAND, FromDIP(4));
+    m_sizer_main->Add(m_sizer_main_left, 0, wxLEFT, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
+    m_sizer_main->Add(m_sizer_main_right, 0, wxLEFT|wxEXPAND, wxWindow::FromDIP(4, static_cast<wxWindow*>(this)));
     m_sizer_main->Layout();
 
     m_sizer_body->Add(m_line_top, 0, wxEXPAND, 0);
-    m_sizer_body->Add(0, 0, 0, wxTOP, FromDIP(10));
-    m_sizer_body->Add(m_sizer_main, 0, wxRIGHT, FromDIP(10));
-    m_sizer_body->Add(0, 0, 0, wxTOP, FromDIP(4));
-    m_sizer_body->Add(m_sizer_msg, 0, wxLEFT|wxEXPAND, FromDIP(18));
-    m_sizer_body->Add(0, 0, 0, wxTOP, FromDIP(4));
-    m_sizer_body->Add(m_trouble_shoot, 0, wxLEFT | wxRIGHT | wxEXPAND, FromDIP(40));
-    m_sizer_body->Add(0, 0, 0, wxTOP, FromDIP(8));
-    m_sizer_body->Add(m_sizer_button, 0, wxRIGHT | wxEXPAND, FromDIP(25));
-    m_sizer_body->Add(0, 0, 0, wxTOP, FromDIP(10));
+    m_sizer_body->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(10, static_cast<wxWindow*>(this)));
+    m_sizer_body->Add(m_sizer_main, 0, wxRIGHT, wxWindow::FromDIP(10, static_cast<wxWindow*>(this)));
+    m_sizer_body->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(4, static_cast<wxWindow*>(this)));
+    m_sizer_body->Add(m_sizer_msg, 0, wxLEFT|wxEXPAND, wxWindow::FromDIP(18, static_cast<wxWindow*>(this)));
+    m_sizer_body->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(4, static_cast<wxWindow*>(this)));
+    m_sizer_body->Add(m_trouble_shoot, 0, wxLEFT | wxRIGHT | wxEXPAND, wxWindow::FromDIP(40, static_cast<wxWindow*>(this)));
+    m_sizer_body->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(8, static_cast<wxWindow*>(this)));
+    m_sizer_body->Add(m_sizer_button, 0, wxRIGHT | wxEXPAND, wxWindow::FromDIP(25, static_cast<wxWindow*>(this)));
+    m_sizer_body->Add(0, 0, 0, wxTOP, wxWindow::FromDIP(10, static_cast<wxWindow*>(this)));
     m_sizer_body->Layout();
     
     switch_input_panel(0);
@@ -1734,7 +1734,7 @@ InputIpAddressDialog::InputIpAddressDialog(wxWindow *parent)
     Fit();
 
     CentreOnParent(wxBOTH);
-    Move(wxPoint(GetScreenPosition().x, GetScreenPosition().y - FromDIP(50)));
+    Move(wxPoint(GetScreenPosition().x, GetScreenPosition().y - wxWindow::FromDIP(50, static_cast<wxWindow*>(this))));
 
     closeTimer = new wxTimer();
     closeTimer->SetOwner(this);
@@ -1812,7 +1812,7 @@ void InputIpAddressDialog::set_machine_obj(void* obj)
         m_button_ok->Enable(true);
         StateColor btn_bg_green(std::pair<wxColour, int>(wxColour( 202, 37, 37), StateColor::Pressed), std::pair<wxColour, int>(wxColour(253, 47, 47), StateColor::Hovered),
             std::pair<wxColour, int>(wxColour(215, 40, 40), StateColor::Normal));
-        m_button_ok->SetTextColor(StateColor::darkModeColorFor("#FFFFFE"));
+        m_button_ok->SetTextColor(StateColor::lightModeColorFor("#FFFFFE"));
         m_button_ok->SetBackgroundColor(btn_bg_green);
     }
     else {
@@ -1835,14 +1835,14 @@ void InputIpAddressDialog::update_test_msg(wxString msg,bool connected)
          if(connected){
              m_test_right_msg->Show();
              m_test_right_msg->SetLabelText(msg);
-             m_test_right_msg->SetMinSize(wxSize(FromDIP(352), -1));
-             m_test_right_msg->SetMaxSize(wxSize(FromDIP(352), -1));
+             m_test_right_msg->SetMinSize(wxSize(wxWindow::FromDIP(352, static_cast<wxWindow*>(this)), -1));
+             m_test_right_msg->SetMaxSize(wxSize(wxWindow::FromDIP(352, static_cast<wxWindow*>(this)), -1));
          }
          else{
              m_test_wrong_msg->Show();
              m_test_wrong_msg->SetLabelText(msg);
-             m_test_wrong_msg->SetMinSize(wxSize(FromDIP(352), -1));
-             m_test_wrong_msg->SetMaxSize(wxSize(FromDIP(352), -1));
+             m_test_wrong_msg->SetMinSize(wxSize(wxWindow::FromDIP(352, static_cast<wxWindow*>(this)), -1));
+             m_test_wrong_msg->SetMaxSize(wxSize(wxWindow::FromDIP(352, static_cast<wxWindow*>(this)), -1));
              if (current_input_index == 0) {
                  m_button_manual_setup->Show();
                  m_button_manual_setup->Enable();
@@ -1959,7 +1959,7 @@ void InputIpAddressDialog::on_check_ip_address_failed(wxCommandEvent& evt)
     m_button_ok->Enable(true);
     StateColor btn_bg_green(std::pair<wxColour, int>(wxColour( 202, 37, 37), StateColor::Pressed), std::pair<wxColour, int>(wxColour(253, 47, 47), StateColor::Hovered),
         std::pair<wxColour, int>(wxColour(215, 40, 40), StateColor::Normal));
-    m_button_ok->SetTextColor(StateColor::darkModeColorFor("#FFFFFE"));
+    m_button_ok->SetTextColor(StateColor::lightModeColorFor("#FFFFFE"));
     m_button_ok->SetBackgroundColor(btn_bg_green);
 }
 
@@ -1983,7 +1983,7 @@ void InputIpAddressDialog::on_text(wxCommandEvent &evt)
         if (enabled) {
             StateColor btn_bg_green(std::pair<wxColour, int>(wxColour( 202, 37, 37), StateColor::Pressed), std::pair<wxColour, int>(wxColour(253, 47, 47), StateColor::Hovered),
                                     std::pair<wxColour, int>(wxColour(215, 40, 40), StateColor::Normal));
-            btn->SetTextColor(StateColor::darkModeColorFor("#FFFFFE"));
+            btn->SetTextColor(StateColor::lightModeColorFor("#FFFFFE"));
             btn->SetBackgroundColor(btn_bg_green);
         } else {
             btn->SetBackgroundColor(wxColour(0x90, 0x90, 0x90));

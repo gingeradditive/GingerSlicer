@@ -7,6 +7,7 @@
 #include "slic3r/GUI/Plater.hpp"
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/ExPolygon.hpp"
+#include <string_view>
 
 namespace Slic3r { namespace GUI {
 
@@ -799,7 +800,7 @@ void GLGizmoBrimEars::show_tooltip_information(float x, float y)
     ImTextureID normal_id = m_parent.get_gizmos_manager().get_icon_texture_id(GLGizmosManager::MENU_ICON_NAME::IC_TOOLBAR_TOOLTIP);
     ImTextureID hover_id  = m_parent.get_gizmos_manager().get_icon_texture_id(GLGizmosManager::MENU_ICON_NAME::IC_TOOLBAR_TOOLTIP_HOVER);
 
-    caption_max += m_imgui->calc_text_size(": "sv).x + 35.f;
+    caption_max += m_imgui->calc_text_size(std::string_view(": ")).x + 35.f;
 
     float  scale       = m_parent.get_scale();
     ImVec2 button_size = ImVec2(25 * scale, 25 * scale); // ORCA: Use exact resolution will prevent blur on icon

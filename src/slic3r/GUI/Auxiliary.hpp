@@ -2,6 +2,8 @@
 #define slic3r_Auxiliary_hpp_
 
 #include "Tabbook.hpp"
+#include "nlohmann/json.hpp"
+using nlohmann::json;
 #include <wx/notebook.h>
 #include <wx/scrolwin.h>
 #include <wx/sizer.h>

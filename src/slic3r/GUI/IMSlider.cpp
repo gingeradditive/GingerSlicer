@@ -1,6 +1,7 @@
 #include "IMSlider.hpp"
 #include "libslic3r/GCode.hpp"
 #include "GUI_App.hpp"
+#include "GUI.hpp"
 #include "NotificationManager.hpp"
 #ifndef IMGUI_DEFINE_MATH_OPERATORS
 #define IMGUI_DEFINE_MATH_OPERATORS
@@ -1219,7 +1220,7 @@ void IMSlider::render_input_custom_gcode(std::string custom_gcode)
 }
 
 void IMSlider::do_go_to_layer(size_t layer_number) {
-    layer_number = clamp((int)layer_number, m_min_value, m_max_value);
+    layer_number = std::clamp((int)layer_number, m_min_value, m_max_value);
     GetSelection() == ssLower ? SetLowerValue(layer_number) : SetHigherValue(layer_number);
 }
 

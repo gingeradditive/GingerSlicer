@@ -1,5 +1,6 @@
 #include "StepMeshDialog.hpp"
 
+#include "libslic3r/Thread.hpp"
 #include <thread>
 #include <wx/event.h>
 #include <wx/sizer.h>
@@ -352,10 +353,6 @@ void StepMeshDialog::update_mesh_number_text()
         m_task = new boost::thread(Slic3r::create_thread([this]() -> void {
             m_mesh_number = m_file.get_triangle_num(get_linear_defletion(), get_angle_defletion());
             if (m_mesh_number != 0) {
-                wxString number_text = wxString::Format("%d", m_mesh_number);
-                wxCommandEvent event(wxEVT_THREAD_DONE);
-                event.SetString(number_text);
-                wxPostEvent(this, event);
                 m_last_linear = get_linear_defletion();
                 m_last_angle  = get_angle_defletion();
             }

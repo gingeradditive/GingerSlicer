@@ -9,6 +9,7 @@
 #include "3DScene.hpp"
 #include "OpenGLManager.hpp"
 #include "GUI_App.hpp"
+#include "GUI.hpp"
 #include "GLModel.hpp"
 
 #include <GL/glew.h>

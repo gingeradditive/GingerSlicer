@@ -2,6 +2,7 @@
 #include <boost/log/trivial.hpp>
 #include "GUI_App.hpp"
 #include "slic3r/Utils/Http.hpp"
+#include "libslic3r/Thread.hpp"
 
 namespace Slic3r {
 namespace GUI {

@@ -45,7 +45,6 @@
 #include "PartPlate.hpp"
 #include "Preferences.hpp"
 #include "Widgets/ProgressDialog.hpp"
-#include "../Utils/MacDarkMode.hpp"
 
 #include <fstream>
 #include <string_view>

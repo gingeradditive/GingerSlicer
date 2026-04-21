@@ -1309,6 +1309,8 @@ void GUI_App::copy_older_config()
     preset_bundle->copy_files(m_older_data_dir_path);
 }
 
+// BambuLab get_extra_header removed - method not declared in GUI_App.hpp
+/*
 std::map<std::string, std::string> GUI_App::get_extra_header()
 {
     std::map<std::string, std::string> extra_headers;
@@ -1335,6 +1337,7 @@ std::map<std::string, std::string> GUI_App::get_extra_header()
     extra_headers.insert(std::make_pair("X-BBL-Language", convert_studio_language_to_api(into_u8(current_language_code_safe()))));
     return extra_headers;
 }
+*/
 
 void GUI_App::on_start_subscribe_again(std::string dev_id)
 {
@@ -1719,8 +1722,9 @@ bool GUI_App::on_init_inner()
 
     preset_bundle->backup_user_folder();
 
-    std::map<std::string, std::string> extra_headers = get_extra_header();
-    Slic3r::Http::set_extra_headers(extra_headers);
+    // BambuLab get_extra_header removed
+    // std::map<std::string, std::string> extra_headers = get_extra_header();
+    // Slic3r::Http::set_extra_headers(extra_headers);
 
     // BBS if load user preset failed
     //if (loaded_preset_result != 0) {

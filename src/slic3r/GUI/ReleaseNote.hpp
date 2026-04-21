@@ -38,6 +38,8 @@
 #include <wx/hashmap.h>
 #include <wx/webview.h>
 #include <wx/webrequest.h>
+#include <boost/thread.hpp>
+#include <boost/bimap.hpp>
 
 namespace Slic3r { namespace GUI {
 

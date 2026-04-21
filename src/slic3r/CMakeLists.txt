@@ -471,7 +471,6 @@ if (APPLE)
             GUI/InstanceCheckMac.mm
             GUI/InstanceCheckMac.h
             GUI/GUI_UtilsMac.mm
-            GUI/wxMediaCtrl2.mm
         )
     FIND_LIBRARY(DISKARBITRATION_LIBRARY DiskArbitration)
 endif ()
