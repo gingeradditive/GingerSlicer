@@ -3398,7 +3398,7 @@ void GLGizmoCut3D::perform_cut(const Selection& selection)
                         ProgressDialog progress_dlg(_L("Repairing model object"), "", 100, find_toplevel_parent(plater), wxPD_AUTO_HIDE | wxPD_APP_MODAL | wxPD_CAN_ABORT, true);
 
                         auto model_name = new_objects[i]->name;
-                        if (!fix_and_update_progress(new_objects[i], j, model_name, progress_dlg, succes_models, failed_models)) {
+                        if (!fix_and_update_progress(new_objects[i], (int)j, model_name, progress_dlg, succes_models, failed_models)) {
                             BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << "run fix_and_update_progress error";
                         };
                     };
