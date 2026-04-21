@@ -2555,8 +2555,6 @@ struct Plater::priv
     void on_action_export_sliced_file(SimpleEvent&);
     void on_action_export_all_sliced_file(SimpleEvent&);
     void on_action_select_sliced_plate(wxCommandEvent& evt);
-    //BBS
-    void apply_color_mode();
     void on_update_geometry(Vec3dsEvent<2>&);
     void on_3dcanvas_mouse_dragging_started(SimpleEvent&);
     void on_3dcanvas_mouse_dragging_finished(SimpleEvent&);
@@ -3075,8 +3073,6 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     // Drop target:
     q->SetDropTarget(new PlaterDropTarget(*main_frame, *q));   // if my understanding is right, wxWindow takes the owenership
     q->Layout();
-
-    apply_color_mode();
 
     set_current_panel(wxGetApp().is_editor() ? static_cast<wxPanel*>(view3D) : static_cast<wxPanel*>(preview));
 
@@ -7306,37 +7302,6 @@ void Plater::priv::show_preview_only_hint(wxCommandEvent &event)
     notification_manager->bbl_show_preview_only_notification(into_u8(_L("Preview only mode:\nThe loaded file contains G-code only, cannot enter the Prepare page.")));
 }
 
-void Plater::priv::on_apple_change_color_mode(wxSysColourChangedEvent& evt) {
-    m_is_dark = wxSystemSettings::GetAppearance().IsDark();
-    if (view3D->get_canvas3d() && view3D->get_canvas3d()->is_initialized()) {
-        view3D->get_canvas3d()->on_change_color_mode(m_is_dark);
-        preview->get_canvas3d()->on_change_color_mode(m_is_dark);
-        assemble_view->get_canvas3d()->on_change_color_mode(m_is_dark);
-    }
-
-    apply_color_mode();
-}
-
-void Plater::priv::on_change_color_mode(SimpleEvent& evt) {
-    m_is_dark = wxGetApp().app_config->get("dark_color_mode") == "1";
-    view3D->get_canvas3d()->on_change_color_mode(m_is_dark);
-    preview->get_canvas3d()->on_change_color_mode(m_is_dark);
-    assemble_view->get_canvas3d()->on_change_color_mode(m_is_dark);
-
-    apply_color_mode();
-}
-
-
-void Plater::priv::apply_color_mode()
-{
-    wxColour   orca_color      = wxColour(70, 59, 59);//wxColour(ColorRGBA::ORCA().r_uchar(), ColorRGBA::ORCA().g_uchar(), ColorRGBA::ORCA().b_uchar());
-    orca_color                 = StateColor::lightModeColorFor(orca_color);
-    wxColour sash_color = wxColour(206, 206, 206);
-    m_aui_mgr.GetArtProvider()->SetColour(wxAUI_DOCKART_INACTIVE_CAPTION_COLOUR, sash_color);
-    m_aui_mgr.GetArtProvider()->SetColour(wxAUI_DOCKART_INACTIVE_CAPTION_TEXT_COLOUR, *wxWHITE);
-    m_aui_mgr.GetArtProvider()->SetColour(wxAUI_DOCKART_SASH_COLOUR, sash_color);
-    m_aui_mgr.GetArtProvider()->SetColour(wxAUI_DOCKART_BORDER_COLOUR, wxColour(165, 165, 165));
-}
 
 static void get_position(wxWindowBase* child, wxWindowBase* until_parent, int& x, int& y) {
     int res_x = 0, res_y = 0;
