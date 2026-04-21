@@ -1140,9 +1140,15 @@ void GCodeViewer::refresh(const GCodeProcessorResult& gcode_result, const std::v
             m_extrusions.ranges.temperature.update_from(curr.temperature);
             if (curr.delta_extruder > 0.005 && curr.travel_dist > 0.01) {
                 // Ignore very tiny extrusions from flow rate calculation, because
-                // it could give very imprecise result due to rounding in gcode generation
-                if (curr.extrusion_role != erCustom || is_visible(erCustom))
-                    m_extrusions.ranges.volumetric_rate.update_from(round_to_bin(curr.volumetric_rate()));
+                // it could give very imprecise result due to rounding in gcode generation.
+                // Also reject moves where mm3_per_mm is unreasonably high relative to
+                // the reported cross-section (width * height), which can happen due to
+                // numerical artifacts in very short ERS sub-segments.
+                float expected_mm3 = std::max(2.0f, curr.width * curr.height * 3.0f);
+                if (curr.mm3_per_mm <= expected_mm3) {
+                    if (curr.extrusion_role != erCustom || is_visible(erCustom))
+                        m_extrusions.ranges.volumetric_rate.update_from(round_to_bin(curr.volumetric_rate()));
+                }
             }
 
             if (curr.layer_duration > 0.f) {

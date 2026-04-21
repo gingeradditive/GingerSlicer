@@ -354,6 +354,13 @@ enum class GCodeThumbnailsFormat {
     PNG, JPG, QOI, BTT_TFT, ColPic
 };
 
+// Pellet ERS ramp profile shape for feedrate interpolation during ramp-up/ramp-down.
+enum class PelletERSRampProfile {
+    Linear,      // f(t) = f_start + (f_end - f_start) * t
+    Sqrt,        // f(t) = sqrt(f_start² + (f_end² - f_start²) * t)  — kinematic model
+    Exponential, // f(t) = f_end - (f_end - f_start) * exp(-3t)      — first-order response
+};
+
 enum CounterboreHoleBridgingOption {
     chbNone, chbBridges, chbFilled
 };
@@ -1186,6 +1193,11 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat,               max_volumetric_extrusion_rate_slope))
     ((ConfigOptionFloat,               max_volumetric_extrusion_rate_slope_segment_length))
     ((ConfigOptionBool,               extrusion_rate_smoothing_external_perimeter_only))
+    ((ConfigOptionBool,               pellet_ers_mode))
+    ((ConfigOptionFloat,              pellet_ers_travel_threshold_mm))
+    ((ConfigOptionEnum<PelletERSRampProfile>, pellet_ers_ramp_profile))
+    ((ConfigOptionFloat,              pellet_ers_deceleration_slope))
+    ((ConfigOptionFloat,              pellet_ers_min_rate))
 
     
     ((ConfigOptionPercents,            retract_before_wipe))

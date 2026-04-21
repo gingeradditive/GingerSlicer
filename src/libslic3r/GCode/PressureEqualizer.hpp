@@ -87,6 +87,17 @@ private:
     // Apply ERS only on external perimeters and overhangs
     bool                           m_extrusion_rate_smoothing_external_perimeter_only;
 
+    // Pellet extruder mode: apply ERS across all gaps (travel, retract, discontinuities)
+    bool                           m_pellet_ers_mode { false };
+    // Travel threshold below which ramp-up/ramp-down is skipped (treated as continuous)
+    float                          m_pellet_ers_travel_threshold { 3.0f };
+    // Feedrate interpolation curve shape during ramp-up/ramp-down
+    PelletERSRampProfile           m_pellet_ers_ramp_profile { PelletERSRampProfile::Sqrt };
+    // Separate deceleration slope (mm³/min²). 0 = use main slope for both directions.
+    float                          m_pellet_ers_deceleration_slope { 0.f };
+    // Minimum volumetric rate at ramp boundaries (mm³/min, converted from mm³/s at init)
+    float                          m_pellet_ers_min_rate { 30.f }; // 0.5 mm³/s * 60
+
     // Indicate if extrude set speed block was opened using the tag ";_EXTRUDE_SET_SPEED"
     // or not (not opened, or it was closed using the tag ";_EXTRUDE_END").
     bool                            opened_extrude_set_speed_block = false;
@@ -171,9 +182,16 @@ private:
         float       max_volumetric_extrusion_rate_slope_negative;
 
         bool        adjustable_flow       = false;
+        // Set by pellet boundary handler / mini passes to distinguish ramp segments from native ERS.
+        bool        pellet_ramp           = false;
 
         bool        extrude_set_speed_tag = false;
         bool        extrude_end_tag       = false;
+        
+        // Pellet ERS: travel distance from previous position to this polyline start (mm)
+        float       travel_before_polyline = 0.f;
+        // Pellet ERS: travel distance from this polyline end to next polyline start (mm)
+        float       travel_after_polyline = 0.f;
     };
 
     // Output buffer will only grow. It will not be reallocated over and over.
@@ -192,14 +210,15 @@ private:
 
     // Go back from the current circular_buffer_pos and lower the feedtrate to decrease the slope of the extrusion rate changes.
     // Then go forward and adjust the feedrate to decrease the slope of the extrusion rate changes.
-    void adjust_volumetric_rate(size_t first_line_idx, size_t last_line_idx);
+    // In pellet mode, is_segment_start/is_segment_end indicate transitions to/from zero flow (travel moves).
+    void adjust_volumetric_rate(size_t first_line_idx, size_t last_line_idx, bool is_segment_start = false, bool is_segment_end = false);
 
     // Push the text to the end of the output_buffer.
     inline void push_to_output(GCodeG1Formatter &formatter);
     inline void push_to_output(const std::string &text, bool add_eol);
     inline void push_to_output(const char *text, size_t len, bool add_eol = true);
     // Push a G-code line to the output.
-    void push_line_to_output(size_t line_idx, float new_feedrate, const char *comment);
+    void push_line_to_output(size_t line_idx, float new_feedrate, const char *comment, const char *ers_tag = nullptr);
 
 public:
     std::queue<LayerResult*> m_layer_results;
