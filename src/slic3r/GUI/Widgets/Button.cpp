@@ -290,6 +290,10 @@ void Button::render(wxDC& dc)
     wxPoint pt = rcContent.GetLeftTop();
     if (icon.bmp().IsOk()) {
         pt.y += (rcContent.height - szIcon.y) / 2;
+#ifdef __WXGTK__
+        // Linux GTK specific offset to correct horizontal icon alignment
+        pt.x += 3;
+#endif
         dc.DrawBitmap(icon.bmp(), pt);
         //BBS norrow size between text and icon
         pt.x += szIcon.x + padding;
