@@ -393,14 +393,6 @@ void BBLTopbar::OnModelStoreClicked(wxAuiToolBarEvent& event)
 
 void BBLTopbar::OnPublishClicked(wxAuiToolBarEvent& event)
 {
-    if (!wxGetApp().getAgent()) {
-        BOOST_LOG_TRIVIAL(info) << "publish: no agent";
-        return;
-    }
-
-    //no more check
-    //if (GUI::wxGetApp().plater()->model().objects.empty()) return;
-
 #ifdef ENABLE_PUBLISHING
     wxGetApp().plater()->show_publish_dialog();
 #endif

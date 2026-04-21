@@ -4,8 +4,6 @@
 #include "wx/aui/auibar.h"
 #include "GUI.hpp"
 
-#include "DeviceManager.hpp"
-
 
 using namespace Slic3r::GUI;
 

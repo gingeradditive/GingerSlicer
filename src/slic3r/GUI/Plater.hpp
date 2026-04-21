@@ -163,8 +163,8 @@ public:
     void delete_filament();
     void add_custom_filament(wxColour new_col);
     // BBS
-    void load_ams_list(std::string const & device, MachineObject* obj);
-    std::map<int, DynamicPrintConfig> build_filament_ams_list(MachineObject* obj);
+    void load_ams_list(std::string const & device, void* obj);
+    std::map<int, DynamicPrintConfig> build_filament_ams_list(void* obj);
     void sync_ams_list();
     // Orca
     void show_SEMM_buttons(bool bshow);

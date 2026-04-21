@@ -348,26 +348,8 @@ wxBoxSizer *PreferencesDialog::create_item_region_combobox(wxString title, wxWin
         else
             area = "Others";*/
         combobox->SetSelection(region_index);
-        NetworkAgent* agent = wxGetApp().getAgent();
         AppConfig* config = GUI::wxGetApp().app_config;
-        if (agent) {
-            MessageDialog msg_wingow(this, _L("Changing the region will log out your account.\n") + "\n" + _L("Do you want to continue?"), L("Region selection"),
-                                     wxICON_QUESTION | wxOK | wxCANCEL);
-            if (msg_wingow.ShowModal() == wxID_CANCEL) {
-                combobox->SetSelection(current_region);
-                return;
-            } else {
-                wxGetApp().request_user_logout();
-                config->set("region", region.ToStdString());
-                auto area = config->get_country_code();
-                if (agent) {
-                    agent->set_country_code(area);
-                }
-                EndModal(wxID_CANCEL);
-            }
-        } else {
-            config->set("region", region.ToStdString());
-        }
+        config->set("region", region.ToStdString());
 
         wxGetApp().update_publish_status();
         e.Skip();
@@ -965,18 +947,6 @@ PreferencesDialog::PreferencesDialog(wxWindow *parent, wxWindowID id, const wxSt
     SetBackgroundColour(*wxWHITE);
     create();
     Bind(wxEVT_CLOSE_WINDOW, [this](wxCloseEvent& event) {
-        try {
-            NetworkAgent* agent = GUI::wxGetApp().getAgent();
-            if (agent) {
-                json j;
-                std::string value;
-                value = wxGetApp().app_config->get("auto_calculate");
-                j["auto_flushing"] = value;
-                value = wxGetApp().app_config->get("auto_calculate_when_filament_change");
-                j["auto_calculate_when_filament_change"] = value;
-                agent->track_event("preferences_changed", j.dump());
-            }
-        } catch(...) {}
         event.Skip();
         });
 }
@@ -1442,7 +1412,6 @@ wxWindow* PreferencesDialog::create_debug_page()
 
             //if (iot_environment_map[param] != m_iot_environment_def) {
             if (true) {
-                NetworkAgent* agent = wxGetApp().getAgent();
                 if (param == "dev_host") {
                     app_config->set("iot_environment", ENV_DEV_HOST);
                 }
@@ -1456,14 +1425,6 @@ wxWindow* PreferencesDialog::create_debug_page()
                     app_config->set("iot_environment", ENV_PRODUCT_HOST);
                 }
 
-
-
-                AppConfig* config = GUI::wxGetApp().app_config;
-                std::string country_code = config->get_country_code();
-                if (agent) {
-                    wxGetApp().request_user_logout();
-                    agent->set_country_code(country_code);
-                }
                 ConfirmBeforeSendDialog confirm_dlg(this, wxID_ANY, _L("Warning"), ConfirmBeforeSendDialog::ButtonStyle::ONLY_CONFIRM);
                 confirm_dlg.update_text(_L("Cloud environment switched, please login again!"));
                 confirm_dlg.on_show();

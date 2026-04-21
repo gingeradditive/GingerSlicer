@@ -925,10 +925,7 @@ void MainFrame::shutdown()
         m_plater->get_mouse3d_controller().save_config(*wxGetApp().app_config);
     }
 
-    // stop agent
-    NetworkAgent* agent = wxGetApp().getAgent();
-    if (agent)
-        agent->track_enable(false);
+    // BambuLab networking removed
 
     // Stop the background thread of the removable drive manager, so that no new updates will be sent to the Plater.
     //wxGetApp().removable_drive_manager()->shutdown();
@@ -2050,24 +2047,12 @@ static void add_common_publish_menu_items(wxMenu* publish_menu, MainFrame* mainF
 #ifndef __WINDOWS__
     append_menu_item(publish_menu, wxID_ANY, _L("Upload Models"), _L("Upload Models"),
         [](wxCommandEvent&) {
-            if (!wxGetApp().getAgent()) {
-                BOOST_LOG_TRIVIAL(info) << "publish: no agent";
-                return;
-            }
-
-            json j;
-            NetworkAgent* agent = GUI::wxGetApp().getAgent();
-
             //if (GUI::wxGetApp().plater()->model().objects.empty()) return;
             wxGetApp().open_publish_page_dialog();
         });
 
     append_menu_item(publish_menu, wxID_ANY, _L("Download Models"), _L("Download Models"),
         [](wxCommandEvent&) {
-            if (!wxGetApp().getAgent()) {
-                BOOST_LOG_TRIVIAL(info) << "publish: no agent";
-                return;
-}
 
             //if (GUI::wxGetApp().plater()->model().objects.empty()) return;
             wxGetApp().open_mall_page_dialog();
@@ -3143,10 +3128,7 @@ void MainFrame::load_config_file()
         wxGetApp().app_config->update_config_dir(get_dir_name(cfiles.back()));
         wxGetApp().load_current_presets();
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << " presets has been import,and size is" << cfiles.size();
-        NetworkAgent* agent = wxGetApp().getAgent();
-        if (agent) {
-            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << " user is: " << agent->get_user_id();
-        }
+        // BambuLab agent tracking removed
     }
     wxGetApp().preset_bundle->update_compatible(PresetSelectCompatibleType::Always);
     update_side_preset_ui();
@@ -3669,7 +3651,6 @@ void MainFrame::on_select_default_preset(SimpleEvent& evt)
                     wxICON_INFORMATION);
 
     /* get setting list */
-    NetworkAgent* agent = wxGetApp().getAgent();
     switch ( dialog.ShowModal() )
     {
         case wxID_YES: {

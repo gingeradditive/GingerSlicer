@@ -5784,8 +5784,6 @@ void Tab::save_preset(std::string name /*= ""*/, bool detach, bool save_to_proje
     }
     else {
         new_preset->sync_info = "create";
-        if (wxGetApp().is_user_login())
-            new_preset->user_id = wxGetApp().getAgent()->get_user_id();
         BOOST_LOG_TRIVIAL(info) << "sync_preset: create preset = " << new_preset->name;
     }
     new_preset->save_info();

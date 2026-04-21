@@ -3211,7 +3211,7 @@ CreatePresetSuccessfulDialog::CreatePresetSuccessfulDialog(wxWindow *parent, con
     wxBoxSizer *success_text_sizer = new wxBoxSizer(wxVERTICAL);
     wxStaticText *success_text = nullptr;
     wxStaticText *next_step_text = nullptr;
-    bool          sync_user_preset_need_enabled = wxGetApp().getAgent() && wxGetApp().app_config->get("sync_user_preset") == "false";
+    bool          sync_user_preset_need_enabled = false;
     switch (create_success_type) {
     case PRINTER: 
         success_text = new wxStaticText(this, wxID_ANY, _L("Printer Created")); 
@@ -3671,15 +3671,9 @@ ExportConfigsDialog::ExportCase ExportConfigsDialog::archive_preset_bundle_to_fi
             std::string printer_preset_name_ = printer_preset->name;
 
             json          bundle_structure;
-            NetworkAgent *agent = wxGetApp().getAgent();
             std::string   clock = get_curr_timestmp();
-            if (agent) {
-                bundle_structure["version"]   = agent->get_version();
-                bundle_structure["bundle_id"] = agent->get_user_id() + "_" + printer_preset_name_ + "_" + clock;
-            } else {
-                bundle_structure["version"]   = "";
-                bundle_structure["bundle_id"] = "offline_" + printer_preset_name_ + "_" + clock;
-            }
+            bundle_structure["version"]   = "";
+            bundle_structure["bundle_id"] = "offline_" + printer_preset_name_ + "_" + clock;
             bundle_structure["bundle_type"] = "printer config bundle";
             bundle_structure["printer_preset_name"] = printer_preset_name_;
             json printer_config   = json::array();
@@ -3790,15 +3784,9 @@ ExportConfigsDialog::ExportCase ExportConfigsDialog::archive_filament_bundle_to_
             std::string filament_name = checkbox_filament_name.second;
 
             json          bundle_structure;
-            NetworkAgent *agent = wxGetApp().getAgent();
             std::string   clock = get_curr_timestmp();
-            if (agent) {
-                bundle_structure["version"]   = agent->get_version();
-                bundle_structure["bundle_id"] = agent->get_user_id() + "_" + filament_name + "_" + clock;
-            } else {
-                bundle_structure["version"]   = "";
-                bundle_structure["bundle_id"] = "offline_" + filament_name + "_" + clock;
-            }
+            bundle_structure["version"]   = "";
+            bundle_structure["bundle_id"] = "offline_" + filament_name + "_" + clock;
             bundle_structure["bundle_type"] = "filament config bundle";
             bundle_structure["filament_name"] = filament_name;
             std::unordered_map<std::string, json> vendor_structure;

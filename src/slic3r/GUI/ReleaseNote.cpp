@@ -1528,7 +1528,6 @@ InputIpAddressDialog::InputIpAddressDialog(wxWindow *parent)
     m_input_modelID->SetMinSize(wxSize(FromDIP(168), FromDIP(28)));
     m_input_modelID->SetMaxSize(wxSize(FromDIP(168), FromDIP(28)));
 
-    m_models_map = DeviceManager::get_all_model_id_with_name();
     for (auto it = m_models_map.begin(); it != m_models_map.end(); ++it) {
         m_input_modelID->Append(it->right);
         m_input_modelID->SetSelection(0);
@@ -1801,16 +1800,10 @@ void InputIpAddressDialog::update_title(wxString title)
     SetTitle(title);
 }
 
-void InputIpAddressDialog::set_machine_obj(MachineObject* obj)
+void InputIpAddressDialog::set_machine_obj(void* obj)
 {
     m_obj = obj;
-    m_input_ip->GetTextCtrl()->SetLabelText(m_obj->dev_ip);
-    m_input_access_code->GetTextCtrl()->SetLabelText(m_obj->get_access_code());
-    m_input_printer_name->GetTextCtrl()->SetLabelText(m_obj->dev_name);
-
-    std::string img_str = DeviceManager::get_printer_diagram_img(m_obj->printer_type);
-    auto diagram_bmp = create_scaled_bitmap(img_str + "_en", this, 198);
-    m_img_help->SetBitmap(diagram_bmp);
+    // BambuLab MachineObject/DeviceManager removed
 
     
     auto str_ip = m_input_ip->GetTextCtrl()->GetValue();
@@ -1930,84 +1923,8 @@ void InputIpAddressDialog::post_update_test_msg(wxString text, bool beconnect)
 
 void InputIpAddressDialog::workerThreadFunc(std::string str_ip, std::string str_access_code, std::string sn, std::string model_id, std::string name)
 {
-    post_update_test_msg(_L("connecting..."), true);
-
-    detectResult detectData;
-    auto result = -1;
-    if (current_input_index == 0) {
-
-#ifdef __APPLE__
-        result = -3;
-#else
-        result = wxGetApp().getAgent()->bind_detect(str_ip, "secure", detectData);
-#endif
-
-    } else {
-        result = 0;
-        detectData.model_id = model_id;
-        detectData.dev_name = name;
-        detectData.dev_id = sn;
-        detectData.connect_type = "lan";
-        detectData.bind_state   = "free";
-    }
-
-    if (result < 0) {
-        post_update_test_msg(wxEmptyString, true);
-        if (result == -1) {
-            post_update_test_msg(_L("Failed to connect to printer."), false);
-        }
-        else if (result == -2) {
-            post_update_test_msg(_L("Failed to publish login request."), false);
-        }
-        else if (result == -3) {
-            wxCommandEvent event(EVT_CHECK_IP_ADDRESS_LAYOUT);
-            event.SetEventObject(this);
-            event.SetInt(1);
-            wxPostEvent(this, event);
-        }
-        return;
-    }
-
-    if (detectData.bind_state == "occupied") {
-        post_update_test_msg(wxEmptyString, true);
-        post_update_test_msg(_L("The printer has already been bound."), false);
-        return;
-    }
-
-    if (detectData.connect_type == "cloud") {
-        post_update_test_msg(wxEmptyString, true);
-        post_update_test_msg(_L("The printer mode is incorrect, please switch to LAN Only."), false);
-        return;
-    }
-
-    CallAfter([this, detectData, str_ip, str_access_code]() {
-        DeviceManager* dev = wxGetApp().getDeviceManager();
-        BBLocalMachine machine;
-        machine.dev_name = detectData.dev_name;
-        machine.dev_ip = str_ip;
-        machine.dev_id = detectData.dev_id;
-        machine.printer_type = detectData.model_id;
-        m_obj = dev->insert_local_device(machine, detectData.connect_type, detectData.bind_state, detectData.version, str_access_code);
-
-
-        if (m_obj) {
-            m_obj->set_user_access_code(str_access_code);
-            wxGetApp().getDeviceManager()->set_selected_machine(m_obj->dev_id, true);
-        }
-
-
-        closeCount = 1;
-
-        post_update_test_msg(wxEmptyString, true);
-        post_update_test_msg(wxString::Format(_L("Connecting to printer... The dialog will close later"), closeCount), true);
-
-#ifdef __APPLE__
-        wxCommandEvent event(EVT_CLOSE_IPADDRESS_DLG);
-        wxPostEvent(this, event);
-#else
-        closeTimer->Start(1000);
-#endif
-    });
+    // BambuLab device binding removed
+    post_update_test_msg(_L("Connection not available."), false);
 }
 
 void InputIpAddressDialog::OnTimer(wxTimerEvent& event) {

@@ -40,8 +40,6 @@
 #include "Event.hpp"
 #include "libslic3r/ProjectTask.hpp"
 #include "wxExtensions.hpp"
-#include "slic3r/GUI/DeviceManager.hpp"
-#include "Widgets/SideTools.hpp"
 #include "Widgets/ComboBox.hpp"
 #include <wx/wrapsizer.h>
 

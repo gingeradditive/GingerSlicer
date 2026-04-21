@@ -30,7 +30,6 @@
 
 #include "GUI_Utils.hpp"
 #include "wxExtensions.hpp"
-#include "DeviceManager.hpp"
 #include "Widgets/Label.hpp"
 #include "Widgets/Button.hpp"
 #include "Widgets/CheckBox.hpp"
@@ -292,7 +291,8 @@ public:
     InputIpAddressDialog(wxWindow* parent = nullptr);
     ~InputIpAddressDialog();
 
-    MachineObject* m_obj{nullptr};
+    // BambuLab MachineObject removed
+    void* m_obj{nullptr};
     wxPanel * ip_input_top_panel{ nullptr };
     wxPanel * ip_input_bot_panel{ nullptr };
     Button* m_button_ok{ nullptr };
@@ -324,7 +324,7 @@ public:
     void switch_input_panel(int index);
     void on_cancel();
     void update_title(wxString title);
-    void set_machine_obj(MachineObject* obj);
+    void set_machine_obj(void* obj);
     void update_test_msg(wxString msg, bool connected);
     bool isIp(std::string ipstr);
     void check_ip_address_failed(int result);

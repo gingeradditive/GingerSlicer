@@ -934,35 +934,7 @@ void GUI_App::post_init()
     }
 #endif
 
-    if (!app_config->get_stealth_mode())
-        hms_query = new HMSQuery();
-
     m_show_gcode_window = app_config->get_bool("show_gcode_window");
-    if (m_networking_need_update) {
-        //updating networking
-        int ret = updating_bambu_networking();
-        if (!ret) {
-            BOOST_LOG_TRIVIAL(info) << __FUNCTION__<<":networking plugin updated successfully";
-            //restart_networking();
-        }
-        else {
-            BOOST_LOG_TRIVIAL(error) << __FUNCTION__<<":networking plugin updated failed";
-        }
-    }
-
-    // Start preset sync after project opened, otherwise we could have preset change during project opening which could cause crash 
-    if (app_config->get("sync_user_preset") == "true") {
-        // BBS loading user preset
-        // Always async, not such startup step
-        // BOOST_LOG_TRIVIAL(info) << "Loading user presets...";
-        // scrn->SetText(_L("Loading user presets..."));
-        if (m_agent) {
-            start_sync_user_preset();
-        }
-        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << " sync_user_preset: true";
-    } else {
-        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << " sync_user_preset: false";
-    }
 
     // The extra CallAfter() is needed because of Mac, where this is the only way
     // to popup a modal dialog on start without screwing combo boxes.
@@ -974,53 +946,18 @@ void GUI_App::post_init()
 
             std::string http_url = get_http_url(app_config->get_country_code());
             std::string language = GUI::into_u8(current_language_code());
-            std::string network_ver = Slic3r::NetworkAgent::get_version();
+            std::string network_ver;
             bool        sys_preset  = app_config->get("sync_system_preset") == "true";
             this->preset_updater->sync(http_url, language, network_ver, sys_preset ? preset_bundle : nullptr);
 
             this->check_new_version_sf();
-            if (is_user_login() && !app_config->get_stealth_mode()) {
-              // this->check_privacy_version(0);
-              request_user_handle(0);
-            }
         });
-    }
-
-    if (is_user_login())
-        request_user_handle(0);
-
-    if(!m_networking_need_update && m_agent) {
-        m_agent->set_on_ssdp_msg_fn(
-            [this](std::string json_str) {
-                if (m_is_closing) {
-                    return;
-                }
-                GUI::wxGetApp().CallAfter([this, json_str] {
-                    if (m_device_manager) {
-                        m_device_manager->on_machine_alive(json_str);
-                    }
-                    });
-            }
-        );
-        m_agent->set_on_http_error_fn([this](unsigned int status, std::string body) {
-            this->handle_http_error(status, body);
-        });
-        m_agent->start_discovery(true, false);
     }
 
     //update the plugin tips
     CallAfter([this] {
             mainframe->refresh_plugin_tips();
         });
-
-    // update hms info
-    CallAfter([this] {
-            if (hms_query)
-                hms_query->check_hms_info();
-        });
-
-
-    DeviceManager::load_filaments_blacklist_config();
 
     // remove old log files over LOG_FILES_MAX_NUM
     std::string log_addr = data_dir();
@@ -1158,684 +1095,6 @@ std::string GUI_App::get_model_http_url(std::string country_code)
 }
 
 
-std::string GUI_App::get_plugin_url(std::string name, std::string country_code)
-{
-    std::string url = get_http_url(country_code);
-
-    std::string curr_version = NetworkAgent::use_legacy_network ? BAMBU_NETWORK_AGENT_VERSION_LEGACY : BAMBU_NETWORK_AGENT_VERSION;
-    std::string using_version = curr_version.substr(0, 9) + "00";
-    if (name == "cameratools")
-        using_version = curr_version.substr(0, 6) + "00.00";
-    url += (boost::format("?slicer/%1%/cloud=%2%") % name % using_version).str();
-    //url += (boost::format("?slicer/plugins/cloud=%1%") % "01.01.00.00").str();
-    return url;
-}
-
-static std::string decode(std::string const& extra, std::string const& path = {}) {
-    char const* p = extra.data();
-    char const* e = p + extra.length();
-    while (p + 4 < e) {
-        boost::uint16_t len = ((boost::uint16_t)p[2]) | ((boost::uint16_t)p[3] << 8);
-        if (p[0] == '\x75' && p[1] == '\x70' && len >= 5 && p + 4 + len < e && p[4] == '\x01') {
-            return std::string(p + 9, p + 4 + len);
-        }
-        else {
-            p += 4 + len;
-        }
-    }
-    return Slic3r::decode_path(path.c_str());
-}
-
-int GUI_App::download_plugin(std::string name, std::string package_name, InstallProgressFn pro_fn, WasCancelledFn cancel_fn)
-{
-    int result = 0;
-    json j;
-    std::string err_msg;
-
-    // get country_code
-    AppConfig* app_config = wxGetApp().app_config;
-    if (!app_config) {
-        j["result"] = "failed";
-        j["error_msg"] = "app_config is nullptr";
-        return -1;
-    }
-
-    BOOST_LOG_TRIVIAL(info) << "[download_plugin]: enter";
-    m_networking_cancel_update = false;
-    // get temp path
-    fs::path target_file_path = (fs::temp_directory_path() / package_name);
-    fs::path tmp_path = target_file_path;
-    tmp_path += format(".%1%%2%", get_current_pid(), ".tmp");
-
-#if defined(__WINDOWS__)
-    if (is_running_on_arm64() && !NetworkAgent::use_legacy_network) {
-        //set to arm64 for plugins
-        std::map<std::string, std::string> current_headers = Slic3r::Http::get_extra_headers();
-        current_headers["X-BBL-OS-Type"] = "windows_arm";
-
-        Slic3r::Http::set_extra_headers(current_headers);
-        BOOST_LOG_TRIVIAL(info) << boost::format("download_plugin: set X-BBL-OS-Type to windows_arm");
-    }
-#endif
-
-    // get_url
-    std::string  url = get_plugin_url(name, app_config->get_country_code());
-    std::string download_url;
-    Slic3r::Http http_url = Slic3r::Http::get(url);
-    BOOST_LOG_TRIVIAL(info) << "[download_plugin]: check the plugin from " << url;
-    http_url.timeout_connect(TIMEOUT_CONNECT)
-        .timeout_max(TIMEOUT_RESPONSE)
-        .on_complete(
-        [&download_url](std::string body, unsigned status) {
-            try {
-                json j = json::parse(body);
-                std::string message = j["message"].get<std::string>();
-
-                if (message == "success") {
-                    json resource = j.at("resources");
-                    if (resource.is_array()) {
-                        for (auto iter = resource.begin(); iter != resource.end(); iter++) {
-                            Semver version;
-                            std::string url;
-                            std::string type;
-                            std::string vendor;
-                            std::string description;
-                            for (auto sub_iter = iter.value().begin(); sub_iter != iter.value().end(); sub_iter++) {
-                                if (boost::iequals(sub_iter.key(), "type")) {
-                                    type = sub_iter.value();
-                                    BOOST_LOG_TRIVIAL(info) << "[download_plugin]: get version of settings's type, " << sub_iter.value();
-                                }
-                                else if (boost::iequals(sub_iter.key(), "version")) {
-                                    version = *(Semver::parse(sub_iter.value()));
-                                }
-                                else if (boost::iequals(sub_iter.key(), "description")) {
-                                    description = sub_iter.value();
-                                }
-                                else if (boost::iequals(sub_iter.key(), "url")) {
-                                    url = sub_iter.value();
-                                }
-                            }
-                            BOOST_LOG_TRIVIAL(info) << "[download_plugin 1]: get type " << type << ", version " << version.to_string() << ", url " << url;
-                            download_url = url;
-                        }
-                    }
-                }
-                else {
-                    BOOST_LOG_TRIVIAL(info) << "[download_plugin 1]: get version of plugin failed, body=" << body;
-                }
-            }
-            catch (...) {
-                BOOST_LOG_TRIVIAL(error) << "[download_plugin 1]: catch unknown exception";
-                ;
-            }
-        }).on_error(
-            [&result, &err_msg](std::string body, std::string error, unsigned int status) {
-                BOOST_LOG_TRIVIAL(error) << "[download_plugin 1] on_error: " << error<<", body = " << body;
-                err_msg += "[download_plugin 1] on_error: " + error + ", body = " + body;
-                result = -1;
-        }).perform_sync();
-
-#if defined(__WINDOWS__)
-    if (is_running_on_arm64() && !NetworkAgent::use_legacy_network) {
-        //set back
-        std::map<std::string, std::string> current_headers = Slic3r::Http::get_extra_headers();
-        current_headers["X-BBL-OS-Type"] = "windows";
-
-        Slic3r::Http::set_extra_headers(current_headers);
-        BOOST_LOG_TRIVIAL(info) << boost::format("download_plugin: set X-BBL-OS-Type back to windows");
-    }
-#endif
-
-    bool cancel = false;
-    if (result < 0) {
-        j["result"] = "failed";
-        j["error_msg"] = err_msg;
-        if (pro_fn) pro_fn(InstallStatusDownloadFailed, 0, cancel);
-        return result;
-    }
-
-
-    if (download_url.empty()) {
-        BOOST_LOG_TRIVIAL(info) << "[download_plugin 1]: no available plugin found for this app version: " << SLIC3R_VERSION;
-        if (pro_fn) pro_fn(InstallStatusDownloadFailed, 0, cancel);
-        j["result"] = "failed";
-        j["error_msg"] = "[download_plugin 1]: no available plugin found for this app version: " + std::string(SLIC3R_VERSION);
-        return -1;
-    }
-    else if (pro_fn) {
-        pro_fn(InstallStatusNormal, 5, cancel);
-    }
-
-    if (m_networking_cancel_update || cancel) {
-        BOOST_LOG_TRIVIAL(info) << boost::format("[download_plugin 1]: %1%, cancelled by user") % __LINE__;
-        j["result"] = "failed";
-        j["error_msg"] = (boost::format("[download_plugin 1]: %1%, cancelled by user") % __LINE__).str();
-        return -1;
-    }
-    BOOST_LOG_TRIVIAL(info) << "[download_plugin] get_url = " << download_url;
-
-    // download
-    Slic3r::Http http = Slic3r::Http::get(download_url);
-    int reported_percent = 0;
-    http.on_progress(
-        [this, &pro_fn, cancel_fn, &result, &reported_percent, &err_msg](Slic3r::Http::Progress progress, bool& cancel) {
-            int percent = 0;
-            if (progress.dltotal != 0)
-                percent = progress.dlnow * 50 / progress.dltotal;
-            bool was_cancel = false;
-            if (pro_fn && ((percent - reported_percent) >= 10)) {
-                pro_fn(InstallStatusNormal, percent, was_cancel);
-                reported_percent = percent;
-                BOOST_LOG_TRIVIAL(info) << "[download_plugin 2] progress: " << reported_percent;
-            }
-            cancel = m_networking_cancel_update || was_cancel;
-            if (cancel_fn)
-                if (cancel_fn())
-                    cancel = true;
-
-            if (cancel) {
-                err_msg += "[download_plugin] cancel";
-                result = -1;
-            }
-        })
-        .on_complete([&pro_fn, tmp_path, target_file_path](std::string body, unsigned status) {
-            BOOST_LOG_TRIVIAL(info) << "[download_plugin 2] completed";
-            bool cancel = false;
-            int percent = 0;
-            fs::fstream file(tmp_path, std::ios::out | std::ios::binary | std::ios::trunc);
-            file.write(body.c_str(), body.size());
-            file.close();
-            fs::rename(tmp_path, target_file_path);
-            if (pro_fn) pro_fn(InstallStatusDownloadCompleted, 80, cancel);
-            })
-        .on_error([&pro_fn, &result, &err_msg](std::string body, std::string error, unsigned int status) {
-            bool cancel = false;
-            if (pro_fn) pro_fn(InstallStatusDownloadFailed, 0, cancel);
-            BOOST_LOG_TRIVIAL(error) << "[download_plugin 2] on_error: " << error<<", body = " << body;
-            err_msg += "[download_plugin 2] on_error: " + error + ", body = " + body;
-            result = -1;
-        });
-    http.perform_sync();
-    j["result"] = result < 0 ? "failed" : "success";
-    j["error_msg"] = err_msg;
-    return result;
-}
-
-int GUI_App::install_plugin(std::string name, std::string package_name, InstallProgressFn pro_fn, WasCancelledFn cancel_fn)
-{
-    bool cancel = false;
-    std::string target_file_path = (fs::temp_directory_path() / package_name).string();
-
-    BOOST_LOG_TRIVIAL(info) << "[install_plugin] enter";
-    // get plugin folder
-    std::string data_dir_str = data_dir();
-    boost::filesystem::path data_dir_path(data_dir_str);
-    auto plugin_folder = data_dir_path / name;
-    //auto plugin_folder = boost::filesystem::path(wxStandardPaths::Get().GetUserDataDir().ToUTF8().data()) / "plugins";
-    auto backup_folder = plugin_folder/"backup";
-    if (!boost::filesystem::exists(plugin_folder)) {
-        BOOST_LOG_TRIVIAL(info) << "[install_plugin] will create directory "<<plugin_folder.string();
-        boost::filesystem::create_directory(plugin_folder);
-    }
-    if (!boost::filesystem::exists(backup_folder)) {
-        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(", will create directory %1%")%backup_folder.string();
-        boost::filesystem::create_directory(backup_folder);
-    }
-
-    if (m_networking_cancel_update) {
-        BOOST_LOG_TRIVIAL(info) << boost::format("[install_plugin]: %1%, cancelled by user")%__LINE__;
-        return -1;
-    }
-    if (pro_fn) {
-        pro_fn(InstallStatusNormal, 50, cancel);
-    }
-    // unzip
-    mz_zip_archive archive;
-    mz_zip_zero_struct(&archive);
-    if (!open_zip_reader(&archive, target_file_path)) {
-        BOOST_LOG_TRIVIAL(error) << boost::format("[install_plugin]: %1%, open zip file failed")%__LINE__;
-        if (pro_fn) pro_fn(InstallStatusDownloadFailed, 0, cancel);
-        return InstallStatusUnzipFailed;
-    }
-
-    mz_uint num_entries = mz_zip_reader_get_num_files(&archive);
-    mz_zip_archive_file_stat stat;
-    BOOST_LOG_TRIVIAL(error) << boost::format("[install_plugin]: %1%, got %2% files")%__LINE__ %num_entries;
-    for (mz_uint i = 0; i < num_entries; i++) {
-        if (m_networking_cancel_update || cancel) {
-            BOOST_LOG_TRIVIAL(info) << boost::format("[install_plugin]: %1%, cancelled by user")%__LINE__;
-            return -1;
-        }
-        if (mz_zip_reader_file_stat(&archive, i, &stat)) {
-            if (stat.m_uncomp_size > 0) {
-                std::string dest_file;
-                if (stat.m_is_utf8) {
-                    dest_file = stat.m_filename;
-                }
-                else {
-                    std::string extra(1024, 0);
-                    size_t n = mz_zip_reader_get_extra(&archive, stat.m_file_index, extra.data(), extra.size());
-                    dest_file = decode(extra.substr(0, n), stat.m_filename);
-                }
-                auto dest_file_path = boost::filesystem::path(dest_file);
-                dest_file = dest_file_path.filename().string();
-                auto dest_path = boost::filesystem::path(plugin_folder.string() + "/" + dest_file);
-                std::string dest_zip_file = encode_path(dest_path.string().c_str());
-                try {
-                    if (fs::exists(dest_path))
-                        fs::remove(dest_path);
-                    mz_bool res = mz_zip_reader_extract_to_file(&archive, stat.m_file_index, dest_zip_file.c_str(), 0);
-                    BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(", extract  %1% from plugin zip %2%\n") % dest_file % stat.m_filename;
-                    if (res == 0) {
-#ifdef WIN32
-                        std::wstring new_dest_zip_file = boost::locale::conv::utf_to_utf<wchar_t>(dest_path.generic_string());
-                        res                            = mz_zip_reader_extract_to_file_w(&archive, stat.m_file_index, new_dest_zip_file.c_str(), 0);
-#endif
-                        if (res == 0) {
-                            mz_zip_error zip_error = mz_zip_get_last_error(&archive);
-                            BOOST_LOG_TRIVIAL(error) << "[install_plugin]Archive read error:" << mz_zip_get_error_string(zip_error) << std::endl;
-                            close_zip_reader(&archive);
-                            if (pro_fn) { pro_fn(InstallStatusUnzipFailed, 0, cancel); }
-                            return InstallStatusUnzipFailed;
-                        }
-                    }
-                    else {
-                        if (pro_fn) {
-                            pro_fn(InstallStatusNormal, 50 + i/num_entries, cancel);
-                        }
-                        try {
-                            auto backup_path = boost::filesystem::path(backup_folder.string() + "/" + dest_file);
-                            if (fs::exists(backup_path))
-                                fs::remove(backup_path);
-                            std::string error_message;
-                            CopyFileResult cfr = copy_file(dest_path.string(), backup_path.string(), error_message, false);
-                            if (cfr != CopyFileResult::SUCCESS) {
-                                BOOST_LOG_TRIVIAL(error) << "Copying to backup failed(" << cfr << "): " << error_message;
-                            }
-                        }
-                        catch (const std::exception& e)
-                        {
-                            BOOST_LOG_TRIVIAL(error) << "Copying to backup failed: " << e.what();
-                            //continue
-                        }
-                    }
-                }
-                catch (const std::exception& e)
-                {
-                    // ensure the zip archive is closed and rethrow the exception
-                    close_zip_reader(&archive);
-                    BOOST_LOG_TRIVIAL(error) << "[install_plugin]Archive read exception:"<<e.what();
-                    if (pro_fn) {
-                        pro_fn(InstallStatusUnzipFailed, 0, cancel);
-                    }
-                    return InstallStatusUnzipFailed;
-                }
-            }
-        }
-        else {
-            BOOST_LOG_TRIVIAL(error) << boost::format("[install_plugin]: %1%, mz_zip_reader_file_stat for file %2% failed")%__LINE__%i;
-        }
-    }
-
-    close_zip_reader(&archive);
-
-    if (pro_fn)
-        pro_fn(InstallStatusInstallCompleted, 100, cancel);
-    if (name == "plugins")
-        app_config->set_bool("installed_networking", true);
-    BOOST_LOG_TRIVIAL(info) << "[install_plugin] success";
-    return 0;
-}
-
-void GUI_App::restart_networking()
-{
-    BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< boost::format(" enter, mainframe %1%")%mainframe;
-    on_init_network(true);
-    if(m_agent) {
-        init_networking_callbacks();
-        m_agent->set_on_ssdp_msg_fn(
-            [this](std::string json_str) {
-                if (m_is_closing) {
-                    return;
-                }
-                GUI::wxGetApp().CallAfter([this, json_str] {
-                    if (m_device_manager) {
-                        m_device_manager->on_machine_alive(json_str);
-                    }
-                    });
-            }
-        );
-        m_agent->set_on_http_error_fn([this](unsigned int status, std::string body) {
-            this->handle_http_error(status, body);
-        });
-        m_agent->start_discovery(true, false);
-        if (mainframe)
-            mainframe->refresh_plugin_tips();
-        if (plater_)
-            plater_->get_notification_manager()->bbl_close_plugin_install_notification();
-
-        if (m_agent->is_user_login()) {
-            remove_user_presets();
-            enable_user_preset_folder(true);
-            preset_bundle->load_user_presets(m_agent->get_user_id(), ForwardCompatibilitySubstitutionRule::Enable);
-            mainframe->update_side_preset_ui();
-        }
-
-        if (app_config->get("sync_user_preset") == "true") {
-            start_sync_user_preset();
-        }
-        // if (mainframe && this->app_config->get("staff_pick_switch") == "true") {
-        //     if (mainframe->m_webview) { mainframe->m_webview->SendDesignStaffpick(has_model_mall()); }
-        // }
-    }
-    BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< boost::format(" exit, m_agent=%1%")%m_agent;
-}
-
-void GUI_App::remove_old_networking_plugins()
-{
-    std::string data_dir_str = data_dir();
-    boost::filesystem::path data_dir_path(data_dir_str);
-    auto plugin_folder = data_dir_path / "plugins";
-    //auto plugin_folder = boost::filesystem::path(wxStandardPaths::Get().GetUserDataDir().ToUTF8().data()) / "plugins";
-    if (boost::filesystem::exists(plugin_folder)) {
-        BOOST_LOG_TRIVIAL(info) << "[remove_old_networking_plugins] remove the directory "<<plugin_folder.string();
-        try {
-            fs::remove_all(plugin_folder);
-        } catch (...) {
-            BOOST_LOG_TRIVIAL(error) << "Failed  removing the plugins directory " << plugin_folder.string();
-        }
-    }
-}
-
-int GUI_App::updating_bambu_networking()
-{
-    DownloadProgressDialog dlg(_L("Downloading Bambu Network Plug-in"));
-    dlg.ShowModal();
-    return 0;
-}
-
-bool GUI_App::check_networking_version()
-{
-    std::string network_ver = Slic3r::NetworkAgent::get_version();
-    if (!network_ver.empty()) {
-        BOOST_LOG_TRIVIAL(info) << "get_network_agent_version=" << network_ver;
-    }
-    std::string studio_ver = NetworkAgent::use_legacy_network ? BAMBU_NETWORK_AGENT_VERSION_LEGACY : BAMBU_NETWORK_AGENT_VERSION;
-    if (network_ver.length() >= 8) {
-        if (network_ver.substr(0,8) == studio_ver.substr(0,8)) {
-            m_networking_compatible = true;
-            return true;
-        }
-    }
-
-    m_networking_compatible = false;
-    return false;
-}
-
-bool GUI_App::is_compatibility_version()
-{
-    BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< boost::format(": m_networking_compatible=%1%")%m_networking_compatible;
-    return m_networking_compatible;
-}
-
-void GUI_App::cancel_networking_install()
-{
-    m_networking_cancel_update = true;
-    BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< boost::format(": plugin install cancelled!");
-}
-
-void GUI_App::init_networking_callbacks()
-{
-    BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< boost::format(": enter, m_agent=%1%")%m_agent;
-    if (m_agent) {
-        //set callbacks
-        //m_agent->set_on_user_login_fn([this](int online_login, bool login) {
-        //    GUI::wxGetApp().request_user_handle(online_login);
-        //    });
-
-        m_agent->set_server_callback([](std::string url, int status) {
-            BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(": server_callback, url=%1%, status=%2%") % url % status;
-            //CallAfter([this]() {
-            //    if (!m_server_error_dialog) {
-            //        /*m_server_error_dialog->EndModal(wxCLOSE);
-            //        m_server_error_dialog->Destroy();
-            //        m_server_error_dialog = nullptr;*/
-            //        m_server_error_dialog = new NetworkErrorDialog(mainframe);
-            //    }
-            //
-            //    if(plater()->get_select_machine_dialog() && plater()->get_select_machine_dialog()->IsShown()){
-            //        return;
-            //    }
-            //
-            //    if (m_server_error_dialog->m_show_again) {
-            //        return;
-            //    }
-            //
-            //    if (m_server_error_dialog->IsShown()) {
-            //        return;
-            //    }
-            //
-            //    m_server_error_dialog->ShowModal();
-            //});
-        });
-
-
-        m_agent->set_on_server_connected_fn([this](int return_code, int reason_code) {
-            if (m_is_closing) {
-            return;
-            }
-            if (return_code == 5) {
-                GUI::wxGetApp().CallAfter([this] {
-                    this->request_user_logout();
-                    MessageDialog msg_dlg(nullptr, _L("Login information expired. Please login again."), "", wxAPPLY | wxOK);
-                    if (msg_dlg.ShowModal() == wxOK) {
-                        return;
-                    }
-                });
-                return;
-            }
-            GUI::wxGetApp().CallAfter([this] {
-                if (m_is_closing)
-                    return;
-                BOOST_LOG_TRIVIAL(trace) << "static: server connected";
-                m_agent->set_user_selected_machine(m_agent->get_user_selected_machine());
-                    //subscribe device
-                    if (m_agent->is_user_login()) {
-                        m_agent->start_device_subscribe();
-                    }
-                });
-            });
-
-        m_agent->set_on_printer_connected_fn([this](std::string dev_id) {
-            if (m_is_closing) {
-                return;
-            }
-            GUI::wxGetApp().CallAfter([this, dev_id] {
-                if (m_is_closing)
-                    return;
-                bool tunnel = boost::algorithm::starts_with(dev_id, "tunnel/");
-                /* request_pushing */
-                MachineObject* obj = m_device_manager->get_my_machine(tunnel ? dev_id.substr(7) : dev_id);
-                if (obj) {
-                    obj->is_tunnel_mqtt = tunnel;
-                    obj->command_request_push_all(true);
-                    obj->command_get_version();
-                    obj->erase_user_access_code();
-                    obj->command_get_access_code();
-                    GUI::wxGetApp().sidebar().load_ams_list(obj->dev_id, obj);
-                }
-                });
-            });
-
-        m_agent->set_get_country_code_fn([this]() {
-            if (app_config)
-                return app_config->get_country_code();
-            return std::string();
-            }
-        );
-
-        m_agent->set_on_subscribe_failure_fn([this](std::string dev_id) {
-            CallAfter([this, dev_id] {
-                on_start_subscribe_again(dev_id);
-            });
-        });
-
-        m_agent->set_on_local_connect_fn(
-            [this](int state, std::string dev_id, std::string msg) {
-                if (m_is_closing) {
-                    return;
-                }
-                CallAfter([this, state, dev_id, msg] {
-                    if (m_is_closing) {
-                        return;
-                    }
-                    /* request_pushing */
-                    MachineObject* obj = m_device_manager->get_my_machine(dev_id);
-                    wxCommandEvent event(EVT_CONNECT_LAN_MODE_PRINT);
-
-                    if (obj) {
-
-                        if (obj->is_lan_mode_printer()) {
-                            if (state == ConnectStatus::ConnectStatusOk) {
-                                obj->command_request_push_all(true);
-                                obj->command_get_version();
-                                event.SetInt(0);
-                                event.SetString(obj->dev_id);
-                                GUI::wxGetApp().sidebar().load_ams_list(obj->dev_id, obj);
-                            } else if (state == ConnectStatus::ConnectStatusFailed) {
-                                // Orca: avoid showing same error message multiple times until next connection attempt.
-                                const auto already_disconnected = m_device_manager->selected_machine.empty();
-                                m_device_manager->set_selected_machine("", true);
-                                if (!already_disconnected) {
-                                    wxString text;
-                                    if (msg == "5") {
-                                        obj->set_access_code("");
-                                        obj->erase_user_access_code();
-                                        text = wxString::Format(_L("Incorrect password"));
-                                        wxGetApp().show_dialog(text);
-                                    } else {
-                                        text = wxString::Format(_L("Connect %s failed! [SN:%s, code=%s]"), from_u8(obj->dev_name), obj->dev_id, msg);
-                                        wxGetApp().show_dialog(text);
-                                    }
-                                }
-                                event.SetInt(-1);
-                            } else if (state == ConnectStatus::ConnectStatusLost) {
-                                m_device_manager->set_selected_machine("", true);
-                                event.SetInt(-1);
-                                BOOST_LOG_TRIVIAL(info) << "set_on_local_connect_fn: state = lost";
-                            } else {
-                                event.SetInt(-1);
-                                BOOST_LOG_TRIVIAL(info) << "set_on_local_connect_fn: state = " << state;
-                            }
-
-                            obj->set_lan_mode_connection_state(false);
-                        }
-                        else {
-                            if (state == ConnectStatus::ConnectStatusOk) {
-                                event.SetInt(1);
-                                event.SetString(obj->dev_id);
-                            }
-                            else if(msg == "5") {
-                                event.SetInt(5);
-                                event.SetString(obj->dev_id);
-                            }
-                            else {
-                                event.SetInt(-2);
-                                event.SetString(obj->dev_id);
-                            }
-                        }
-                    }
-                    if (wxGetApp().plater()->get_select_machine_dialog()) {
-                        wxPostEvent(wxGetApp().plater()->get_select_machine_dialog(), event);
-                    }
-                });
-            }
-        );
-
-        auto message_arrive_fn = [this](std::string dev_id, std::string msg) {
-            if (m_is_closing) {
-                return;
-            }
-            CallAfter([this, dev_id, msg] {
-                if (m_is_closing)
-                    return;
-                this->process_network_msg(dev_id, msg);
-
-                MachineObject* obj = this->m_device_manager->get_user_machine(dev_id);
-                if (obj) {
-                    obj->is_ams_need_update = false;
-
-                    auto sel = this->m_device_manager->get_selected_machine();
-
-                    if (sel && sel->dev_id == dev_id) {
-                        obj->parse_json(msg);
-                    }
-                    else {
-                        obj->parse_json(msg, true);
-                    }
-                    
-
-                    if ((sel == obj || sel == nullptr) && obj->is_ams_need_update) {
-                        GUI::wxGetApp().sidebar().load_ams_list(obj->dev_id, obj);
-                    }
-                }
-            });
-        };
-
-        m_agent->set_on_message_fn(message_arrive_fn);
-
-        auto user_message_arrive_fn = [this](std::string user_id, std::string msg) {
-            if (m_is_closing) {
-                return;
-            }
-            CallAfter([this, user_id, msg] {
-                if (m_is_closing)
-                    return;
-
-                //check user
-                if (user_id == m_agent->get_user_id()) {
-                    this->m_user_manager->parse_json(msg);
-                }
-
-            });
-        };
-
-        m_agent->set_on_user_message_fn(user_message_arrive_fn);
-
-
-        auto lan_message_arrive_fn = [this](std::string dev_id, std::string msg) {
-            if (m_is_closing) {
-                return;
-            }
-            CallAfter([this, dev_id, msg] {
-                if (m_is_closing)
-                    return;
-
-                this->process_network_msg(dev_id, msg);
-                MachineObject* obj = m_device_manager->get_my_machine(dev_id);
-                if (!obj || !obj->is_lan_mode_printer()) {
-                    obj = m_device_manager->get_local_machine(dev_id);
-                }
-
-                if (obj) {
-                    obj->parse_json(msg, DeviceManager::key_field_only);
-                    if (this->m_device_manager->get_selected_machine() == obj && obj->is_ams_need_update) {
-                        GUI::wxGetApp().sidebar().load_ams_list(obj->dev_id, obj);
-                    }
-                }
-                obj = m_device_manager->get_local_machine(dev_id);
-                if (obj) {
-                    obj->parse_json(msg, DeviceManager::key_field_only);
-                }
-                });
-        };
-        m_agent->set_on_local_message_fn(lan_message_arrive_fn);
-        m_agent->set_queue_on_main_fn([this](std::function<void()> callback) {
-            CallAfter(callback);
-        });
-    }
-    BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< boost::format(": exit, m_agent=%1%")%m_agent;
-}
 
 GUI_App::~GUI_App()
 {
@@ -2077,40 +1336,17 @@ std::map<std::string, std::string> GUI_App::get_extra_header()
     return extra_headers;
 }
 
-//BBS
-void GUI_App::init_http_extra_header()
-{
-    std::map<std::string, std::string> extra_headers = get_extra_header();
-
-    if (m_agent)
-        m_agent->set_extra_http_header(extra_headers);
-}
-
-void GUI_App::update_http_extra_header()
-{
-    std::map<std::string, std::string> extra_headers = get_extra_header();
-    Slic3r::Http::set_extra_headers(extra_headers);
-    if (m_agent)
-        m_agent->set_extra_http_header(extra_headers);
-}
-
 void GUI_App::on_start_subscribe_again(std::string dev_id)
 {
-    auto start_subscribe_timer = new wxTimer(this, wxID_ANY);
-    Bind(wxEVT_TIMER, [this, start_subscribe_timer, dev_id](auto& e) {
-        start_subscribe_timer->Stop();
-        Slic3r::DeviceManager* dev = Slic3r::GUI::wxGetApp().getDeviceManager();
-        if (!dev) return;
-        MachineObject* obj = dev->get_selected_machine();
-        if (!obj) return;
+    // BambuLab device subscription removed
+}
 
-        if ( (dev_id == obj->dev_id) && obj->is_connecting() && obj->subscribe_counter > 0) {
-            obj->subscribe_counter--;
-            if(wxGetApp().getAgent()) wxGetApp().getAgent()->set_user_selected_machine(dev_id);
-            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ": dev_id=" << obj->dev_id;
-        }
-    });
-    start_subscribe_timer->Start(4000, wxTIMER_ONE_SHOT);
+void GUI_App::check_filaments_in_blacklist(std::string tag_supplier, std::string tag_material, bool& in_blacklist, std::string& action, std::string& info)
+{
+    // BambuLab filament blacklist removed
+    in_blacklist = false;
+    action.clear();
+    info.clear();
 }
 
 std::string GUI_App::get_local_models_path()
@@ -2327,11 +1563,8 @@ bool GUI_App::on_init_inner()
         int cur_patch = atoi(studio_ver.substr(6,2).c_str());
         BOOST_LOG_TRIVIAL(info) << boost::format("last app version {%1%.%2%.%3%}, current version {%4%.%5%.%6%}")
             %last_major%last_minor%last_patch%cur_major%cur_minor%cur_patch;
-        if ((last_major != cur_major)
-            ||(last_minor != cur_minor)
-            ||(last_patch != cur_patch)) {
-            remove_old_networking_plugins();
-        }
+        (void)last_major; (void)last_minor; (void)last_patch;
+        (void)cur_major; (void)cur_minor; (void)cur_patch;
     }
 
     if(app_config->get("version") != SLIC3R_VERSION) {
@@ -2486,43 +1719,8 @@ bool GUI_App::on_init_inner()
 
     preset_bundle->backup_user_folder();
 
-    Bind(EVT_SET_SELECTED_MACHINE, &GUI_App::on_set_selected_machine, this);
-    Bind(EVT_UPDATE_MACHINE_LIST, &GUI_App::on_update_machine_list, this);
-    Bind(EVT_USER_LOGIN, &GUI_App::on_user_login, this);
-    Bind(EVT_USER_LOGIN_HANDLE, &GUI_App::on_user_login_handle, this);
-    Bind(EVT_CHECK_PRIVACY_VER, &GUI_App::on_check_privacy_update, this);
-    Bind(EVT_CHECK_PRIVACY_SHOW, &GUI_App::show_check_privacy_dlg, this);
-
-    Bind(EVT_SHOW_IP_DIALOG, &GUI_App::show_ip_address_enter_dialog_handler, this);
-
-
     std::map<std::string, std::string> extra_headers = get_extra_header();
     Slic3r::Http::set_extra_headers(extra_headers);
-
-    // Orca: select network plugin version
-    NetworkAgent::use_legacy_network = app_config->get_bool("legacy_networking");
-    // Force legacy network plugin if debugger attached
-    // See https://github.com/bambulab/BambuStudio/issues/6726
-    /* if (!NetworkAgent::use_legacy_network) {
-        bool debugger_attached = false;
-#if defined(__WINDOWS__)
-        debugger_attached = IsDebuggerPresent();
-#elif defined(__WXOSX__) || defined(__linux__)
-        debugger_attached = is_debugger_present();
-#endif
-        if (debugger_attached) {
-            NetworkAgent::use_legacy_network = true;
-            wxMessageBox("Force using legacy bambu networking plugin because debugger is attached! If the app terminates itself immediately, please delete installed plugin and try again!");
-        }
-    } */
-    copy_network_if_available();
-    on_init_network();
-
-    if (m_agent && m_agent->is_user_login()) {
-        enable_user_preset_folder(true);
-    } else {
-        enable_user_preset_folder(false);
-    }
 
     // BBS if load user preset failed
     //if (loaded_preset_result != 0) {
@@ -2621,19 +1819,6 @@ bool GUI_App::on_init_inner()
     {
         bool curr_studio_active = this->is_studio_active();
         if (m_studio_active != curr_studio_active) {
-            if (curr_studio_active) {
-                BOOST_LOG_TRIVIAL(info) << "studio is active, start to subscribe";
-                if (m_agent) {
-                    json j = json::object();
-                    m_agent->start_subscribe("app");
-                }
-            } else {
-                BOOST_LOG_TRIVIAL(info) << "studio is inactive, stop to subscribe";
-                if (m_agent) {
-                    json j = json::object();
-                    m_agent->stop_subscribe("app");
-                }
-            }
             m_studio_active = curr_studio_active;
         }
 
@@ -2683,89 +1868,6 @@ bool GUI_App::on_init_inner()
     return true;
 }
 
-void GUI_App::copy_network_if_available()
-{
-    if (app_config->get("update_network_plugin") != "true")
-        return;
-    std::string network_library, player_library, live555_library, network_library_dst, player_library_dst, live555_library_dst;
-    std::string data_dir_str = data_dir();
-    boost::filesystem::path data_dir_path(data_dir_str);
-    auto plugin_folder = data_dir_path / "plugins";
-    auto cache_folder = data_dir_path / "ota";
-    std::string changelog_file = cache_folder.string() + "/network_plugins.json";
-#if defined(_MSC_VER) || defined(_WIN32)
-    network_library = cache_folder.string() + "/bambu_networking.dll";
-    player_library      = cache_folder.string() + "/BambuSource.dll";
-    live555_library     = cache_folder.string() + "/live555.dll";
-    network_library_dst = plugin_folder.string() + "/bambu_networking.dll";
-    player_library_dst  = plugin_folder.string() + "/BambuSource.dll";
-    live555_library_dst = plugin_folder.string() + "/live555.dll";
-#elif defined(__WXMAC__)
-    network_library = cache_folder.string() + "/libbambu_networking.dylib";
-    player_library = cache_folder.string() + "/libBambuSource.dylib";
-    live555_library = cache_folder.string() + "/liblive555.dylib";
-    network_library_dst = plugin_folder.string() + "/libbambu_networking.dylib";
-    player_library_dst = plugin_folder.string() + "/libBambuSource.dylib";
-    live555_library_dst = plugin_folder.string() + "/liblive555.dylib";
-#else
-    network_library = cache_folder.string() + "/libbambu_networking.so";
-    player_library      = cache_folder.string() + "/libBambuSource.so";
-    live555_library     = cache_folder.string() + "/liblive555.so";
-    network_library_dst = plugin_folder.string() + "/libbambu_networking.so";
-    player_library_dst  = plugin_folder.string() + "/libBambuSource.so";
-    live555_library_dst = plugin_folder.string() + "/liblive555.so";
-#endif
-
-    BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< ": checking network_library " << network_library << ", player_library " << player_library;
-    if (!boost::filesystem::exists(plugin_folder)) {
-        BOOST_LOG_TRIVIAL(info)<< __FUNCTION__ << ": create directory "<<plugin_folder.string();
-        boost::filesystem::create_directory(plugin_folder);
-    }
-    std::string error_message;
-    if (boost::filesystem::exists(network_library)) {
-        CopyFileResult cfr = copy_file(network_library, network_library_dst, error_message, false);
-        if (cfr != CopyFileResult::SUCCESS) {
-            BOOST_LOG_TRIVIAL(error) << __FUNCTION__<< ": Copying failed(" << cfr << "): " << error_message;
-            return;
-        }
-
-        static constexpr const auto perms = fs::owner_read | fs::owner_write | fs::group_read | fs::others_read;
-        fs::permissions(network_library_dst, perms);
-        fs::remove(network_library);
-        BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< ": Copying network library from" << network_library << " to " << network_library_dst<<" successfully.";
-    }
-
-    if (boost::filesystem::exists(player_library)) {
-        CopyFileResult cfr = copy_file(player_library, player_library_dst, error_message, false);
-        if (cfr != CopyFileResult::SUCCESS) {
-            BOOST_LOG_TRIVIAL(error) << __FUNCTION__<< ": Copying failed(" << cfr << "): " << error_message;
-            return;
-        }
-
-        static constexpr const auto perms = fs::owner_read | fs::owner_write | fs::group_read | fs::others_read;
-        fs::permissions(player_library_dst, perms);
-        fs::remove(player_library);
-        BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< ": Copying player library from" << player_library << " to " << player_library_dst<<" successfully.";
-    }
-
-    if (boost::filesystem::exists(live555_library)) {
-        CopyFileResult cfr = copy_file(live555_library, live555_library_dst, error_message, false);
-        if (cfr != CopyFileResult::SUCCESS) {
-            BOOST_LOG_TRIVIAL(error) << __FUNCTION__<< ": Copying failed(" << cfr << "): " << error_message;
-            return;
-        }
-
-        static constexpr const auto perms = fs::owner_read | fs::owner_write | fs::group_read | fs::others_read;
-        fs::permissions(live555_library_dst, perms);
-        fs::remove(live555_library);
-        BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< ": Copying live555 library from" << live555_library << " to " << live555_library_dst<<" successfully.";
-    }
-    if (boost::filesystem::exists(changelog_file))
-        fs::remove(changelog_file);
-    app_config->set("update_network_plugin", "false");
-}
-
-// Bambu networking removed
 
 unsigned GUI_App::get_colour_approx_luma(const wxColour &colour)
 {
@@ -3036,8 +2138,6 @@ void GUI_App::recreate_GUI(const wxString &msg_name)
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << "recreate_GUI enter";
     m_is_recreating_gui = true;
 
-    update_http_extra_header();
-
     mainframe->shutdown();
     ProgressDialog dlg(msg_name, msg_name, 100, nullptr, wxPD_AUTO_HIDE);
     dlg.Pulse();
@@ -3075,9 +2175,6 @@ void GUI_App::recreate_GUI(const wxString &msg_name)
     obj_list()->set_min_height();
     update_mode();
 
-    //check hms info for different language
-    if (hms_query)
-        hms_query->check_hms_info();
 
     //BBS: trigger restore project logic here, and skip confirm
     plater_->trigger_restore_project(1);
@@ -3282,99 +2379,23 @@ wxString GUI_App::transition_tridid(int trid_id)
 //BBS
 void GUI_App::request_login(bool show_user_info)
 {
-    ShowUserLogin();
-
-    if (show_user_info) {
-        get_login_info();
-    }
+    // BambuLab user login removed
 }
 
 void GUI_App::get_login_info()
 {
-    if (m_agent) {
-        if (m_agent->is_user_login()) {
-            std::string login_cmd = m_agent->build_login_cmd();
-            wxString strJS = wxString::Format("window.postMessage(%s)", login_cmd);
-            GUI::wxGetApp().run_script(strJS);
-        }
-        else {
-            m_agent->user_logout();
-            std::string logout_cmd = m_agent->build_logout_cmd();
-            wxString strJS = wxString::Format("window.postMessage(%s)", logout_cmd);
-            GUI::wxGetApp().run_script(strJS);
-        }
-        mainframe->m_webview->SetLoginPanelVisibility(true);
-    }
+    // BambuLab user login removed
 }
 
 bool GUI_App::is_user_login()
 {
-    if (m_agent) {
-        return m_agent->is_user_login();
-    }
     return false;
 }
 
 
 bool GUI_App::check_login()
 {
-    bool result = false;
-    if (m_agent) {
-        result = m_agent->is_user_login();
-    }
-
-    if (!result) {
-        ShowUserLogin();
-    }
-    return result;
-}
-
-void GUI_App::request_user_handle(int online_login)
-{
-    auto evt = new wxCommandEvent(EVT_USER_LOGIN_HANDLE);
-    evt->SetInt(online_login);
-    wxQueueEvent(this, evt);
-}
-
-void GUI_App::request_user_login(int online_login)
-{
-    auto evt = new wxCommandEvent(EVT_USER_LOGIN);
-    evt->SetInt(online_login);
-    wxQueueEvent(this, evt);
-}
-
-void GUI_App::request_user_logout()
-{
-    if (m_agent && m_agent->is_user_login()) {
-        // Update data first before showing dialogs
-        m_agent->user_logout(true);
-        m_agent->set_user_selected_machine("");
-        /* delete old user settings */
-        bool     transfer_preset_changes = false;
-        wxString header = _L("Some presets are modified.") + "\n" +
-            _L("You can keep the modified presets to the new project, discard or save changes as new presets.");
-        wxGetApp().check_and_keep_current_preset_changes(_L("User logged out"), header, ActionButtons::KEEP | ActionButtons::SAVE, &transfer_preset_changes);
-
-        m_device_manager->clean_user_info();
-        GUI::wxGetApp().sidebar().load_ams_list({}, {});
-        remove_user_presets();
-        enable_user_preset_folder(false);
-        preset_bundle->load_user_presets(DEFAULT_USER_FOLDER_NAME, ForwardCompatibilitySubstitutionRule::Enable);
-        mainframe->update_side_preset_ui();
-
-        GUI::wxGetApp().stop_sync_user_preset();
-    }
-}
-
-int GUI_App::request_user_unbind(std::string dev_id)
-{
-    int result = -1;
-    if (m_agent) {
-        result = m_agent->unbind(dev_id);
-        BOOST_LOG_TRIVIAL(info) << "request_user_unbind, dev_id = " << dev_id << ", result = " << result;
-        return result;
-    }
-    return result;
+    return false;
 }
 
 std::string GUI_App::handle_web_request(std::string cmd)
@@ -3417,11 +2438,6 @@ std::string GUI_App::handle_web_request(std::string cmd)
             else if (command_str.compare("homepage_login_or_register") == 0) {
                 CallAfter([this] {
                     this->request_login(true);
-                });
-            }
-            else if (command_str.compare("homepage_logout") == 0) {
-                CallAfter([this] {
-                    wxGetApp().request_user_logout();
                 });
             }
             else if (command_str.compare("homepage_modeldepot") == 0) {
@@ -3578,23 +2594,7 @@ std::string GUI_App::handle_web_request(std::string cmd)
 
 void GUI_App::handle_script_message(std::string msg)
 {
-    try {
-        json j = json::parse(msg);
-        if (j.contains("command")) {
-            wxString cmd = j["command"];
-            if (cmd == "user_login") {
-                if (m_agent) {
-                    m_agent->change_user(j.dump());
-                    if (m_agent->is_user_login()) {
-                        request_user_login(1);
-                    }
-                }
-            }
-        }
-    }
-    catch (...) {
-        ;
-    }
+    // BambuLab login handling removed
 }
 
 void GUI_App::request_model_download(wxString url)
@@ -3684,104 +2684,6 @@ void GUI_App::on_http_error(wxCommandEvent &evt)
 
     }
 
-    // request login
-    if (status == 401) {
-        if (m_agent) {
-            if (m_agent->is_user_login()) {
-                this->request_user_logout();
-
-                if (!m_show_http_errpr_msgdlg) {
-                    MessageDialog msg_dlg(nullptr, _L("Login information expired. Please login again."), "", wxAPPLY | wxOK);
-                    m_show_http_errpr_msgdlg = true;
-                    auto modal_result = msg_dlg.ShowModal();
-                    if (modal_result == wxOK || modal_result == wxCLOSE) {
-                        m_show_http_errpr_msgdlg = false;
-                        return;
-                    }
-                }
-            }
-        }
-        return;
-    }
-}
-
-void GUI_App::enable_user_preset_folder(bool enable)
-{
-    if (enable) {
-        std::string user_id = m_agent->get_user_id();
-        app_config->set("preset_folder", user_id);
-        GUI::wxGetApp().preset_bundle->update_user_presets_directory(user_id);
-    } else {
-        BOOST_LOG_TRIVIAL(info) << "preset_folder: set to empty";
-        app_config->set("preset_folder", "");
-        GUI::wxGetApp().preset_bundle->update_user_presets_directory(DEFAULT_USER_FOLDER_NAME);
-    }
-}
-
-void GUI_App::on_set_selected_machine(wxCommandEvent &evt)
-{
-    // Orca: do not connect to default device during app startup, because some of the lan machines might not online yet
-    // and user will be prompted by several "Connect XXX failed" error message.
-    return;
-
-    DeviceManager* dev = Slic3r::GUI::wxGetApp().getDeviceManager();
-    if (dev) {
-        dev->set_selected_machine(m_agent->get_user_selected_machine());
-    }
-}
-
-void GUI_App::on_update_machine_list(wxCommandEvent &evt)
-{
-    /* DeviceManager* dev = Slic3r::GUI::wxGetApp().getDeviceManager();
-     if (dev) {
-         dev->add_user_subscribe();
-     }*/
-}
-
-void GUI_App::on_user_login_handle(wxCommandEvent &evt)
-{
-    if (!m_agent) { return; }
-
-    int online_login = evt.GetInt();
-    m_agent->connect_server();
-
-    // get machine list
-    DeviceManager* dev = Slic3r::GUI::wxGetApp().getDeviceManager();
-    if (!dev) return;
-
-    boost::thread update_thread = boost::thread([this, dev] {
-        dev->update_user_machine_list_info();
-        auto evt = new wxCommandEvent(EVT_SET_SELECTED_MACHINE);
-        wxQueueEvent(this, evt);
-    });
-
-    if (online_login) {
-        remove_user_presets();
-        enable_user_preset_folder(true);
-        preset_bundle->load_user_presets(m_agent->get_user_id(), ForwardCompatibilitySubstitutionRule::Enable);
-        mainframe->update_side_preset_ui();
-
-        GUI::wxGetApp().mainframe->show_sync_dialog();
-    }
-}
-
-
-void GUI_App::check_track_enable()
-{
-    // Orca: alaways disable track event
-    if (m_agent) {
-        m_agent->track_enable(false);
-        m_agent->track_remove_files();
-    }
-}
-
-void GUI_App::on_user_login(wxCommandEvent &evt)
-{
-    if (!m_agent) { return; }
-    int online_login = evt.GetInt();
-    // check privacy before handle
-    check_privacy_version(online_login);
-    check_track_enable();
 }
 
 bool GUI_App::is_studio_active()
@@ -4311,12 +3213,6 @@ void GUI_App::check_new_version_sf(bool show_tips, int by_user)
     http.perform();
 }
 
-void GUI_App::process_network_msg(std::string dev_id, std::string msg)
-{
-    if (dev_id.empty()) {
-        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << msg;
-    }
-}
 
 //BBS pop up a dialog and download files
 void GUI_App::request_new_version(int by_user)
@@ -4343,110 +3239,6 @@ void GUI_App::set_skip_version(bool skip)
     }
 }
 
-void GUI_App::show_check_privacy_dlg(wxCommandEvent& evt)
-{
-    int online_login = evt.GetInt();
-    PrivacyUpdateDialog privacy_dlg(this->mainframe, wxID_ANY, _L("Privacy Policy Update"));
-    privacy_dlg.Bind(EVT_PRIVACY_UPDATE_CONFIRM, [this, online_login](wxCommandEvent &e) {
-        app_config->set("privacy_version", privacy_version_info.version_str);
-        app_config->set_bool("privacy_update_checked", true);
-        request_user_handle(online_login);
-        });
-    privacy_dlg.Bind(EVT_PRIVACY_UPDATE_CANCEL, [this](wxCommandEvent &e) {
-            app_config->set_bool("privacy_update_checked", false);
-            if (m_agent) {
-                m_agent->user_logout();
-            }
-        });
-
-    privacy_dlg.set_text(privacy_version_info.description);
-    privacy_dlg.on_show();
-}
-
-void GUI_App::on_show_check_privacy_dlg(int online_login)
-{
-    auto evt = new wxCommandEvent(EVT_CHECK_PRIVACY_SHOW);
-    evt->SetInt(online_login);
-    wxQueueEvent(this, evt);
-}
-
-bool GUI_App::check_privacy_update()
-{
-    if (privacy_version_info.version_str.empty() || privacy_version_info.description.empty()
-        || privacy_version_info.url.empty()) {
-        return false;
-    }
-
-    std::string local_privacy_ver = app_config->get("privacy_version");
-    auto curr_version = Semver::parse(local_privacy_ver);
-    auto remote_version = Semver::parse(privacy_version_info.version_str);
-    if (curr_version && remote_version) {
-        if (*remote_version > *curr_version || app_config->get("privacy_update_checked") != "true") {
-            return true;
-        }
-    }
-    return false;
-}
-
-void GUI_App::on_check_privacy_update(wxCommandEvent& evt)
-{
-    int online_login = evt.GetInt();
-    bool result = check_privacy_update();
-    if (result)
-        on_show_check_privacy_dlg(online_login);
-    else
-        request_user_handle(online_login);
-}
-
-void GUI_App::check_privacy_version(int online_login)
-{
-    update_http_extra_header();
-    std::string query_params = "?policy/privacy=00.00.00.00";
-    std::string url = get_http_url(app_config->get_country_code()) + query_params;
-    Slic3r::Http http = Slic3r::Http::get(url);
-
-    http.header("accept", "application/json")
-        .timeout_connect(TIMEOUT_CONNECT)
-        .timeout_max(TIMEOUT_RESPONSE)
-        .on_complete([this, online_login](std::string body, unsigned) {
-            try {
-                json j = json::parse(body);
-                if (j.contains("message")) {
-                    if (j["message"].get<std::string>() == "success") {
-                        if (j.contains("resources")) {
-                            for (auto it = j["resources"].begin(); it != j["resources"].end(); it++) {
-                                if (it->contains("type")) {
-                                    if ((*it)["type"] == std::string("policy/privacy")
-                                        && it->contains("version")
-                                        && it->contains("description")
-                                        && it->contains("url")
-                                        && it->contains("force_update")) {
-                                        privacy_version_info.version_str = (*it)["version"].get<std::string>();
-                                        privacy_version_info.description = (*it)["description"].get<std::string>();
-                                        privacy_version_info.url = (*it)["url"].get<std::string>();
-                                        privacy_version_info.force_upgrade = (*it)["force_update"].get<bool>();
-                                        break;
-                                    }
-                                }
-                            }
-                            CallAfter([this, online_login]() {
-                                auto evt = new wxCommandEvent(EVT_CHECK_PRIVACY_VER);
-                                evt->SetInt(online_login);
-                                wxQueueEvent(this, evt);
-                            });
-                        }
-                    }
-                }
-            }
-            catch (...) {
-                request_user_handle(online_login);
-            }
-        })
-        .on_error([this, online_login](std::string body, std::string error, unsigned int status) {
-            request_user_handle(online_login);
-            BOOST_LOG_TRIVIAL(error) << "check privacy version error" << body;
-    }).perform();
-}
 
 void GUI_App::no_new_version()
 {
@@ -4509,334 +3301,30 @@ void  GUI_App::push_notification(wxString msg, wxString title, UserNotificationS
     }
 }
 
+
 void GUI_App::reload_settings()
 {
-    if (preset_bundle && m_agent) {
-        std::map<std::string, std::map<std::string, std::string>> user_presets;
-        m_agent->get_user_presets(&user_presets);
-        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << __LINE__ << " cloud user preset number is: " << user_presets.size();
-        preset_bundle->load_user_presets(*app_config, user_presets, ForwardCompatibilitySubstitutionRule::Enable);
-        preset_bundle->save_user_presets(*app_config, get_delete_cache_presets());
-        mainframe->update_side_preset_ui();
-    }
+    // BambuLab cloud preset sync removed
 }
 
-//BBS reload when logout
 void GUI_App::remove_user_presets()
 {
-    if (preset_bundle && m_agent) {
-        preset_bundle->remove_users_preset(*app_config);
-
-        // Not remove user preset cache
-        //std::string user_id = m_agent->get_user_id();
-        //preset_bundle->remove_user_presets_directory(user_id);
-
-        //update ui
-        mainframe->update_side_preset_ui();
-    }
+    // BambuLab cloud preset sync removed
 }
 
 void GUI_App::sync_preset(Preset* preset)
 {
-    int result = -1;
-    unsigned int http_code = 200;
-    std::string updated_info;
-    long long update_time = 0;
-    // only sync user's preset
-    if (!preset->is_user()) return;
-    if (preset->is_custom_defined()) return;
-
-    auto setting_id = preset->setting_id;
-    std::map<std::string, std::string> values_map;
-    if (setting_id.empty() && preset->sync_info.empty()) {
-        if (m_create_preset_blocked[preset->type])
-            return;
-        int ret = preset_bundle->get_differed_values_to_update(*preset, values_map);
-        if (!ret) {
-            std::string new_setting_id = m_agent->request_setting_id(preset->name, &values_map, &http_code);
-            if (!new_setting_id.empty()) {
-                setting_id = new_setting_id;
-                result = 0;
-                auto update_time_str = values_map[BBL_JSON_KEY_UPDATE_TIME];
-                if (!update_time_str.empty())
-                    update_time = std::atoll(update_time_str.c_str());
-            }
-            else {
-                BOOST_LOG_TRIVIAL(trace) << "[sync_preset]init: request_setting_id failed, http code "<<http_code;
-                // do not post new preset this time if http code >= 400
-                if (http_code >= 400) {
-                    result = 0;
-                    updated_info = "hold";
-                } else
-                    result = -1;
-            }
-        }
-        else {
-            BOOST_LOG_TRIVIAL(trace) << "[sync_preset]init: can not generate differed key-values";
-            result = 0;
-            updated_info = "hold";
-        }
-    }
-    else if (preset->sync_info.compare("create") == 0) {
-        if (m_create_preset_blocked[preset->type])
-            return;
-        int ret = preset_bundle->get_differed_values_to_update(*preset, values_map);
-        if (!ret) {
-            std::string new_setting_id = m_agent->request_setting_id(preset->name, &values_map, &http_code);
-            if (!new_setting_id.empty()) {
-                setting_id = new_setting_id;
-                result = 0;
-                auto update_time_str = values_map[BBL_JSON_KEY_UPDATE_TIME];
-                if (!update_time_str.empty())
-                    update_time = std::atoll(update_time_str.c_str());
-            } else {
-                BOOST_LOG_TRIVIAL(trace) << "[sync_preset]create: request_setting_id failed, http code "<<http_code;
-                // do not post new preset this time if http code >= 400
-                if (http_code >= 400) {
-                    result = 0;
-                    updated_info = "hold";
-                }
-                else
-                    result = -1;
-            }
-        } else {
-            BOOST_LOG_TRIVIAL(trace) << "[sync_preset]create: can not generate differed preset";
-        }
-    } else if (preset->sync_info.compare("update") == 0) {
-        if (!setting_id.empty()) {
-            int ret = preset_bundle->get_differed_values_to_update(*preset, values_map);
-            if (!ret) {
-                if (auto iter = values_map.find(BBL_JSON_KEY_BASE_ID); iter != values_map.end() && iter->second == setting_id) {
-                    //clear the setting_id in this case ???
-                    setting_id.clear();
-                    result = 0;
-                }
-                else {
-                    result = m_agent->put_setting(setting_id, preset->name, &values_map, &http_code);
-                    if (http_code >= 400) {
-                        result = 0;
-                        updated_info = "hold";
-                        BOOST_LOG_TRIVIAL(error) << "[sync_preset] put setting_id = " << setting_id << " failed, http_code = " << http_code;
-                    } else {
-                        auto update_time_str = values_map[BBL_JSON_KEY_UPDATE_TIME];
-                        if (!update_time_str.empty())
-                            update_time = std::atoll(update_time_str.c_str());
-                    }
-                }
-
-            }
-            else {
-                BOOST_LOG_TRIVIAL(trace) << "[sync_preset]update: can not generate differed key-values, we need to skip this preset "<< preset->name;
-                result = 0;
-            }
-        }
-        else {
-            //clear the sync_info
-            result = 0;
-        }
-    }
-
-    if (http_code >= 400 && values_map["code"] == "14") { // Limit
-        m_create_preset_blocked[preset->type] = true;
-        CallAfter([this] {
-            plater()->get_notification_manager()->push_notification(NotificationType::BBLUserPresetExceedLimit);
-            static bool dialog_notified = false;
-            if (dialog_notified)
-                return;
-            dialog_notified = true;
-            if (mainframe == nullptr)
-                return;
-            auto msg = _L("The number of user presets cached in the cloud has exceeded the upper limit, newly created user presets can only be used locally.");
-            MessageDialog(mainframe, msg, _L("Sync user presets"), wxICON_WARNING | wxOK).ShowModal();
-        });
-        return; // this error not need hold, and should not hold
-    }
-
-    // update sync_info preset info in file
-    if (result == 0) {
-        //PresetBundle* preset_bundle = wxGetApp().preset_bundle;
-        if (!this->preset_bundle) return;
-
-        BOOST_LOG_TRIVIAL(trace) << "sync_preset: sync operation: " << preset->sync_info << " success! preset = " << preset->name;
-        if (preset->type == Preset::Type::TYPE_FILAMENT) {
-            preset_bundle->filaments.set_sync_info_and_save(preset->name, setting_id, updated_info, update_time);
-        } else if (preset->type == Preset::Type::TYPE_PRINT) {
-            preset_bundle->prints.set_sync_info_and_save(preset->name, setting_id, updated_info, update_time);
-        } else if (preset->type == Preset::Type::TYPE_PRINTER) {
-            preset_bundle->printers.set_sync_info_and_save(preset->name, setting_id, updated_info, update_time);
-        }
-    }
+    // BambuLab cloud preset sync removed
 }
 
 void GUI_App::start_sync_user_preset(bool with_progress_dlg)
 {
-    if (app_config->get_stealth_mode())
-        return;
-
-    if (!m_agent || !m_agent->is_user_login()) return;
-
-    // has already start sync
-    if (m_user_sync_token) return;
-
-    ProgressFn progressFn;
-    WasCancelledFn cancelFn;
-    std::function<void(bool)> finishFn;
-
-    BOOST_LOG_TRIVIAL(info) << "start_sync_service...";
-    // BBS
-    m_user_sync_token.reset(new int(0));
-    if (with_progress_dlg) {
-        auto dlg = new ProgressDialog(_L("Loading"), "", 100, this->mainframe, wxPD_AUTO_HIDE | wxPD_APP_MODAL | wxPD_CAN_ABORT);
-        dlg->Update(0, _L("Loading user preset"));
-        progressFn = [this, dlg](int percent) {
-            CallAfter([=]{
-                dlg->Update(percent, _L("Loading user preset"));
-            });
-        };
-        cancelFn = [this, dlg]() {
-            return m_is_closing || dlg->WasCanceled();
-        };
-        finishFn = [this, userid = m_agent->get_user_id(), dlg, t = std::weak_ptr<int>(m_user_sync_token)](bool ok) {
-            CallAfter([=]{
-                dlg->Destroy();
-                if (ok && m_agent && t.lock() == m_user_sync_token && userid == m_agent->get_user_id()) reload_settings();
-            });
-        };
-    }
-    else {
-        finishFn = [this, userid = m_agent->get_user_id(), t = std::weak_ptr<int>(m_user_sync_token)](bool ok) {
-            CallAfter([=] {
-                if (ok && m_agent && t.lock() == m_user_sync_token && userid == m_agent->get_user_id()) reload_settings();
-            });
-        };
-    }
-
-    m_sync_update_thread = Slic3r::create_thread(
-        [this, progressFn, cancelFn, finishFn, t = std::weak_ptr<int>(m_user_sync_token)] {
-            // get setting list, update setting list
-            std::string version = preset_bundle->get_vendor_profile_version(PresetBundle::ORCA_DEFAULT_BUNDLE).to_string();
-            if(!m_agent) return;
-            int ret = m_agent->get_setting_list2(version, [this](auto info) {
-                auto type = info[BBL_JSON_KEY_TYPE];
-                auto name = info[BBL_JSON_KEY_NAME];
-                auto setting_id = info[BBL_JSON_KEY_SETTING_ID];
-                auto update_time_str = info[BBL_JSON_KEY_UPDATE_TIME];
-                long long update_time = 0;
-                if (!update_time_str.empty())
-                    update_time = std::atoll(update_time_str.c_str());
-                if (type == "filament") {
-                    return preset_bundle->filaments.need_sync(name, setting_id, update_time);
-                } else if (type == "print") {
-                    return preset_bundle->prints.need_sync(name, setting_id, update_time);
-                } else if (type == "printer") {
-                    return preset_bundle->printers.need_sync(name, setting_id, update_time);
-                } else {
-                    return true;
-                }
-            }, progressFn, cancelFn);
-            finishFn(ret == 0);
-
-            int count = 0, sync_count = 0;
-            std::vector<Preset> presets_to_sync;
-            while (!t.expired()) {
-                count++;
-                if (count % 20 == 0) {
-                    if (m_agent) {
-                        if (!m_agent->is_user_login()) {
-                            continue;
-                        }
-                        //sync preset
-                        if (!preset_bundle) continue;
-
-                        int total_count = 0;
-                        sync_count = preset_bundle->prints.get_user_presets(preset_bundle, presets_to_sync);
-                        if (sync_count > 0) {
-                            for (Preset& preset : presets_to_sync) {
-                                sync_preset(&preset);
-                                boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
-                            }
-                        }
-                        total_count += sync_count;
-
-                        sync_count = preset_bundle->filaments.get_user_presets(preset_bundle, presets_to_sync);
-                        if (sync_count > 0) {
-                            for (Preset& preset : presets_to_sync) {
-                                sync_preset(&preset);
-                                boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
-                            }
-                        }
-                        total_count += sync_count;
-
-                        sync_count = preset_bundle->printers.get_user_presets(preset_bundle, presets_to_sync);
-                        if (sync_count > 0) {
-                            for (Preset& preset : presets_to_sync) {
-                                sync_preset(&preset);
-                                boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
-                            }
-                        }
-                        total_count += sync_count;
-
-                        if (total_count == 0) {
-                            CallAfter([this] {
-                                if (!m_is_closing)
-                                    plater()->get_notification_manager()->close_notification_of_type(NotificationType::BBLUserPresetExceedLimit);
-                            });
-                        }
-
-                        unsigned int http_code = 200;
-
-                        /* get list witch need to be deleted*/
-                        std::vector<string> delete_cache_presets = get_delete_cache_presets_lock();
-                        for (auto it = delete_cache_presets.begin(); it != delete_cache_presets.end();) {
-                            if ((*it).empty()) continue;
-                            std::string del_setting_id = *it;
-                            int result = m_agent->delete_setting(del_setting_id);
-                            if (result == 0) {
-                                preset_deleted_from_cloud(del_setting_id);
-                                it = delete_cache_presets.erase(it);
-                                m_create_preset_blocked = { false, false, false, false, false, false };
-                                BOOST_LOG_TRIVIAL(trace) << "sync_preset: sync operation: delete success! setting id = " << del_setting_id;
-                            }
-                            else {
-                                BOOST_LOG_TRIVIAL(info) << "delete setting = " <<del_setting_id << " failed";
-                                it++;
-                            }
-                        }
-                    }
-                } else {
-                    boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
-                }
-            }
-        });
+    // BambuLab cloud preset sync removed
 }
 
 void GUI_App::stop_sync_user_preset()
 {
-    if (!m_user_sync_token)
-        return;
-
-    m_user_sync_token.reset();
-    if (m_sync_update_thread.joinable()) {
-        if (m_is_closing)
-            m_sync_update_thread.join();
-        else
-            m_sync_update_thread.detach();
-    }
-}
-
-void GUI_App::start_http_server()
-{
-    if (!m_http_server.is_started())
-        m_http_server.start();
-}
-void GUI_App::stop_http_server()
-{
-    m_http_server.stop();
-}
-
-void GUI_App::switch_staff_pick(bool on)
-{
-    mainframe->m_webview->SendDesignStaffpick(on);
+    // BambuLab cloud preset sync removed
 }
 
 bool GUI_App::switch_language()
@@ -4967,50 +3455,18 @@ void GUI_App::update_internal_development() {
 
 void GUI_App::show_ip_address_enter_dialog(wxString title)
 {
-    auto evt = new wxCommandEvent(EVT_SHOW_IP_DIALOG);
-    evt->SetString(title);
-    wxQueueEvent(this, evt);
+    // BambuLab device IP dialog removed
 }
 
 bool GUI_App::show_modal_ip_address_enter_dialog(wxString title)
 {
-    DeviceManager* dev = Slic3r::GUI::wxGetApp().getDeviceManager();
-    if (!dev) return false;
-    if (!dev->get_selected_machine()) return false;
-    auto obj = dev->get_selected_machine();
-
-    InputIpAddressDialog dlg(nullptr);
-    dlg.set_machine_obj(obj);
-    if (!title.empty()) dlg.update_title(title);
-
-    dlg.Bind(EVT_ENTER_IP_ADDRESS, [this, obj](wxCommandEvent& e) {
-        auto selection_data_arr = wxSplit(e.GetString().ToStdString(), '|');
-
-        if (selection_data_arr.size() == 2) {
-            auto ip_address = selection_data_arr[0];
-            auto access_code = selection_data_arr[1];
-
-            BOOST_LOG_TRIVIAL(info) << "User enter IP address is " << ip_address;
-            if (!ip_address.empty()) {
-                wxGetApp().app_config->set_str("ip_address", obj->dev_id, ip_address.ToStdString());
-                wxGetApp().app_config->save();
-
-                obj->dev_ip = ip_address.ToStdString();
-                obj->set_user_access_code(access_code.ToStdString());
-            }
-        }
-    });
-
-    if (dlg.ShowModal() == wxID_YES) {
-        return true;
-    }
+    // BambuLab device IP dialog removed
     return false;
 }
 
 void  GUI_App::show_ip_address_enter_dialog_handler(wxCommandEvent& evt)
 {
-    wxString title = evt.GetString();
-    show_modal_ip_address_enter_dialog(title);
+    // BambuLab device IP dialog removed
 }
 
 //void GUI_App::add_config_menu(wxMenuBar *menu)
@@ -5688,19 +4144,6 @@ void GUI_App::open_mall_page_dialog()
     wxString language_code = this->current_language_code().BeforeFirst('_');
     model_url = language_code.ToStdString();
 
-    if (getAgent() && mainframe) {
-
-        //login already
-        if (getAgent()->is_user_login()) {
-            std::string ticket;
-            result = getAgent()->request_bind_ticket(&ticket);
-
-            if(result == 0){
-                link_url = host_url + "api/sign-in/ticket?to=" + host_url + url_encode(model_url) + "&ticket=" + ticket;
-            }
-        }
-    }
-
     if (result < 0) {
        link_url = host_url + model_url;
     }
@@ -5728,19 +4171,6 @@ void GUI_App::open_publish_page_dialog()
     //publish url
     wxString language_code = this->current_language_code().BeforeFirst('_');
     model_url += (language_code.ToStdString() + "/my/models/publish");
-
-    if (getAgent() && mainframe) {
-
-        //login already
-        if (getAgent()->is_user_login()) {
-            std::string ticket;
-            result = getAgent()->request_bind_ticket(&ticket);
-
-            if (result == 0) {
-                link_url = host_url + "api/sign-in/ticket?to=" + host_url + url_encode(model_url) + "&ticket=" + ticket;
-            }
-        }
-    }
 
     if (result < 0) {
         link_url = host_url + model_url;

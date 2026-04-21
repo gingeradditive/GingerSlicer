@@ -40,22 +40,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/BonjourDialog.hpp
     GUI/calib_dlg.cpp
     GUI/calib_dlg.hpp
-    GUI/Calibration.cpp
-    GUI/Calibration.hpp
-    GUI/CalibrationWizardCaliPage.cpp
-    GUI/CalibrationWizardCaliPage.hpp
-    GUI/CalibrationWizard.cpp
-    GUI/CalibrationWizard.hpp
-    GUI/CalibrationWizardPage.cpp
-    GUI/CalibrationWizardPage.hpp
-    GUI/CalibrationWizardPresetPage.cpp
-    GUI/CalibrationWizardPresetPage.hpp
-    GUI/CalibrationWizardSavePage.cpp
-    GUI/CalibrationWizardSavePage.hpp
-    GUI/CalibrationWizardStartPage.cpp
-    GUI/CalibrationWizardStartPage.hpp
-    GUI/CaliHistoryDialog.cpp
-    GUI/CaliHistoryDialog.hpp
     GUI/Camera.cpp
     GUI/Camera.hpp
     GUI/CameraUtils.cpp
@@ -65,16 +49,12 @@ set(SLIC3R_GUI_SOURCES
     GUI/ConfigManipulation.cpp
     GUI/ConfigManipulation.hpp
     GUI/ConfigWizard.hpp
-    GUI/ConnectPrinter.cpp
-    GUI/ConnectPrinter.hpp
     GUI/CreatePresetsDialog.cpp
     GUI/CreatePresetsDialog.hpp
     GUI/DailyTips.cpp
     GUI/DailyTips.hpp
     GUI/DesktopIntegrationDialog.cpp
     GUI/DesktopIntegrationDialog.hpp
-    GUI/DeviceManager.cpp
-    GUI/DeviceManager.hpp
     GUI/Downloader.cpp
     GUI/DownloaderFileGet.cpp
     GUI/DownloaderFileGet.hpp
@@ -87,8 +67,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/EditGCodeDialog.hpp
     GUI/ExtraRenderers.cpp
     GUI/ExtraRenderers.hpp
-    GUI/ExtrusionCalibration.cpp
-    GUI/ExtrusionCalibration.hpp
     GUI/Field.cpp
     GUI/Field.hpp
     GUI/FileArchiveDialog.cpp
@@ -190,16 +168,12 @@ set(SLIC3R_GUI_SOURCES
     GUI/GUI_Utils.hpp
     GUI/HintNotification.cpp
     GUI/HintNotification.hpp
-    GUI/HMS.cpp
-    GUI/HMS.hpp
     GUI/HttpServer.cpp
     GUI/HttpServer.hpp
     GUI/I18N.cpp
     GUI/I18N.hpp
     GUI/IconManager.cpp
     GUI/IconManager.hpp
-    GUI/ImageGrid.cpp
-    GUI/ImageGrid.h
     GUI/ImGuiWrapper.cpp
     GUI/ImGuiWrapper.hpp
     GUI/IMSlider.cpp
@@ -245,8 +219,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/MainFrame.hpp
     GUI/MarkdownTip.cpp
     GUI/MarkdownTip.hpp
-    GUI/MediaPlayCtrl.cpp
-    GUI/MediaPlayCtrl.h
     GUI/MeshUtils.cpp
     GUI/MeshUtils.hpp
     GUI/ModelMall.cpp
@@ -293,14 +265,10 @@ set(SLIC3R_GUI_SOURCES
     GUI/PresetHints.hpp
     GUI/PrinterCloudAuthDialog.cpp
     GUI/PrinterCloudAuthDialog.hpp
-    GUI/Printer/PrinterFileSystem.cpp
-    GUI/Printer/PrinterFileSystem.h
     GUI/PrinterWebView.cpp
     GUI/PrinterWebView.hpp
     GUI/PrintHostDialogs.cpp
     GUI/PrintHostDialogs.hpp
-    GUI/PrintOptionsDialog.cpp
-    GUI/PrintOptionsDialog.hpp
     GUI/PrivacyUpdateDialog.cpp
     GUI/PrivacyUpdateDialog.hpp
     GUI/ProgressStatusBar.cpp
@@ -331,8 +299,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/SendSystemInfoDialog.hpp
     GUI/SingleChoiceDialog.cpp
     GUI/SingleChoiceDialog.hpp
-    GUI/SliceInfoPanel.cpp
-    GUI/SliceInfoPanel.hpp
     GUI/SlicingProgressNotification.cpp
     GUI/SlicingProgressNotification.hpp
     GUI/StepMeshDialog.cpp
@@ -345,8 +311,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/TabButton.hpp
     GUI/Tab.cpp
     GUI/Tab.hpp
-    GUI/TaskManager.cpp
-    GUI/TaskManager.hpp
     GUI/TextLines.cpp
     GUI/TextLines.hpp
     GUI/TickCode.cpp
@@ -355,8 +319,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/UnsavedChangesDialog.hpp
     GUI/UpdateDialogs.cpp
     GUI/UpdateDialogs.hpp
-    GUI/UserManager.cpp
-    GUI/UserManager.hpp
     GUI/UserNotification.cpp
     GUI/UserNotification.hpp
     GUI/WebViewDialog.cpp
@@ -375,8 +337,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/Widgets/DropDown.hpp
     GUI/Widgets/ErrorMsgStaticText.cpp
     GUI/Widgets/ErrorMsgStaticText.hpp
-    GUI/Widgets/FanControl.cpp
-    GUI/Widgets/FanControl.hpp
     GUI/Widgets/ImageSwitchButton.cpp
     GUI/Widgets/ImageSwitchButton.hpp
     GUI/Widgets/Label.cpp
@@ -403,8 +363,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/Widgets/SideButton.hpp
     GUI/Widgets/SideMenuPopup.cpp
     GUI/Widgets/SideMenuPopup.hpp
-    GUI/Widgets/SideTools.cpp
-    GUI/Widgets/SideTools.hpp
     GUI/Widgets/SpinInput.cpp
     GUI/Widgets/SpinInput.hpp
     GUI/Widgets/StateColor.cpp
@@ -436,11 +394,8 @@ set(SLIC3R_GUI_SOURCES
     Utils/ASCIIFolding.hpp
     Utils/AstroBox.cpp
     Utils/AstroBox.hpp
-    Utils/bambu_networking.hpp
     Utils/Bonjour.cpp
     Utils/Bonjour.hpp
-    Utils/CalibUtils.cpp
-    Utils/CalibUtils.hpp
     Utils/ColorSpaceConvert.cpp
     Utils/ColorSpaceConvert.hpp
     Utils/CrealityPrint.cpp
@@ -475,8 +430,6 @@ set(SLIC3R_GUI_SOURCES
     Utils/minilzo_extension.hpp
     Utils/MKS.cpp
     Utils/MKS.hpp
-    Utils/NetworkAgent.cpp
-    Utils/NetworkAgent.hpp
     Utils/Obico.cpp
     Utils/Obico.hpp
     Utils/OctoPrint.cpp
@@ -508,8 +461,6 @@ set(SLIC3R_GUI_SOURCES
     Utils/WxFontUtils.hpp
 )
 
-add_subdirectory(GUI/DeviceTab)
-
 
 if (APPLE)
     list(APPEND SLIC3R_GUI_SOURCES
@@ -521,20 +472,8 @@ if (APPLE)
             GUI/InstanceCheckMac.h
             GUI/GUI_UtilsMac.mm
             GUI/wxMediaCtrl2.mm
-            GUI/wxMediaCtrl2.h
         )
     FIND_LIBRARY(DISKARBITRATION_LIBRARY DiskArbitration)
-else ()
-    list(APPEND SLIC3R_GUI_SOURCES
-            GUI/wxMediaCtrl2.cpp
-            GUI/wxMediaCtrl2.h
-        )
-endif ()
-
-if (UNIX AND NOT APPLE)
-    list(APPEND SLIC3R_GUI_SOURCES
-        GUI/Printer/gstbambusrc.c
-    )
 endif ()
 
 set(ORCA_UPDATER_SIG_KEY_B64 "${ORCA_UPDATER_SIG_KEY}")
