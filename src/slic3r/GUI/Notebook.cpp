@@ -128,8 +128,8 @@ void ButtonsListCtrl::Rescale()
     //m_mode_sizer->msw_rescale();
     int em = em_unit(this);
     for (Button* btn : m_pageButtons) {
-        //BBS
-        btn->SetMinSize({136 * em / 10, 36 * em / 10});
+        //BBS - Use same sizing as InsertPage to maintain consistency
+        btn->SetMinSize({(int)((btn->GetLabel().empty() ? 36 : 136) * em / 10 * 1.5), (int)(36 * em / 10 * 1.5)});
         btn->Rescale();
     }
 
@@ -187,7 +187,7 @@ bool ButtonsListCtrl::InsertPage(size_t n, const wxString &text, bool bSelect /*
 
     int em = em_unit(this);
     //BBS set size for button
-    btn->SetMinSize({136 * em / 10, 36 * em / 10});
+    btn->SetMinSize({(int)((text.empty() ? 36 : 136) * em / 10 * 1.5), (int)(36 * em / 10 * 1.5)});
 
     StateColor bg_color = StateColor(
         std::pair{wxColour(240, 240, 240), (int) StateColor::Hovered},
