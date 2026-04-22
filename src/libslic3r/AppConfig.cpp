@@ -551,31 +551,6 @@ std::string AppConfig::load()
                         m_storage[it.key()][iter.key()] = iter.value().get<std::string>();
                     }
                 }
-            } else if (it.key() == "calis") {
-                for (auto &calis_j : it.value()) {
-                    PrinterCaliInfo cali_info;
-                    if (calis_j.contains("dev_id"))
-                        cali_info.dev_id = calis_j["dev_id"].get<std::string>();
-                    if (calis_j.contains("cali_finished"))
-                        cali_info.cali_finished = bool(calis_j["cali_finished"].get<int>());
-                    if (calis_j.contains("flow_ratio"))
-                        cali_info.cache_flow_ratio = calis_j["flow_ratio"].get<float>();
-                    if (calis_j.contains("cache_flow_rate_calibration_type"))
-                        cali_info.cache_flow_rate_calibration_type = static_cast<FlowRatioCalibrationType>(calis_j["cache_flow_rate_calibration_type"].get<int>());
-                    if (calis_j.contains("presets")) {
-                        cali_info.selected_presets.clear();
-                        for (auto cali_it = calis_j["presets"].begin(); cali_it != calis_j["presets"].end(); cali_it++) {
-                            CaliPresetInfo preset_info;
-                            preset_info.tray_id     = cali_it.value()["tray_id"].get<int>();
-                            preset_info.nozzle_diameter = cali_it.value()["nozzle_diameter"].get<float>();
-                            preset_info.filament_id = cali_it.value()["filament_id"].get<std::string>();
-                            preset_info.setting_id  = cali_it.value()["setting_id"].get<std::string>();
-                            preset_info.name        = cali_it.value()["name"].get<std::string>();
-                            cali_info.selected_presets.push_back(preset_info);
-                        }
-                    }
-                    m_printer_cali_infos.emplace_back(cali_info);
-                }
             } else if (it.key() == "orca_presets") {
                 for (auto& j_model : it.value()) {
                     m_printer_settings[j_model["machine"].get<std::string>()] = j_model;
@@ -677,24 +652,6 @@ void AppConfig::save()
 
     for (const auto &filament_color : m_filament_colors) {
         j["app"]["filament_colors"].push_back(filament_color);
-    }
-
-    for (const auto &cali_info : m_printer_cali_infos) {
-        json cali_json;
-        cali_json["dev_id"]             = cali_info.dev_id;
-        cali_json["flow_ratio"]         = cali_info.cache_flow_ratio;
-        cali_json["cali_finished"]      = cali_info.cali_finished ? 1 : 0;
-        cali_json["cache_flow_rate_calibration_type"] = static_cast<int>(cali_info.cache_flow_rate_calibration_type);
-        for (auto filament_preset : cali_info.selected_presets) {
-            json preset_json;
-            preset_json["tray_id"] = filament_preset.tray_id;
-            preset_json["nozzle_diameter"]  = filament_preset.nozzle_diameter;
-            preset_json["filament_id"]      = filament_preset.filament_id;
-            preset_json["setting_id"]       = filament_preset.setting_id;
-            preset_json["name"]             = filament_preset.name;
-            cali_json["presets"].push_back(preset_json);
-        }
-        j["calis"].push_back(cali_json);
     }
 
     // Write the other categories.
@@ -1028,25 +985,6 @@ void AppConfig::set_variant(const std::string &vendor, const std::string &model,
 void AppConfig::set_vendors(const AppConfig &from)
 {
     m_vendors = from.m_vendors;
-    m_dirty = true;
-}
-
-void AppConfig::save_printer_cali_infos(const PrinterCaliInfo &cali_info, bool need_change_status)
-{
-    auto iter = std::find_if(m_printer_cali_infos.begin(), m_printer_cali_infos.end(), [&cali_info](const PrinterCaliInfo &cali_info_item) {
-        return cali_info_item.dev_id == cali_info.dev_id;
-    });
-
-    if (iter == m_printer_cali_infos.end()) {
-        m_printer_cali_infos.emplace_back(cali_info);
-    } else {
-        if (need_change_status) {
-            (*iter).cali_finished = cali_info.cali_finished;
-        }
-        (*iter).cache_flow_ratio = cali_info.cache_flow_ratio;
-        (*iter).selected_presets = cali_info.selected_presets;
-        (*iter).cache_flow_rate_calibration_type = cali_info.cache_flow_rate_calibration_type;
-    }
     m_dirty = true;
 }
 

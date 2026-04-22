@@ -415,17 +415,22 @@ Per ogni funzione o file da rimuovere, la IA deve verificare sempre:
 
 ## Fase 9 - Calibrazione Bambu: opzionale e separata
 
-### Step 44 - Decidere se la calibrazione Bambu è nel perimetro
+### Step 44 - Decidere se la calibrazione Bambu è nel perimetro — COMPLETATO
 
-- **File candidati**:
-  - `CalibrationPanel*`
-  - `CalibrationWizard*`
-  - `ExtrusionCalibration*`
-  - `CalibUtils*`
-  - `libslic3r/calib.*`
-- **Regola**:
-  - rimuoverli solo se sono davvero una feature esclusiva delle stampanti Bambu
-- **Nota importante**: alcune pagine di calibrazione usano `BBLStatusBarSend`; questo è un altro motivo per non rimuovere subito quella classe.
+- **Stato dei file candidati**:
+  - `CalibrationPanel*`, `CalibrationWizard*`, `ExtrusionCalibration*`, `CalibUtils*` — già rimossi in fasi precedenti.
+  - `libslic3r/calib.*` e `slic3r/GUI/calib_dlg.*` — **mantenuti**: implementano i test di calibrazione generici (PA, Flow Rate, Temp Tower, Max Volumetric Speed, VFA, Retraction, Input Shaping, Junction Deviation) generati come G-code locale, non esclusivi di Bambu.
+- **Tipi Bambu-specifici rimossi da `libslic3r/calib.hpp`** (erano orfani o usati solo da cache device cloud Bambu):
+  - `CalibState` (enum non usato)
+  - `X1CCalibInfos` / `X1CCalibInfo`
+  - `PACalibResult`, `PACalibIndexInfo`, `PACalibExtruderInfo`, `PACalibTabInfo`
+  - `FlowRatioCalibResult`, `FlowRatioCalibrationType`
+  - `CaliPresetInfo`, `PrinterCaliInfo`
+- **Pulizia collegata in `libslic3r/AppConfig.{hpp,cpp}`**:
+  - rimosso campo `m_printer_cali_infos`, getter `get_printer_cali_infos`, metodo `save_printer_cali_infos`
+  - rimossa deserializzazione del blocco JSON `"calis"`
+  - rimossa serializzazione del blocco JSON `"calis"`
+  - rimosso `#include "calib.hpp"` da `AppConfig.hpp` (non più necessario)
 
 ## Fase 10 - Pulizia build e risorse
 
