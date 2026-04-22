@@ -104,8 +104,6 @@ const std::string GCodeProcessor::External_Purge_Tag = " EXTERNAL_PURGE";
 const float GCodeProcessor::Wipe_Width = 0.05f;
 const float GCodeProcessor::Wipe_Height = 0.05f;
 
-bool GCodeProcessor::s_IsBBLPrinter = true;
-
 #if ENABLE_GCODE_VIEWER_DATA_CHECKING
 const std::string GCodeProcessor::Mm3_Per_Mm_Tag = "MM3_PER_MM:";
 #endif // ENABLE_GCODE_VIEWER_DATA_CHECKING
@@ -639,7 +637,7 @@ bool GCodeProcessor::contains_reserved_tag(const std::string& gcode, std::string
     bool ret = false;
 
     GCodeReader parser;
-    auto& _tags = s_IsBBLPrinter ? Reserved_Tags : Reserved_Tags_compatible;
+    auto& _tags = Reserved_Tags_compatible;
     parser.parse_buffer(gcode, [&ret, &found_tag, _tags](GCodeReader& parser, const GCodeReader::GCodeLine& line) {
         std::string comment = line.raw();
         if (comment.length() > 2 && comment.front() == ';') {
@@ -667,7 +665,7 @@ bool GCodeProcessor::contains_reserved_tags(const std::string& gcode, unsigned i
     CNumericLocalesSetter locales_setter;
 
     GCodeReader parser;
-    auto& _tags = s_IsBBLPrinter ? Reserved_Tags : Reserved_Tags_compatible;
+    auto& _tags = Reserved_Tags_compatible;
     parser.parse_buffer(gcode, [&ret, &found_tag, max_count, _tags](GCodeReader& parser, const GCodeReader::GCodeLine& line) {
         std::string comment = line.raw();
         if (comment.length() > 2 && comment.front() == ';') {
@@ -4552,13 +4550,12 @@ void GCodeProcessor::run_post_process()
     private:
         void write_to_file(FilePtr& out, const std::string& out_string, GCodeProcessorResult& result, const std::string& out_path) {
             if (!out_string.empty()) {
-                if (true) {
-                    fwrite((const void*)out_string.c_str(), 1, out_string.length(), out.f);
-                    if (ferror(out.f)) {
-                        out.close();
-                        boost::nowide::remove(out_path.c_str());
-                        throw Slic3r::RuntimeError("GCode processor post process export failed.\nIs the disk full?");
-                    }
+
+                fwrite((const void*)out_string.c_str(), 1, out_string.length(), out.f);
+                if (ferror(out.f)) {
+                    out.close();
+                    boost::nowide::remove(out_path.c_str());
+                    throw Slic3r::RuntimeError("GCode processor post process export failed.\nIs the disk full?");
                 }
             }
         }
@@ -4602,15 +4599,10 @@ void GCodeProcessor::run_post_process()
                     PrintEstimatedStatistics::ETimeMode mode    = static_cast<PrintEstimatedStatistics::ETimeMode>(i);
                     if (mode == PrintEstimatedStatistics::ETimeMode::Normal || machine.enabled) {
                         char buf[128];
-                        if (!s_IsBBLPrinter)
-                            // Orca: compatibility with klipper_estimator
-                            sprintf(buf, "; estimated printing time (%s mode) = %s\n",
-                                    (mode == PrintEstimatedStatistics::ETimeMode::Normal) ? "normal" : "silent",
-                                    get_time_dhms(machine.time).c_str());
-                        else {
-                            sprintf(buf, "; model printing time: %s; total estimated time: %s\n",
-                                    get_time_dhms(machine.time - machine.prepare_time).c_str(), get_time_dhms(machine.time).c_str());
-                        }
+                        // Orca: compatibility with klipper_estimator
+                        sprintf(buf, "; estimated printing time (%s mode) = %s\n",
+                                (mode == PrintEstimatedStatistics::ETimeMode::Normal) ? "normal" : "silent",
+                                get_time_dhms(machine.time).c_str());
                         export_lines.append_line(buf);
                     }
                 }
@@ -4695,58 +4687,56 @@ void GCodeProcessor::run_post_process()
         &g1_times_cache_it, &last_exported_main, &last_exported_stop,
         &export_lines]
         (const size_t g1_lines_counter) {
-        if (true) {
-            for (size_t i = 0; i < static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Count); ++i) {
-                const TimeMachine& machine = m_time_processor.machines[i];
-                if (machine.enabled) {
-                    // export pair <percent, remaining time>
-                    // Skip all machine.g1_times_cache below g1_lines_counter.
-                    auto& it = g1_times_cache_it[i];
-                    while (it != machine.g1_times_cache.end() && it->id < g1_lines_counter)
-                        ++it;
-                    if (it != machine.g1_times_cache.end() && it->id == g1_lines_counter) {
-                        std::pair<int, int> to_export_main = { int(100.0f * it->elapsed_time / machine.time),
-                                                                time_in_minutes(machine.time - it->elapsed_time) };
-                        if (last_exported_main[i] != to_export_main) {
-                            export_lines.append_line(format_line_M73_main(machine.line_m73_main_mask.c_str(),
-                                to_export_main.first, to_export_main.second), true);
-                            last_exported_main[i] = to_export_main;
-                        }
-                        // export remaining time to next printer stop
-                        auto it_stop = std::upper_bound(machine.stop_times.begin(), machine.stop_times.end(), it->elapsed_time,
-                            [](float value, const TimeMachine::StopTime& t) { return value < t.elapsed_time; });
-                        if (it_stop != machine.stop_times.end()) {
-                            int to_export_stop = time_in_minutes(it_stop->elapsed_time - it->elapsed_time);
-                            if (last_exported_stop[i] != to_export_stop) {
-                                if (to_export_stop > 0) {
-                                    if (last_exported_stop[i] != to_export_stop) {
-                                        export_lines.append_line(format_line_M73_stop_int(machine.line_m73_stop_mask.c_str(), to_export_stop), true);
-                                        last_exported_stop[i] = to_export_stop;
-                                    }
+        for (size_t i = 0; i < static_cast<size_t>(PrintEstimatedStatistics::ETimeMode::Count); ++i) {
+            const TimeMachine& machine = m_time_processor.machines[i];
+            if (machine.enabled) {
+                // export pair <percent, remaining time>
+                // Skip all machine.g1_times_cache below g1_lines_counter.
+                auto& it = g1_times_cache_it[i];
+                while (it != machine.g1_times_cache.end() && it->id < g1_lines_counter)
+                    ++it;
+                if (it != machine.g1_times_cache.end() && it->id == g1_lines_counter) {
+                    std::pair<int, int> to_export_main = { int(100.0f * it->elapsed_time / machine.time),
+                                                            time_in_minutes(machine.time - it->elapsed_time) };
+                    if (last_exported_main[i] != to_export_main) {
+                        export_lines.append_line(format_line_M73_main(machine.line_m73_main_mask.c_str(),
+                            to_export_main.first, to_export_main.second), true);
+                        last_exported_main[i] = to_export_main;
+                    }
+                    // export remaining time to next printer stop
+                    auto it_stop = std::upper_bound(machine.stop_times.begin(), machine.stop_times.end(), it->elapsed_time,
+                        [](float value, const TimeMachine::StopTime& t) { return value < t.elapsed_time; });
+                    if (it_stop != machine.stop_times.end()) {
+                        int to_export_stop = time_in_minutes(it_stop->elapsed_time - it->elapsed_time);
+                        if (last_exported_stop[i] != to_export_stop) {
+                            if (to_export_stop > 0) {
+                                if (last_exported_stop[i] != to_export_stop) {
+                                    export_lines.append_line(format_line_M73_stop_int(machine.line_m73_stop_mask.c_str(), to_export_stop), true);
+                                    last_exported_stop[i] = to_export_stop;
                                 }
-                                else {
-                                    bool is_last = false;
-                                    auto next_it = it + 1;
-                                    is_last |= (next_it == machine.g1_times_cache.end());
+                            }
+                            else {
+                                bool is_last = false;
+                                auto next_it = it + 1;
+                                is_last |= (next_it == machine.g1_times_cache.end());
 
-                                    if (next_it != machine.g1_times_cache.end()) {
-                                        auto next_it_stop = std::upper_bound(machine.stop_times.begin(), machine.stop_times.end(), next_it->elapsed_time,
-                                            [](float value, const TimeMachine::StopTime& t) { return value < t.elapsed_time; });
-                                        is_last |= (next_it_stop != it_stop);
+                                if (next_it != machine.g1_times_cache.end()) {
+                                    auto next_it_stop = std::upper_bound(machine.stop_times.begin(), machine.stop_times.end(), next_it->elapsed_time,
+                                        [](float value, const TimeMachine::StopTime& t) { return value < t.elapsed_time; });
+                                    is_last |= (next_it_stop != it_stop);
 
-                                        std::string time_float_str = format_time_float(time_in_last_minute(it_stop->elapsed_time - it->elapsed_time));
-                                        std::string next_time_float_str = format_time_float(time_in_last_minute(it_stop->elapsed_time - next_it->elapsed_time));
-                                        is_last |= (string_to_double_decimal_point(time_float_str) > 0. && string_to_double_decimal_point(next_time_float_str) == 0.);
-                                    }
+                                    std::string time_float_str = format_time_float(time_in_last_minute(it_stop->elapsed_time - it->elapsed_time));
+                                    std::string next_time_float_str = format_time_float(time_in_last_minute(it_stop->elapsed_time - next_it->elapsed_time));
+                                    is_last |= (string_to_double_decimal_point(time_float_str) > 0. && string_to_double_decimal_point(next_time_float_str) == 0.);
+                                }
 
-                                    if (is_last) {
-                                        if (std::distance(machine.stop_times.begin(), it_stop) == static_cast<ptrdiff_t>(machine.stop_times.size() - 1))
-                                            export_lines.append_line(format_line_M73_stop_int(machine.line_m73_stop_mask.c_str(), to_export_stop), true);
-                                        else
-                                            export_lines.append_line(format_line_M73_stop_float(machine.line_m73_stop_mask.c_str(), time_in_last_minute(it_stop->elapsed_time - it->elapsed_time)), true);
+                                if (is_last) {
+                                    if (std::distance(machine.stop_times.begin(), it_stop) == static_cast<ptrdiff_t>(machine.stop_times.size() - 1))
+                                        export_lines.append_line(format_line_M73_stop_int(machine.line_m73_stop_mask.c_str(), to_export_stop), true);
+                                    else
+                                        export_lines.append_line(format_line_M73_stop_float(machine.line_m73_stop_mask.c_str(), time_in_last_minute(it_stop->elapsed_time - it->elapsed_time)), true);
 
-                                        last_exported_stop[i] = to_export_stop;
-                                    }
+                                    last_exported_stop[i] = to_export_stop;
                                 }
                             }
                         }

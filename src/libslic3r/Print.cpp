@@ -1404,7 +1404,7 @@ StringObjectException Print::validate(StringObjectException *warning, Polygons* 
 
     // Orca: G92 E0 is not supported when using absolute extruder addressing
     // This check is copied from PrusaSlicer, the original author is Vojtech Bubnik
-    if(!is_BBL_printer()) {
+    {
         bool before_layer_gcode_resets_extruder =
             boost::regex_search(m_config.before_layer_change_gcode.value, regex_g92e0);
         bool layer_gcode_resets_extruder = boost::regex_search(m_config.layer_change_gcode.value, regex_g92e0);
@@ -1427,34 +1427,6 @@ StringObjectException Print::validate(StringObjectException *warning, Polygons* 
     const ConfigOptionDef* bed_type_def = print_config_def.get("curr_bed_type");
     assert(bed_type_def != nullptr);
 
-	    if (is_BBL_printer()) {
-	    const t_config_enum_values* bed_type_keys_map = bed_type_def->enum_keys_map;
-	    for (unsigned int extruder_id : extruders) {
-	        const ConfigOptionInts* bed_temp_opt = m_config.option<ConfigOptionInts>(get_bed_temp_key(m_config.curr_bed_type));
-	        for (unsigned int extruder_id : extruders) {
-	            int curr_bed_temp = bed_temp_opt->get_at(extruder_id);
-	            if (curr_bed_temp == 0 && bed_type_keys_map != nullptr) {
-	                std::string bed_type_name;
-	                for (auto item : *bed_type_keys_map) {
-	                    if (item.second == m_config.curr_bed_type) {
-	                        bed_type_name = item.first;
-	                        break;
-	                    }
-	                }
-
-	                StringObjectException except;
-	                except.string = Slic3r::format(L("Plate %d: %s does not support filament %s"), this->get_plate_index() + 1, L(bed_type_name), extruder_id + 1);
-	                except.string += "\n";
-	                except.type   = STRING_EXCEPT_FILAMENT_NOT_MATCH_BED_TYPE;
-	                except.params.push_back(std::to_string(this->get_plate_index() + 1));
-	                except.params.push_back(L(bed_type_name));
-	                except.params.push_back(std::to_string(extruder_id+1));
-	                except.object = nullptr;
-	                return except;
-	           }
-            }
-        }
-    }
 
     // check if print speed/accel/jerk is higher than the maximum speed of the printer
     if (warning) {
@@ -2658,9 +2630,9 @@ void Print::_make_wipe_tower()
     for (unsigned int i = 0; i<number_of_extruders; ++i)
         wipe_volumes.push_back(std::vector<float>(flush_matrix.begin()+i*number_of_extruders, flush_matrix.begin()+(i+1)*number_of_extruders));
 
-    const auto bUseWipeTower2 = is_BBL_printer() ? false : true;
+    const auto bUseWipeTower2 = true;
     // Orca: itertate over wipe_volumes and change the non-zero values to the prime_volume
-    if ((!m_config.purge_in_prime_tower || !m_config.single_extruder_multi_material) && !is_BBL_printer()) {
+    if (!m_config.purge_in_prime_tower || !m_config.single_extruder_multi_material) {
         for (unsigned int i = 0; i < number_of_extruders; ++i) {
             for (unsigned int j = 0; j < number_of_extruders; ++j) {
                 if (wipe_volumes[i][j] > 0) {
@@ -2957,7 +2929,6 @@ void Print::export_gcode_from_previous_file(const std::string& file, GCodeProces
 {
     try {
         GCodeProcessor processor;
-        GCodeProcessor::s_IsBBLPrinter = is_BBL_printer();
         const Vec3d origin = this->get_plate_origin();
         processor.set_xy_offset(origin(0), origin(1));
         //processor.enable_producers(true);

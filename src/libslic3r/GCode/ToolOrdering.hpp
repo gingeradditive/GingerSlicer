@@ -213,7 +213,6 @@ private:
     const DynamicPrintConfig*  m_print_full_config = nullptr;
     const PrintConfig*         m_print_config_ptr = nullptr;
     const PrintObject*         m_print_object_ptr = nullptr;
-    bool                       m_is_BBL_printer = false;
 };
 
 } // namespace SLic3r

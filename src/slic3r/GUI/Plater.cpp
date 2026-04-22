@@ -9118,7 +9118,6 @@ void Plater::_calib_pa_pattern(const Calib_Params& params)
 
     const DynamicPrintConfig full_config = wxGetApp().preset_bundle->full_config();
     PresetBundle* preset_bundle = wxGetApp().preset_bundle;
-    const bool is_bbl_machine = preset_bundle->is_bbl_vendor();
     auto cur_plate = get_partplate_list().get_plate(0);
 
     // add "handle" cube
@@ -9128,7 +9127,6 @@ void Plater::_calib_pa_pattern(const Calib_Params& params)
     CalibPressureAdvancePattern pa_pattern(
         params,
         full_config,
-        is_bbl_machine,
         *cube,
         cur_plate->get_origin()
     );
@@ -9228,7 +9226,6 @@ void Plater::_calib_pa_pattern_gen_gcode()
     for (auto obj : cur_plate->get_objects_on_this_plate()) {
         auto gcode = model().calib_pa_pattern->generate_custom_gcodes(
                                 preset_bundle->full_config(),
-                                preset_bundle->is_bbl_vendor(),
                                 *obj,
                                 cur_plate->get_origin()
         );
@@ -9931,7 +9928,6 @@ void Plater::load_gcode(const wxString& filename)
     GCodeProcessor processor;
     try
     {
-        GCodeProcessor::s_IsBBLPrinter = wxGetApp().preset_bundle->is_bbl_vendor();
         processor.process_file(filename.ToUTF8().data());
     }
     catch (const std::exception& ex)

@@ -756,7 +756,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     //     toggle_field(el, have_sequential_printing);
     toggle_field("print_order", !have_sequential_printing);
 
-    toggle_field("single_extruder_multi_material", !is_BBL_Printer);
+    toggle_field("single_extruder_multi_material", true);
 
     auto bSEMM = preset_bundle->printers.get_edited_preset().config.opt_bool("single_extruder_multi_material");
 
@@ -782,16 +782,16 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
                     "wipe_tower_extra_rib_length","wipe_tower_rib_width","wipe_tower_fillet_wall",
                     "wipe_tower_bridging", "wipe_tower_extra_flow",
                     "wipe_tower_no_sparse_layers"})
-      toggle_line(el, have_prime_tower && !is_BBL_Printer);
+      toggle_line(el, have_prime_tower);
 
     WipeTowerWallType wipe_tower_wall_type = config->opt_enum<WipeTowerWallType>("wipe_tower_wall_type");
-    toggle_line("wipe_tower_cone_angle", have_prime_tower && !is_BBL_Printer && wipe_tower_wall_type == WipeTowerWallType::wtwCone);
-    toggle_line("wipe_tower_extra_rib_length", have_prime_tower && !is_BBL_Printer && wipe_tower_wall_type == WipeTowerWallType::wtwRib);
-    toggle_line("wipe_tower_rib_width", have_prime_tower && !is_BBL_Printer && wipe_tower_wall_type == WipeTowerWallType::wtwRib);
-    toggle_line("wipe_tower_fillet_wall", have_prime_tower && !is_BBL_Printer && wipe_tower_wall_type == WipeTowerWallType::wtwRib);
+    toggle_line("wipe_tower_cone_angle", have_prime_tower && wipe_tower_wall_type == WipeTowerWallType::wtwCone);
+    toggle_line("wipe_tower_extra_rib_length", have_prime_tower && wipe_tower_wall_type == WipeTowerWallType::wtwRib);
+    toggle_line("wipe_tower_rib_width", have_prime_tower && wipe_tower_wall_type == WipeTowerWallType::wtwRib);
+    toggle_line("wipe_tower_fillet_wall", have_prime_tower && wipe_tower_wall_type == WipeTowerWallType::wtwRib);
     
 
-    toggle_line("single_extruder_multi_material_priming", !bSEMM && have_prime_tower && !is_BBL_Printer);
+    toggle_line("single_extruder_multi_material_priming", !bSEMM && have_prime_tower);
 
     toggle_line("prime_volume",have_prime_tower && (!purge_in_primetower || !bSEMM));
 
@@ -856,7 +856,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
         apply(config, &new_conf);
     }
     toggle_line("overhang_reverse_threshold", has_detect_overhang_wall && allow_overhang_reverse && has_overhang_reverse && !has_overhang_reverse_internal_only);
-    toggle_line("timelapse_type", is_BBL_Printer);
+    toggle_line("timelapse_type", false);
 
 
     bool have_small_area_infill_flow_compensation = config->opt_bool("small_area_infill_flow_compensation");

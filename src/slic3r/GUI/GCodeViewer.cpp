@@ -367,100 +367,83 @@ void GCodeViewer::SequentialView::Marker::render(int canvas_width, int canvas_he
     const float window_padding = ImGui::GetStyle().WindowPadding.x;
 
     char buf[1024];
-     if (true)
-    {
-        float startx2 = window_padding + item_size + item_spacing;
-        float startx3 = window_padding + 2*(item_size + item_spacing);
-        sprintf(buf, "%s%.3f", x.c_str(), position.x() - plate->get_origin().x());
-        ImGui::PushItemWidth(item_size);
-        imgui.text(buf);
+    float startx2 = window_padding + item_size + item_spacing;
+    float startx3 = window_padding + 2*(item_size + item_spacing);
+    sprintf(buf, "%s%.3f", x.c_str(), position.x() - plate->get_origin().x());
+    ImGui::PushItemWidth(item_size);
+    imgui.text(buf);
 
+    ImGui::SameLine(startx2);
+    sprintf(buf, "%s%.3f", y.c_str(), position.y() - plate->get_origin().y());
+    ImGui::PushItemWidth(item_size);
+    imgui.text(buf);
+
+    ImGui::SameLine(startx3);
+    sprintf(buf, "%s%.3f", z.c_str(), position.z());
+    ImGui::PushItemWidth(item_size);
+    imgui.text(buf);
+
+    sprintf(buf, "%s%.0f", speed.c_str(), m_curr_move.feedrate);
+    ImGui::PushItemWidth(item_size);
+    imgui.text(buf);
+
+    switch (view_type) {
+    case EViewType::Height: {
         ImGui::SameLine(startx2);
-        sprintf(buf, "%s%.3f", y.c_str(), position.y() - plate->get_origin().y());
+        sprintf(buf, "%s%.2f", height.c_str(), m_curr_move.height);
         ImGui::PushItemWidth(item_size);
         imgui.text(buf);
-
-        ImGui::SameLine(startx3);
-        sprintf(buf, "%s%.3f", z.c_str(), position.z());
-        ImGui::PushItemWidth(item_size);
-        imgui.text(buf);
-
-        sprintf(buf, "%s%.0f", speed.c_str(), m_curr_move.feedrate);
-        ImGui::PushItemWidth(item_size);
-        imgui.text(buf);
-
-        switch (view_type) {
-        case EViewType::Height: {
-            ImGui::SameLine(startx2);
-            sprintf(buf, "%s%.2f", height.c_str(), m_curr_move.height);
-            ImGui::PushItemWidth(item_size);
-            imgui.text(buf);
-            break;
-        }
-        case EViewType::Width: {
-            ImGui::SameLine(startx2);
-            sprintf(buf, "%s%.2f", width.c_str(), m_curr_move.width);
-            ImGui::PushItemWidth(item_size);
-            imgui.text(buf);
-            break;
-        }
-        // case EViewType::Feedrate: {
-        //     ImGui::SameLine(startx2);
-        //     sprintf(buf, "%s%.0f", speed.c_str(), m_curr_move.feedrate);
-        //     ImGui::PushItemWidth(item_size);
-        //     imgui.text(buf);
-        //     break;
-        // }
-        case EViewType::VolumetricRate: {
-            if (m_curr_move.type != EMoveType::Extrude) break;
-            ImGui::SameLine(startx2);
-            sprintf(buf, "%s%.2f", flow.c_str(), m_curr_move.volumetric_rate());
-            ImGui::PushItemWidth(item_size);
-            imgui.text(buf);
-            break;
-        }
-        case EViewType::FanSpeed: {
-            ImGui::SameLine(startx2);
-            sprintf(buf, "%s%.0f", fanspeed.c_str(), m_curr_move.fan_speed);
-            ImGui::PushItemWidth(item_size);
-            imgui.text(buf);
-            break;
-        }
-        case EViewType::Temperature: {
-            ImGui::SameLine(startx2);
-            sprintf(buf, "%s%.0f", temperature.c_str(), m_curr_move.temperature);
-            ImGui::PushItemWidth(item_size);
-            imgui.text(buf);
-            break;
-        }
-        case EViewType::LayerTime:
-        case EViewType::LayerTimeLog: {
-            ImGui::SameLine(startx2);
-            sprintf(buf, "%s%.1f", layer_time.c_str(), m_curr_move.layer_duration);
-            ImGui::PushItemWidth(item_size);
-            imgui.text(buf);
-            break;
-        }
-        default:
-            break;
-        }
-        text_line = 2;
+        break;
     }
-    // else {
-    //     sprintf(buf, "%s%.3f", x.c_str(), position.x() - plate->get_origin().x());
+    case EViewType::Width: {
+        ImGui::SameLine(startx2);
+        sprintf(buf, "%s%.2f", width.c_str(), m_curr_move.width);
+        ImGui::PushItemWidth(item_size);
+        imgui.text(buf);
+        break;
+    }
+    // case EViewType::Feedrate: {
+    //     ImGui::SameLine(startx2);
+    //     sprintf(buf, "%s%.0f", speed.c_str(), m_curr_move.feedrate);
+    //     ImGui::PushItemWidth(item_size);
     //     imgui.text(buf);
-
-    //     ImGui::SameLine();
-    //     sprintf(buf, "%s%.3f", y.c_str(), position.y() - plate->get_origin().y());
-    //     imgui.text(buf);
-
-    //     ImGui::SameLine();
-    //     sprintf(buf, "%s%.3f", z.c_str(), position.z());
-    //     imgui.text(buf);
-
-    //     text_line = 1;
+    //     break;
     // }
-
+    case EViewType::VolumetricRate: {
+        if (m_curr_move.type != EMoveType::Extrude) break;
+        ImGui::SameLine(startx2);
+        sprintf(buf, "%s%.2f", flow.c_str(), m_curr_move.volumetric_rate());
+        ImGui::PushItemWidth(item_size);
+        imgui.text(buf);
+        break;
+    }
+    case EViewType::FanSpeed: {
+        ImGui::SameLine(startx2);
+        sprintf(buf, "%s%.0f", fanspeed.c_str(), m_curr_move.fan_speed);
+        ImGui::PushItemWidth(item_size);
+        imgui.text(buf);
+        break;
+    }
+    case EViewType::Temperature: {
+        ImGui::SameLine(startx2);
+        sprintf(buf, "%s%.0f", temperature.c_str(), m_curr_move.temperature);
+        ImGui::PushItemWidth(item_size);
+        imgui.text(buf);
+        break;
+    }
+    case EViewType::LayerTime:
+    case EViewType::LayerTimeLog: {
+        ImGui::SameLine(startx2);
+        sprintf(buf, "%s%.1f", layer_time.c_str(), m_curr_move.layer_duration);
+        ImGui::PushItemWidth(item_size);
+        imgui.text(buf);
+        break;
+    }
+    default:
+        break;
+    }
+    text_line = 2;
+    
     // force extra frame to automatically update window size
     float window_width = ImGui::GetWindowWidth();
     if (window_width != last_window_width || text_line != last_text_line) {
