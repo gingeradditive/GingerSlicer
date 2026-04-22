@@ -276,9 +276,7 @@ public:
 
     void        update_ui_from_settings();
     //BBS
-    void        show_sync_dialog();
     void        update_side_preset_ui();
-    void        on_select_default_preset(SimpleEvent& evt);
 
     bool        is_loaded() const { return m_loaded; }
     bool        is_last_input_file() const  { return !m_qs_last_input_file.IsEmpty(); }
@@ -394,14 +392,6 @@ public:
 };
 
 wxDECLARE_EVENT(EVT_HTTP_ERROR, wxCommandEvent);
-wxDECLARE_EVENT(EVT_USER_LOGIN, wxCommandEvent);
-wxDECLARE_EVENT(EVT_USER_LOGIN_HANDLE, wxCommandEvent);
-wxDECLARE_EVENT(EVT_CHECK_PRIVACY_VER, wxCommandEvent);
-wxDECLARE_EVENT(EVT_CHECK_PRIVACY_SHOW, wxCommandEvent);
-wxDECLARE_EVENT(EVT_SHOW_IP_DIALOG, wxCommandEvent);
-wxDECLARE_EVENT(EVT_SET_SELECTED_MACHINE, wxCommandEvent);
-wxDECLARE_EVENT(EVT_UPDATE_MACHINE_LIST, wxCommandEvent);
-wxDECLARE_EVENT(EVT_UPDATE_PRESET_CB, SimpleEvent);
 
 
 

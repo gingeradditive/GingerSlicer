@@ -75,16 +75,6 @@ namespace GUI {
 
 wxDEFINE_EVENT(EVT_SELECT_TAB, wxCommandEvent);
 wxDEFINE_EVENT(EVT_HTTP_ERROR, wxCommandEvent);
-wxDEFINE_EVENT(EVT_USER_LOGIN, wxCommandEvent);
-wxDEFINE_EVENT(EVT_USER_LOGIN_HANDLE, wxCommandEvent);
-wxDEFINE_EVENT(EVT_CHECK_PRIVACY_VER, wxCommandEvent);
-wxDEFINE_EVENT(EVT_CHECK_PRIVACY_SHOW, wxCommandEvent);
-wxDEFINE_EVENT(EVT_SHOW_IP_DIALOG, wxCommandEvent);
-wxDEFINE_EVENT(EVT_SET_SELECTED_MACHINE, wxCommandEvent);
-wxDEFINE_EVENT(EVT_UPDATE_MACHINE_LIST, wxCommandEvent);
-wxDEFINE_EVENT(EVT_UPDATE_PRESET_CB, SimpleEvent);
-
-
 
 // BBS: backup
 wxDEFINE_EVENT(EVT_BACKUP_POST, wxCommandEvent);
@@ -162,8 +152,6 @@ static wxIcon main_frame_icon(GUI_App::EAppMode app_mode)
 #else
 #define BORDERLESS_FRAME_STYLE (wxMINIMIZE_BOX | wxMAXIMIZE_BOX | wxCLOSE_BOX)
 #endif
-
-wxDEFINE_EVENT(EVT_SYNC_CLOUD_PRESET,     SimpleEvent);
 
 #ifdef __APPLE__
 static const wxString ctrl = ("Ctrl+");
@@ -351,8 +339,6 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
         TabPosition pos = (TabPosition)evt.GetInt();
         m_tabpanel->SetSelection(pos);
     });
-
-    Bind(EVT_SYNC_CLOUD_PRESET, &MainFrame::on_select_default_preset, this);
 
 //    Bind(wxEVT_MENU,
 //        [this](wxCommandEvent&)
@@ -3617,12 +3603,6 @@ void MainFrame::update_ui_from_settings()
 }
 
 
-void MainFrame::show_sync_dialog()
-{
-    SimpleEvent* evt = new SimpleEvent(EVT_SYNC_CLOUD_PRESET);
-    wxQueueEvent(this, evt);
-}
-
 void MainFrame::update_side_preset_ui()
 {
     // select last preset
@@ -3634,40 +3614,6 @@ void MainFrame::update_side_preset_ui()
     m_plater->sidebar().update_presets(Preset::TYPE_PRINTER);
     m_plater->sidebar().update_presets(Preset::TYPE_FILAMENT);
 
-}
-
-void MainFrame::on_select_default_preset(SimpleEvent& evt)
-{
-    MessageDialog dialog(this,
-                    _L("Do you want to synchronize your personal data from Bambu Cloud?\n"
-                        "It contains the following information:\n"
-                        "1. The Process presets\n"
-                        "2. The Filament presets\n"
-                        "3. The Printer presets"),
-                    _L("Synchronization"),
-                    wxCENTER |
-                    wxYES_DEFAULT | wxYES_NO |
-                    wxICON_INFORMATION);
-
-    /* get setting list */
-    switch ( dialog.ShowModal() )
-    {
-        case wxID_YES: {
-            wxGetApp().app_config->set_bool("sync_user_preset", true);
-            wxGetApp().start_sync_user_preset(true);
-            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << " sync_user_preset: true";
-            break;
-        }
-        case wxID_NO:
-            wxGetApp().app_config->set_bool("sync_user_preset", false);
-            wxGetApp().stop_sync_user_preset();
-            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << " sync_user_preset: false";
-            break;
-        default:
-            break;
-    }
-
-    update_side_preset_ui();
 }
 
 std::string MainFrame::get_base_name(const wxString &full_name, const char *extension) const

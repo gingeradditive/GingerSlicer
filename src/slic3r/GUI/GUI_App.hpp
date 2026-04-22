@@ -269,16 +269,12 @@ private:
     VersionInfo privacy_version_info;
     static std::string version_display;
 
-    boost::thread    m_sync_update_thread;
-    std::shared_ptr<int> m_user_sync_token;
     bool             m_adding_script_handler { false };
     bool             m_side_popup_status{false};
     bool             m_show_http_errpr_msgdlg{false};
     wxString         m_info_dialog_content;
     bool             m_show_gcode_window{true};
 public:
-    //try again when subscription fails
-    void            on_start_subscribe_again(std::string dev_id);
     void            check_filaments_in_blacklist(std::string tag_supplier, std::string tag_material, bool& in_blacklist, std::string& action, std::string& info);
     std::string     get_local_models_path();
     bool            OnInit() override;
@@ -614,7 +610,6 @@ private:
 };
 
 DECLARE_APP(GUI_App)
-wxDECLARE_EVENT(EVT_CONNECT_LAN_MODE_PRINT, wxCommandEvent);
 
 bool is_support_filament(int extruder_id);
 } // namespace GUI

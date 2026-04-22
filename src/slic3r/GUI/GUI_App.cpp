@@ -1004,7 +1004,6 @@ void GUI_App::post_init()
 wxDEFINE_EVENT(EVT_ENTER_FORCE_UPGRADE, wxCommandEvent);
 wxDEFINE_EVENT(EVT_SHOW_NO_NEW_VERSION, wxCommandEvent);
 wxDEFINE_EVENT(EVT_SHOW_DIALOG, wxCommandEvent);
-wxDEFINE_EVENT(EVT_CONNECT_LAN_MODE_PRINT, wxCommandEvent);
 IMPLEMENT_APP(GUI_App)
 
 //BBS: remove GCodeViewer as seperate APP logic
@@ -1338,11 +1337,6 @@ std::map<std::string, std::string> GUI_App::get_extra_header()
     return extra_headers;
 }
 */
-
-void GUI_App::on_start_subscribe_again(std::string dev_id)
-{
-    // BambuLab device subscription removed
-}
 
 void GUI_App::check_filaments_in_blacklist(std::string tag_supplier, std::string tag_material, bool& in_blacklist, std::string& action, std::string& info)
 {

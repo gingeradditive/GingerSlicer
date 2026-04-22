@@ -50,7 +50,6 @@ class PartPlateList;
 class SlicingStatusEvent;
 enum SLAPrintObjectStep : unsigned int;
 enum class ConversionType : int;
-class Ams;
 
 using ModelInstancePtrs = std::vector<ModelInstance*>;
 
@@ -162,10 +161,6 @@ public:
     void add_filament();
     void delete_filament();
     void add_custom_filament(wxColour new_col);
-    // BBS
-    void load_ams_list(std::string const & device, void* obj);
-    std::map<int, DynamicPrintConfig> build_filament_ams_list(void* obj);
-    void sync_ams_list();
     // Orca
     void show_SEMM_buttons(bool bshow);
     void update_dynamic_filament_list();
@@ -213,7 +208,6 @@ private:
     ComboBox* m_printer_host_list = nullptr;
     ScalableButton* m_btn_add_host = nullptr;
     ScalableButton* m_btn_remove_host = nullptr;
-    ScalableButton* ams_btn = nullptr;
 
     void update_printer_host_list();
     void apply_printer_host_to_config(const std::string &host);
