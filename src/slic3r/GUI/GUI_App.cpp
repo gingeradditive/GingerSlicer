@@ -158,42 +158,6 @@ namespace GUI {
 
 class MainFrame;
 
-void start_ping_test()
-{
-    return;
-    wxArrayString output;
-    wxExecute("ping www.amazon.com", output, wxEXEC_NODISABLE);
-
-    wxString output_i;
-    std::string output_temp;
-
-    for (int i = 0; i < output.size(); i++) {
-        output_i = output[i].To8BitData();
-        output_temp = output_i.ToStdString(wxConvUTF8);
-        BOOST_LOG_TRIVIAL(info) << "ping amazon:" << output_temp;
-
-    }
-    wxExecute("ping www.apple.com", output, wxEXEC_NODISABLE);
-    for (int i = 0; i < output.size(); i++) {
-        output_i = output[i].To8BitData();
-        output_temp = output_i.ToStdString(wxConvUTF8);
-        BOOST_LOG_TRIVIAL(info) << "ping www.apple.com:" << output_temp;
-    }
-    wxExecute("ping www.bambulab.com", output, wxEXEC_NODISABLE);
-    for (int i = 0; i < output.size(); i++) {
-        output_i = output[i].To8BitData();
-        output_temp = output_i.ToStdString(wxConvUTF8);
-        BOOST_LOG_TRIVIAL(info) << "ping bambulab:" << output_temp;
-    }
-    //Get GateWay IP
-    wxExecute("ping 192.168.0.1", output, wxEXEC_NODISABLE);
-    for (int i = 0; i < output.size(); i++) {
-        output_i = output[i].To8BitData();
-        output_temp = output_i.ToStdString(wxConvUTF8);
-        BOOST_LOG_TRIVIAL(info) << "ping 192.168.0.1:" << output_temp;
-    }
-}
-
 std::string VersionInfo::convert_full_version(std::string short_version)
 {
     std::string result = "";
@@ -944,11 +908,10 @@ void GUI_App::post_init()
         CallAfter([this] {
             bool cw_showed = this->config_wizard_startup();
 
-            std::string http_url = get_http_url(app_config->get_country_code());
             std::string language = GUI::into_u8(current_language_code());
             std::string network_ver;
             bool        sys_preset  = app_config->get("sync_system_preset") == "true";
-            this->preset_updater->sync(http_url, language, network_ver, sys_preset ? preset_bundle : nullptr);
+            this->preset_updater->sync(std::string(), language, network_ver, sys_preset ? preset_bundle : nullptr);
 
             this->check_new_version_sf();
         });
@@ -1041,32 +1004,6 @@ void GUI_App::shutdown()
     BOOST_LOG_TRIVIAL(info) << "GUI_App::shutdown exit";
 }
 
-
-std::string GUI_App::get_http_url(std::string country_code, std::string path)
-{
-    std::string url;
-    if (country_code == "US") {
-        url = "https://api.bambulab.com/";
-    }
-    else if (country_code == "CN") {
-        url = "https://api.bambulab.cn/";
-    }
-    else if (country_code == "ENV_CN_DEV") {
-        url = "https://api-dev.bambu-lab.com/";
-    }
-    else if (country_code == "ENV_CN_QA") {
-        url = "https://api-qa.bambu-lab.com/";
-    }
-    else if (country_code == "ENV_CN_PRE") {
-        url = "https://api-pre.bambu-lab.com/";
-    }
-    else {
-        url = "https://api.bambulab.com/";
-    }
-
-    url += path.empty() ? "v1/iot-service/api/slicer/resource" : path;
-    return url;
-}
 
 std::string GUI_App::get_model_http_url(std::string country_code)
 {
@@ -1308,39 +1245,8 @@ void GUI_App::copy_older_config()
     preset_bundle->copy_files(m_older_data_dir_path);
 }
 
-// BambuLab get_extra_header removed - method not declared in GUI_App.hpp
-/*
-std::map<std::string, std::string> GUI_App::get_extra_header()
-{
-    std::map<std::string, std::string> extra_headers;
-    extra_headers.insert(std::make_pair("X-BBL-Client-Type", "slicer"));
-    extra_headers.insert(std::make_pair("X-BBL-Client-Name", SLIC3R_APP_NAME));
-    extra_headers.insert(std::make_pair("X-BBL-Client-Version", VersionInfo::convert_full_version(SLIC3R_VERSION)));
-#if defined(__WINDOWS__)
-#ifdef _M_X64
-    extra_headers.insert(std::make_pair("X-BBL-OS-Type", "windows"));
-#else
-    extra_headers.insert(std::make_pair("X-BBL-OS-Type", "windows_arm"));
-#endif
-#elif defined(__APPLE__)
-    extra_headers.insert(std::make_pair("X-BBL-OS-Type", "macos"));
-#elif defined(__LINUX__)
-    extra_headers.insert(std::make_pair("X-BBL-OS-Type", "linux"));
-#endif
-    int major = 0, minor = 0, micro = 0;
-    wxGetOsVersion(&major, &minor, &micro);
-    std::string os_version = (boost::format("%1%.%2%.%3%") % major % minor % micro).str();
-    extra_headers.insert(std::make_pair("X-BBL-OS-Version", os_version));
-    if (app_config)
-        extra_headers.insert(std::make_pair("X-BBL-Device-ID", app_config->get("slicer_uuid")));
-    extra_headers.insert(std::make_pair("X-BBL-Language", convert_studio_language_to_api(into_u8(current_language_code_safe()))));
-    return extra_headers;
-}
-*/
-
 void GUI_App::check_filaments_in_blacklist(std::string tag_supplier, std::string tag_material, bool& in_blacklist, std::string& action, std::string& info)
 {
-    // BambuLab filament blacklist removed
     in_blacklist = false;
     action.clear();
     info.clear();
@@ -1715,10 +1621,6 @@ bool GUI_App::on_init_inner()
     preset_bundle->set_default_suppressed(true);
 
     preset_bundle->backup_user_folder();
-
-    // BambuLab get_extra_header removed
-    // std::map<std::string, std::string> extra_headers = get_extra_header();
-    // Slic3r::Http::set_extra_headers(extra_headers);
 
     // BBS if load user preset failed
     //if (loaded_preset_result != 0) {
@@ -2225,7 +2127,6 @@ void GUI_App::ShowDownNetPluginDlg() {
 
 void GUI_App::ShowUserLogin(bool show)
 {
-    // User login dialog removed (BambuLab feature)
 }
 
 
@@ -2377,12 +2278,10 @@ wxString GUI_App::transition_tridid(int trid_id)
 //BBS
 void GUI_App::request_login(bool show_user_info)
 {
-    // BambuLab user login removed
 }
 
 void GUI_App::get_login_info()
 {
-    // BambuLab user login removed
 }
 
 bool GUI_App::is_user_login()
@@ -2592,7 +2491,6 @@ std::string GUI_App::handle_web_request(std::string cmd)
 
 void GUI_App::handle_script_message(std::string msg)
 {
-    // BambuLab login handling removed
 }
 
 void GUI_App::request_model_download(wxString url)
@@ -2723,69 +2621,6 @@ void GUI_App::check_update(bool show_tips, int by_user)
         if (show_tips)
             this->no_new_version();
     }
-}
-
-void GUI_App::check_new_version(bool show_tips, int by_user)
-{
-    return; // orca: not used, see check_new_version_sf
-    std::string platform = "windows";
-
-#ifdef __WINDOWS__
-    platform = "windows";
-#endif
-#ifdef __APPLE__
-    platform = "macos";
-#endif
-#ifdef __LINUX__
-    platform = "linux";
-#endif
-    std::string query_params = (boost::format("?name=slicer&version=%1%&guide_version=%2%")
-        % VersionInfo::convert_full_version(SLIC3R_VERSION)
-        % VersionInfo::convert_full_version("0.0.0.1")
-        ).str();
-
-    std::string url = get_http_url(app_config->get_country_code()) + query_params;
-    Slic3r::Http http = Slic3r::Http::get(url);
-
-    http.header("accept", "application/json")
-        .timeout_connect(TIMEOUT_CONNECT)
-        .timeout_max(TIMEOUT_RESPONSE)
-        .on_complete([this, show_tips, by_user](std::string body, unsigned) {
-        try {
-            json j = json::parse(body);
-            if (j.contains("message")) {
-                if (j["message"].get<std::string>() == "success") {
-                    if (j.contains("software")) {
-                        if (j["software"].empty() && show_tips) {
-                            this->no_new_version();
-                        }
-                        else {
-                            if (j["software"].contains("url")
-                                && j["software"].contains("version")
-                                && j["software"].contains("description")) {
-                                version_info.url = j["software"]["url"].get<std::string>();
-                                version_info.version_str = j["software"]["version"].get<std::string>();
-                                version_info.description = j["software"]["description"].get<std::string>();
-                            }
-                            if (j["software"].contains("force_update")) {
-                                version_info.force_upgrade = j["software"]["force_update"].get<bool>();
-                            }
-                            CallAfter([this, show_tips, by_user](){
-                                this->check_update(show_tips, by_user);
-                            });
-                        }
-                    }
-                }
-            }
-        }
-        catch (...) {
-            ;
-        }
-            })
-        .on_error([this](std::string body, std::string error, unsigned int status) {
-            handle_http_error(status, body);
-            BOOST_LOG_TRIVIAL(error) << "check new version error" << body;
-    }).perform();
 }
 
 //parse the string, if it doesn't contain a valid version string, return invalid version.
@@ -3302,27 +3137,22 @@ void  GUI_App::push_notification(wxString msg, wxString title, UserNotificationS
 
 void GUI_App::reload_settings()
 {
-    // BambuLab cloud preset sync removed
 }
 
 void GUI_App::remove_user_presets()
 {
-    // BambuLab cloud preset sync removed
 }
 
 void GUI_App::sync_preset(Preset* preset)
 {
-    // BambuLab cloud preset sync removed
 }
 
 void GUI_App::start_sync_user_preset(bool with_progress_dlg)
 {
-    // BambuLab cloud preset sync removed
 }
 
 void GUI_App::stop_sync_user_preset()
 {
-    // BambuLab cloud preset sync removed
 }
 
 bool GUI_App::switch_language()
@@ -3453,18 +3283,15 @@ void GUI_App::update_internal_development() {
 
 void GUI_App::show_ip_address_enter_dialog(wxString title)
 {
-    // BambuLab device IP dialog removed
 }
 
 bool GUI_App::show_modal_ip_address_enter_dialog(wxString title)
 {
-    // BambuLab device IP dialog removed
     return false;
 }
 
 void  GUI_App::show_ip_address_enter_dialog_handler(wxCommandEvent& evt)
 {
-    // BambuLab device IP dialog removed
 }
 
 //void GUI_App::add_config_menu(wxMenuBar *menu)

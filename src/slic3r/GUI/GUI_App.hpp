@@ -403,7 +403,6 @@ public:
     std::chrono::system_clock::time_point  last_active_point;
 
     void            check_update(bool show_tips, int by_user);
-    void            check_new_version(bool show_tips = false, int by_user = 0);
     void            check_new_version_sf(bool show_tips = false, int by_user = 0);
     void            request_new_version(int by_user);
     void            enter_force_upgrade();
@@ -583,7 +582,6 @@ public:
     // URL download - PrusaSlicer gets system call to open prusaslicer:// URL which should contain address of download
     void            start_download(std::string url);
 
-    std::string     get_http_url(std::string country_code, std::string path = {});
     std::string     get_model_http_url(std::string country_code);
     void            check_config_updates_from_updater() { check_updates(false); }
 
