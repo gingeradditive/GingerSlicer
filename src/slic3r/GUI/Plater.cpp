@@ -1840,7 +1840,6 @@ void Sidebar::auto_calc_flushing_volumes(const int modify_id)
     auto& project_config = preset_bundle->project_config;
     auto& printer_config = preset_bundle->printers.get_edited_preset().config;
     const auto& full_config = wxGetApp().preset_bundle->full_config();
-    auto& ams_multi_color_filament = preset_bundle->ams_multi_color_filment;
 
     const std::vector<double>& init_matrix = (project_config.option<ConfigOptionFloats>("flush_volumes_matrix"))->values;
     const std::vector<double>& init_extruders = (project_config.option<ConfigOptionFloats>("flush_volumes_vector"))->values;
@@ -1856,20 +1855,8 @@ void Sidebar::auto_calc_flushing_volumes(const int modify_id)
     const std::vector<std::string> extruder_colours = wxGetApp().plater()->get_extruder_colors_from_plater_config();
     std::vector<std::vector<wxColour>> multi_colours;
 
-    // Support for multi-color filament
     for (int i = 0; i < extruder_colours.size(); ++i) {
         std::vector<wxColour> single_filament;
-        if (i < ams_multi_color_filament.size()) {
-            if (!ams_multi_color_filament[i].empty()) {
-                std::vector<std::string> colors = ams_multi_color_filament[i];
-                for (int j = 0; j < colors.size(); ++j) {
-                    single_filament.push_back(wxColour(colors[j]));
-                }
-                multi_colours.push_back(single_filament);
-                continue;
-            }
-        }
-
         single_filament.push_back(wxColour(extruder_colours[i]));
         multi_colours.push_back(single_filament);
     }
@@ -7074,10 +7061,6 @@ void Plater::priv::on_filament_color_changed(wxCommandEvent &event)
     //q->update_all_plate_thumbnails(true);
     //q->get_preview_canvas3D()->update_plate_thumbnails();
     int modify_id = event.GetInt();
-
-    auto& ams_multi_color_filment = wxGetApp().preset_bundle->ams_multi_color_filment;
-    if (modify_id >= 0 && modify_id < ams_multi_color_filment.size())
-        ams_multi_color_filment[modify_id].clear();
 
     if (wxGetApp().app_config->get("auto_calculate") == "true") {
         sidebar->auto_calc_flushing_volumes(modify_id);

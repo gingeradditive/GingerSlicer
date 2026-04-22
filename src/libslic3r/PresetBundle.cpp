@@ -1821,7 +1821,6 @@ void PresetBundle::set_num_filaments(unsigned int n, std::vector<std::string> ne
     }
     ConfigOptionStrings* filament_color = project_config.option<ConfigOptionStrings>("filament_colour");
     filament_color->resize(n);
-    ams_multi_color_filment.resize(n);
     // BBS set new filament color to new_color
     if (old_filament_count < n) {
         if (!new_colors.empty()) {
@@ -1843,7 +1842,6 @@ void PresetBundle::set_num_filaments(unsigned int n, std::string new_color)
 
     ConfigOptionStrings* filament_color = project_config.option<ConfigOptionStrings>("filament_colour");
     filament_color->resize(n);
-    ams_multi_color_filment.resize(n);
 
     //BBS set new filament color to new_color
     if (old_filament_count < n) {
@@ -1855,67 +1853,6 @@ void PresetBundle::set_num_filaments(unsigned int n, std::string new_color)
     }
 
     update_multi_material_filament_presets();
-}
-
-unsigned int PresetBundle::sync_ams_list(unsigned int &unknowns)
-{
-    std::vector<std::string> filament_presets;
-    std::vector<std::string> filament_colors;
-    ams_multi_color_filment.clear();
-    for (auto &entry : filament_ams_list) {
-        auto & ams = entry.second;
-        auto filament_id = ams.opt_string("filament_id", 0u);
-        auto filament_color = ams.opt_string("filament_colour", 0u);
-        auto filament_changed = !ams.has("filament_changed") || ams.opt_bool("filament_changed");
-        auto filament_multi_color = ams.opt<ConfigOptionStrings>("filament_multi_colors")->values;
-        if (filament_id.empty()) continue;
-        if (!filament_changed && this->filament_presets.size() > filament_presets.size()) {
-            filament_presets.push_back(this->filament_presets[filament_presets.size()]);
-            filament_colors.push_back(filament_color);
-            ams_multi_color_filment.push_back(filament_multi_color);
-            continue;
-        }
-        auto iter = std::find_if(filaments.begin(), filaments.end(), [this, &filament_id](auto &f) {
-            return f.is_compatible && filaments.get_preset_base(f) == &f && f.filament_id == filament_id; });
-        if (iter == filaments.end()) {
-            BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(": filament_id %1% not found or system or compatible") % filament_id;
-            auto filament_type = ams.opt_string("filament_type", 0u);
-            if (!filament_type.empty()) {
-                filament_type = "Generic " + filament_type;
-                iter = std::find_if(filaments.begin(), filaments.end(), [&filament_type](auto &f) {
-                    return f.is_compatible && f.is_system
-                        && boost::algorithm::starts_with(f.name, filament_type);
-                });
-            }
-            if (iter == filaments.end()) {
-                // Prefer old selection
-                if (filament_presets.size() < this->filament_presets.size()) {
-                    filament_presets.push_back(this->filament_presets[filament_presets.size()]);
-                    filament_colors.push_back(filament_color);
-                    ++unknowns;
-                    continue;
-                }
-                iter = std::find_if(filaments.begin(), filaments.end(), [&filament_type](auto &f) {
-                        return f.is_compatible && f.is_system;
-                });
-                if (iter == filaments.end())
-                    continue;
-            }
-            ++unknowns;
-            filament_id = iter->filament_id;
-        }
-        filament_presets.push_back(iter->name);
-        filament_colors.push_back(filament_color);
-        ams_multi_color_filment.push_back(filament_multi_color);
-    }
-    if (filament_presets.empty())
-        return 0;
-    this->filament_presets = filament_presets;
-    ConfigOptionStrings *filament_color = project_config.option<ConfigOptionStrings>("filament_colour");
-    filament_color->resize(filament_presets.size());
-    filament_color->values = filament_colors;
-    update_multi_material_filament_presets();
-    return filament_presets.size();
 }
 
 void PresetBundle::set_calibrate_printer(std::string name)

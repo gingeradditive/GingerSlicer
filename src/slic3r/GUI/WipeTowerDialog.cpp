@@ -697,22 +697,10 @@ void WipingPanel::update_warning_texts()
 
 void WipingPanel::calc_flushing_volumes()
 {
-    auto& ams_multi_color_filament = wxGetApp().preset_bundle->ams_multi_color_filment;
     std::vector<std::vector<wxColour>> multi_colors;
 
-    // Support for multi-color filament
     for (int i = 0; i < m_colours.size(); ++i) {
         std::vector<wxColour> single_filament;
-        if (i < ams_multi_color_filament.size()) {
-            if (!ams_multi_color_filament[i].empty()) {
-                std::vector<std::string> colors = ams_multi_color_filament[i];
-                for (int j = 0; j < colors.size(); ++j) {
-                    single_filament.push_back(wxColour(colors[j]));
-                }
-                multi_colors.push_back(single_filament);
-                continue;
-            }
-        }
         single_filament.push_back(wxColour(m_colours[i]));
         multi_colors.push_back(single_filament);
     }

@@ -62,10 +62,6 @@ public:
     // select preset which is selected in PreseBundle
     void update_from_bundle();
 
-    // BBS: ams
-    void add_ams_filaments(std::string selected, bool alias_name = false);
-    int  selected_ams_filament() const;
-    
     void set_filament_idx(const int extr_idx) { m_filament_idx = extr_idx; }
     int  get_filament_idx() const { return m_filament_idx; }
 
@@ -104,10 +100,7 @@ protected:
     int m_em_unit;
     bool m_suppress_change { true };
 
-    // BBS: ams
     int  m_filament_idx       = -1;
-    int m_first_ams_filament = 0;
-    int m_last_ams_filament = 0;
 
     // parameters for an icon's drawing
     int icon_height;
@@ -123,9 +116,6 @@ protected:
     void invalidate_selection();
     void validate_selection(bool predicate = false);
     void update_selection();
-
-    // BBS: ams
-    int  update_ams_color();
 
 #ifdef __linux__
     static const char* separator_head() { return "------- "; }
