@@ -1183,7 +1183,6 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionPoints,              thumbnail_size))
     // ((ConfigOptionBool,                spaghetti_detector))
     ((ConfigOptionBool,                gcode_add_line_number))
-    ((ConfigOptionBool,                bbl_bed_temperature_gcode))
     ((ConfigOptionEnum<GCodeFlavor>,   gcode_flavor))
 
     ((ConfigOptionFloat,               time_cost)) 
@@ -1244,7 +1243,6 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionBool,                accel_to_decel_enable))
     ((ConfigOptionPercent,             accel_to_decel_factor))
     ((ConfigOptionFloatOrPercent,      initial_layer_travel_speed))
-    ((ConfigOptionBool,                bbl_calib_mark_logo))
     ((ConfigOptionBool,                disable_m73))
 
     // Orca: mmu

@@ -345,27 +345,6 @@ VendorType PresetBundle::get_current_vendor_type()
     return t;
 }
 
-bool PresetBundle::use_bbl_network()
-{
-    const auto cfg             = printers.get_edited_preset().config;
-    const bool use_bbl_network = is_bbl_vendor() && !cfg.opt_bool("bbl_use_printhost");
-    return use_bbl_network;
-}
-
-bool PresetBundle::use_bbl_device_tab() {
-    if (!is_bbl_vendor()) {
-        return false;
-    }
-
-    if (use_bbl_network()) {
-        return true;
-    }
-
-    const auto cfg = printers.get_edited_preset().config;
-    // Use bbl device tab if printhost webui url is not set 
-    return cfg.opt_string("print_host_webui").empty();
-}
-
 bool PresetBundle::backup_user_folder() const
 {
     const std::string backup_folderpath = data_dir() + "/" + (boost::format("user_backup-v%1%") % GingerSlicer_VERSION).str();

@@ -120,7 +120,6 @@ const unsigned int MM_PAINTING_VERSION           = 0;
 const std::string BBS_FDM_SUPPORTS_PAINTING_VERSION = "BambuStudio:FdmSupportsPaintingVersion";
 const std::string BBS_SEAM_PAINTING_VERSION         = "BambuStudio:SeamPaintingVersion";
 const std::string BBS_MM_PAINTING_VERSION           = "BambuStudio:MmPaintingVersion";
-const std::string BBL_MODEL_ID_TAG                  = "model_id";
 const std::string BBL_MODEL_NAME_TAG                = "Title";
 const std::string BBL_ORIGIN_TAG                    = "Origin";
 const std::string BBL_DESIGNER_TAG                  = "Designer";
@@ -130,7 +129,6 @@ const std::string BBL_DESCRIPTION_TAG               = "Description";
 const std::string BBL_COPYRIGHT_TAG                 = "CopyRight";
 const std::string BBL_COPYRIGHT_NORMATIVE_TAG       = "Copyright";
 const std::string BBL_LICENSE_TAG                   = "License";
-const std::string BBL_REGION_TAG                    = "Region";
 const std::string BBL_MODIFICATION_TAG              = "ModificationDate";
 const std::string BBL_CREATION_DATE_TAG             = "CreationDate";
 const std::string BBL_APPLICATION_TAG               = "Application";
@@ -977,8 +975,6 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         unsigned int m_fdm_supports_painting_version = 0;
         unsigned int m_seam_painting_version         = 0;
         unsigned int m_mm_painting_version           = 0;
-        std::string  m_model_id;
-        std::string  m_contry_code;
         std::string  m_designer;
         std::string  m_designer_user_id;
         std::string  m_designer_cover;
@@ -1719,12 +1715,6 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         m_model->model_info->load(model_info);
         if (!m_thumbnail_small.empty()) m_model->model_info->metadata_items.emplace("Thumbnail_Small", m_thumbnail_small);
         if (!m_thumbnail_middle.empty()) m_model->model_info->metadata_items.emplace("Thumbnail_Middle", m_thumbnail_middle);
-
-        //got project id
-        if (project) {
-            project->project_model_id = m_model_id;
-            project->project_country_code = m_contry_code;
-        }
 
         // Orca: skip version check
         bool dont_load_config = !m_load_config;
@@ -3750,8 +3740,6 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             m_mm_painting_version = (unsigned int) atoi(m_curr_characters.c_str());
             check_painting_version(m_mm_painting_version, MM_PAINTING_VERSION,
                 _(L("The selected 3MF contains multi-material painted object using a newer version of OrcaSlicer and is not compatible.")));*/
-        } else if (m_curr_metadata_name == BBL_MODEL_ID_TAG) {
-            m_model_id = xml_unescape(m_curr_characters);
         } else if (m_curr_metadata_name == BBL_MODEL_NAME_TAG) {
             BOOST_LOG_TRIVIAL(trace) << "design_info, load_3mf found model name = " << m_curr_characters;
             model_info.model_name = xml_unescape(m_curr_characters);
@@ -3779,9 +3767,6 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         } else if (m_curr_metadata_name == BBL_COPYRIGHT_NORMATIVE_TAG) {
             BOOST_LOG_TRIVIAL(trace) << "design_info, load_3mf found Copyright = " << m_curr_characters;
             model_info.copyright = xml_unescape(m_curr_characters);
-        } else if (m_curr_metadata_name == BBL_REGION_TAG) {
-            BOOST_LOG_TRIVIAL(trace) << "design_info, load_3mf found region = " << m_curr_characters;
-            m_contry_code = xml_unescape(m_curr_characters);
         } else if (m_curr_metadata_name == BBL_PROFILE_TITLE_TAG) {
             BOOST_LOG_TRIVIAL(trace) << "design_info, load_3mf found profile_title = " << m_curr_characters;
             m_profile_title = xml_unescape(m_curr_characters);
@@ -6488,18 +6473,11 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             std::string description;
             std::string copyright;
             std::string rating;
-            std::string model_id;
-            std::string region_code;
             if (model.design_info) {
                  user_name = model.design_info->Designer;
                  user_id = model.design_info->DesignerUserId;
                  BOOST_LOG_TRIVIAL(trace) << "design_info, save_3mf found designer = " << user_name;
                  BOOST_LOG_TRIVIAL(trace) << "design_info, save_3mf found designer_user_id = " << user_id;
-            }
-
-            if (project) {
-                model_id    = project->project_model_id;
-                region_code = project->project_country_code;
             }
 
             if (model.model_info) {
@@ -6527,12 +6505,6 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 metadata_item_map[BBL_DESCRIPTION_TAG]          = xml_escape(description);
                 metadata_item_map[BBL_COPYRIGHT_NORMATIVE_TAG]  = xml_escape(copyright);
                 metadata_item_map[BBL_LICENSE_TAG]              = xml_escape(license);
-
-                /* save model info */
-                if (!model_id.empty()) {
-                    metadata_item_map[BBL_MODEL_ID_TAG] = model_id;
-                    metadata_item_map[BBL_REGION_TAG]   = region_code;
-                }
 
                 // Orca: PRIVACY: do not store creation & modification date in 3mf
                 metadata_item_map[BBL_CREATION_DATE_TAG] = "";

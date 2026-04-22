@@ -1332,35 +1332,14 @@ wxWindow* PreferencesDialog::create_debug_page()
 
     m_internal_developer_mode_def = app_config->get("internal_developer_mode");
     m_backup_interval_def = app_config->get("backup_interval");
-    m_iot_environment_def = app_config->get("iot_environment");
 
     wxBoxSizer *bSizer = new wxBoxSizer(wxVERTICAL);
 
-
-    auto enable_ssl_for_mqtt = create_item_checkbox(_L("Enable SSL(MQTT)"), page, _L("Enable SSL(MQTT)"), 50, "enable_ssl_for_mqtt");
-    auto enable_ssl_for_ftp = create_item_checkbox(_L("Enable SSL(FTP)"), page, _L("Enable SSL(MQTT)"), 50, "enable_ssl_for_ftp");
     auto item_internal_developer = create_item_checkbox(_L("Internal developer mode"), page, _L("Internal developer mode"), 50, "internal_developer_mode");
 
     auto title_log_level = create_item_title(_L("Log Level"), page, _L("Log Level"));
     auto log_level_list  = std::vector<wxString>{_L("fatal"), _L("error"), _L("warning"), _L("info"), _L("debug"), _L("trace")};
     auto loglevel_combox = create_item_loglevel_combobox(_L("Log Level"), page, _L("Log Level"), log_level_list);
-
-    auto title_host = create_item_title(_L("Host Setting"), page, _L("Host Setting"));
-    auto radio1     = create_item_radiobox(_L("DEV host: api-dev.bambu-lab.com/v1"), page, wxEmptyString, 50, 1, "dev_host");
-    auto radio2     = create_item_radiobox(_L("QA  host: api-qa.bambu-lab.com/v1"), page, wxEmptyString, 50, 1, "qa_host");
-    auto radio3     = create_item_radiobox(_L("PRE host: api-pre.bambu-lab.com/v1"), page, wxEmptyString, 50, 1, "pre_host");
-    auto radio4     = create_item_radiobox(_L("Product host"), page, wxEmptyString, 50, 1, "product_host");
-
-    if (m_iot_environment_def == ENV_DEV_HOST) {
-        on_select_radio("dev_host");
-    } else if (m_iot_environment_def == ENV_QAT_HOST) {
-        on_select_radio("qa_host");
-    } else if (m_iot_environment_def == ENV_PRE_HOST) {
-        on_select_radio("pre_host");
-    } else if (m_iot_environment_def == ENV_PRODUCT_HOST) {
-        on_select_radio("product_host");
-    }
-
 
     StateColor btn_bg_white(std::pair<wxColour, int>(wxColour(206, 206, 206), StateColor::Disabled), std::pair<wxColour, int>(wxColour(206, 206, 206), StateColor::Pressed),
         std::pair<wxColour, int>(wxColour(238, 238, 238), StateColor::Hovered),
@@ -1387,51 +1366,10 @@ wxWindow* PreferencesDialog::create_debug_page()
 
             if (m_backup_interval_def != m_backup_interval_time) { m_backup_interval_textinput->GetTextCtrl()->SetValue(m_backup_interval_def); }
 
-            if (m_iot_environment_def == ENV_DEV_HOST) {
-                on_select_radio("dev_host");
-            } else if (m_iot_environment_def == ENV_QAT_HOST) {
-                on_select_radio("qa_host");
-            } else if (m_iot_environment_def == ENV_PRE_HOST) {
-                on_select_radio("pre_host");
-            } else if (m_iot_environment_def == ENV_PRODUCT_HOST) {
-                on_select_radio("product_host");
-            }
-
             break;
         }
 
         case wxID_YES: {
-            // bbs  domain changed
-            auto param = get_select_radio(1);
-
-            std::map<wxString, wxString> iot_environment_map;
-            iot_environment_map["dev_host"] = ENV_DEV_HOST;
-            iot_environment_map["qa_host"]  = ENV_QAT_HOST;
-            iot_environment_map["pre_host"] = ENV_PRE_HOST;
-            iot_environment_map["product_host"] = ENV_PRODUCT_HOST;
-
-            //if (iot_environment_map[param] != m_iot_environment_def) {
-            if (true) {
-                if (param == "dev_host") {
-                    app_config->set("iot_environment", ENV_DEV_HOST);
-                }
-                else if (param == "qa_host") {
-                    app_config->set("iot_environment", ENV_QAT_HOST);
-                }
-                else if (param == "pre_host") {
-                    app_config->set("iot_environment", ENV_PRE_HOST);
-                }
-                else if (param == "product_host") {
-                    app_config->set("iot_environment", ENV_PRODUCT_HOST);
-                }
-
-                ConfirmBeforeSendDialog confirm_dlg(this, wxID_ANY, _L("Warning"), ConfirmBeforeSendDialog::ButtonStyle::ONLY_CONFIRM);
-                confirm_dlg.update_text(_L("Cloud environment switched, please login again!"));
-                confirm_dlg.on_show();
-            }
-
-            // bbs  backup
-            //app_config->set("backup_interval", std::string(m_backup_interval_time.mb_str()));
             app_config->save();
             Slic3r::set_backup_interval(boost::lexical_cast<long>(app_config->get("backup_interval")));
 
@@ -1442,16 +1380,9 @@ wxWindow* PreferencesDialog::create_debug_page()
     });
 
 
-    bSizer->Add(enable_ssl_for_mqtt, 0, wxTOP, FromDIP(3));
-    bSizer->Add(enable_ssl_for_ftp, 0, wxTOP, FromDIP(3));
     bSizer->Add(item_internal_developer, 0, wxTOP, FromDIP(3));
     bSizer->Add(title_log_level, 0, wxTOP| wxEXPAND, FromDIP(20));
     bSizer->Add(loglevel_combox, 0, wxTOP, FromDIP(3));
-    bSizer->Add(title_host, 0, wxTOP| wxEXPAND, FromDIP(20));
-    bSizer->Add(radio1, 0, wxEXPAND | wxTOP, FromDIP(3));
-    bSizer->Add(radio2, 0, wxEXPAND | wxTOP, FromDIP(3));
-    bSizer->Add(radio3, 0, wxEXPAND | wxTOP, FromDIP(3));
-    bSizer->Add(radio4, 0, wxEXPAND | wxTOP, FromDIP(3));
     bSizer->Add(debug_button, 0, wxALIGN_CENTER_HORIZONTAL | wxTOP, FromDIP(15));
 
     page->SetSizer(bSizer);

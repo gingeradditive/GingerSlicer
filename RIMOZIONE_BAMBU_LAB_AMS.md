@@ -425,7 +425,6 @@ Per ogni funzione o file da rimuovere, la IA deve verificare sempre:
   - `libslic3r/calib.*`
 - **Regola**:
   - rimuoverli solo se sono davvero una feature esclusiva delle stampanti Bambu
-  - non toccare mai le parti `About` contenute in questi wizard
 - **Nota importante**: alcune pagine di calibrazione usano `BBLStatusBarSend`; questo è un altro motivo per non rimuovere subito quella classe.
 
 ## Fase 10 - Pulizia build e risorse

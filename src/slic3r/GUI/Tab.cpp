@@ -3945,7 +3945,6 @@ void TabPrinter::build_fff()
         optgroup->append_single_option_line("use_active_pellet_feeding", "Pellet-modded-printer");
         optgroup->append_single_option_line("multi_zone", "pellet-flow-coefficient");
         optgroup->append_single_option_line("multi_zone_number", "pellet-flow-coefficient");
-        optgroup->append_single_option_line("bbl_use_printhost");
         optgroup->append_single_option_line("scan_first_layer");
         optgroup->append_single_option_line("disable_m73");
         option = optgroup->get_option("thumbnails");
@@ -4713,7 +4712,7 @@ void TabPrinter::toggle_options()
     if (m_active_page->title() == L("Basic information")) {
 
         // SoftFever: hide BBL specific settings
-        for (auto el : {"scan_first_layer", "bbl_calib_mark_logo", "bbl_use_printhost"})
+        for (auto el : {"scan_first_layer"})
             toggle_line(el, is_BBL_printer);
 
         // SoftFever: hide non-BBL settings

@@ -63,25 +63,6 @@ std::string AppConfig::get_language_code()
     return get_lang;
 }
 
-std::string AppConfig::get_hms_host()
-{
-    std::string sel = get("iot_environment");
-    std::string host = "";
-// #if !BBL_RELEASE_TO_PUBLIC
-//     if (sel == ENV_DEV_HOST)
-//         host = "e-dev.bambu-lab.com";
-//     else if (sel == ENV_QAT_HOST)
-//         host = "e-qa.bambu-lab.com";
-//     else if (sel == ENV_PRE_HOST)
-//         host = "e-pre.bambu-lab.com";
-//     else if (sel == ENV_PRODUCT_HOST)
-//         host = "e.bambulab.com";
-//     return host;
-// #else
-    return "e.bambulab.com";
-// #endif
-}
-
 bool AppConfig::get_stealth_mode()
 {
     // always return true when user did not finish setup wizard yet
@@ -194,8 +175,6 @@ void AppConfig::set_defaults()
     if (get("show_hints").empty())
         set_bool("show_hints", true);
 //#endif
-    if (get("enable_multi_machine").empty())
-        set_bool("enable_multi_machine", false);
 
     if (get("show_gcode_window").empty())
         set_bool("show_gcode_window", false);
@@ -388,16 +367,6 @@ void AppConfig::set_defaults()
     if (get("max_send").empty()) {
         set("max_send", "3");
     }
-
-// #if BBL_RELEASE_TO_PUBLIC
-    if (get("iot_environment").empty()) {
-        set("iot_environment", "3");
-    }
-// #else
-//     if (get("iot_environment").empty()) {
-//         set("iot_environment", "1");
-//     }
-// #endif
 
     if (get("allow_ip_resolve").empty())
         set_bool("allow_ip_resolve", true);
@@ -627,19 +596,6 @@ std::string AppConfig::load()
                 for (auto& j_model : it.value()) {
                     m_printer_settings[j_model["machine"].get<std::string>()] = j_model;
                 }
-            } else if (it.key() == "local_machines") {
-                for (auto m = it.value().begin(); m != it.value().end(); ++m) {
-                    const auto&    p = m.value();
-                    BBLocalMachine local_machine;
-                    local_machine.dev_id = m.key();
-                    if (p.contains("dev_name"))
-                        local_machine.dev_name = p["dev_name"].get<std::string>();
-                    if (p.contains("dev_ip"))
-                        local_machine.dev_ip = p["dev_ip"].get<std::string>();
-                    if (p.contains("printer_type"))
-                        local_machine.printer_type = p["printer_type"].get<std::string>();
-                    m_local_machines[local_machine.dev_id] = local_machine;
-                }
             } else {
                 if (it.value().is_object()) {
                     for (auto iter = it.value().begin(); iter != it.value().end(); iter++) {
@@ -815,14 +771,6 @@ void AppConfig::save()
     // write machine settings
     for (const auto& preset : m_printer_settings) {
         j["orca_presets"].push_back(preset.second);
-    }
-    for (const auto& local_machine : m_local_machines) {
-        json m_json;
-        m_json["dev_name"]         = local_machine.second.dev_name;
-        m_json["dev_ip"]           = local_machine.second.dev_ip;
-        m_json["printer_type"]     = local_machine.second.printer_type;
-
-        j["local_machines"][local_machine.first] = m_json;
     }
     boost::nowide::ofstream c;
     c.open(path_pid, std::ios::out | std::ios::trunc);
@@ -1267,29 +1215,12 @@ void AppConfig::update_last_backup_dir(const std::string& dir)
 
 std::string AppConfig::get_region()
 {
-// #if BBL_RELEASE_TO_PUBLIC
     return this->get("region");
-// #else
-//     std::string sel = get("iot_environment");
-//     std::string region;
-//     if (sel == ENV_DEV_HOST)
-//         region = "ENV_CN_DEV";
-//     else if (sel == ENV_QAT_HOST)
-//         region = "ENV_CN_QA";
-//     else if (sel == ENV_PRE_HOST)
-//         region = "ENV_CN_PRE";
-//     if (region.empty())
-//         return this->get("region");
-//     return region;
-// #endif
 }
 
 std::string AppConfig::get_country_code()
 {
     std::string region = get_region();
-// #if !BBL_RELEASE_TO_PUBLIC
-//     if (is_engineering_region()) { return region; }
-// #endif
     if (region == "CHN" || region == "China")
         return "CN";
     else if (region == "USA")
@@ -1302,18 +1233,6 @@ std::string AppConfig::get_country_code()
         return "US";
     else
         return "Others";
-    return "";
-
-}
-
-bool AppConfig::is_engineering_region(){
-    std::string sel = get("iot_environment");
-    std::string region;
-    if (sel == ENV_DEV_HOST
-        || sel == ENV_QAT_HOST
-        ||sel == ENV_PRE_HOST)
-        return true;
-    return false;
 }
 
 void AppConfig::save_custom_color_to_config(const std::vector<std::string> &colors)

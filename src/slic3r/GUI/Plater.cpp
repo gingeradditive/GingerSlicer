@@ -1244,23 +1244,21 @@ void Sidebar::apply_printer_host_to_config(const std::string &host)
         printer_tab->load_config(cfg);
 
     // Refresh the device tab URL directly (avoid circular call to update_all_preset_comboboxes)
-    if (!preset_bundle.use_bbl_network()) {
-        auto p_mainframe = wxGetApp().mainframe;
-        wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
-        wxString apikey;
-        if (url.empty())
-            url = wxString::Format("file://%s/web/orca/missing_connection.html", from_u8(resources_dir()));
-        else {
-            if (!url.Lower().starts_with("http"))
-                url = wxString::Format("http://%s", url);
-            const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
-            if (cfg.has("printhost_apikey") && (host_type != htSimplyPrint))
-                apikey = cfg.opt_string("printhost_apikey");
-        }
-        p_mainframe->load_printer_url(url, apikey);
-        p_mainframe->set_print_button_to_default(
-            preset_bundle.is_bbl_vendor() ? MainFrame::PrintSelectType::ePrintPlate : MainFrame::PrintSelectType::eSendGcode);
+    auto p_mainframe = wxGetApp().mainframe;
+    wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
+    wxString apikey;
+    if (url.empty())
+        url = wxString::Format("file://%s/web/orca/missing_connection.html", from_u8(resources_dir()));
+    else {
+        if (!url.Lower().starts_with("http"))
+            url = wxString::Format("http://%s", url);
+        const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
+        if (cfg.has("printhost_apikey") && (host_type != htSimplyPrint))
+            apikey = cfg.opt_string("printhost_apikey");
     }
+    p_mainframe->load_printer_url(url, apikey);
+    p_mainframe->set_print_button_to_default(
+        preset_bundle.is_bbl_vendor() ? MainFrame::PrintSelectType::ePrintPlate : MainFrame::PrintSelectType::eSendGcode);
 }
 
 void Sidebar::update_all_preset_comboboxes()
@@ -1268,35 +1266,25 @@ void Sidebar::update_all_preset_comboboxes()
     PresetBundle &preset_bundle = *wxGetApp().preset_bundle;
     const auto print_tech = preset_bundle.printers.get_edited_preset().printer_technology();
 
-    bool is_bbl_vendor = preset_bundle.is_bbl_vendor();
-
     auto p_mainframe = wxGetApp().mainframe;
     auto cfg = preset_bundle.printers.get_edited_preset().config;
 
-    if (preset_bundle.use_bbl_network()) {
-        //update print button default value for bbl or third-party printer
-        p_mainframe->set_print_button_to_default(MainFrame::PrintSelectType::ePrintPlate);
-    } else {
-        auto print_btn_type = MainFrame::PrintSelectType::eExportGcode;
-        wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
-        wxString apikey;
-        if(url.empty())
-            url = wxString::Format("file://%s/web/orca/missing_connection.html", from_u8(resources_dir()));
-        else {
-            if (!url.Lower().starts_with("http"))
-                url = wxString::Format("http://%s", url);
-            const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
-            if (cfg.has("printhost_apikey") && (host_type != htSimplyPrint))
-                apikey = cfg.opt_string("printhost_apikey");
-            print_btn_type = preset_bundle.is_bbl_vendor() ? MainFrame::PrintSelectType::ePrintPlate : MainFrame::PrintSelectType::eSendGcode;
-        }
-
-        p_mainframe->load_printer_url(url, apikey);
-
-
-        p_mainframe->set_print_button_to_default(print_btn_type);
-
+    auto print_btn_type = MainFrame::PrintSelectType::eExportGcode;
+    wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
+    wxString apikey;
+    if(url.empty())
+        url = wxString::Format("file://%s/web/orca/missing_connection.html", from_u8(resources_dir()));
+    else {
+        if (!url.Lower().starts_with("http"))
+            url = wxString::Format("http://%s", url);
+        const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
+        if (cfg.has("printhost_apikey") && (host_type != htSimplyPrint))
+            apikey = cfg.opt_string("printhost_apikey");
+        print_btn_type = preset_bundle.is_bbl_vendor() ? MainFrame::PrintSelectType::ePrintPlate : MainFrame::PrintSelectType::eSendGcode;
     }
+
+    p_mainframe->load_printer_url(url, apikey);
+    p_mainframe->set_print_button_to_default(print_btn_type);
 
     if (cfg.opt_bool("pellet_modded_printer")) {
 		p->m_staticText_filament_settings->SetLabel(_L("Pellets"));
@@ -8893,12 +8881,6 @@ void Plater::import_model_id(wxString download_info)
         else
             this->load_project(target_path.wstring());
         /*BBS set project info after load project, project info is reset in load project */
-        //p->project.project_model_id = model_id;
-        //p->project.project_design_id = design_id;
-        AppConfig* config = wxGetApp().app_config;
-        if (config) {
-            p->project.project_country_code = config->get_country_code();
-        }
 
         // show save new project
         p->set_project_filename(target_path.wstring());
@@ -12395,12 +12377,6 @@ int Plater::send_gcode(int plate_idx, Export3mfProgressFn proFn)
     }
 
     SaveStrategy strategy = SaveStrategy::Silence | SaveStrategy::SkipModel | SaveStrategy::WithGcode | SaveStrategy::SkipAuxiliary;
-#if !BBL_RELEASE_TO_PUBLIC
-    //only save model in QA environment
-    std::string sel = get_app_config()->get("iot_environment");
-    if (sel == ENV_PRE_HOST)
-        strategy = SaveStrategy::Silence | SaveStrategy::SplitModel | SaveStrategy::WithGcode;
-#endif
 
     result = export_3mf(p->m_print_job_data._3mf_path, strategy, plate_idx, proFn);
 
