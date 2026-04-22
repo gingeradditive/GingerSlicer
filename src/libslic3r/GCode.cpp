@@ -923,29 +923,27 @@ static std::vector<Vec2d> get_path_of_change_filament(const Print& print)
         assert(m_layer_idx >= 0);
         if (m_layer_idx >= (int) m_tool_changes.size())
             return gcode;
-        {
-            if (gcodegen.writer().need_toolchange(extruder_id) || finish_layer) {
-                if (m_layer_idx < (int) m_tool_changes.size()) {
-                    if (!(size_t(m_tool_change_idx) < m_tool_changes[m_layer_idx].size()))
-                        throw Slic3r::RuntimeError("Wipe tower generation failed, possibly due to empty first layer.");
+        if (gcodegen.writer().need_toolchange(extruder_id) || finish_layer) {
+            if (m_layer_idx < (int) m_tool_changes.size()) {
+                if (!(size_t(m_tool_change_idx) < m_tool_changes[m_layer_idx].size()))
+                    throw Slic3r::RuntimeError("Wipe tower generation failed, possibly due to empty first layer.");
 
-                    // Calculate where the wipe tower layer will be printed. -1 means that print z will not change,
-                    // resulting in a wipe tower with sparse layers.
-                    double wipe_tower_z  = -1;
-                    bool   ignore_sparse = false;
-                    if (gcodegen.config().wipe_tower_no_sparse_layers.value) {
-                        wipe_tower_z  = m_last_wipe_tower_print_z;
-                        ignore_sparse = (m_tool_changes[m_layer_idx].size() == 1 &&
-                                         m_tool_changes[m_layer_idx].front().initial_tool == m_tool_changes[m_layer_idx].front().new_tool &&
-                                         m_layer_idx != 0);
-                        if (m_tool_change_idx == 0 && !ignore_sparse)
-                        wipe_tower_z = m_last_wipe_tower_print_z + m_tool_changes[m_layer_idx].front().layer_height;
-                    }
+                // Calculate where the wipe tower layer will be printed. -1 means that print z will not change,
+                // resulting in a wipe tower with sparse layers.
+                double wipe_tower_z  = -1;
+                bool   ignore_sparse = false;
+                if (gcodegen.config().wipe_tower_no_sparse_layers.value) {
+                    wipe_tower_z  = m_last_wipe_tower_print_z;
+                    ignore_sparse = (m_tool_changes[m_layer_idx].size() == 1 &&
+                                     m_tool_changes[m_layer_idx].front().initial_tool == m_tool_changes[m_layer_idx].front().new_tool &&
+                                     m_layer_idx != 0);
+                    if (m_tool_change_idx == 0 && !ignore_sparse)
+                    wipe_tower_z = m_last_wipe_tower_print_z + m_tool_changes[m_layer_idx].front().layer_height;
+                }
 
-                    if (!ignore_sparse) {
-                        gcode += append_tcr2(gcodegen, m_tool_changes[m_layer_idx][m_tool_change_idx++], extruder_id, wipe_tower_z);
-                        m_last_wipe_tower_print_z = wipe_tower_z;
-                    }
+                if (!ignore_sparse) {
+                    gcode += append_tcr2(gcodegen, m_tool_changes[m_layer_idx][m_tool_change_idx++], extruder_id, wipe_tower_z);
+                    m_last_wipe_tower_print_z = wipe_tower_z;
                 }
             }
         } else {

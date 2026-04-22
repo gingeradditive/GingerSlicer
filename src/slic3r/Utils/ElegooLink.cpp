@@ -1,5 +1,7 @@
 #include "ElegooLink.hpp"
 
+#include "libslic3r/Utils.hpp"
+
 #include <algorithm>
 #include <sstream>
 #include <exception>
