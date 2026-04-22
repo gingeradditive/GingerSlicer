@@ -3,6 +3,7 @@
 
 #include <memory>
 #include <string>
+#include <boost/algorithm/string/split.hpp>
 #include "ImGuiWrapper.hpp"
 #include "ConfigWizard.hpp"
 #include "OpenGLManager.hpp"
