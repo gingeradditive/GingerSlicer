@@ -63,15 +63,6 @@ std::string AppConfig::get_language_code()
     return get_lang;
 }
 
-bool AppConfig::get_stealth_mode()
-{
-    // always return true when user did not finish setup wizard yet
-    if (!get_bool("firstguide","finish")) {
-        return true;
-    }
-    return get_bool("stealth_mode");
-}
-
 void AppConfig::reset()
 {
     m_storage.clear();
@@ -228,13 +219,6 @@ void AppConfig::set_defaults()
     }
 
     // Orca
-    if (get("stealth_mode").empty()) {
-        set_bool("stealth_mode", false);
-    }
-    if (get("legacy_networking").empty()) {
-        set_bool("legacy_networking", true);
-    }
-
     if(get("check_stable_update_only").empty()) {
         set_bool("check_stable_update_only", false);
     }

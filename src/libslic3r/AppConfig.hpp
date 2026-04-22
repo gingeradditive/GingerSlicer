@@ -41,7 +41,6 @@ public:
 	}
 
 	std::string get_language_code();
-	bool get_stealth_mode();
 
 	// Clear and reset to defaults.
 	void 			   	reset();
