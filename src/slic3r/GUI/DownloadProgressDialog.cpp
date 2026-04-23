@@ -202,6 +202,9 @@ void DownloadProgressDialog::update_release_note(std::string release_note, std::
 
 std::unique_ptr<UpgradeNetworkJob> DownloadProgressDialog::make_job() { return std::make_unique<UpgradeNetworkJob>(); }
 
-void DownloadProgressDialog::on_finish() { wxGetApp().restart_networking(); }
+void DownloadProgressDialog::on_finish() {
+    // BambuLab restart_networking removed
+    // wxGetApp().restart_networking();
+}
 
 }} // namespace Slic3r::GUI

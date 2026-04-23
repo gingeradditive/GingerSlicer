@@ -31,19 +31,6 @@ function OnInit()
 	
     //锚点跟踪
 	AddScrollEvent();
-	
-    //测试代码
-	//ShowProjectInfo(null);
-    //ShowProjectInfo(TestProjectData);
-	//ShowProjectInfo(null);
-    //ShowProjectInfo(TestProjectData);
-//	$('#ModelPreviewList').viewer({
-//		title: false,
-//		fullsreen: false,
-//		zIndex: 999999,
-//		interval: 3000
-//	});
-//	$('#ModelPreviewList').viewer('update');
 }
 
 function AddScrollEvent()

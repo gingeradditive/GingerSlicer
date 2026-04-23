@@ -2,9 +2,7 @@
 
 #include "wx/wxprec.h"
 #include "wx/aui/auibar.h"
-
-#include "SelectMachine.hpp"
-#include "DeviceManager.hpp"
+#include "GUI.hpp"
 
 
 using namespace Slic3r::GUI;

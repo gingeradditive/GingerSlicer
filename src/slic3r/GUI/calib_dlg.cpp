@@ -5,6 +5,7 @@
 #include <wx/dcgraph.h>
 #include "MainFrame.hpp"
 #include "Widgets/DialogButtons.hpp"
+#include "Plater.hpp"
 #include <string>
 
 namespace Slic3r { namespace GUI {

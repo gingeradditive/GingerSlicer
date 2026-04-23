@@ -140,7 +140,7 @@ MsgUpdateConfig::MsgUpdateConfig(const std::vector<Update> &updates, bool force_
 
 
 	StateColor btn_bg_green(std::pair<wxColour, int>(wxColour( 202, 37, 37), StateColor::Pressed),
-                            std::pair<wxColour, int>(wxColour(253, 47, 47), StateColor::Hovered), std::pair<wxColour, int>(AMS_CONTROL_BRAND_COLOUR, StateColor::Normal));
+                            std::pair<wxColour, int>(wxColour(253, 47, 47), StateColor::Hovered), std::pair<wxColour, int>(wxColour(215, 40, 40), StateColor::Normal));
 
     StateColor btn_bg_white(std::pair<wxColour, int>(wxColour(206, 206, 206), StateColor::Pressed),
                             std::pair<wxColour, int>(wxColour(238, 238, 238), StateColor::Hovered),

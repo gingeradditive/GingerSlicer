@@ -18,10 +18,8 @@
 #include "Event.hpp"
 //BBS: GUI refactor
 #include "ParamsPanel.hpp"
-#include "Monitor.hpp"
 #include "Auxiliary.hpp"
 #include "Project.hpp"
-#include "CalibrationPanel.hpp"
 #include "UnsavedChangesDialog.hpp"
 #include "Widgets/SideButton.hpp"
 #include "Widgets/SideMenuPopup.hpp"
@@ -32,7 +30,6 @@
 #include "BBLTopbar.hpp"
 #include "PrinterWebView.hpp"
 #include "calib_dlg.hpp"
-#include "MultiMachinePage.hpp"
 
 #define ENABEL_PRINT_ALL 0
 
@@ -99,7 +96,6 @@ class MainFrame : public DPIFrame
     wxMenuBar*  m_menubar{ nullptr };
     //wxMenu* publishMenu{ nullptr };
     wxMenu *    m_calib_menu{nullptr};
-    bool        enable_multi_machine{ false };
 
 #if 0
     wxMenuItem* m_menu_item_repeat { nullptr }; // doesn't used now
@@ -211,11 +207,10 @@ public:
         tp3DEditor      = 1,
         tpPreview       = 2,
         tpMonitor       = 3,
-        tpMultiDevice   = 4,
-        tpProject       = 5,
-        tpCalibration   = 6,
-        tpAuxiliary     = 7,
-        toDebugTool     = 8,
+        tpProject       = 4,
+        tpCalibration   = 5,
+        tpAuxiliary     = 6,
+        toDebugTool     = 7,
     };
 
     //BBS: add slice&&print status update logic
@@ -235,11 +230,8 @@ public:
         eExportSlicedFile    = 2,
         eExportGcode         = 3,
         eSendGcode           = 4,
-        eSendToPrinter       = 5,
-        eSendToPrinterAll    = 6,
-        eUploadGcode         = 7,
-        eExportAllSlicedFile = 8,
-        ePrintMultiMachine   = 9
+        eUploadGcode         = 5,
+        eExportAllSlicedFile = 6
     };
 
     void update_layout();
@@ -284,9 +276,7 @@ public:
 
     void        update_ui_from_settings();
     //BBS
-    void        show_sync_dialog();
     void        update_side_preset_ui();
-    void        on_select_default_preset(SimpleEvent& evt);
 
     bool        is_loaded() const { return m_loaded; }
     bool        is_last_input_file() const  { return !m_qs_last_input_file.IsEmpty(); }
@@ -307,9 +297,6 @@ public:
     //void        export_configbundle(bool export_physical_printers = false);
     //void        load_configbundle(wxString file = wxEmptyString);
     void        load_config(const DynamicPrintConfig& config);
-    //BBS: jump to monitor
-    void        jump_to_monitor(std::string dev_id = "");
-    void        jump_to_multipage();
     //BBS: hint when jump to 3Deditor under preview only mode
     bool        preview_only_hint();
     // Select tab in m_tabpanel
@@ -318,7 +305,6 @@ public:
     void        select_tab(wxPanel* panel);
     void        select_tab(size_t tab = size_t(-1));
     void        request_select_tab(TabPosition pos);
-    int         get_calibration_curr_tab();
     void        select_view(const std::string& direction);
     // Propagate changed configuration from the Tab to the Plater and save changes to the AppConfig
     void        on_config_changed(DynamicPrintConfig* cfg) const ;
@@ -346,8 +332,6 @@ public:
     void        refresh_plugin_tips();
     void RunScript(wxString js);
 
-    //SoftFever
-    void show_device(bool bBBLPrinter);
 
     PA_Calibration_Dlg* m_pa_calib_dlg{ nullptr };
     Temp_Calibration_Dlg* m_temp_calib_dlg{ nullptr };
@@ -362,14 +346,9 @@ public:
     BBLTopbar*            m_topbar{ nullptr };
     PrintHostQueueDialog* printhost_queue_dlg() { return m_printhost_queue_dlg; }
     Plater*               m_plater { nullptr };
-    //BBS: GUI refactor
-    MonitorPanel*         m_monitor{ nullptr };
-
     //AuxiliaryPanel*       m_auxiliary{ nullptr };
-    MultiMachinePage*     m_multi_machine{ nullptr };
     ProjectPanel*         m_project{ nullptr };
 
-    CalibrationPanel*     m_calibration{ nullptr };
     WebViewPanel*         m_webview { nullptr };
     PrinterWebView*       m_printer_view{nullptr};
     wxLogWindow*          m_log_window { nullptr };
@@ -413,14 +392,6 @@ public:
 };
 
 wxDECLARE_EVENT(EVT_HTTP_ERROR, wxCommandEvent);
-wxDECLARE_EVENT(EVT_USER_LOGIN, wxCommandEvent);
-wxDECLARE_EVENT(EVT_USER_LOGIN_HANDLE, wxCommandEvent);
-wxDECLARE_EVENT(EVT_CHECK_PRIVACY_VER, wxCommandEvent);
-wxDECLARE_EVENT(EVT_CHECK_PRIVACY_SHOW, wxCommandEvent);
-wxDECLARE_EVENT(EVT_SHOW_IP_DIALOG, wxCommandEvent);
-wxDECLARE_EVENT(EVT_SET_SELECTED_MACHINE, wxCommandEvent);
-wxDECLARE_EVENT(EVT_UPDATE_MACHINE_LIST, wxCommandEvent);
-wxDECLARE_EVENT(EVT_UPDATE_PRESET_CB, SimpleEvent);
 
 
 

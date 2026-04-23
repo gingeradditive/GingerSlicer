@@ -9,14 +9,8 @@
 
 #include "libslic3r/Config.hpp"
 #include "libslic3r/Semver.hpp"
-#include "calib.hpp"
 
 using namespace nlohmann;
-
-#define ENV_DEV_HOST		"0"
-#define ENV_QAT_HOST		"1"
-#define ENV_PRE_HOST		"2"
-#define ENV_PRODUCT_HOST	"3"
 
 #define SETTING_PROJECT_LOAD_BEHAVIOUR "project_load_behaviour"
 #define OPTION_PROJECT_LOAD_BEHAVIOUR_LOAD_ALL "load_all"
@@ -25,22 +19,6 @@ using namespace nlohmann;
 #define OPTION_PROJECT_LOAD_BEHAVIOUR_LOAD_GEOMETRY "load_geometry_only"
 
 namespace Slic3r {
-
-
-// Connected LAN mode BambuLab printer
-struct BBLocalMachine
-{
-    std::string dev_name;
-    std::string dev_ip;
-    std::string dev_id; /* serial number */
-    std::string printer_type; /* model_id */
-
-    bool operator==(const BBLocalMachine& other) const
-    {
-        return dev_name == other.dev_name && dev_ip == other.dev_ip && dev_id == other.dev_id && printer_type == other.printer_type;
-    }
-    bool operator!=(const BBLocalMachine& other) const { return !operator==(other); }
-};
 
 class AppConfig
 {
@@ -62,8 +40,6 @@ public:
 	}
 
 	std::string get_language_code();
-	std::string get_hms_host();
-	bool get_stealth_mode();
 
 	// Clear and reset to defaults.
 	void 			   	reset();
@@ -218,30 +194,6 @@ public:
         m_dirty = true;
     }
 
-	const std::map<std::string, BBLocalMachine>& get_local_machines() const { return m_local_machines; }
-	void erase_local_machine(std::string dev_id)
-    {
-        auto it = m_local_machines.find(dev_id);
-        if (it != m_local_machines.end()) {
-            m_local_machines.erase(it);
-            m_dirty = true;
-        }
-    }
-    void update_local_machine(const BBLocalMachine& machine)
-    {
-        auto it = m_local_machines.find(machine.dev_id);
-        if (it != m_local_machines.end()) {
-            const auto& current = it->second;
-            if (machine != current) {
-                m_local_machines[machine.dev_id] = machine;
-                m_dirty = true;
-            }
-        } else {
-            m_local_machines[machine.dev_id] = machine;
-            m_dirty = true;
-        }
-    }
-
     const std::vector<std::string> &get_filament_presets() const { return m_filament_presets; }
     void set_filament_presets(const std::vector<std::string> &filament_presets){
         m_filament_presets = filament_presets;
@@ -252,9 +204,6 @@ public:
         m_filament_colors = filament_colors;
         m_dirty                = true;
     }
-
-	const std::vector<PrinterCaliInfo> &get_printer_cali_infos() const { return m_printer_cali_infos; }
-    void save_printer_cali_infos(const PrinterCaliInfo& cali_info, bool need_change_status = true);
 
 	// return recent/last_opened_folder or recent/settings_folder or empty string.
 	std::string 		get_last_dir() const;
@@ -272,7 +221,6 @@ public:
 
 	std::string         get_region();
 	std::string         get_country_code();
-    bool				is_engineering_region();
 
     void                save_custom_color_to_config(const std::vector<std::string> &colors);
     std::vector<std::string> get_custom_color_from_config();
@@ -384,9 +332,6 @@ private:
 	std::vector<std::string>									m_filament_presets;
     std::vector<std::string>									m_filament_colors;
 
-	std::vector<PrinterCaliInfo>								m_printer_cali_infos;
-
-	std::map<std::string, BBLocalMachine>						m_local_machines;
 };
 
 } // namespace Slic3r

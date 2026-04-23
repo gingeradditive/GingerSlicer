@@ -205,7 +205,6 @@ static double calc_max_layer_height(const PrintConfig &config, double max_object
 // (print->config().print_sequence == PrintSequence::ByObject is true).
 ToolOrdering::ToolOrdering(const PrintObject &object, unsigned int first_extruder, bool prime_multi_material)
 {
-    m_is_BBL_printer = object.print()->is_BBL_printer();
     m_print_full_config = &object.print()->full_print_config();
     m_print_object_ptr = &object;
     if (object.layers().empty())
@@ -250,7 +249,6 @@ ToolOrdering::ToolOrdering(const PrintObject &object, unsigned int first_extrude
 // (print->config().print_sequence == PrintSequence::ByObject is false).
 ToolOrdering::ToolOrdering(const Print &print, unsigned int first_extruder, bool prime_multi_material)
 {
-    m_is_BBL_printer = print.is_BBL_printer();
     m_print_full_config = &print.full_print_config();
     m_print_config_ptr = &print.config();
 
@@ -842,7 +840,7 @@ void ToolOrdering::reorder_extruders_for_minimum_flush_volume()
     const unsigned int number_of_extruders = (unsigned int) (sqrt(flush_matrix.size()) + EPSILON);
     // Extract purging volumes for each extruder pair:
     std::vector<std::vector<float>> wipe_volumes;
-    if ((print_config->purge_in_prime_tower && print_config->single_extruder_multi_material) || m_is_BBL_printer) {
+    if (print_config->purge_in_prime_tower && print_config->single_extruder_multi_material) {
         for (unsigned int i = 0; i < number_of_extruders; ++i)
             wipe_volumes.push_back( std::vector<float>(flush_matrix.begin() + i * number_of_extruders,
                                                        flush_matrix.begin() + (i + 1) * number_of_extruders));

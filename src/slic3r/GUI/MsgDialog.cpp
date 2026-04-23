@@ -1,4 +1,5 @@
 #include "MsgDialog.hpp"
+#include "ReleaseNote.hpp"
 
 #include <wx/settings.h>
 #include <wx/sizer.h>

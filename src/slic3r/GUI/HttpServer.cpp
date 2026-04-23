@@ -2,7 +2,7 @@
 #include <boost/log/trivial.hpp>
 #include "GUI_App.hpp"
 #include "slic3r/Utils/Http.hpp"
-#include "slic3r/Utils/NetworkAgent.hpp"
+#include "libslic3r/Thread.hpp"
 
 namespace Slic3r {
 namespace GUI {
@@ -180,61 +180,8 @@ void HttpServer::set_request_handler(const std::function<std::shared_ptr<Respons
 
 std::shared_ptr<HttpServer::Response> HttpServer::bbl_auth_handle_request(const std::string& url)
 {
-    BOOST_LOG_TRIVIAL(info) << "thirdparty_login: get_response";
-
-    if (boost::contains(url, "access_token")) {
-        std::string   redirect_url           = url_get_param(url, "redirect_url");
-        std::string   access_token           = url_get_param(url, "access_token");
-        std::string   refresh_token          = url_get_param(url, "refresh_token");
-        std::string   expires_in_str         = url_get_param(url, "expires_in");
-        std::string   refresh_expires_in_str = url_get_param(url, "refresh_expires_in");
-        NetworkAgent* agent                  = wxGetApp().getAgent();
-
-        unsigned int http_code;
-        std::string  http_body;
-        int          result = agent->get_my_profile(access_token, &http_code, &http_body);
-        if (result == 0) {
-            std::string user_id;
-            std::string user_name;
-            std::string user_account;
-            std::string user_avatar;
-            try {
-                json user_j = json::parse(http_body);
-                if (user_j.contains("uidStr"))
-                    user_id = user_j["uidStr"].get<std::string>();
-                if (user_j.contains("name"))
-                    user_name = user_j["name"].get<std::string>();
-                if (user_j.contains("avatar"))
-                    user_avatar = user_j["avatar"].get<std::string>();
-                if (user_j.contains("account"))
-                    user_account = user_j["account"].get<std::string>();
-            } catch (...) {
-                ;
-            }
-            json j;
-            j["data"]["refresh_token"]      = refresh_token;
-            j["data"]["token"]              = access_token;
-            j["data"]["expires_in"]         = expires_in_str;
-            j["data"]["refresh_expires_in"] = refresh_expires_in_str;
-            j["data"]["user"]["uid"]        = user_id;
-            j["data"]["user"]["name"]       = user_name;
-            j["data"]["user"]["account"]    = user_account;
-            j["data"]["user"]["avatar"]     = user_avatar;
-            agent->change_user(j.dump());
-            if (agent->is_user_login()) {
-                wxGetApp().request_user_login(1);
-            }
-            GUI::wxGetApp().CallAfter([] { wxGetApp().ShowUserLogin(false); });
-            std::string location_str = (boost::format("%1%?result=success") % redirect_url).str();
-            return std::make_shared<ResponseRedirect>(location_str);
-        } else {
-            std::string error_str    = "get_user_profile_error_" + std::to_string(result);
-            std::string location_str = (boost::format("%1%?result=fail&error=%2%") % redirect_url % error_str).str();
-            return std::make_shared<ResponseRedirect>(location_str);
-        }
-    } else {
-        return std::make_shared<ResponseNotFound>();
-    }
+    // BambuLab third-party login handler removed
+    return std::make_shared<ResponseNotFound>();
 }
 
 void HttpServer::ResponseNotFound::write_response(std::stringstream& ssOut)

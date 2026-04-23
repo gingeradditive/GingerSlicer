@@ -1,5 +1,4 @@
 {
-  "bbl_use_printhost": "0",
   "bed_custom_model": "",
   "enable_long_retraction_when_cut": "0",
   "from": "system",
@@ -41,7 +40,7 @@
   "travel_slope": [
     "3"
   ],
-  "version": "2.3.4.2",
+  "version": "2.3.4.3",
   "z_hop": [
     "1"
   ],

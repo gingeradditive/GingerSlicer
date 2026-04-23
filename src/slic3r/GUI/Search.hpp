@@ -280,7 +280,7 @@ public:
     const int POPUP_WIDTH = 41;
     const int POPUP_HEIGHT = 45;
 
-    TextInput*  search_line{nullptr};
+    TextInput *m_input_field{nullptr};
     wxTextCtrl* search_line2{nullptr};
 
     ScrolledWindow* m_scrolledWindow{ nullptr };

@@ -44,7 +44,6 @@ public:
 
 WX_DECLARE_LIST(RadioSelector, RadioSelectorList);
 class CheckBox;
-class TextInput;
 
 
 
@@ -92,12 +91,10 @@ public:
     ::CheckBox * m_developer_mode_ckeckbox   = {nullptr};
     ::CheckBox * m_internal_developer_mode_ckeckbox = {nullptr};
     ::TextInput *m_backup_interval_textinput = {nullptr};
-    ::CheckBox * m_legacy_networking_ckeckbox     = {nullptr};
 
     wxString m_developer_mode_def;
     wxString m_internal_developer_mode_def;
     wxString m_backup_interval_def;
-    wxString m_iot_environment_def;
 
     SelectorHash      m_hash_selector;
     RadioSelectorList m_radio_group;

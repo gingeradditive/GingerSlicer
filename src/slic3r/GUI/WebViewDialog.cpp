@@ -4,6 +4,7 @@
 #include "slic3r/GUI/wxExtensions.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/GUI/MainFrame.hpp"
+#include "slic3r/GUI/Plater.hpp"
 #include "libslic3r_version.h"
 #include "../Utils/Http.hpp"
 
@@ -460,36 +461,32 @@ void WebViewPanel::SendDesignStaffpick(bool on)
     // }
 }
 
-void WebViewPanel::OpenModelDetail(std::string id, NetworkAgent *agent)
+void WebViewPanel::OpenModelDetail(std::string id)
 {
     std::string url;
-    if ((agent ? agent->get_model_mall_detail_url(&url, id) : get_model_mall_detail_url(&url, id)) == 0) 
+    if (get_model_mall_detail_url(&url, id) == 0)
     {
-        if (url.find("?") != std::string::npos) 
-        { 
+        if (url.find("?") != std::string::npos)
+        {
             url += "&from=orcaslicer";
         } else {
             url += "?from=orcaslicer";
         }
-        
-        wxLaunchDefaultBrowser(url); 
+
+        wxLaunchDefaultBrowser(url);
     }
 }
 
 void WebViewPanel::SendLoginInfo()
 {
-    if (wxGetApp().getAgent()) {
-        std::string login_info = wxGetApp().getAgent()->build_login_info();
-        wxString strJS = wxString::Format("window.postMessage(%s)", login_info);
-        RunScript(strJS);
-    }
+    // BambuLab user login removed
 }
 
 void WebViewPanel::ShowNetpluginTip()
 {
     // Install Network Plugin
     //std::string NP_Installed = wxGetApp().app_config->get("installed_networking");
-    bool        bValid       = wxGetApp().is_compatibility_version();
+    bool        bValid       = true; // network plugin no longer used
 
     int nShow = 0;
     if (!bValid) nShow = 1;

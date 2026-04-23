@@ -91,12 +91,7 @@ static bool should_open_in_external_browser()
 {
     const auto& app = wxGetApp();
 
-    if (app.preset_bundle->use_bbl_device_tab()) {
-        // When using bbl device tab, we always need to open external browser
-        return true;
-    }
-
-    // Otherwise, if user choose to switch to device tab, then don't bother opening external browser
+    // If user choose to switch to device tab, then don't bother opening external browser
     return !app.app_config->get_bool("open_device_tab_post_upload");
 }
 

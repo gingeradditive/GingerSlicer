@@ -907,7 +907,7 @@ static std::vector<Vec2d> get_path_of_change_filament(const Print& print)
     std::string WipeTowerIntegration::prime(GCode &gcodegen)
     {
         std::string gcode;
-        if (!gcodegen.is_BBL_Printer()) {
+        {
             for (const WipeTower::ToolChangeResult &tcr : m_priming) {
                 if (!tcr.extrusions.empty())
                     gcode += append_tcr2(gcodegen, tcr, tcr.new_tool);
@@ -923,29 +923,27 @@ static std::vector<Vec2d> get_path_of_change_filament(const Print& print)
         assert(m_layer_idx >= 0);
         if (m_layer_idx >= (int) m_tool_changes.size())
             return gcode;
-        if (!gcodegen.is_BBL_Printer()) {
-            if (gcodegen.writer().need_toolchange(extruder_id) || finish_layer) {
-                if (m_layer_idx < (int) m_tool_changes.size()) {
-                    if (!(size_t(m_tool_change_idx) < m_tool_changes[m_layer_idx].size()))
-                        throw Slic3r::RuntimeError("Wipe tower generation failed, possibly due to empty first layer.");
+        if (gcodegen.writer().need_toolchange(extruder_id) || finish_layer) {
+            if (m_layer_idx < (int) m_tool_changes.size()) {
+                if (!(size_t(m_tool_change_idx) < m_tool_changes[m_layer_idx].size()))
+                    throw Slic3r::RuntimeError("Wipe tower generation failed, possibly due to empty first layer.");
 
-                    // Calculate where the wipe tower layer will be printed. -1 means that print z will not change,
-                    // resulting in a wipe tower with sparse layers.
-                    double wipe_tower_z  = -1;
-                    bool   ignore_sparse = false;
-                    if (gcodegen.config().wipe_tower_no_sparse_layers.value) {
-                        wipe_tower_z  = m_last_wipe_tower_print_z;
-                        ignore_sparse = (m_tool_changes[m_layer_idx].size() == 1 &&
-                                         m_tool_changes[m_layer_idx].front().initial_tool == m_tool_changes[m_layer_idx].front().new_tool &&
-                                         m_layer_idx != 0);
-                        if (m_tool_change_idx == 0 && !ignore_sparse)
-                        wipe_tower_z = m_last_wipe_tower_print_z + m_tool_changes[m_layer_idx].front().layer_height;
-                    }
+                // Calculate where the wipe tower layer will be printed. -1 means that print z will not change,
+                // resulting in a wipe tower with sparse layers.
+                double wipe_tower_z  = -1;
+                bool   ignore_sparse = false;
+                if (gcodegen.config().wipe_tower_no_sparse_layers.value) {
+                    wipe_tower_z  = m_last_wipe_tower_print_z;
+                    ignore_sparse = (m_tool_changes[m_layer_idx].size() == 1 &&
+                                     m_tool_changes[m_layer_idx].front().initial_tool == m_tool_changes[m_layer_idx].front().new_tool &&
+                                     m_layer_idx != 0);
+                    if (m_tool_change_idx == 0 && !ignore_sparse)
+                    wipe_tower_z = m_last_wipe_tower_print_z + m_tool_changes[m_layer_idx].front().layer_height;
+                }
 
-                    if (!ignore_sparse) {
-                        gcode += append_tcr2(gcodegen, m_tool_changes[m_layer_idx][m_tool_change_idx++], extruder_id, wipe_tower_z);
-                        m_last_wipe_tower_print_z = wipe_tower_z;
-                    }
+                if (!ignore_sparse) {
+                    gcode += append_tcr2(gcodegen, m_tool_changes[m_layer_idx][m_tool_change_idx++], extruder_id, wipe_tower_z);
+                    m_last_wipe_tower_print_z = wipe_tower_z;
                 }
             }
         } else {
@@ -1012,7 +1010,7 @@ static std::vector<Vec2d> get_path_of_change_filament(const Print& print)
     std::string WipeTowerIntegration::finalize(GCode &gcodegen)
     {
         std::string gcode;
-        if (!gcodegen.is_BBL_Printer()) {
+        {
             if (std::abs(gcodegen.writer().get_position().z() - m_final_purge.print_z) > EPSILON)
                 gcode += gcodegen.change_layer(m_final_purge.print_z);
             gcode += append_tcr2(gcodegen, m_final_purge, -1);
@@ -1425,13 +1423,6 @@ namespace DoExport {
     }
 } // namespace DoExport
 
-bool GCode::is_BBL_Printer()
-{
-    if (m_curr_print)
-        return m_curr_print->is_BBL_printer();
-    return false;
-}
-
 void GCode::do_export(Print* print, const char* path, GCodeProcessorResult* result, ThumbnailsGeneratorCallback thumbnail_cb)
 {
     PROFILE_CLEAR();
@@ -1447,7 +1438,6 @@ void GCode::do_export(Print* print, const char* path, GCodeProcessorResult* resu
         return;
 
     BOOST_LOG_TRIVIAL(info) << boost::format("Will export G-code to %1% soon")%path;
-    GCodeProcessor::s_IsBBLPrinter = print->is_BBL_printer();
     print->set_started(psGCodeExport);
 
     // check if any custom gcode contains keywords used by the gcode processor to
@@ -1593,9 +1583,6 @@ void GCode::do_export(Print* print, const char* path, GCodeProcessorResult* resu
 
     BOOST_LOG_TRIVIAL(info) << "Exporting G-code finished" << log_memory_info();
     print->set_done(psGCodeExport);
-    
-    if(is_BBL_Printer())
-        result->label_object_enabled = m_enable_exclude_object;
 
     // Write the profiler measurements to file
     PROFILE_UPDATE();
@@ -1832,7 +1819,6 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
 
     // modifies m_silent_time_estimator_enabled
     DoExport::init_gcode_processor(print.config(), m_processor, m_silent_time_estimator_enabled);
-    const bool is_bbl_printers = print.is_BBL_printer();
     m_calib_config.clear();
     // resets analyzer's tracking data
     m_last_height  = 0.f;
@@ -1845,8 +1831,6 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
 #endif // ENABLE_GCODE_VIEWER_DATA_CHECKING
 
     m_fan_mover.release();
-    
-    m_writer.set_is_bbl_machine(is_bbl_printers);
 
     // How many times will be change_layer() called?
     // change_layer() in turn increments the progress bar status.
@@ -1922,12 +1906,10 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
         file.write_format("; HEADER_BLOCK_START\n");
         // Write information on the generator.
         file.write_format("; generated by %s on %s\n", Slic3r::header_slic3r_generated().c_str(), Slic3r::Utils::local_timestamp().c_str());
-        if (is_bbl_printers)
-            file.write_format(";%s\n", GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Estimated_Printing_Time_Placeholder).c_str());
         //BBS: total layer number
         file.write_format(";%s\n", GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Total_Layer_Number_Placeholder).c_str());
         //Orca: extra check for bbl printer
-        if (is_bbl_printers) {
+        if (false) {
             if (print.calib_params().mode == CalibMode::Calib_None) { // Don't support skipping in cali mode
                 // list all label_object_id with sorted order here
                 m_enable_exclude_object = true;
@@ -1977,7 +1959,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
       // as configuration key / value pairs to be parsable by older versions of
       // PrusaSlicer G-code viewer.
     {
-        if (is_bbl_printers) {
+        if (false) {
             file.write("; CONFIG_BLOCK_START\n");
             std::string full_config;
             append_full_config(print, full_config);
@@ -2109,7 +2091,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
             throw Slic3r::SlicingError(_(L("No object can be printed. Maybe too small")));
         has_wipe_tower = print.has_wipe_tower() && tool_ordering.has_wipe_tower();
         // Orca: support all extruder priming
-        initial_extruder_id = (!is_bbl_printers && has_wipe_tower && !print.config().single_extruder_multi_material_priming) ?
+        initial_extruder_id = (has_wipe_tower && !print.config().single_extruder_multi_material_priming) ?
             // The priming towers will be skipped.
             tool_ordering.all_extruders().back() :
             // Don't skip the priming towers.
@@ -2200,7 +2182,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
     this->placeholder_parser().set("current_object_idx", 0);
     // For the start / end G-code to do the priming and final filament pull in case there is no wipe tower provided.
     this->placeholder_parser().set("has_wipe_tower", has_wipe_tower);
-    this->placeholder_parser().set("has_single_extruder_multi_material_priming", !is_bbl_printers && has_wipe_tower && print.config().single_extruder_multi_material_priming);
+    this->placeholder_parser().set("has_single_extruder_multi_material_priming", has_wipe_tower && print.config().single_extruder_multi_material_priming);
     this->placeholder_parser().set("total_toolchanges", std::max(0, print.wipe_tower_data().number_of_toolchanges)); // Check for negative toolchanges (single extruder mode) and set to 0 (no tool change).
     this->placeholder_parser().set("num_extruders", int(print.config().nozzle_diameter.values.size()));
     this->placeholder_parser().set("retract_length", new ConfigOptionFloats(print.config().retraction_length));
@@ -2318,7 +2300,6 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
         std::string first_layer_bed_temp_str;
         const ConfigOptionInts* first_bed_temp_opt = m_config.option<ConfigOptionInts>(get_bed_temp_1st_layer_key((BedType)curr_bed_type));
         const ConfigOptionInts* bed_temp_opt = m_config.option<ConfigOptionInts>(get_bed_temp_key((BedType)curr_bed_type));
-        this->placeholder_parser().set("bbl_bed_temperature_gcode", new ConfigOptionBool(false));
         this->placeholder_parser().set("bed_temperature_initial_layer", new ConfigOptionInts(*first_bed_temp_opt));
         this->placeholder_parser().set("bed_temperature", new ConfigOptionInts(*bed_temp_opt));
         this->placeholder_parser().set("bed_temperature_initial_layer_single", new ConfigOptionInt(first_bed_temp_opt->get_at(initial_extruder_id)));
@@ -2400,9 +2381,6 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
             file.writeln(this->placeholder_parser_process("filament_start_gcode", print.config().filament_start_gcode.values[initial_extruder_id], initial_extruder_id, &config));
     }
 */
-    if (is_bbl_printers) {
-        this->_print_first_layer_extruder_temperatures(file, print, machine_start_gcode, initial_extruder_id, true);
-    }
     // Orca: when activate_air_filtration is set on any extruder, find and set the highest during_print_exhaust_fan_speed
     bool activate_air_filtration        = false;
     int  during_print_exhaust_fan_speed = 0;
@@ -2439,7 +2417,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
     }
 
     // Orca: support extruder priming
-    if (is_bbl_printers || ! (has_wipe_tower && print.config().single_extruder_multi_material_priming))
+    if (! (has_wipe_tower && print.config().single_extruder_multi_material_priming))
     {
         // Set initial extruder only after custom start G-code.
         // Ugly hack: Do not set the initial extruder if the extruder is primed using the MMU priming towers at the edge of the print bed.
@@ -2483,11 +2461,6 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
 
         file.write(gcode);
     } else {
-        //BBS: open spaghetti detector
-        if (is_bbl_printers) {
-            // if (print.config().spaghetti_detector.value)
-            file.write("M981 S1 P20000 ;open spaghetti detector\n");
-        }
 
         // Do all objects for each layer.
         if (print.config().print_sequence == PrintSequence::ByObject && !has_wipe_tower) {
@@ -2547,13 +2520,6 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
                 // Generate G-code, run the filters (vase mode, cooling buffer), run the G-code analyser
                 // and export G-code into file.
                 this->process_layers(print, tool_ordering, collect_layers_to_print(object), *print_object_instance_sequential_active - object.instances().data(), file, prime_extruder);
-                //BBS: close powerlost recovery
-                {
-                    if (is_bbl_printers && m_second_layer_things_done) {
-                        file.write("; close powerlost recovery\n");
-                        file.write("M1003 S0\n");
-                    }
-                }
                 ++ finished_objects;
                 // Flag indicating whether the nozzle temperature changes from 1st to 2nd layer were performed.
                 // Reset it when starting another object from 1st layer.
@@ -2570,7 +2536,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
                 //BBS
                 file.write(m_writer.travel_to_z(initial_layer_print_height + m_config.z_offset.value, "Move to the first layer height"));
 
-                if (!is_bbl_printers && print.config().single_extruder_multi_material_priming) {
+                if (print.config().single_extruder_multi_material_priming) {
                     file.write(m_wipe_tower->prime(*this));
                     // Verify, whether the print overaps the priming extrusions.
                     BoundingBoxf bbox_print(get_print_extrusions_extents(print));
@@ -2611,13 +2577,6 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
             // Generate G-code, run the filters (vase mode, cooling buffer), run the G-code analyser
             // and export G-code into file.
             this->process_layers(print, tool_ordering, print_object_instances_ordering, layers_to_print, file);
-            //BBS: close powerlost recovery
-            {
-                if (is_bbl_printers && m_second_layer_things_done) {
-                    file.write("; close powerlost recovery\n");
-                    file.write("M1003 S0\n");
-                }
-            }
             if (m_wipe_tower)
                 // Purge the extruder, pull out the active filament.
                 file.write(m_wipe_tower->finalize(*this));
@@ -2638,12 +2597,6 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
     //BBS: make sure the additional fan is closed when end
     if(m_config.auxiliary_fan.value)
         file.write(m_writer.set_additional_fan(0));
-    if (is_bbl_printers) {
-        //BBS: close spaghetti detector
-        //Note: M981 is also used to tell xcam the last layer is finished, so we need always send it even if spaghetti option is disabled.
-        //if (print.config().spaghetti_detector.value)
-        file.write("M981 S0 P20000 ; close spaghetti detector\n");
-    }
 
     // adds tag for processor
     file.write_format(";%s%s\n", GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Role).c_str(), ExtrusionEntity::role_to_string(erCustom).c_str());
@@ -2696,7 +2649,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
         // Modifies
         print.m_print_statistics));
     print.m_print_statistics.initial_tool = initial_extruder_id;
-    if (!is_bbl_printers) {
+    {
         file.write_format("; total filament used [g] = %.2lf\n",
             print.m_print_statistics.total_weight);
         file.write_format("; total filament cost = %.2lf\n",
@@ -3704,7 +3657,7 @@ LayerResult GCode::process_layer(
     gcode += ";" + GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Layer_Change) + "\n";
     // export layer z
     char buf[64];
-    sprintf(buf, print.is_BBL_printer() ? "; Z_HEIGHT: %g\n" : ";Z:%g\n", print_z);
+    sprintf(buf, ";Z:%g\n", print_z);
     gcode += buf;
     // export layer height
     float height = first_layer ? static_cast<float>(print_z) : static_cast<float>(print_z) - m_last_layer_z;
@@ -3753,32 +3706,17 @@ LayerResult GCode::process_layer(
     gcode += this->change_layer(print_z);  // this will increase m_layer_index
     m_layer = &layer;
     m_object_layer_over_raft = false;
-    if(is_BBL_Printer()){
-        if (printer_structure == PrinterStructure::psI3 && !need_insert_timelapse_gcode_for_traditional && !m_spiral_vase && print.config().print_sequence == PrintSequence::ByLayer) {
-            std::string timepals_gcode = insert_timelapse_gcode();
-            if(!timepals_gcode.empty()){
-            gcode += timepals_gcode;
-            m_writer.set_current_position_clear(false);
-            //BBS: check whether custom gcode changes the z position. Update if changed
-            double temp_z_after_timepals_gcode;
-            if (GCodeProcessor::get_last_z_from_gcode(timepals_gcode, temp_z_after_timepals_gcode)) {
-                Vec3d pos = m_writer.get_position();
-                pos(2) = temp_z_after_timepals_gcode;
-                m_writer.set_position(pos);
-            }
-            }
-        }
-    } else {
-        if (!m_config.time_lapse_gcode.value.empty()) {
-            DynamicConfig config;
-            config.set_key_value("layer_num", new ConfigOptionInt(m_layer_index));
-            config.set_key_value("layer_z", new ConfigOptionFloat(print_z));
-            config.set_key_value("max_layer_z", new ConfigOptionFloat(m_max_layer_z));
-            gcode += this->placeholder_parser_process("timelapse_gcode", print.config().time_lapse_gcode.value, m_writer.extruder()->id(),
-                                                      &config) +
-                     "\n";
-        }
+ 
+    if (!m_config.time_lapse_gcode.value.empty()) {
+        DynamicConfig config;
+        config.set_key_value("layer_num", new ConfigOptionInt(m_layer_index));
+        config.set_key_value("layer_z", new ConfigOptionFloat(print_z));
+        config.set_key_value("max_layer_z", new ConfigOptionFloat(m_max_layer_z));
+        gcode += this->placeholder_parser_process("timelapse_gcode", print.config().time_lapse_gcode.value, m_writer.extruder()->id(),
+                                                    &config) +
+                    "\n";
     }
+
     if (! m_config.layer_change_gcode.value.empty()) {
         DynamicConfig config;
         config.set_key_value("layer_num", new ConfigOptionInt(m_layer_index));
@@ -3866,21 +3804,6 @@ LayerResult GCode::process_layer(
     }
 
     if (! first_layer && ! m_second_layer_things_done) {
-      if (print.is_BBL_printer()) {
-        // BBS: open powerlost recovery
-        {
-          gcode += "; open powerlost recovery\n";
-          gcode += "M1003 S1\n";
-        }
-        // BBS: open first layer inspection at second layer
-        if (print.config().scan_first_layer.value) {
-          // BBS: retract first to avoid droping when scan model
-          gcode += this->retract();
-          gcode += "M976 S1 P1 ; scan model before printing 2nd layer\n";
-          gcode += "M400 P100\n";
-          gcode += this->unretract();
-        }
-      }
       // Reset acceleration at sencond layer
       // Orca: only set once, don't need to call set_accel_and_jerk
       if (m_config.default_acceleration.value > 0 && m_config.initial_layer_acceleration.value > 0) {
@@ -4365,21 +4288,14 @@ LayerResult GCode::process_layer(
                 }
                 // exclude objects
                 if (m_enable_exclude_object) {
-                    if (is_BBL_Printer()) {
-                        m_writer.set_object_start_str(
-                            std::string("; start printing object, unique label id: ") +
-                            std::to_string(instance_to_print.label_object_id) + "\n" + "M624 " +
-                            _encode_label_ids_to_base64({instance_to_print.label_object_id}) + "\n");
-                    } else {
-                        const auto gflavor = print.config().gcode_flavor.value;
-                        if (gflavor == gcfKlipper) {
-                            m_writer.set_object_start_str(std::string("EXCLUDE_OBJECT_START NAME=") +
-                                                          get_instance_name(&instance_to_print.print_object, inst.id) + "\n");
-                        }
-                        else if (gflavor == gcfMarlinLegacy || gflavor == gcfMarlinFirmware || gflavor == gcfRepRapFirmware) {
-                            std::string str = std::string("M486 S") + std::to_string(inst.unique_id) + "\n";
-                            m_writer.set_object_start_str(str);
-                        }
+                    const auto gflavor = print.config().gcode_flavor.value;
+                    if (gflavor == gcfKlipper) {
+                        m_writer.set_object_start_str(std::string("EXCLUDE_OBJECT_START NAME=") +
+                                                      get_instance_name(&instance_to_print.print_object, inst.id) + "\n");
+                    }
+                    else if (gflavor == gcfMarlinLegacy || gflavor == gcfMarlinFirmware || gflavor == gcfRepRapFirmware) {
+                        std::string str = std::string("M486 S") + std::to_string(inst.unique_id) + "\n";
+                        m_writer.set_object_start_str(str);
                     }
                 }
 
@@ -4516,18 +4432,12 @@ LayerResult GCode::process_layer(
                 if (!m_writer.is_object_start_str_empty()) {
                     m_writer.set_object_start_str("");
                 } else if (m_enable_exclude_object) {
-                    if (is_BBL_Printer()) {
-                        m_writer.set_object_end_str(std::string("; stop printing object, unique label id: ") +
-                                                    std::to_string(instance_to_print.label_object_id) + "\n" +
-                                                    "M625\n");
-                    } else {
-                        const auto gflavor = print.config().gcode_flavor.value;
-                        if (gflavor == gcfKlipper) {
-                            m_writer.set_object_end_str(std::string("EXCLUDE_OBJECT_END NAME=") +
-                                                        get_instance_name(&instance_to_print.print_object, inst.id) + "\n");
-                        } else if (gflavor == gcfMarlinLegacy || gflavor == gcfMarlinFirmware || gflavor == gcfRepRapFirmware) {
-                            m_writer.set_object_end_str(std::string("M486 S-1\n"));
-                        }
+                    const auto gflavor = print.config().gcode_flavor.value;
+                    if (gflavor == gcfKlipper) {
+                        m_writer.set_object_end_str(std::string("EXCLUDE_OBJECT_END NAME=") +
+                                                    get_instance_name(&instance_to_print.print_object, inst.id) + "\n");
+                    } else if (gflavor == gcfMarlinLegacy || gflavor == gcfMarlinFirmware || gflavor == gcfRepRapFirmware) {
+                        m_writer.set_object_end_str(std::string("M486 S-1\n"));
                     }
                 }
             }
@@ -6774,8 +6684,7 @@ inline std::string polygon_to_string(const Polygon &polygon, Print *print, bool 
 // this id is used to generate unique object id for each object.
 std::string GCode::set_object_info(Print *print) {
     const auto gflavor = print->config().gcode_flavor.value;
-    if (print->is_BBL_printer() ||
-        (gflavor != gcfKlipper && gflavor != gcfMarlinLegacy && gflavor != gcfMarlinFirmware && gflavor != gcfRepRapFirmware))
+    if (gflavor != gcfKlipper && gflavor != gcfMarlinLegacy && gflavor != gcfMarlinFirmware && gflavor != gcfRepRapFirmware)
         return "";
     std::ostringstream gcode;
     size_t object_id = 0;

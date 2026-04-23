@@ -196,8 +196,6 @@ struct PresetUpdater::priv
 
 	bool has_waiting_updates { false };
 	Updates waiting_updates;
-	bool has_waiting_printer_updates { false };
-    Updates waiting_printer_updates;
 
     struct Resource
     {
@@ -222,13 +220,11 @@ struct PresetUpdater::priv
     void sync_config();
     void sync_tooltip(std::string http_url, std::string language);
     void sync_plugins(std::string http_url, std::string plugin_version);
-    void sync_printer_config(std::string http_url);
     bool get_cached_plugins_version(std::string &cached_version, bool& force);
 
 	//BBS: refine preset update logic
 	bool install_bundles_rsrc(const std::vector<std::string>& bundles, bool snapshot) const;
 	void check_installed_vendor_profiles() const;
-    Updates get_printer_config_updates(bool update = false) const;
 	Updates get_config_updates(const Semver& old_slic3r_version) const;
 	bool perform_updates(Updates &&updates, bool snapshot = true) const;
 	void set_waiting_updates(Updates u);
@@ -246,7 +242,6 @@ PresetUpdater::priv::priv()
 	set_download_prefs(GUI::wxGetApp().app_config);
 	// Install indicies from resources. Only installs those that are either missing or older than in resources.
 	check_installed_vendor_profiles();
-    perform_updates(get_printer_config_updates(), false);
 	// Load indices from the cache directory.
 	//index_db = Index::load_db();
 }
@@ -845,221 +840,7 @@ bool PresetUpdater::priv::get_cached_plugins_version(std::string& cached_version
 
 void PresetUpdater::priv::sync_plugins(std::string http_url, std::string plugin_version)
 {
-    if (plugin_version == "00.00.00.00") {
-        BOOST_LOG_TRIVIAL(info) << "non need to sync plugins for there is no plugins currently.";
-        return;
-    }
-    std::string curr_version = NetworkAgent::use_legacy_network ? BAMBU_NETWORK_AGENT_VERSION_LEGACY : BAMBU_NETWORK_AGENT_VERSION;
-    std::string using_version = curr_version.substr(0, 9) + "00";
-
-    std::string cached_version;
-    bool force_upgrade = false;
-    get_cached_plugins_version(cached_version, force_upgrade);
-    if (!cached_version.empty()) {
-        bool need_delete_cache = false;
-        Semver current_semver = curr_version;
-        Semver cached_semver = cached_version;
-
-        int curent_patch_cc = current_semver.patch()/100;
-        int cached_patch_cc = cached_semver.patch()/100;
-        int curent_patch_dd = current_semver.patch()%100;
-        int cached_patch_dd = cached_semver.patch()%100;
-        if ((cached_semver.maj() != current_semver.maj())
-            || (cached_semver.min() != current_semver.min())
-            || (curent_patch_cc != cached_patch_cc))
-        {
-            need_delete_cache = true;
-            BOOST_LOG_TRIVIAL(info) << boost::format("cached plugins version %1% not match with current %2%")%cached_version%curr_version;
-        }
-        else if (cached_patch_dd <= curent_patch_dd) {
-            need_delete_cache = true;
-            BOOST_LOG_TRIVIAL(info) << boost::format("cached plugins version %1% not newer than current %2%")%cached_version%curr_version;
-        }
-        else {
-            BOOST_LOG_TRIVIAL(info) << boost::format("cached plugins version %1% newer than current %2%")%cached_version%curr_version;
-            plugin_version = cached_version;
-        }
-
-        if (need_delete_cache) {
-            std::string data_dir_str = data_dir();
-            boost::filesystem::path data_dir_path(data_dir_str);
-            auto cache_folder = data_dir_path / "ota";
-
-#if defined(_MSC_VER) || defined(_WIN32)
-            auto network_library = cache_folder / "bambu_networking.dll";
-            auto player_library  = cache_folder / "BambuSource.dll";
-            auto live555_library  = cache_folder / "live555.dll";
-#elif defined(__WXMAC__)
-            auto network_library = cache_folder / "libbambu_networking.dylib";
-            auto player_library = cache_folder / "libBambuSource.dylib";
-            auto live555_library = cache_folder / "liblive555.dylib";
-#else
-            auto network_library = cache_folder / "libbambu_networking.so";
-            auto player_library = cache_folder / "libBambuSource.so";
-            auto live555_library = cache_folder / "liblive555.so";
-#endif
-            auto changelog_file = cache_folder / "network_plugins.json";
-
-            if (boost::filesystem::exists(network_library))
-            {
-
-                BOOST_LOG_TRIVIAL(info) << "[remove_old_networking_plugins] remove the file "<<network_library.string();
-                try {
-                    fs::remove(network_library);
-                } catch (...) {
-                    BOOST_LOG_TRIVIAL(error) << "Failed  removing the plugins file " << network_library.string();
-                }
-            }
-            if (boost::filesystem::exists(player_library))
-            {
-
-                BOOST_LOG_TRIVIAL(info) << "[remove_old_networking_plugins] remove the file "<<player_library.string();
-                try {
-                    fs::remove(player_library);
-                } catch (...) {
-                    BOOST_LOG_TRIVIAL(error) << "Failed  removing the plugins file " << player_library.string();
-                }
-            }
-            if (boost::filesystem::exists(live555_library))
-            {
-
-                BOOST_LOG_TRIVIAL(info) << "[remove_old_networking_plugins] remove the file " << live555_library.string();
-                try {
-                    fs::remove(live555_library);
-                } catch (...) {
-                    BOOST_LOG_TRIVIAL(error) << "Failed  removing the plugins file " << live555_library.string();
-                }
-            }
-            if (boost::filesystem::exists(changelog_file))
-            {
-
-                BOOST_LOG_TRIVIAL(info) << "[remove_old_networking_plugins] remove the file "<<changelog_file.string();
-                try {
-                    fs::remove(changelog_file);
-                } catch (...) {
-                    BOOST_LOG_TRIVIAL(error) << "Failed  removing the plugins file " << changelog_file.string();
-                }
-            }
-        }
-    }
-
-#if defined(__WINDOWS__)
-    if (GUI::wxGetApp().is_running_on_arm64() && !NetworkAgent::use_legacy_network) {
-        //set to arm64 for plugins
-        std::map<std::string, std::string> current_headers = Slic3r::Http::get_extra_headers();
-        current_headers["X-BBL-OS-Type"] = "windows_arm";
-
-        Slic3r::Http::set_extra_headers(current_headers);
-        BOOST_LOG_TRIVIAL(info) << boost::format("set X-BBL-OS-Type to windows_arm");
-    }
-#endif
-    try {
-        std::map<std::string, Resource> resources
-        {
-            {"slicer/plugins/cloud", { using_version, "", "", false, cache_path.string(), {"plugins"}}}
-        };
-        sync_resources(http_url, resources, true, plugin_version, "network_plugins.json");
-    }
-    catch (std::exception& e) {
-        BOOST_LOG_TRIVIAL(warning) << format("[Orca Updater] sync_plugins: %1%", e.what());
-    }
-#if defined(__WINDOWS__)
-    if (GUI::wxGetApp().is_running_on_arm64() && !NetworkAgent::use_legacy_network) {
-        //set back
-        std::map<std::string, std::string> current_headers = Slic3r::Http::get_extra_headers();
-        current_headers["X-BBL-OS-Type"] = "windows";
-
-        Slic3r::Http::set_extra_headers(current_headers);
-        BOOST_LOG_TRIVIAL(info) << boost::format("set X-BBL-OS-Type back to windows");
-    }
-#endif
-
-    bool result = get_cached_plugins_version(cached_version, force_upgrade);
-    if (result) {
-        BOOST_LOG_TRIVIAL(info) << format("[Orca Updater] found new plugins: %1%, prompt to update, force_upgrade %2%", cached_version, force_upgrade);
-        if (force_upgrade) {
-            auto app_config = GUI::wxGetApp().app_config;
-            if (!app_config)
-                GUI::wxGetApp().plater()->get_notification_manager()->push_notification(GUI::NotificationType::BBLPluginUpdateAvailable);
-            else
-                app_config->set("update_network_plugin", "true");
-        }
-        else
-            GUI::wxGetApp().plater()->get_notification_manager()->push_notification(GUI::NotificationType::BBLPluginUpdateAvailable);
-    }
-}
-
-void PresetUpdater::priv::sync_printer_config(std::string http_url)
-{
-    std::string curr_version  = SLIC3R_VERSION;
-    std::string using_version = curr_version.substr(0, 6) + "00.00";
-
-    std::string cached_version;
-    std::string data_dir_str = data_dir();
-    boost::filesystem::path data_dir_path(data_dir_str);
-    auto                    config_folder = data_dir_path / "printers";
-    auto                    cache_folder = data_dir_path / "ota" / "printers";
-
-    try {
-        auto version_file = config_folder / "version.txt";
-        if (fs::exists(version_file)) {
-            Slic3r::load_string_file(version_file, curr_version);
-            boost::algorithm::trim(curr_version);
-        }
-    } catch (...) {}
-    try {
-        auto version_file = cache_folder / "version.txt";
-        if (fs::exists(version_file)) {
-            Slic3r::load_string_file(version_file, cached_version);
-            boost::algorithm::trim(cached_version);
-        }
-    } catch (...) {}
-    if (!cached_version.empty()) {
-        bool   need_delete_cache = false;
-        Semver current_semver    = curr_version;
-        Semver cached_semver     = cached_version;
-
-        if ((cached_semver.maj() != current_semver.maj()) || (cached_semver.min() != current_semver.min())) {
-            need_delete_cache = true;
-            BOOST_LOG_TRIVIAL(info) << boost::format("cached printer config version %1% not match with current %2%") % cached_version % curr_version;
-        } else if (cached_semver.patch() <= current_semver.patch()) {
-            need_delete_cache = true;
-            BOOST_LOG_TRIVIAL(info) << boost::format("cached printer config version %1% not newer than current %2%") % cached_version % curr_version;
-        } else {
-            using_version = cached_version;
-        }
-
-        if (need_delete_cache) {
-            boost::system::error_code ec;
-            boost::filesystem::remove_all(cache_folder, ec);
-            cached_version           = curr_version;
-        }
-    }
-
-    try {
-        std::map<std::string, Resource> resources{{"slicer/printer/bbl", {using_version, "", "", false, cache_folder.string()}}};
-        sync_resources(http_url, resources, false, cached_version, "printer.json");
-    } catch (std::exception &e) {
-        BOOST_LOG_TRIVIAL(warning) << format("[Orca Updater] sync_printer_config: %1%", e.what());
-    }
-
-    bool result = false;
-    try {
-        auto version_file = cache_folder / "version.txt";
-        if (fs::exists(version_file)) {
-            Slic3r::load_string_file(version_file, cached_version);
-            boost::algorithm::trim(cached_version);
-            result = true;
-        }
-    } catch (...) {}
-    if (result) {
-        BOOST_LOG_TRIVIAL(info) << format("[Orca Updater] found new printer config: %1%, prompt to update", cached_version);
-        waiting_printer_updates = get_printer_config_updates(true);
-        if (waiting_printer_updates.updates.size() > 0) {
-            has_waiting_printer_updates = true;
-            GUI::wxGetApp().plater()->get_notification_manager()->push_notification(GUI::NotificationType::BBLPrinterConfigUpdateAvailable);
-        }
-    }
+    // BambuLab networking plugin sync removed
 }
 
 bool PresetUpdater::priv::install_bundles_rsrc(const std::vector<std::string>& bundles, bool snapshot) const
@@ -1148,53 +929,6 @@ void PresetUpdater::priv::check_installed_vendor_profiles() const
     if (bundles.size() > 0) {
         install_bundles_rsrc(std::vector(bundles.begin(), bundles.end()), false);
     }
-}
-
-Updates PresetUpdater::priv::get_printer_config_updates(bool update) const
-{
-    std::string             data_dir_str = data_dir();
-    boost::filesystem::path data_dir_path(data_dir_str);
-    boost::filesystem::path resc_dir_path(resources_dir());
-    auto                    config_folder = data_dir_path / "printers";
-    auto                    resc_folder   = (update ? cache_path : resc_dir_path) / "printers";
-    std::string             curr_version;
-    std::string             resc_version;
-    try {
-        Slic3r::load_string_file(resc_folder / "version.txt", resc_version);
-        boost::algorithm::trim(resc_version);
-    } catch (...) {}
-    try {
-        Slic3r::load_string_file(config_folder / "version.txt", curr_version);
-        boost::algorithm::trim(curr_version);
-    } catch (...) {}
-
-    if (!curr_version.empty()) {
-        Semver curr_ver = curr_version;
-        Semver resc_ver   = resc_version;
-
-        bool version_match = ((resc_ver.maj() == curr_ver.maj()) && (resc_ver.min() == curr_ver.min()));
-
-        if (!version_match || (curr_ver < resc_ver)) {
-            BOOST_LOG_TRIVIAL(info) << "[Orca Updater]:found newer version " << resc_version << " from resource, old version " << curr_version;
-        } else {
-            return {};
-        }
-    }
-    Updates updates;
-    Version version;
-    version.config_version = resc_version;
-    std::string change_log;
-    if (update) {
-        std::string changelog_file = (resc_folder / "printer.json").string();
-        try {
-            boost::nowide::ifstream ifs(changelog_file);
-            json                    j;
-            ifs >> j;
-            version.comment = j["description"];
-        } catch (...) {}
-    }
-    updates.updates.emplace_back(std::move(resc_folder), std::move(config_folder), version, "bbl", change_log, version.comment, false, true);
-    return updates;
 }
 
 // Generates a list of bundle updates that are to be performed.
@@ -1384,7 +1118,6 @@ void PresetUpdater::sync(std::string http_url, std::string language, std::string
 		if (p->cancel)
 			return;
         this->p->sync_plugins(http_url, plugin_version);
-        this->p->sync_printer_config(http_url);
 		//if (p->cancel)
 		//	return;
 		//remove the tooltip currently
@@ -1539,30 +1272,6 @@ void PresetUpdater::on_update_notification_confirm()
 	else {
 		BOOST_LOG_TRIVIAL(info) << "User refused the update";
 	}
-}
-
-void PresetUpdater::do_printer_config_update()
-{
-    if (!p->has_waiting_printer_updates)
-        return;
-    BOOST_LOG_TRIVIAL(info) << "Update of printer configs available. Asking for confirmation ...";
-
-    std::vector<GUI::MsgUpdateConfig::Update> updates_msg;
-    for (const auto &update : p->waiting_printer_updates.updates) {
-        std::string changelog = update.change_log;
-        updates_msg.emplace_back(update.vendor, update.version.config_version, update.descriptions, std::move(changelog));
-    }
-
-    GUI::MsgUpdateConfig dlg(updates_msg);
-
-    const auto res = dlg.ShowModal();
-    if (res == wxID_OK) {
-        BOOST_LOG_TRIVIAL(debug) << "User agreed to perform the update";
-        if (p->perform_updates(std::move(p->waiting_printer_updates)))
-            p->has_waiting_printer_updates = false;
-    } else {
-        BOOST_LOG_TRIVIAL(info) << "User refused the update";
-    }
 }
 
 bool PresetUpdater::version_check_enabled() const

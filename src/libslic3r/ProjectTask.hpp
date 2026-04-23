@@ -49,10 +49,6 @@ struct FilamentInfo
     int         ctype = 0;
     std::vector<std::string> colors = std::vector<std::string>();
     int         mapping_result = 0;
-
-    /*for new ams mapping*/
-    std::string ams_id;
-    std::string slot_id;
 };
 
 class BBLSliceInfo {
@@ -273,17 +269,8 @@ public:
     }
 
     std::string     project_id;
-    std::string     project_model_id;       /* model id */
-    std::string     project_design_id;      /* design_id */
-    std::string     project_status;
-    std::string     project_create_time;    /* created by cloud */
-    std::string     project_url;            /* url storage on cloud */
-    std::string     project_url_md5;        /* md5 of project url file */
     std::string     project_name;
-    std::string     project_3mf_file;
     fs::path        project_path;
-    std::string     project_content;
-    std::string     project_country_code;
 
 
     std::vector<BBLProfile*>   profiles;

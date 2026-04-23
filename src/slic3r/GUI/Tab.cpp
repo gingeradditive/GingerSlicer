@@ -11,6 +11,7 @@
 
 #include "Search.hpp"
 #include "OG_CustomCtrl.hpp"
+#include "Widgets/SwitchButton.hpp"
 
 #include <wx/app.h>
 #include <wx/button.h>
@@ -1896,18 +1897,8 @@ void Tab::on_presets_changed()
     // Instead of PostEvent (EVT_TAB_PRESETS_CHANGED) just call update_presets
     wxGetApp().plater()->sidebar().update_presets(m_type);
 
-    bool is_bbl_vendor_preset = wxGetApp().preset_bundle->is_bbl_vendor();
-    if (is_bbl_vendor_preset) {
-        wxGetApp().plater()->get_partplate_list().set_render_option(true, true);
-        if (wxGetApp().preset_bundle->printers.get_edited_preset().has_cali_lines(wxGetApp().preset_bundle)) {
-            wxGetApp().plater()->get_partplate_list().set_render_cali(true);
-        } else {
-            wxGetApp().plater()->get_partplate_list().set_render_cali(false);
-        }
-    } else {
-        wxGetApp().plater()->get_partplate_list().set_render_option(false, true);
-        wxGetApp().plater()->get_partplate_list().set_render_cali(false);
-    }
+    wxGetApp().plater()->get_partplate_list().set_render_option(false, true);
+    wxGetApp().plater()->get_partplate_list().set_render_cali(false);
 
     // Printer selected at the Printer tab, update "compatible" marks at the print and filament selectors.
     for (auto t: m_dependent_tabs)
@@ -2550,11 +2541,6 @@ void TabPrint::update_description_lines()
 void TabPrint::toggle_options()
 {
     if (!m_active_page) return;
-    // BBS: whether the preset is Bambu Lab printer
-    if (m_preset_bundle) {
-        bool is_BBL_printer = wxGetApp().preset_bundle->is_bbl_vendor();
-        m_config_manipulation.set_is_BBL_Printer(is_BBL_printer);
-    }
 
     m_config_manipulation.toggle_print_fff_options(m_config, m_type < Preset::TYPE_COUNT);
 
@@ -3734,11 +3720,6 @@ void TabFilament::toggle_options()
 {
     if (!m_active_page)
         return;
-    bool is_BBL_printer = false;
-    if (m_preset_bundle) {
-      is_BBL_printer =
-          wxGetApp().preset_bundle->is_bbl_vendor();
-    }
 
     auto cfg = m_preset_bundle->printers.get_edited_preset().config;
     if (m_active_page->title() == L("Cooling")) {
@@ -3771,7 +3752,7 @@ void TabFilament::toggle_options()
 
         bool support_multi_bed_types = std::find(bed_temp_keys.begin(), bed_temp_keys.end(), bed_temp_1st_layer_key) ==
                                            bed_temp_keys.end() ||
-                                       is_BBL_printer || cfg.opt_bool("support_multi_bed_types");
+                                       cfg.opt_bool("support_multi_bed_types");
 
         for (const auto& key : bed_temp_keys)
         {
@@ -3825,7 +3806,7 @@ void TabFilament::toggle_options()
         for (auto el : {"filament_minimal_purge_on_wipe_tower", "filament_loading_speed_start", "filament_loading_speed",
                         "filament_unloading_speed_start", "filament_unloading_speed", "filament_toolchange_delay", "filament_cooling_moves",
                         "filament_cooling_initial_speed", "filament_cooling_final_speed"})
-            toggle_option(el, !is_BBL_printer);
+            toggle_option(el, true);
 
         bool multitool_ramming = m_config->opt_bool("filament_multitool_ramming", 0);
         toggle_option("filament_multitool_ramming_volume", multitool_ramming);
@@ -3944,7 +3925,6 @@ void TabPrinter::build_fff()
         optgroup->append_single_option_line("use_active_pellet_feeding", "Pellet-modded-printer");
         optgroup->append_single_option_line("multi_zone", "pellet-flow-coefficient");
         optgroup->append_single_option_line("multi_zone_number", "pellet-flow-coefficient");
-        optgroup->append_single_option_line("bbl_use_printhost");
         optgroup->append_single_option_line("scan_first_layer");
         optgroup->append_single_option_line("disable_m73");
         option = optgroup->get_option("thumbnails");
@@ -4698,12 +4678,6 @@ void TabPrinter::toggle_options()
     if (!m_active_page || m_presets->get_edited_preset().printer_technology() == ptSLA)
         return;
 
-    //BBS: whether the preset is Bambu Lab printer
-    bool is_BBL_printer = false;
-    if (m_preset_bundle) {
-       is_BBL_printer = wxGetApp().preset_bundle->is_bbl_vendor();
-    }
-
     bool have_multiple_extruders = true;
     //m_extruders_count > 1;
     //if (m_active_page->title() == "Custom G-code") {
@@ -4712,12 +4686,12 @@ void TabPrinter::toggle_options()
     if (m_active_page->title() == L("Basic information")) {
 
         // SoftFever: hide BBL specific settings
-        for (auto el : {"scan_first_layer", "bbl_calib_mark_logo", "bbl_use_printhost"})
-            toggle_line(el, is_BBL_printer);
+        for (auto el : {"scan_first_layer"})
+            toggle_line(el, false);
 
         // SoftFever: hide non-BBL settings
         for (auto el : {"use_firmware_retraction", "use_relative_e_distances", "support_multi_bed_types", "pellet_modded_printer", "bed_mesh_max", "bed_mesh_min", "bed_mesh_probe_distance", "adaptive_bed_mesh_margin", "thumbnails"})
-          toggle_line(el, !is_BBL_printer);
+          toggle_line(el, true);
     }
 
     if (m_active_page->title() == L("Multimaterial")) {
@@ -4730,7 +4704,7 @@ void TabPrinter::toggle_options()
                  "extra_loading_move",
                  "high_current_on_filament_swap",
              })
-            toggle_option(el, !is_BBL_printer);
+            toggle_option(el, true);
 
         auto bSEMM = m_config->opt_bool("single_extruder_multi_material");
         if (!bSEMM && m_config->opt_bool("manual_filament_change")) {
@@ -4740,7 +4714,7 @@ void TabPrinter::toggle_options()
         }
         toggle_option("extruders_count", !bSEMM);
         toggle_option("manual_filament_change", bSEMM);
-        toggle_option("purge_in_prime_tower", bSEMM && !is_BBL_printer);
+        toggle_option("purge_in_prime_tower", bSEMM);
     }
     wxString extruder_number;
     long val = 1;
@@ -5783,8 +5757,6 @@ void Tab::save_preset(std::string name /*= ""*/, bool detach, bool save_to_proje
     }
     else {
         new_preset->sync_info = "create";
-        if (wxGetApp().is_user_login())
-            new_preset->user_id = wxGetApp().getAgent()->get_user_id();
         BOOST_LOG_TRIVIAL(info) << "sync_preset: create preset = " << new_preset->name;
     }
     new_preset->save_info();

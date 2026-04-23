@@ -2,6 +2,8 @@
 #define slic3r_Auxiliary_hpp_
 
 #include "Tabbook.hpp"
+#include "nlohmann/json.hpp"
+using nlohmann::json;
 #include <wx/notebook.h>
 #include <wx/scrolwin.h>
 #include <wx/sizer.h>
@@ -40,12 +42,8 @@
 #include "Event.hpp"
 #include "libslic3r/ProjectTask.hpp"
 #include "wxExtensions.hpp"
-#include "slic3r/GUI/DeviceManager.hpp"
-#include "slic3r/GUI/MonitorBasePanel.h"
-#include "slic3r/GUI/StatusPanel.hpp"
-#include "slic3r/GUI/UpgradePanel.hpp"
-#include "slic3r/GUI/AmsWidgets.hpp"
-#include "Widgets/SideTools.hpp"
+#include "Widgets/ComboBox.hpp"
+#include <wx/wrapsizer.h>
 
 #define AUFILE_GREY700 wxColour(107, 107, 107)
 #define AUFILE_GREY500 wxColour(158, 158, 158)

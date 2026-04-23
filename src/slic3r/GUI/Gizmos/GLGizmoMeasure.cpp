@@ -11,6 +11,7 @@
 #include <imgui/imgui_internal.h>
 
 #include <numeric>
+#include <string_view>
 
 #include <GL/glew.h>
 
@@ -2228,7 +2229,7 @@ void GLGizmoMeasure::show_tooltip_information(float caption_max, float x, float 
     ImTextureID normal_id = m_parent.get_gizmos_manager().get_icon_texture_id(GLGizmosManager::MENU_ICON_NAME::IC_TOOLBAR_TOOLTIP);
     ImTextureID hover_id  = m_parent.get_gizmos_manager().get_icon_texture_id(GLGizmosManager::MENU_ICON_NAME::IC_TOOLBAR_TOOLTIP_HOVER);
 
-    caption_max += m_imgui->calc_text_size(": "sv).x + 35.f;
+    caption_max += m_imgui->calc_text_size(std::string_view(": ")).x + 35.f;
 
     float  scale       = m_parent.get_scale();
     ImVec2 button_size = ImVec2(25 * scale, 25 * scale); // ORCA: Use exact resolution will prevent blur on icon

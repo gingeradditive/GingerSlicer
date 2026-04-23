@@ -1,4 +1,5 @@
 #include "MainFrame.hpp"
+#include "ReleaseNote.hpp"
 
 #include <wx/panel.h>
 #include <wx/notebook.h>
@@ -44,7 +45,6 @@
 #include "PartPlate.hpp"
 #include "Preferences.hpp"
 #include "Widgets/ProgressDialog.hpp"
-#include "BindDialog.hpp"
 
 #include <fstream>
 #include <string_view>
@@ -75,16 +75,6 @@ namespace GUI {
 
 wxDEFINE_EVENT(EVT_SELECT_TAB, wxCommandEvent);
 wxDEFINE_EVENT(EVT_HTTP_ERROR, wxCommandEvent);
-wxDEFINE_EVENT(EVT_USER_LOGIN, wxCommandEvent);
-wxDEFINE_EVENT(EVT_USER_LOGIN_HANDLE, wxCommandEvent);
-wxDEFINE_EVENT(EVT_CHECK_PRIVACY_VER, wxCommandEvent);
-wxDEFINE_EVENT(EVT_CHECK_PRIVACY_SHOW, wxCommandEvent);
-wxDEFINE_EVENT(EVT_SHOW_IP_DIALOG, wxCommandEvent);
-wxDEFINE_EVENT(EVT_SET_SELECTED_MACHINE, wxCommandEvent);
-wxDEFINE_EVENT(EVT_UPDATE_MACHINE_LIST, wxCommandEvent);
-wxDEFINE_EVENT(EVT_UPDATE_PRESET_CB, SimpleEvent);
-
-
 
 // BBS: backup
 wxDEFINE_EVENT(EVT_BACKUP_POST, wxCommandEvent);
@@ -162,8 +152,6 @@ static wxIcon main_frame_icon(GUI_App::EAppMode app_mode)
 #else
 #define BORDERLESS_FRAME_STYLE (wxMINIMIZE_BOX | wxMAXIMIZE_BOX | wxCLOSE_BOX)
 #endif
-
-wxDEFINE_EVENT(EVT_SYNC_CLOUD_PRESET,     SimpleEvent);
 
 #ifdef __APPLE__
 static const wxString ctrl = ("Ctrl+");
@@ -351,8 +339,6 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
         TabPosition pos = (TabPosition)evt.GetInt();
         m_tabpanel->SetSelection(pos);
     });
-
-    Bind(EVT_SYNC_CLOUD_PRESET, &MainFrame::on_select_default_preset, this);
 
 //    Bind(wxEVT_MENU,
 //        [this](wxCommandEvent&)
@@ -557,10 +543,7 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
             m_print_enable = get_enable_print_status();
             m_print_btn->Enable(m_print_enable);
             if (m_print_enable) {
-                if (wxGetApp().preset_bundle->use_bbl_network())
-                    wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_PRINT_PLATE));
-                else
-                    wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_SEND_GCODE));
+                wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_SEND_GCODE));
             }
             evt.Skip();
             return;
@@ -924,10 +907,7 @@ void MainFrame::shutdown()
         m_plater->get_mouse3d_controller().save_config(*wxGetApp().app_config);
     }
 
-    // stop agent
-    NetworkAgent* agent = wxGetApp().getAgent();
-    if (agent)
-        agent->track_enable(false);
+    // BambuLab networking removed
 
     // Stop the background thread of the removable drive manager, so that no new updates will be sent to the Plater.
     //wxGetApp().removable_drive_manager()->shutdown();
@@ -1035,9 +1015,6 @@ void MainFrame::init_tabpanel() {
         }
         //else if (panel == m_param_panel)
         //    m_param_panel->OnActivate();
-        else if (panel == m_monitor) {
-            //monitor
-        }
 #ifndef __APPLE__
         if (sel == tp3DEditor) {
             m_topbar->EnableUndoRedoItems();
@@ -1088,34 +1065,18 @@ void MainFrame::init_tabpanel() {
 
     create_preset_tabs();
 
-        //BBS add pages
-    m_monitor = new MonitorPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
-    m_monitor->SetBackgroundColour(*wxWHITE);
-    m_tabpanel->AddPage(m_monitor, "", std::string("tab_monitor_active"), std::string("tab_monitor_active"), false);
-
     m_printer_view = new PrinterWebView(m_tabpanel);
     Bind(EVT_LOAD_PRINTER_URL, [this](LoadPrinterViewEvent &evt) {
         wxString url = evt.GetString();
         wxString key = evt.GetAPIkey();
-        //select_tab(MainFrame::tpMonitor);
         m_printer_view->load_url(url, key);
     });
-    m_printer_view->Hide();
+    m_tabpanel->AddPage(m_printer_view, "", std::string("tab_monitor_active"), std::string("tab_monitor_active"), false);
 
-    if (wxGetApp().is_enable_multi_machine()) {
-        m_multi_machine = new MultiMachinePage(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
-        m_multi_machine->SetBackgroundColour(*wxWHITE);
-        // TODO: change the bitmap
-        m_tabpanel->AddPage(m_multi_machine, "", std::string("tab_multi_active"), std::string("tab_multi_active"), false);
-    }
 
     // m_project = new ProjectPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
     // m_project->SetBackgroundColour(*wxWHITE);
     // m_tabpanel->AddPage(m_project, _L("Project"), std::string("tab_auxiliary_active"), std::string("tab_auxiliary_active"), false);
-
-    // m_calibration = new CalibrationPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
-    // m_calibration->SetBackgroundColour(*wxWHITE);
-    // m_tabpanel->AddPage(m_calibration, _L("Calibration"), std::string("tab_calibration_active"), std::string("tab_calibration_active"), false);
 
     if (m_plater) {
         // load initial config
@@ -1131,76 +1092,6 @@ void MainFrame::init_tabpanel() {
     }
 }
 
-// SoftFever
-void MainFrame::show_device(bool bBBLPrinter) {
-    auto idx = -1;
-    if (bBBLPrinter) {
-        if (m_tabpanel->FindPage(m_monitor) != wxNOT_FOUND)
-            return;
-        // Remove printer view
-        if ((idx = m_tabpanel->FindPage(m_printer_view)) != wxNOT_FOUND) {
-            m_printer_view->Show(false);
-            m_tabpanel->RemovePage(idx);
-        }
-
-        // Create/insert monitor page
-        if (!m_monitor) {
-            m_monitor = new MonitorPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
-            m_monitor->SetBackgroundColour(*wxWHITE);
-        }
-        m_monitor->Show(false);
-        m_tabpanel->InsertPage(tpMonitor, m_monitor, "", std::string("tab_monitor_active"), std::string("tab_monitor_active"));
-
-        if (wxGetApp().is_enable_multi_machine()) {
-            if (!m_multi_machine) {
-                m_multi_machine = new MultiMachinePage(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
-                m_multi_machine->SetBackgroundColour(*wxWHITE);
-            }
-            // TODO: change the bitmap
-            m_multi_machine->Show(false);
-            m_tabpanel->InsertPage(tpMultiDevice, m_multi_machine, "", std::string("tab_multi_active"),
-                                   std::string("tab_multi_active"), false);
-        }
-        if (!m_calibration) {
-            m_calibration = new CalibrationPanel(m_tabpanel, wxID_ANY, wxDefaultPosition, wxDefaultSize);
-            m_calibration->SetBackgroundColour(*wxWHITE);
-        }
-        m_calibration->Show(false);
-        // Calibration is always the last page, so don't use InsertPage here. Otherwise, if multi_machine page is not enabled,
-        // the calibration tab won't be properly added as well, due to the TabPosition::tpCalibration no longer matches the real tab position.
-        // m_tabpanel->AddPage(m_calibration, _L("Calibration"), std::string("tab_calibration_active"),
-        //                        std::string("tab_calibration_active"), false);
-
-    } else {
-        if (m_tabpanel->FindPage(m_printer_view) != wxNOT_FOUND)
-            return;
-
-        if ((idx = m_tabpanel->FindPage(m_calibration)) != wxNOT_FOUND) {
-            m_calibration->Show(false);
-            m_tabpanel->RemovePage(idx);
-        }
-        if ((idx = m_tabpanel->FindPage(m_multi_machine)) != wxNOT_FOUND) {
-            m_multi_machine->Show(false);
-            m_tabpanel->RemovePage(idx);
-        }
-        if ((idx = m_tabpanel->FindPage(m_monitor)) != wxNOT_FOUND) {
-            m_monitor->Show(false);
-            m_tabpanel->RemovePage(idx);
-        }
-        if (m_printer_view == nullptr) {
-            m_printer_view = new PrinterWebView(m_tabpanel);
-            Bind(EVT_LOAD_PRINTER_URL, [this](LoadPrinterViewEvent& evt) {
-                wxString url = evt.GetString();
-                wxString key = evt.GetAPIkey();
-                // select_tab(MainFrame::tpMonitor);
-                m_printer_view->load_url(url, key);
-            });
-        }
-        m_printer_view->Show(false);
-        m_tabpanel->InsertPage(tpMonitor, m_printer_view, "", std::string("tab_monitor_active"),
-                               std::string("tab_monitor_active"));
-    }
-}
 
 bool MainFrame::preview_only_hint()
 {
@@ -1547,7 +1438,6 @@ bool MainFrame::can_reslice() const
 
 wxBoxSizer* MainFrame::create_side_tools()
 {
-    enable_multi_machine = wxGetApp().is_enable_multi_machine();
     int em = em_unit();
     wxBoxSizer* sizer = new wxBoxSizer(wxHORIZONTAL);
 
@@ -1604,7 +1494,7 @@ wxBoxSizer* MainFrame::create_side_tools()
     m_print_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent& event)
         {
             //this->m_plater->select_view_3D("Preview");
-            if (m_print_select == ePrintAll || m_print_select == ePrintPlate || m_print_select == ePrintMultiMachine)
+            if (m_print_select == ePrintAll || m_print_select == ePrintPlate)
             {
                 m_plater->apply_background_progress();
                 // check valid of print
@@ -1615,8 +1505,6 @@ wxBoxSizer* MainFrame::create_side_tools()
                         wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_PRINT_ALL));
                     if (m_print_select == ePrintPlate)
                         wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_PRINT_PLATE));
-                    if(m_print_select == ePrintMultiMachine)
-                         wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_PRINT_MULTI_MACHINE));
                 }
             }
             else if (m_print_select == eExportGcode)
@@ -1629,12 +1517,6 @@ wxBoxSizer* MainFrame::create_side_tools()
                 wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_EXPORT_SLICED_FILE));
             else if (m_print_select == eExportAllSlicedFile)
                 wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_EXPORT_ALL_SLICED_FILE));
-            else if (m_print_select == eSendToPrinter)
-                wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_SEND_TO_PRINTER));
-            else if (m_print_select == eSendToPrinterAll)
-                wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_SEND_TO_PRINTER_ALL));
-            /* else if (m_print_select == ePrintMultiMachine)
-                 wxPostEvent(m_plater, SimpleEvent(EVT_GLTOOLBAR_PRINT_MULTI_MACHINE));*/
         });
 
     m_slice_option_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent& event)
@@ -1706,9 +1588,6 @@ wxBoxSizer* MainFrame::create_side_tools()
                 SideButton* print_plate_btn = new SideButton(p, _L("Print plate"), "");
                 print_plate_btn->SetCornerRadius(0);
 
-                SideButton* send_to_printer_btn = new SideButton(p, _L("Send"), "");
-                send_to_printer_btn->SetCornerRadius(0);
-
                 SideButton* export_sliced_file_btn = new SideButton(p, _L("Export plate sliced file"), "");
                 export_sliced_file_btn->SetCornerRadius(0);
 
@@ -1735,26 +1614,6 @@ wxBoxSizer* MainFrame::create_side_tools()
                     p->Dismiss();
                     });
 
-                send_to_printer_btn->Bind(wxEVT_BUTTON, [this, p](wxCommandEvent&) {
-                    m_print_btn->SetLabel(_L("Send"));
-                    m_print_select = eSendToPrinter;
-                    m_print_enable = get_enable_print_status();
-                    m_print_btn->Enable(m_print_enable);
-                    this->Layout();
-                    p->Dismiss();
-                    });
-
-                SideButton* send_to_printer_all_btn = new SideButton(p, _L("Send all"), "");
-                send_to_printer_all_btn->SetCornerRadius(0);
-                send_to_printer_all_btn->Bind(wxEVT_BUTTON, [this, p](wxCommandEvent&) {
-                    m_print_btn->SetLabel(_L("Send all"));
-                    m_print_select = eSendToPrinterAll;
-                    m_print_enable = get_enable_print_status();
-                    m_print_btn->Enable(m_print_enable);
-                    this->Layout();
-                    p->Dismiss();
-                    });
-
                 export_sliced_file_btn->Bind(wxEVT_BUTTON, [this, p](wxCommandEvent&) {
                     m_print_btn->SetLabel(_L("Export plate sliced file"));
                     m_print_select = eExportSlicedFile;
@@ -1773,44 +1632,20 @@ wxBoxSizer* MainFrame::create_side_tools()
                     p->Dismiss();
                     });
 
-                bool support_send = true;
                 bool support_print_all = true;
 
                 const auto preset_bundle = wxGetApp().preset_bundle;
                 if (preset_bundle) {
-                    if (preset_bundle->use_bbl_network()) {
-                        // BBL network support everything
-                    } else {
-                        support_send = false; // All 3rd print hosts do not have the send options
+                    auto cfg = preset_bundle->printers.get_edited_preset().config;
+                    const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
 
-                        auto cfg = preset_bundle->printers.get_edited_preset().config;
-                        const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
-
-                        // Only simply print support uploading all plates
-                        support_print_all = host_type == PrintHostType::htSimplyPrint;
-                    }
+                    // Only simply print support uploading all plates
+                    support_print_all = host_type == PrintHostType::htSimplyPrint;
                 }
 
                 p->append_button(print_plate_btn);
                 if (support_print_all) {
                     p->append_button(print_all_btn);
-                }
-                if (support_send) {
-                    p->append_button(send_to_printer_btn);
-                    p->append_button(send_to_printer_all_btn);
-                }
-                if (enable_multi_machine) {
-                    SideButton* print_multi_machine_btn = new SideButton(p, _L("Send to Multi-device"), "");
-                    print_multi_machine_btn->SetCornerRadius(0);
-                    print_multi_machine_btn->Bind(wxEVT_BUTTON, [this, p](wxCommandEvent&) {
-                        m_print_btn->SetLabel(_L("Send to Multi-device"));
-                        m_print_select = ePrintMultiMachine;
-                        m_print_enable = get_enable_print_status();
-                        m_print_btn->Enable(m_print_enable);
-                        this->Layout();
-                        p->Dismiss();
-                    });
-                    p->append_button(print_multi_machine_btn);
                 }
                 p->append_button(export_sliced_file_btn);
                 p->append_button(export_all_sliced_file_btn);
@@ -1944,35 +1779,12 @@ bool MainFrame::get_enable_print_status()
         }
         enable = enable && !is_all_plates;
 	}
-	else if (m_print_select == eSendToPrinter)
-	{
-		if (!current_plate->is_slice_result_ready_for_print())
-		{
-			enable = false;
-		}
-        enable = enable && !is_all_plates;
-	}
-    else if (m_print_select == eSendToPrinterAll)
-    {
-        if (!part_plate_list.is_all_slice_results_ready_for_print())
-        {
-            enable = false;
-        }
-    }
     else if (m_print_select == eExportAllSlicedFile)
     {
         if (!part_plate_list.is_all_slice_result_ready_for_export())
         {
             enable = false;
         }
-    }
-    else if (m_print_select == ePrintMultiMachine)
-    {
-        if (!current_plate->is_slice_result_ready_for_print())
-        {
-            enable = false;
-        }
-        enable = enable && !is_all_plates;
     }
 
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": m_print_select %1%, enable= %2% ")%m_print_select %enable;
@@ -2090,12 +1902,6 @@ void MainFrame::on_dpi_changed(const wxRect& suggested_rect)
     //if (m_layout != ESettingsLayout::Dlg) // Do not update tabs if the Settings are in the separated dialog
     m_param_panel->msw_rescale();
     m_project->msw_rescale();
-    if(m_monitor)
-        m_monitor->msw_rescale();
-    if(m_multi_machine)
-        m_multi_machine->msw_rescale();
-    if(m_calibration)
-        m_calibration->msw_rescale();
 
     // BBS
 #if 0
@@ -2146,10 +1952,6 @@ void MainFrame::on_sys_color_changed()
 
     // update Plater
     wxGetApp().plater()->sys_color_changed();
-    if(m_monitor)
-        m_monitor->on_sys_color_changed();
-    if(m_calibration)
-        m_calibration->on_sys_color_changed();
     // update Tabs
     for (auto tab : wxGetApp().tabs_list)
         tab->sys_color_changed();
@@ -2225,24 +2027,12 @@ static void add_common_publish_menu_items(wxMenu* publish_menu, MainFrame* mainF
 #ifndef __WINDOWS__
     append_menu_item(publish_menu, wxID_ANY, _L("Upload Models"), _L("Upload Models"),
         [](wxCommandEvent&) {
-            if (!wxGetApp().getAgent()) {
-                BOOST_LOG_TRIVIAL(info) << "publish: no agent";
-                return;
-            }
-
-            json j;
-            NetworkAgent* agent = GUI::wxGetApp().getAgent();
-
             //if (GUI::wxGetApp().plater()->model().objects.empty()) return;
             wxGetApp().open_publish_page_dialog();
         });
 
     append_menu_item(publish_menu, wxID_ANY, _L("Download Models"), _L("Download Models"),
         [](wxCommandEvent&) {
-            if (!wxGetApp().getAgent()) {
-                BOOST_LOG_TRIVIAL(info) << "publish: no agent";
-                return;
-}
 
             //if (GUI::wxGetApp().plater()->model().objects.empty()) return;
             wxGetApp().open_mall_page_dialog();
@@ -3318,10 +3108,7 @@ void MainFrame::load_config_file()
         wxGetApp().app_config->update_config_dir(get_dir_name(cfiles.back()));
         wxGetApp().load_current_presets();
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << " presets has been import,and size is" << cfiles.size();
-        NetworkAgent* agent = wxGetApp().getAgent();
-        if (agent) {
-            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << " user is: " << agent->get_user_id();
-        }
+        // BambuLab agent tracking removed
     }
     wxGetApp().preset_bundle->update_compatible(PresetSelectCompatibleType::Always);
     update_side_preset_ui();
@@ -3473,22 +3260,6 @@ void MainFrame::select_tab(wxPanel* panel)
     select_tab(size_t(page_idx));
 }
 
-//BBS
-void MainFrame::jump_to_monitor(std::string dev_id)
-{
-    if(!m_monitor)
-        return;
-    m_tabpanel->SetSelection(tpMonitor);
-    ((MonitorPanel*)m_monitor)->select_machine(dev_id);
-}
-
-void MainFrame::jump_to_multipage()
-{
-    if(!m_multi_machine)
-        return;
-    m_tabpanel->SetSelection(tpMultiDevice);
-    ((MultiMachinePage*)m_multi_machine)->jump_to_send_page();
-}
 
 
 //BBS GUI refactor: remove unused layout new/dlg
@@ -3525,11 +3296,6 @@ void MainFrame::request_select_tab(TabPosition pos)
     wxQueueEvent(this, evt);
 }
 
-int MainFrame::get_calibration_curr_tab() {
-    if (m_calibration)
-        return m_calibration->get_tabpanel()->GetSelection();
-    return -1;
-}
 
 // Set a camera direction, zoom to all objects.
 void MainFrame::select_view(const std::string& direction)
@@ -3780,9 +3546,6 @@ void MainFrame::load_printer_url(wxString url, wxString apikey)
 void MainFrame::load_printer_url()
 {
     PresetBundle &preset_bundle = *wxGetApp().preset_bundle;
-    if (preset_bundle.use_bbl_device_tab())
-        return;
-
     auto     cfg = preset_bundle.printers.get_edited_preset().config;
     wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
     wxString apikey;
@@ -3832,12 +3595,6 @@ void MainFrame::update_ui_from_settings()
 }
 
 
-void MainFrame::show_sync_dialog()
-{
-    SimpleEvent* evt = new SimpleEvent(EVT_SYNC_CLOUD_PRESET);
-    wxQueueEvent(this, evt);
-}
-
 void MainFrame::update_side_preset_ui()
 {
     // select last preset
@@ -3849,44 +3606,6 @@ void MainFrame::update_side_preset_ui()
     m_plater->sidebar().update_presets(Preset::TYPE_PRINTER);
     m_plater->sidebar().update_presets(Preset::TYPE_FILAMENT);
 
-
-    //take off multi machine
-    if(m_multi_machine){m_multi_machine->clear_page();}
-}
-
-void MainFrame::on_select_default_preset(SimpleEvent& evt)
-{
-    MessageDialog dialog(this,
-                    _L("Do you want to synchronize your personal data from Bambu Cloud?\n"
-                        "It contains the following information:\n"
-                        "1. The Process presets\n"
-                        "2. The Filament presets\n"
-                        "3. The Printer presets"),
-                    _L("Synchronization"),
-                    wxCENTER |
-                    wxYES_DEFAULT | wxYES_NO |
-                    wxICON_INFORMATION);
-
-    /* get setting list */
-    NetworkAgent* agent = wxGetApp().getAgent();
-    switch ( dialog.ShowModal() )
-    {
-        case wxID_YES: {
-            wxGetApp().app_config->set_bool("sync_user_preset", true);
-            wxGetApp().start_sync_user_preset(true);
-            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << " sync_user_preset: true";
-            break;
-        }
-        case wxID_NO:
-            wxGetApp().app_config->set_bool("sync_user_preset", false);
-            wxGetApp().stop_sync_user_preset();
-            BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << " sync_user_preset: false";
-            break;
-        default:
-            break;
-    }
-
-    update_side_preset_ui();
 }
 
 std::string MainFrame::get_base_name(const wxString &full_name, const char *extension) const

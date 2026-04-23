@@ -269,8 +269,6 @@ std::string GCodeWriter::set_jerk_xy(double jerk)
         gcode << "M205 X" << jerk_x << " Y" << jerk_y;
     }
       
-    if (m_is_bbl_printers)
-        gcode << std::setprecision(2) << " Z" << m_max_jerk_z << " E" << m_max_jerk_e;
 
     if (GCodeWriter::full_gcode_comment) gcode << " ; adjust jerk";
     gcode << "\n";
@@ -346,11 +344,7 @@ std::string GCodeWriter::set_pressure_advance(double pa) const
     std::ostringstream gcode;
     if (pa < 0)
         return gcode.str();
-    if(m_is_bbl_printers){
-        //SoftFever: set L1000 to use linear model
-        gcode << "M900 K" <<std::setprecision(4)<< pa << " L1000 M10 ; Override pressure advance value\n";
-    }
-    else{
+{
         if (FLAVOR_IS(gcfKlipper))
             gcode << "SET_PRESSURE_ADVANCE ADVANCE=" << std::setprecision(4) << pa << "; Override pressure advance value\n";
         else if(FLAVOR_IS(gcfRepRapFirmware))
@@ -471,7 +465,7 @@ std::string GCodeWriter::toolchange(unsigned int extruder_id)
     // return the toolchange command
     // if we are running a single-extruder setup, just set the extruder and return nothing
     std::ostringstream gcode;
-    if (this->multiple_extruders || (this->config.filament_diameter.values.size() > 1 && !is_bbl_printers())) {
+    if (this->multiple_extruders || (this->config.filament_diameter.values.size() > 1)) {
         gcode << this->toolchange_prefix() << extruder_id;
         //BBS
         if (GCodeWriter::full_gcode_comment)

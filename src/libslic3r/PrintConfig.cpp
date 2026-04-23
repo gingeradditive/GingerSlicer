@@ -583,13 +583,6 @@ void PrintConfigDef::init_common_params()
     def->mode = comDevelop;
     def->set_default_value(new ConfigOptionStrings());
 
-    def = this->add("bbl_use_printhost", coBool);
-    def->label = L("Use 3rd-party print host");
-    def->tooltip = L("Allow controlling BambuLab's printer through 3rd party print hosts.");
-    def->mode = comAdvanced;
-    def->cli = ConfigOptionDef::nocli;
-    def->set_default_value(new ConfigOptionBool(false));
-
     def = this->add("print_host", coString);
     def->label = L("Hostname, IP or URL");
     def->tooltip = L("Ginger Slicer can upload G-code files to a printer host. This field should contain "
@@ -4571,12 +4564,6 @@ void PrintConfigDef::init_fff_params()
                    "handle the retraction. This is only supported in recent Marlin.");
     def->mode = comSimple;
     def->set_default_value(new ConfigOptionBool(false));
-
-    def = this->add("bbl_calib_mark_logo", coBool);
-    def->label = L("Show auto-calibration marks");
-    //def->tooltip = L("");
-    def->mode = comAdvanced;
-    def->set_default_value(new ConfigOptionBool(true));
 
     def = this->add("disable_m73", coBool);
     def->label = L("Disable set remaining print time");

@@ -974,8 +974,6 @@ public:
     Points first_layer_wipe_tower_corners(bool check_wipe_tower_existance=true) const;
 
     //SoftFever
-    bool &is_BBL_printer() { return m_isBBLPrinter; }
-    const bool is_BBL_printer() const { return m_isBBLPrinter; }
     CalibMode& calib_mode() { return m_calib_params.mode; }
     const CalibMode calib_mode() const { return m_calib_params.mode; }
     void set_calib_params(const Calib_Params& params);
@@ -1030,9 +1028,6 @@ private:
     PrintRegionConfig                       m_default_region_config;
     PrintObjectPtrs                         m_objects;
     PrintRegionPtrs                         m_print_regions;
-    
-    //SoftFever
-    bool m_isBBLPrinter;
 
     // Ordered collections of extrusion paths to build skirt loops and brim.
     ExtrusionEntityCollection               m_skirt;

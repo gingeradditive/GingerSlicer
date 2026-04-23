@@ -28,8 +28,6 @@ using ExportGcodeNotificationClickedEvent = SimpleEvent;
 wxDECLARE_EVENT(EVT_EXPORT_GCODE_NOTIFICAION_CLICKED, ExportGcodeNotificationClickedEvent);
 using PresetUpdateAvailableClickedEvent = SimpleEvent;
 wxDECLARE_EVENT(EVT_PRESET_UPDATE_AVAILABLE_CLICKED, PresetUpdateAvailableClickedEvent);
-using PrinterConfigUpdateAvailableClickedEvent = SimpleEvent;
-wxDECLARE_EVENT(EVT_PRINTER_CONFIG_UPDATE_AVAILABLE_CLICKED, PrinterConfigUpdateAvailableClickedEvent);
 
 using CancelFn = std::function<void()>;
 
@@ -148,7 +146,6 @@ enum class NotificationType
 	BBLPluginInstallHint,
 	BBLPluginUpdateAvailable,
 	BBLPreviewOnlyMode,
-    BBLPrinterConfigUpdateAvailable,
 	BBLUserPresetExceedLimit,
 };
 
@@ -530,8 +527,8 @@ private:
 		// Aditional text after hypertext - currently not used
 		std::string      m_text2;
 		// mark for render operation
-		size_t           pos_start = string::npos;
-		size_t	         pos_end = string::npos;
+		size_t           pos_start = std::string::npos;
+		size_t	         pos_end = std::string::npos;
 		std::string      error_start = "<Error>";
 		std::string      error_end = "</Error>";
 
@@ -925,13 +922,6 @@ private:
 				 wxQueueEvent(wxGetApp().plater(), evt);
 				 return true;
              }},
-
-        NotificationData{NotificationType::BBLPrinterConfigUpdateAvailable, NotificationLevel::ImportantNotificationLevel, BBL_NOTICE_MAX_INTERVAL,
-                         _u8L("New printer config available."), _u8L("Details"),
-                         [](wxEvtHandler *evnthndlr) {
-                             if (evnthndlr != nullptr) wxPostEvent(evnthndlr, PrinterConfigUpdateAvailableClickedEvent(EVT_PRINTER_CONFIG_UPDATE_AVAILABLE_CLICKED));
-                             return true;
-                         }},
 
         NotificationData{NotificationType::BBLUserPresetExceedLimit, NotificationLevel::WarningNotificationLevel, BBL_NOTICE_MAX_INTERVAL,
 			_u8L("The number of user presets cached in the cloud has exceeded the upper limit, newly created user presets can only be used locally."), 

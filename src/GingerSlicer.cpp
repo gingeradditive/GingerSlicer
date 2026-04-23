@@ -1049,7 +1049,7 @@ int CLI::run(int argc, char **argv)
     ::setenv("GDK_BACKEND", "x11", /* replace */ true);
 
     // Also on Linux, we need to tell Xlib that we will be using threads,
-    // lest we crash when we fire up GStreamer.
+    // to avoid crashes in multithreaded X11 code paths.
     XInitThreads();
 #endif
 
@@ -4985,8 +4985,6 @@ int CLI::run(int argc, char **argv)
                                         is_bbl_vendor_preset = (current_printer_system_name.compare(0, 9, "Bambu Lab") == 0);
                                     BOOST_LOG_TRIVIAL(info) << boost::format("new_printer_name: %1%, current_printer_system_name %2%, is_bbl_vendor_preset %3%")%new_printer_name %current_printer_system_name %is_bbl_vendor_preset;
                                 }
-                                (dynamic_cast<Print*>(print))->is_BBL_printer() = is_bbl_vendor_preset;
-
                                 //update information for brim
                                 const PrintConfig& print_config = print_fff->config();
                                 Model::setExtruderParams(m_print_config, filament_count);

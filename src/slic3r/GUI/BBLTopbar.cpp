@@ -44,7 +44,7 @@ void BBLTopbarArt::DrawLabel(wxDC& dc, wxWindow* wnd, const wxAuiToolBarItem& it
 {
     dc.SetFont(m_font);
 
-    dc.SetTextForeground(*wxWHITE);
+    dc.SetTextForeground(*wxBLACK);
 
     int textWidth = 0, textHeight = 0;
     dc.GetTextExtent(item.GetLabel(), &textWidth, &textHeight);
@@ -67,7 +67,8 @@ void BBLTopbarArt::DrawLabel(wxDC& dc, wxWindow* wnd, const wxAuiToolBarItem& it
 
 void BBLTopbarArt::DrawBackground(wxDC& dc, wxWindow* wnd, const wxRect& rect)
 {
-    dc.SetBrush(wxBrush(wxColour(48, 38, 38)));
+    dc.SetBrush(wxBrush(wxColour(245, 245, 245)));
+    dc.SetPen(wxPen(wxColour(245, 245, 245), 1));
     wxRect clipRect = rect;
     clipRect.y -= 8;
     clipRect.height += 8;
@@ -116,6 +117,11 @@ void BBLTopbarArt::DrawButton(wxDC& dc, wxWindow* wnd, const wxAuiToolBarItem& i
     {
         bmpX = rect.x + wnd->FromDIP(3);
 
+#ifdef __WXGTK__
+        // Linux GTK specific offset to correct horizontal icon alignment
+        bmpX -= 2;
+#endif
+
         bmpY = rect.y +
             (rect.height / 2) -
             (bmpSize.y / 2);
@@ -160,7 +166,7 @@ void BBLTopbarArt::DrawButton(wxDC& dc, wxWindow* wnd, const wxAuiToolBarItem& i
     if (bmp.IsOk())
         dc.DrawBitmap(bmp, bmpX, bmpY, true);
 
-    dc.SetTextForeground(Slic3r::GUI::wxGetApp().get_label_clr_default());
+    dc.SetTextForeground(*wxBLACK);
     if (item.GetState() & wxAUI_BUTTON_STATE_DISABLED)
     {
         dc.SetTextForeground(wxColour(128, 128, 128));
@@ -393,14 +399,6 @@ void BBLTopbar::OnModelStoreClicked(wxAuiToolBarEvent& event)
 
 void BBLTopbar::OnPublishClicked(wxAuiToolBarEvent& event)
 {
-    if (!wxGetApp().getAgent()) {
-        BOOST_LOG_TRIVIAL(info) << "publish: no agent";
-        return;
-    }
-
-    //no more check
-    //if (GUI::wxGetApp().plater()->model().objects.empty()) return;
-
 #ifdef ENABLE_PUBLISHING
     wxGetApp().plater()->show_publish_dialog();
 #endif

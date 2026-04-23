@@ -6,6 +6,8 @@
 #include "MsgDialog.hpp"
 #include "I18N.hpp"
 #include "libslic3r/AppConfig.hpp"
+#include "Widgets/SwitchButton.hpp"
+#include "ReleaseNote.hpp"
 #include <wx/language.h>
 #include <wx/notebook.h>
 #include "Notebook.hpp"
@@ -346,26 +348,8 @@ wxBoxSizer *PreferencesDialog::create_item_region_combobox(wxString title, wxWin
         else
             area = "Others";*/
         combobox->SetSelection(region_index);
-        NetworkAgent* agent = wxGetApp().getAgent();
         AppConfig* config = GUI::wxGetApp().app_config;
-        if (agent) {
-            MessageDialog msg_wingow(this, _L("Changing the region will log out your account.\n") + "\n" + _L("Do you want to continue?"), L("Region selection"),
-                                     wxICON_QUESTION | wxOK | wxCANCEL);
-            if (msg_wingow.ShowModal() == wxID_CANCEL) {
-                combobox->SetSelection(current_region);
-                return;
-            } else {
-                wxGetApp().request_user_logout();
-                config->set("region", region.ToStdString());
-                auto area = config->get_country_code();
-                if (agent) {
-                    agent->set_country_code(area);
-                }
-                EndModal(wxID_CANCEL);
-            }
-        } else {
-            config->set("region", region.ToStdString());
-        }
+        config->set("region", region.ToStdString());
 
         wxGetApp().update_publish_status();
         e.Skip();
@@ -738,14 +722,6 @@ wxBoxSizer *PreferencesDialog::create_item_checkbox(wxString title, wxWindow *pa
             }
         }
 
-        if (param == "installed_networking") {
-            bool pbool = app_config->get_bool("installed_networking");
-            if (pbool) {
-                GUI::wxGetApp().CallAfter([] { GUI::wxGetApp().ShowDownNetPluginDlg(); });
-            }
-            if (m_legacy_networking_ckeckbox != nullptr) { m_legacy_networking_ckeckbox->Enable(pbool); }
-        }
-
 #endif // __WXMSW__
 
         if (param == "developer_mode") {
@@ -774,12 +750,6 @@ wxBoxSizer *PreferencesDialog::create_item_checkbox(wxString title, wxWindow *pa
     //// for debug mode
     if (param == "developer_mode") { m_developer_mode_ckeckbox = checkbox; }
     if (param == "internal_developer_mode") { m_internal_developer_mode_ckeckbox = checkbox; }
-    if (param == "legacy_networking") { 
-        m_legacy_networking_ckeckbox = checkbox;
-        bool pbool = app_config->get_bool("installed_networking");
-        checkbox->Enable(pbool);
-    }
-
 
     checkbox->SetToolTip(tooltip);
     return m_sizer_checkbox;
@@ -963,18 +933,6 @@ PreferencesDialog::PreferencesDialog(wxWindow *parent, wxWindowID id, const wxSt
     SetBackgroundColour(*wxWHITE);
     create();
     Bind(wxEVT_CLOSE_WINDOW, [this](wxCloseEvent& event) {
-        try {
-            NetworkAgent* agent = GUI::wxGetApp().getAgent();
-            if (agent) {
-                json j;
-                std::string value;
-                value = wxGetApp().app_config->get("auto_calculate");
-                j["auto_flushing"] = value;
-                value = wxGetApp().app_config->get("auto_calculate_when_filament_change");
-                j["auto_calculate_when_filament_change"] = value;
-                agent->track_event("preferences_changed", j.dump());
-            }
-        } catch(...) {}
         event.Skip();
         });
 }
@@ -1114,9 +1072,6 @@ wxWindow* PreferencesDialog::create_general_page()
     std::vector<wxString> Regions         = {_L("Asia-Pacific"), _L("China"), _L("Europe"), _L("North America"), _L("Others")};
     auto                  item_region= create_item_region_combobox(_L("Login Region"), page, _L("Login Region"), Regions);
 
-    auto item_stealth_mode = create_item_checkbox(_L("Stealth Mode"), page, _L("This stops the transmission of data to Bambu's cloud services. Users who don't use BBL machines or use LAN mode only can safely turn on this function."), 50, "stealth_mode");
-    auto item_enable_plugin = create_item_checkbox(_L("Enable network plugin"), page, _L("Enable network plugin"), 50, "installed_networking");
-    auto item_legacy_network_plugin = create_item_checkbox(_L("Use legacy network plugin (Takes effect after restarting Orca)"), page, _L("Disable to use latest network plugin that supports new BambuLab firmwares."), 50, "legacy_networking");
     auto item_check_stable_version_only = create_item_checkbox(_L("Check for stable updates only"), page, _L("Check for stable updates only"), 50, "check_stable_update_only");
 
     std::vector<wxString> Units         = {_L("Metric") + " (mm, g)", _L("Imperial") + " (in, oz)"};
@@ -1149,7 +1104,6 @@ wxWindow* PreferencesDialog::create_general_page()
     auto item_calc_in_long_retract = create_item_checkbox(_L("Flushing volumes: Auto-calculate every time when the filament is changed."), page, _L("If enabled, auto-calculate every time when filament is changed"), 50, "auto_calculate_when_filament_change");
     auto item_remember_printer_config = create_item_checkbox(_L("Remember printer configuration"), page, _L("If enabled, Orca will remember and switch filament/process configuration for each printer automatically."), 50, "remember_printer_config");
     auto item_step_mesh_setting = create_item_checkbox(_L("Show the step mesh parameter setting dialog."), page, _L("If enabled,a parameter settings dialog will appear during STEP file import."), 50, "enable_step_mesh_setting");
-    auto item_multi_machine = create_item_checkbox(_L("Multi-device Management (Take effect after restarting Ginger Slicer)."), page, _L("With this option enabled, you can send a task to multiple devices at the same time and manage multiple devices."), 50, "enable_multi_machine");
     auto item_auto_arrange  = create_item_checkbox(_L("Auto arrange plate after cloning"), page, _L("Auto arrange plate after object cloning"), 50, "auto_arrange");
     auto title_presets = create_item_title(_L("Presets"), page, _L("Presets"));
     auto title_network = create_item_title(_L("Network"), page, _L("Network"));
@@ -1209,7 +1163,6 @@ wxWindow* PreferencesDialog::create_general_page()
 
     auto title_develop_mode = create_item_title(_L("Develop mode"), page, _L("Develop mode"));
     auto item_develop_mode  = create_item_checkbox(_L("Develop mode"), page, _L("Develop mode"), 50, "developer_mode");
-    auto item_skip_ams_blacklist_check  = create_item_checkbox(_L("Skip AMS blacklist check"), page, _L("Skip AMS blacklist check"), 50, "skip_ams_blacklist_check");
 
     sizer_page->Add(title_general_settings, 0, wxEXPAND, 0);
     sizer_page->Add(item_language, 0, wxTOP, FromDIP(3));
@@ -1226,7 +1179,6 @@ wxWindow* PreferencesDialog::create_general_page()
     sizer_page->Add(item_show_splash_screen, 0, wxTOP, FromDIP(3));
     sizer_page->Add(item_hints, 0, wxTOP, FromDIP(3));
     sizer_page->Add(item_calc_in_long_retract, 0, wxTOP, FromDIP(3));
-    sizer_page->Add(item_multi_machine, 0, wxTOP, FromDIP(3));
     sizer_page->Add(item_step_mesh_setting, 0, wxTOP, FromDIP(3));
     sizer_page->Add(item_auto_arrange, 0, wxTOP, FromDIP(3));
     sizer_page->Add(title_presets, 0, wxTOP | wxEXPAND, FromDIP(20));
@@ -1237,9 +1189,6 @@ wxWindow* PreferencesDialog::create_general_page()
     sizer_page->Add(item_save_presets, 0, wxTOP, FromDIP(3));
     sizer_page->Add(title_network, 0, wxTOP | wxEXPAND, FromDIP(20));
     sizer_page->Add(item_check_stable_version_only, 0, wxTOP, FromDIP(3));
-    sizer_page->Add(item_stealth_mode, 0, wxTOP, FromDIP(3));
-    sizer_page->Add(item_enable_plugin, 0, wxTOP, FromDIP(3));
-    sizer_page->Add(item_legacy_network_plugin, 0, wxTOP, FromDIP(3));
 #ifdef _WIN32
     sizer_page->Add(title_associate_file, 0, wxTOP| wxEXPAND, FromDIP(20));
     sizer_page->Add(item_associate_3mf, 0, wxTOP, FromDIP(3));
@@ -1276,7 +1225,6 @@ wxWindow* PreferencesDialog::create_general_page()
 
     sizer_page->Add(title_develop_mode, 0, wxTOP | wxEXPAND, FromDIP(20));
     sizer_page->Add(item_develop_mode, 0, wxTOP, FromDIP(3));
-    sizer_page->Add(item_skip_ams_blacklist_check, 0, wxTOP, FromDIP(3));
 
     page->SetSizer(sizer_page);
     page->Layout();
@@ -1362,40 +1310,19 @@ wxWindow* PreferencesDialog::create_debug_page()
 
     m_internal_developer_mode_def = app_config->get("internal_developer_mode");
     m_backup_interval_def = app_config->get("backup_interval");
-    m_iot_environment_def = app_config->get("iot_environment");
 
     wxBoxSizer *bSizer = new wxBoxSizer(wxVERTICAL);
 
-
-    auto enable_ssl_for_mqtt = create_item_checkbox(_L("Enable SSL(MQTT)"), page, _L("Enable SSL(MQTT)"), 50, "enable_ssl_for_mqtt");
-    auto enable_ssl_for_ftp = create_item_checkbox(_L("Enable SSL(FTP)"), page, _L("Enable SSL(MQTT)"), 50, "enable_ssl_for_ftp");
     auto item_internal_developer = create_item_checkbox(_L("Internal developer mode"), page, _L("Internal developer mode"), 50, "internal_developer_mode");
 
     auto title_log_level = create_item_title(_L("Log Level"), page, _L("Log Level"));
     auto log_level_list  = std::vector<wxString>{_L("fatal"), _L("error"), _L("warning"), _L("info"), _L("debug"), _L("trace")};
     auto loglevel_combox = create_item_loglevel_combobox(_L("Log Level"), page, _L("Log Level"), log_level_list);
 
-    auto title_host = create_item_title(_L("Host Setting"), page, _L("Host Setting"));
-    auto radio1     = create_item_radiobox(_L("DEV host: api-dev.bambu-lab.com/v1"), page, wxEmptyString, 50, 1, "dev_host");
-    auto radio2     = create_item_radiobox(_L("QA  host: api-qa.bambu-lab.com/v1"), page, wxEmptyString, 50, 1, "qa_host");
-    auto radio3     = create_item_radiobox(_L("PRE host: api-pre.bambu-lab.com/v1"), page, wxEmptyString, 50, 1, "pre_host");
-    auto radio4     = create_item_radiobox(_L("Product host"), page, wxEmptyString, 50, 1, "product_host");
-
-    if (m_iot_environment_def == ENV_DEV_HOST) {
-        on_select_radio("dev_host");
-    } else if (m_iot_environment_def == ENV_QAT_HOST) {
-        on_select_radio("qa_host");
-    } else if (m_iot_environment_def == ENV_PRE_HOST) {
-        on_select_radio("pre_host");
-    } else if (m_iot_environment_def == ENV_PRODUCT_HOST) {
-        on_select_radio("product_host");
-    }
-
-
-    StateColor btn_bg_white(std::pair<wxColour, int>(AMS_CONTROL_DISABLE_COLOUR, StateColor::Disabled), std::pair<wxColour, int>(AMS_CONTROL_DISABLE_COLOUR, StateColor::Pressed),
-        std::pair<wxColour, int>(AMS_CONTROL_DEF_BLOCK_BK_COLOUR, StateColor::Hovered),
-        std::pair<wxColour, int>(AMS_CONTROL_WHITE_COLOUR, StateColor::Normal));
-    StateColor btn_bd_white(std::pair<wxColour, int>(AMS_CONTROL_WHITE_COLOUR, StateColor::Disabled), std::pair<wxColour, int>(wxColour(48, 38, 38), StateColor::Enabled));
+    StateColor btn_bg_white(std::pair<wxColour, int>(wxColour(206, 206, 206), StateColor::Disabled), std::pair<wxColour, int>(wxColour(206, 206, 206), StateColor::Pressed),
+        std::pair<wxColour, int>(wxColour(238, 238, 238), StateColor::Hovered),
+        std::pair<wxColour, int>(wxColour(255, 255, 255), StateColor::Normal));
+    StateColor btn_bd_white(std::pair<wxColour, int>(wxColour(255, 255, 255), StateColor::Disabled), std::pair<wxColour, int>(wxColour(48, 38, 38), StateColor::Enabled));
 
     Button* debug_button = new Button(page, _L("debug save button"));
     debug_button->SetStyle(ButtonStyle::Regular, ButtonType::Window);
@@ -1417,60 +1344,10 @@ wxWindow* PreferencesDialog::create_debug_page()
 
             if (m_backup_interval_def != m_backup_interval_time) { m_backup_interval_textinput->GetTextCtrl()->SetValue(m_backup_interval_def); }
 
-            if (m_iot_environment_def == ENV_DEV_HOST) {
-                on_select_radio("dev_host");
-            } else if (m_iot_environment_def == ENV_QAT_HOST) {
-                on_select_radio("qa_host");
-            } else if (m_iot_environment_def == ENV_PRE_HOST) {
-                on_select_radio("pre_host");
-            } else if (m_iot_environment_def == ENV_PRODUCT_HOST) {
-                on_select_radio("product_host");
-            }
-
             break;
         }
 
         case wxID_YES: {
-            // bbs  domain changed
-            auto param = get_select_radio(1);
-
-            std::map<wxString, wxString> iot_environment_map;
-            iot_environment_map["dev_host"] = ENV_DEV_HOST;
-            iot_environment_map["qa_host"]  = ENV_QAT_HOST;
-            iot_environment_map["pre_host"] = ENV_PRE_HOST;
-            iot_environment_map["product_host"] = ENV_PRODUCT_HOST;
-
-            //if (iot_environment_map[param] != m_iot_environment_def) {
-            if (true) {
-                NetworkAgent* agent = wxGetApp().getAgent();
-                if (param == "dev_host") {
-                    app_config->set("iot_environment", ENV_DEV_HOST);
-                }
-                else if (param == "qa_host") {
-                    app_config->set("iot_environment", ENV_QAT_HOST);
-                }
-                else if (param == "pre_host") {
-                    app_config->set("iot_environment", ENV_PRE_HOST);
-                }
-                else if (param == "product_host") {
-                    app_config->set("iot_environment", ENV_PRODUCT_HOST);
-                }
-
-
-
-                AppConfig* config = GUI::wxGetApp().app_config;
-                std::string country_code = config->get_country_code();
-                if (agent) {
-                    wxGetApp().request_user_logout();
-                    agent->set_country_code(country_code);
-                }
-                ConfirmBeforeSendDialog confirm_dlg(this, wxID_ANY, _L("Warning"), ConfirmBeforeSendDialog::ButtonStyle::ONLY_CONFIRM);
-                confirm_dlg.update_text(_L("Cloud environment switched, please login again!"));
-                confirm_dlg.on_show();
-            }
-
-            // bbs  backup
-            //app_config->set("backup_interval", std::string(m_backup_interval_time.mb_str()));
             app_config->save();
             Slic3r::set_backup_interval(boost::lexical_cast<long>(app_config->get("backup_interval")));
 
@@ -1481,16 +1358,9 @@ wxWindow* PreferencesDialog::create_debug_page()
     });
 
 
-    bSizer->Add(enable_ssl_for_mqtt, 0, wxTOP, FromDIP(3));
-    bSizer->Add(enable_ssl_for_ftp, 0, wxTOP, FromDIP(3));
     bSizer->Add(item_internal_developer, 0, wxTOP, FromDIP(3));
     bSizer->Add(title_log_level, 0, wxTOP| wxEXPAND, FromDIP(20));
     bSizer->Add(loglevel_combox, 0, wxTOP, FromDIP(3));
-    bSizer->Add(title_host, 0, wxTOP| wxEXPAND, FromDIP(20));
-    bSizer->Add(radio1, 0, wxEXPAND | wxTOP, FromDIP(3));
-    bSizer->Add(radio2, 0, wxEXPAND | wxTOP, FromDIP(3));
-    bSizer->Add(radio3, 0, wxEXPAND | wxTOP, FromDIP(3));
-    bSizer->Add(radio4, 0, wxEXPAND | wxTOP, FromDIP(3));
     bSizer->Add(debug_button, 0, wxALIGN_CENTER_HORIZONTAL | wxTOP, FromDIP(15));
 
     page->SetSizer(bSizer);

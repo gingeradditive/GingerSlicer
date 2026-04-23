@@ -13,6 +13,7 @@
 #include "libslic3r/Config.hpp"
 #include "BitmapComboBox.hpp"
 #include "Widgets/ComboBox.hpp"
+#include "Plater.hpp"
 #include <wx/sizer.h>
 
 #include "libslic3r/ObjColorUtils.hpp"

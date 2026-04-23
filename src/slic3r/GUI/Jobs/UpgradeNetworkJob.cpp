@@ -36,86 +36,10 @@ void UpgradeNetworkJob::update_status(Ctl &ctl, int st, const std::string &msg)
 
 void UpgradeNetworkJob::process(Ctl &ctl)
 {
-    // downloading
-    int result = 0;
-
-    AppConfig* app_config = wxGetApp().app_config;
-    if (!app_config)
-        return;
-
-    BOOST_LOG_TRIVIAL(info) << "[UpgradeNetworkJob process]: enter";
-
-    // get temp path
-    fs::path target_file_path = (fs::temp_directory_path() / package_name);
-    fs::path tmp_path = target_file_path;
-    auto path_str = tmp_path.string() + wxString::Format(".%d%s", get_current_pid(), ".tmp").ToStdString();
-    tmp_path = fs::path(path_str);
-
-    BOOST_LOG_TRIVIAL(info) << "UpgradeNetworkJob: save netowrk_plugin to " << tmp_path.string();
-
-    auto cancel_fn    = [&ctl]() {
-        return ctl.was_canceled();
-    };
-    int curr_percent = 0;
-    result = wxGetApp().download_plugin(name, package_name, 
-        [this, &ctl, &curr_percent](int state, int percent, bool &cancel) {
-            if (state == InstallStatusNormal) {
-                update_status(ctl, percent, _u8L("Downloading"));
-            } else if (state == InstallStatusDownloadFailed) {
-                update_status(ctl, percent, _u8L("Download failed"));
-            } else {
-                update_status(ctl, percent, _u8L("Downloading"));
-            }
-            curr_percent = percent;
-        }, cancel_fn);
-
-    if (ctl.was_canceled()) {
-        update_status(ctl, 0, _u8L("Canceled"));
-        wxCommandEvent event(wxEVT_CLOSE_WINDOW);
-        event.SetEventObject(m_event_handle);
-        wxPostEvent(m_event_handle, event);
-        return;
-    }
-
-    if (result < 0) {
-        update_status(ctl, 0, _u8L("Download failed"));
-        wxCommandEvent event(EVT_DOWNLOAD_NETWORK_FAILED);
-        event.SetEventObject(m_event_handle);
-        wxPostEvent(m_event_handle, event);
-        return;
-    }
-
-    result = wxGetApp().install_plugin(
-        name, package_name,
-        [this, &ctl](int state, int percent, bool &cancel) {
-        if (state == InstallStatusInstallCompleted) {
-            update_status(ctl, percent, _u8L("Installed successfully"));
-        } else {
-            update_status(ctl, percent, _u8L("Installing"));
-        }
-        }, cancel_fn);
-
-    if (ctl.was_canceled()) {
-        update_status(ctl, 0, _u8L("Canceled"));
-        wxCommandEvent event(wxEVT_CLOSE_WINDOW);
-        event.SetEventObject(m_event_handle);
-        wxPostEvent(m_event_handle, event);
-        return;
-    }
-
-    if (result != 0) {
-        update_status(ctl, 0, _u8L("Install failed"));
-        wxCommandEvent event(EVT_INSTALL_NETWORK_FAILED);
-        event.SetEventObject(m_event_handle);
-        wxPostEvent(m_event_handle, event);
-        return;
-    }
-
-    wxCommandEvent event(EVT_UPGRADE_NETWORK_SUCCESS);
+    // BambuLab network plugin download/install removed
+    wxCommandEvent event(wxEVT_CLOSE_WINDOW);
     event.SetEventObject(m_event_handle);
     wxPostEvent(m_event_handle, event);
-    BOOST_LOG_TRIVIAL(info) << "[UpgradeNetworkJob process]: exit";
-    return;
 }
 
 void UpgradeNetworkJob::finalize(bool canceled, std::exception_ptr &eptr)

@@ -4,8 +4,6 @@
 function OnInit()
 {	
     TranslatePage();
-	
-	$("#HotspotWEB").prop("src","https://www.bambulab.com");
 }
 
 

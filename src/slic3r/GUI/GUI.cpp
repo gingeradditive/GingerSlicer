@@ -23,7 +23,6 @@
 #include "MsgDialog.hpp"
 #include "format.hpp"
 
-#include "WebUserLoginDialog.hpp"
 
 #include "libslic3r/Print.hpp"
 
@@ -489,14 +488,6 @@ void about()
     dlg.ShowModal();
 }
 
-void login()
-{
-	//LoginDialog dlg;
-	//dlg.ShowModal();
-
-	ZUserLogin dlg;
-    dlg.run();
-}
 
 void desktop_open_datadir_folder()
 {

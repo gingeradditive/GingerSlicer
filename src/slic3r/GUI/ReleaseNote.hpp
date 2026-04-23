@@ -25,11 +25,11 @@
 #include <wx/event.h>
 #include <wx/hyperlink.h>
 #include <wx/richtext/richtextctrl.h>
+#include <wx/simplebook.h>
+#include "BBLStatusBarSend.hpp"
 
-#include "AmsMappingPopup.hpp"
 #include "GUI_Utils.hpp"
 #include "wxExtensions.hpp"
-#include "DeviceManager.hpp"
 #include "Widgets/Label.hpp"
 #include "Widgets/Button.hpp"
 #include "Widgets/CheckBox.hpp"
@@ -37,8 +37,13 @@
 #include "Widgets/ScrolledWindow.hpp"
 #include <wx/hashmap.h>
 #include <wx/webview.h>
+#include <wx/webrequest.h>
+#include <boost/thread.hpp>
+#include <boost/bimap.hpp>
 
 namespace Slic3r { namespace GUI {
+
+class Plater;
 
 wxDECLARE_EVENT(EVT_SECONDARY_CHECK_CONFIRM, wxCommandEvent);
 wxDECLARE_EVENT(EVT_SECONDARY_CHECK_CANCEL, wxCommandEvent);
@@ -47,7 +52,6 @@ wxDECLARE_EVENT(EVT_SECONDARY_CHECK_DONE, wxCommandEvent);
 wxDECLARE_EVENT(EVT_SECONDARY_CHECK_RESUME, wxCommandEvent);
 wxDECLARE_EVENT(EVT_PRINT_ERROR_STOP, wxCommandEvent);
 wxDECLARE_EVENT(EVT_UPDATE_NOZZLE, wxCommandEvent);
-wxDECLARE_EVENT(EVT_LOAD_VAMS_TRAY, wxCommandEvent);
 wxDECLARE_EVENT(EVT_JUMP_TO_HMS, wxCommandEvent);
 wxDECLARE_EVENT(EVT_JUMP_TO_LIVEVIEW, wxCommandEvent);
 wxDECLARE_EVENT(EVT_UPDATE_TEXT_MSG, wxCommandEvent);
@@ -289,7 +293,8 @@ public:
     InputIpAddressDialog(wxWindow* parent = nullptr);
     ~InputIpAddressDialog();
 
-    MachineObject* m_obj{nullptr};
+    // BambuLab MachineObject removed
+    void* m_obj{nullptr};
     wxPanel * ip_input_top_panel{ nullptr };
     wxPanel * ip_input_bot_panel{ nullptr };
     Button* m_button_ok{ nullptr };
@@ -321,7 +326,7 @@ public:
     void switch_input_panel(int index);
     void on_cancel();
     void update_title(wxString title);
-    void set_machine_obj(MachineObject* obj);
+    void set_machine_obj(void* obj);
     void update_test_msg(wxString msg, bool connected);
     bool isIp(std::string ipstr);
     void check_ip_address_failed(int result);
