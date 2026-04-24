@@ -686,12 +686,10 @@ Sidebar::Sidebar(Plater *parent)
 
         wxBoxSizer* h_sizer_title = new wxBoxSizer(wxHORIZONTAL);
         h_sizer_title->Add(p->m_printer_icon, 0, wxALIGN_CENTRE | wxLEFT, FromDIP(16));
-        h_sizer_title->AddSpacer(FromDIP(SidebarProps::ElementSpacing()));
         h_sizer_title->Add(p->m_text_printer_settings, 0, wxALIGN_CENTER);
         h_sizer_title->AddStretchSpacer();
         if (p->m_printer_setting)
             h_sizer_title->Add(p->m_printer_setting, 0, wxALIGN_CENTER);
-        h_sizer_title->AddSpacer(FromDIP(16));
         h_sizer_title->SetMinSize(-1, 3 * em);
 
         p->m_panel_printer_title->SetSizer(h_sizer_title);
@@ -752,8 +750,6 @@ Sidebar::Sidebar(Plater *parent)
         p->combo_printer = combo_printer;
 
         wxBoxSizer* vsizer_printer = new wxBoxSizer(wxVERTICAL);
-
-        vsizer_printer->AddSpacer(FromDIP(16));
 
         // Printer host selection (above machine preset)
         {
@@ -875,7 +871,6 @@ Sidebar::Sidebar(Plater *parent)
             host_sizer->Add(m_printer_host_list, 1, wxLEFT | wxEXPAND, FromDIP(SidebarProps::ElementSpacing()));
             host_sizer->Add(m_btn_add_host, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()));
             host_sizer->Add(m_btn_remove_host, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::IconSpacing()));
-            host_sizer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
             vsizer_printer->Add(host_sizer, 0, wxEXPAND, 0);
             vsizer_printer->AddSpacer(FromDIP(5));
         }
@@ -887,7 +882,6 @@ Sidebar::Sidebar(Plater *parent)
         hsizer_printer->Add(printer_title, 0, wxLEFT | wxALIGN_CENTER_VERTICAL, FromDIP(SidebarProps::ContentMargin()));
         hsizer_printer->Add(combo_printer, 1, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()));
         hsizer_printer->Add(edit_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()));
-        hsizer_printer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
         vsizer_printer->Add(hsizer_printer, 0, wxEXPAND, 0);
 
         p->m_panel_printer_content->SetSizer(vsizer_printer);
@@ -916,7 +910,6 @@ Sidebar::Sidebar(Plater *parent)
     p->m_staticText_filament_settings = new Label(p->m_panel_filament_title, _L("Filament"), LB_PROPAGATE_MOUSE_EVENT);
     p->m_staticText_filament_settings->SetFont(Label::Head_14);
     bSizer39->Add(p->m_filament_icon, 0, wxALIGN_CENTER | wxLEFT, FromDIP(16));
-    bSizer39->AddSpacer(FromDIP(SidebarProps::ElementSpacing()));
     bSizer39->Add( p->m_staticText_filament_settings, 0, wxALIGN_CENTER );
     bSizer39->Add(FromDIP(10), 0, 0, 0, 0);
     bSizer39->SetMinSize(-1, FromDIP(30));
@@ -1004,15 +997,9 @@ Sidebar::Sidebar(Plater *parent)
     bSizer39->Add(p->m_flushing_volume_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(5));
     bSizer39->Hide(p->m_flushing_volume_btn);
 
-    // ORCA Moved add button after delete button to prevent add button position change when remove icon automatically hidden
-
-    bSizer39->AddSpacer(FromDIP(20));
-
     if (p->combos_filament.size() <= 1) { // ORCA Fix Flushing button and Delete filament button not hidden on launch while only 1 filament exist
         bSizer39->Hide(p->m_flushing_volume_btn);
     }
-
-
 
     // add filament content
     p->m_panel_filament_content = new wxPanel( p->scrolled, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
@@ -1031,8 +1018,6 @@ Sidebar::Sidebar(Plater *parent)
     /* first filament item */
     p->combos_filament[0] = new PlaterPresetComboBox(p->m_panel_filament_content, Preset::TYPE_FILAMENT);
     auto combo_and_btn_sizer = new wxBoxSizer(wxHORIZONTAL);
-    // BBS:  filament double columns
-    combo_and_btn_sizer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
     if (p->combos_filament[0]->clr_picker) {
         p->combos_filament[0]->clr_picker->SetLabel("1");
         combo_and_btn_sizer->Add(p->combos_filament[0]->clr_picker, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT,FromDIP(SidebarProps::ElementSpacing()) - FromDIP(2)); // ElementSpacing - 2 (from combo box))
@@ -1052,14 +1037,12 @@ Sidebar::Sidebar(Plater *parent)
     combobox->edit_btn = edit_btn;
 
     combo_and_btn_sizer->Add(edit_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()) - FromDIP(2)); // ElementSpacing - 2 (from combo box))
-    combo_and_btn_sizer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
 
     p->combos_filament[0]->set_filament_idx(0);
     p->sizer_filaments->GetItem((size_t)0)->GetSizer()->Add(combo_and_btn_sizer, 1, wxEXPAND);
 
     //bSizer_filament_content->Add(p->sizer_filaments, 1, wxALIGN_CENTER | wxALL);
     wxSizer *sizer_filaments2 = new wxBoxSizer(wxVERTICAL);
-    sizer_filaments2->AddSpacer(FromDIP(16));
     sizer_filaments2->Add(p->sizer_filaments, 0, wxEXPAND, 0);
     p->m_panel_filament_content->SetSizer(sizer_filaments2);
     p->m_panel_filament_content->Layout();
@@ -1251,29 +1234,10 @@ void Sidebar::init_filament_combo(PlaterPresetComboBox **combo, const int filame
     auto combo_and_btn_sizer = new wxBoxSizer(wxHORIZONTAL);
 
     // BBS:  filament double columns
-
-    // int em = wxGetApp().em_unit();
-    if ((filament_idx % 2) == 0) // Dont add right column item. this one create equal spacing on left, right & middle
-        combo_and_btn_sizer->AddSpacer(FromDIP((filament_idx % 2) == 0 ? 12 : 3)); // Content Margin
-
     (*combo)->clr_picker->SetLabel(wxString::Format("%d", filament_idx + 1));
     combo_and_btn_sizer->Add((*combo)->clr_picker, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, FromDIP(SidebarProps::ElementSpacing()) - FromDIP(2)); // ElementSpacing - 2 (from combo box))
     combo_and_btn_sizer->Add(*combo, 1, wxALL | wxEXPAND, FromDIP(2))->SetMinSize({-1, FromDIP(30)});
 
-    /* BBS hide del_btn
-    ScalableButton* del_btn = new ScalableButton(p->m_panel_filament_content, wxID_ANY, "delete_filament");
-    del_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent& e){
-        int extruder_count = std::max(1, (int)p->combos_filament.size() - 1);
-
-        update_objects_list_filament_column(std::max(1, extruder_count - 1));
-        on_filaments_change(extruder_count);
-        wxGetApp().preset_bundle->printers.get_edited_preset().set_num_extruders(extruder_count);
-        wxGetApp().preset_bundle->update_multi_material_filament_presets();
-    });
-
-    combo_and_btn_sizer->Add(32 * em / 10, 0, 0, 0, 0);
-    combo_and_btn_sizer->Add(del_btn, 0, wxALIGN_CENTER_VERTICAL, 5 * em / 10);
-    */
     ScalableButton* edit_btn = new ScalableButton(p->m_panel_filament_content, wxID_ANY, "edit");
     edit_btn->SetToolTip(_L("Click to edit preset"));
 
@@ -1287,8 +1251,6 @@ void Sidebar::init_filament_combo(PlaterPresetComboBox **combo, const int filame
     combobox->edit_btn = edit_btn;
 
     combo_and_btn_sizer->Add(edit_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()) - FromDIP(2)); // ElementSpacing - 2 (from combo box))
-
-    combo_and_btn_sizer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
 
     // BBS:  filament double columns
     auto side = filament_idx % 2;
