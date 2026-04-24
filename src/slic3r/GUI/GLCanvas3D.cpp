@@ -7495,7 +7495,7 @@ void GLCanvas3D::_check_and_update_toolbar_icon_scale()
     m_main_toolbar.set_icons_size(size);
     m_assemble_view_toolbar.set_icons_size(size);
     m_separator_toolbar.set_icons_size(size);
-    collapse_toolbar.set_icons_size(size / 2.0);
+    // collapse_toolbar icons size is set statically in init_collapse_toolbar
     m_gizmos.set_overlay_icon_size(size);
 
     //BBS: GUI refactor: GLToolbar
@@ -8268,7 +8268,7 @@ void GLCanvas3D::_render_collapse_toolbar() const
     GLToolbar& collapse_toolbar = plater.get_collapse_toolbar();
 
     const Size cnv_size = get_canvas_size();
-    const float top  = 0.5f * (float)cnv_size.get_height();
+    const float top  = 0.5f * (float)cnv_size.get_height() - 16.0f;
     const float left = sidebar_docking_dir == Sidebar::Right ? 0.5f * (float) cnv_size.get_width() - (float) collapse_toolbar.get_width() :
                                                                -0.5f * (float) cnv_size.get_width();
 
