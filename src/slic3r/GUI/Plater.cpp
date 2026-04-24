@@ -761,13 +761,6 @@ Sidebar::Sidebar(Plater *parent)
             // Populate from AppConfig
             update_printer_host_list();
 
-            // Apply the selected host immediately on startup.
-            // Without this, print_host stays on preset/default until user re-selects the dropdown.
-            {
-                AppConfig *app_config = wxGetApp().app_config;
-                apply_printer_host_to_config(app_config->get_selected_printer_host());
-            }
-
             m_printer_host_list->Bind(wxEVT_COMBOBOX, [this](wxCommandEvent& e) {
                 int sel = m_printer_host_list->GetSelection();
                 if (sel != wxNOT_FOUND) {
@@ -1245,13 +1238,16 @@ void Sidebar::apply_printer_host_to_config(const std::string &host)
     auto& cfg = preset_bundle.printers.get_edited_preset().config;
     cfg.opt_string("print_host") = host;
 
+    auto p_mainframe = wxGetApp().mainframe;
+    if (!p_mainframe)
+        return;
+
     // Also update the tab if open
     Tab* printer_tab = wxGetApp().get_tab(Preset::TYPE_PRINTER);
     if (printer_tab)
         printer_tab->load_config(cfg);
 
     // Refresh the device tab URL directly (avoid circular call to update_all_preset_comboboxes)
-    auto p_mainframe = wxGetApp().mainframe;
     wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
     wxString apikey;
     if (url.empty())
