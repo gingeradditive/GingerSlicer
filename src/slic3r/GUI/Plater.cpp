@@ -659,7 +659,7 @@ Sidebar::Sidebar(Plater *parent)
     auto* scrolled_sizer = m_scrolled_sizer = new wxBoxSizer(wxVERTICAL);
     p->scrolled->SetSizer(scrolled_sizer);
 
-    wxColour title_bg = wxColour(248, 248, 248);
+    wxColour title_bg = *wxWHITE;
     wxColour inactive_text = wxColour(86, 86, 86);
     wxColour active_text = wxColour(0, 0, 0);
     wxColour static_line_col = wxColour(166, 169, 170);
@@ -674,7 +674,6 @@ Sidebar::Sidebar(Plater *parent)
         // 1.1 create title bar resources
         p->m_panel_printer_title = new StaticBox(p->scrolled, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL | wxBORDER_NONE);
         p->m_panel_printer_title->SetBackgroundColor(title_bg);
-        p->m_panel_printer_title->SetBackgroundColor2(0xF1F1F1);
 
         p->m_printer_icon = new ScalableButton(p->m_panel_printer_title, wxID_ANY, "printer");
         p->m_text_printer_settings = new Label(p->m_panel_printer_title, _L("Printer"), LB_PROPAGATE_MOUSE_EVENT);
@@ -702,6 +701,32 @@ Sidebar::Sidebar(Plater *parent)
         //auto spliter_1 = new ::StaticLine(p->scrolled);
         //spliter_1->SetBackgroundColour("#A6A9AA");
         //scrolled_sizer->Add(spliter_1, 0, wxEXPAND);
+
+        // add top bar before printer title (3 bars: white top, gray middle, white bottom)
+        wxWindow* printer_top_bar_middle = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+        printer_top_bar_middle->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
+        scrolled_sizer->Add(printer_top_bar_middle, 0, wxEXPAND);
+
+        wxWindow* printer_top_bar_bottom = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+        printer_top_bar_bottom->SetBackgroundColour(*wxWHITE);
+        {
+            wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
+            auto corner_left = create_scaled_bitmap("card_corner", p->scrolled, 16);
+            wxImage corner_left_img = corner_left.ConvertToImage();
+            corner_left_img = corner_left_img.Rotate(180, corner_left.GetCentre());
+            wxBitmap corner_left_rotated(corner_left_img);
+            wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(printer_top_bar_bottom, wxID_ANY, corner_left_rotated);
+            bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
+            bar_sizer->AddStretchSpacer(1);
+            auto corner_right = create_scaled_bitmap("card_corner", p->scrolled, 16);
+            wxImage corner_right_img = corner_right.ConvertToImage();
+            corner_right_img = corner_right_img.Rotate(270, corner_right_img.GetCentre());
+            wxBitmap corner_right_rotated(corner_right_img);
+            wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(printer_top_bar_bottom, wxID_ANY, corner_right_rotated);
+            bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
+            printer_top_bar_bottom->SetSizer(bar_sizer);
+        }
+        scrolled_sizer->Add(printer_top_bar_bottom, 0, wxEXPAND);
 
         // add printer title
         scrolled_sizer->Add(p->m_panel_printer_title, 0, wxEXPAND | wxALL, 0);
@@ -887,7 +912,6 @@ Sidebar::Sidebar(Plater *parent)
     // add filament title
     p->m_panel_filament_title = new StaticBox(p->scrolled, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL | wxBORDER_NONE);
     p->m_panel_filament_title->SetBackgroundColor(title_bg);
-    p->m_panel_filament_title->SetBackgroundColor2(0xF1F1F1);
     p->m_panel_filament_title->Bind(wxEVT_LEFT_UP, [this](wxMouseEvent &e) {
         if (e.GetPosition().x > (p->m_flushing_volume_btn->IsShown()
                 ? p->m_flushing_volume_btn->GetPosition().x : 0))
@@ -914,6 +938,54 @@ Sidebar::Sidebar(Plater *parent)
     auto spliter_1 = new StaticLine(p->scrolled);
     spliter_1->SetLineColour("#A6A9AA");
     scrolled_sizer->Add(spliter_1, 0, wxEXPAND);
+
+    // add top bar before filament title (3 bars: white top, gray middle, white bottom)
+    wxWindow* filament_top_bar_top = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+    filament_top_bar_top->SetBackgroundColour(*wxWHITE);
+    {
+        wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
+        auto corner_left = create_scaled_bitmap("card_corner", p->scrolled, 16);
+        wxImage corner_left_img = corner_left.ConvertToImage();
+        corner_left_img = corner_left_img.Rotate(90, corner_left_img.GetCentre());
+        wxBitmap corner_left_rotated(corner_left_img);
+        wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(filament_top_bar_top, wxID_ANY, corner_left_rotated);
+        bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
+        bar_sizer->AddStretchSpacer(1);
+        auto corner_right = create_scaled_bitmap("card_corner", p->scrolled, 16);
+        wxImage corner_right_img = corner_right.ConvertToImage();
+        corner_right_img = corner_right_img.Rotate(0, corner_right_img.GetCentre());
+        wxBitmap corner_right_rotated(corner_right_img);
+        wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(filament_top_bar_top, wxID_ANY, corner_right_rotated);
+        bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
+        filament_top_bar_top->SetSizer(bar_sizer);
+    }
+    scrolled_sizer->Add(filament_top_bar_top, 0, wxEXPAND);
+
+    wxWindow* filament_top_bar_middle = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+    filament_top_bar_middle->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
+    scrolled_sizer->Add(filament_top_bar_middle, 0, wxEXPAND);
+
+    wxWindow* filament_top_bar_bottom = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+    filament_top_bar_bottom->SetBackgroundColour(*wxWHITE);
+    {
+        wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
+        auto corner_left = create_scaled_bitmap("card_corner", p->scrolled, 16);
+        wxImage corner_left_img = corner_left.ConvertToImage();
+        corner_left_img = corner_left_img.Rotate(180, corner_left.GetCentre());
+        wxBitmap corner_left_rotated(corner_left_img);
+        wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(filament_top_bar_bottom, wxID_ANY, corner_left_rotated);
+        bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
+        bar_sizer->AddStretchSpacer(1);
+        auto corner_right = create_scaled_bitmap("card_corner", p->scrolled, 16);
+        wxImage corner_right_img = corner_right.ConvertToImage();
+        corner_right_img = corner_right_img.Rotate(270, corner_right.GetCentre());
+        wxBitmap corner_right_rotated(corner_right_img);
+        wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(filament_top_bar_bottom, wxID_ANY, corner_right_rotated);
+        bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
+        filament_top_bar_bottom->SetSizer(bar_sizer);
+    }
+    scrolled_sizer->Add(filament_top_bar_bottom, 0, wxEXPAND);
+
     scrolled_sizer->Add(p->m_panel_filament_title, 0, wxEXPAND | wxALL, 0);
     auto spliter_2 = new StaticLine(p->scrolled);
     spliter_2->SetLineColour("#CECECE");
@@ -1027,6 +1099,54 @@ Sidebar::Sidebar(Plater *parent)
         auto spliter_1 = new StaticLine(p->scrolled);
         spliter_1->SetLineColour("#A6A9AA");
         scrolled_sizer->Add(spliter_1, 0, wxEXPAND);
+
+        // add top bar before project title (3 bars: white top, gray middle, white bottom)
+        wxWindow* project_top_bar_top = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+        project_top_bar_top->SetBackgroundColour(*wxWHITE);
+        {
+            wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
+            auto corner_left = create_scaled_bitmap("card_corner", p->scrolled, 16);
+            wxImage corner_left_img = corner_left.ConvertToImage();
+            corner_left_img = corner_left_img.Rotate(90, corner_left_img.GetCentre());
+            wxBitmap corner_left_rotated(corner_left_img);
+            wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(project_top_bar_top, wxID_ANY, corner_left_rotated);
+            bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
+            bar_sizer->AddStretchSpacer(1);
+            auto corner_right = create_scaled_bitmap("card_corner", p->scrolled, 16);
+            wxImage corner_right_img = corner_right.ConvertToImage();
+            corner_right_img = corner_right_img.Rotate(0, corner_right_img.GetCentre());
+            wxBitmap corner_right_rotated(corner_right_img);
+            wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(project_top_bar_top, wxID_ANY, corner_right_rotated);
+            bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
+            project_top_bar_top->SetSizer(bar_sizer);
+        }
+        scrolled_sizer->Add(project_top_bar_top, 0, wxEXPAND);
+
+        wxWindow* project_top_bar_middle = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+        project_top_bar_middle->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
+        scrolled_sizer->Add(project_top_bar_middle, 0, wxEXPAND);
+
+        wxWindow* project_top_bar_bottom = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+        project_top_bar_bottom->SetBackgroundColour(*wxWHITE);
+        {
+            wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
+            auto corner_left = create_scaled_bitmap("card_corner", p->scrolled, 16);
+            wxImage corner_left_img = corner_left.ConvertToImage();
+            corner_left_img = corner_left_img.Rotate(180, corner_left.GetCentre());
+            wxBitmap corner_left_rotated(corner_left_img);
+            wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(project_top_bar_bottom, wxID_ANY, corner_left_rotated);
+            bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
+            bar_sizer->AddStretchSpacer(1);
+            auto corner_right = create_scaled_bitmap("card_corner", p->scrolled, 16);
+            wxImage corner_right_img = corner_right.ConvertToImage();
+            corner_right_img = corner_right_img.Rotate(270, corner_right.GetCentre());
+            wxBitmap corner_right_rotated(corner_right_img);
+            wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(project_top_bar_bottom, wxID_ANY, corner_right_rotated);
+            bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
+            project_top_bar_bottom->SetSizer(bar_sizer);
+        }
+        scrolled_sizer->Add(project_top_bar_bottom, 0, wxEXPAND);
+
         scrolled_sizer->Add(params_panel->get_top_panel(), 0, wxEXPAND);
         auto spliter_2 = new StaticLine(p->scrolled);
         spliter_2->SetLineColour("#CECECE");
