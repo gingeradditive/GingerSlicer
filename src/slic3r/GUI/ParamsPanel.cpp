@@ -212,6 +212,7 @@ ParamsPanel::ParamsPanel( wxWindow* parent, wxWindowID id, const wxPoint& pos, c
         m_process_icon = new ScalableButton(m_top_panel, wxID_ANY, "process");
 
         m_title_label = new Label(m_top_panel, _L("Process"));
+        m_title_label->SetFont(Label::Head_14);
 
         //int width, height;
         // BBS: new layout
@@ -352,7 +353,7 @@ void ParamsPanel::create_layout()
 
     if (m_top_panel) {
         m_mode_sizer = new wxBoxSizer( wxHORIZONTAL );
-        m_mode_sizer->AddSpacer(FromDIP(SidebarProps::TitlebarMargin()));
+        m_mode_sizer->AddSpacer(FromDIP(16));
         m_mode_sizer->Add(m_process_icon, 0, wxALIGN_CENTER);
         m_mode_sizer->AddSpacer(FromDIP(SidebarProps::ElementSpacing()));
         m_mode_sizer->Add( m_title_label, 0, wxALIGN_CENTER );
