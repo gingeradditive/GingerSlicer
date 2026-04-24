@@ -711,18 +711,12 @@ Sidebar::Sidebar(Plater *parent)
         printer_top_bar_bottom->SetBackgroundColour(*wxWHITE);
         {
             wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
-            auto corner_left = create_scaled_bitmap("card_corner", p->scrolled, 16);
-            wxImage corner_left_img = corner_left.ConvertToImage();
-            corner_left_img = corner_left_img.Rotate(180, corner_left.GetCentre());
-            wxBitmap corner_left_rotated(corner_left_img);
-            wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(printer_top_bar_bottom, wxID_ANY, corner_left_rotated);
+            auto corner_left = create_scaled_bitmap("card_corner_180", p->scrolled, 16);
+            wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(printer_top_bar_bottom, wxID_ANY, corner_left);
             bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
             bar_sizer->AddStretchSpacer(1);
-            auto corner_right = create_scaled_bitmap("card_corner", p->scrolled, 16);
-            wxImage corner_right_img = corner_right.ConvertToImage();
-            corner_right_img = corner_right_img.Rotate(270, corner_right_img.GetCentre());
-            wxBitmap corner_right_rotated(corner_right_img);
-            wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(printer_top_bar_bottom, wxID_ANY, corner_right_rotated);
+            auto corner_right = create_scaled_bitmap("card_corner_270", p->scrolled, 16);
+            wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(printer_top_bar_bottom, wxID_ANY, corner_right);
             bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
             printer_top_bar_bottom->SetSizer(bar_sizer);
         }
@@ -944,18 +938,12 @@ Sidebar::Sidebar(Plater *parent)
     filament_top_bar_top->SetBackgroundColour(*wxWHITE);
     {
         wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
-        auto corner_left = create_scaled_bitmap("card_corner", p->scrolled, 16);
-        wxImage corner_left_img = corner_left.ConvertToImage();
-        corner_left_img = corner_left_img.Rotate(90, corner_left_img.GetCentre());
-        wxBitmap corner_left_rotated(corner_left_img);
-        wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(filament_top_bar_top, wxID_ANY, corner_left_rotated);
+        auto corner_left = create_scaled_bitmap("card_corner_90", p->scrolled, 16);
+        wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(filament_top_bar_top, wxID_ANY, corner_left);
         bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
         bar_sizer->AddStretchSpacer(1);
-        auto corner_right = create_scaled_bitmap("card_corner", p->scrolled, 16);
-        wxImage corner_right_img = corner_right.ConvertToImage();
-        corner_right_img = corner_right_img.Rotate(0, corner_right_img.GetCentre());
-        wxBitmap corner_right_rotated(corner_right_img);
-        wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(filament_top_bar_top, wxID_ANY, corner_right_rotated);
+        auto corner_right = create_scaled_bitmap("card_corner_0", p->scrolled, 16);
+        wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(filament_top_bar_top, wxID_ANY, corner_right);
         bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
         filament_top_bar_top->SetSizer(bar_sizer);
     }
@@ -969,18 +957,12 @@ Sidebar::Sidebar(Plater *parent)
     filament_top_bar_bottom->SetBackgroundColour(*wxWHITE);
     {
         wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
-        auto corner_left = create_scaled_bitmap("card_corner", p->scrolled, 16);
-        wxImage corner_left_img = corner_left.ConvertToImage();
-        corner_left_img = corner_left_img.Rotate(180, corner_left.GetCentre());
-        wxBitmap corner_left_rotated(corner_left_img);
-        wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(filament_top_bar_bottom, wxID_ANY, corner_left_rotated);
+        auto corner_left = create_scaled_bitmap("card_corner_180", p->scrolled, 16);
+        wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(filament_top_bar_bottom, wxID_ANY, corner_left);
         bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
         bar_sizer->AddStretchSpacer(1);
-        auto corner_right = create_scaled_bitmap("card_corner", p->scrolled, 16);
-        wxImage corner_right_img = corner_right.ConvertToImage();
-        corner_right_img = corner_right_img.Rotate(270, corner_right.GetCentre());
-        wxBitmap corner_right_rotated(corner_right_img);
-        wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(filament_top_bar_bottom, wxID_ANY, corner_right_rotated);
+        auto corner_right = create_scaled_bitmap("card_corner_270", p->scrolled, 16);
+        wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(filament_top_bar_bottom, wxID_ANY, corner_right);
         bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
         filament_top_bar_bottom->SetSizer(bar_sizer);
     }
@@ -1105,18 +1087,12 @@ Sidebar::Sidebar(Plater *parent)
         project_top_bar_top->SetBackgroundColour(*wxWHITE);
         {
             wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
-            auto corner_left = create_scaled_bitmap("card_corner", p->scrolled, 16);
-            wxImage corner_left_img = corner_left.ConvertToImage();
-            corner_left_img = corner_left_img.Rotate(90, corner_left_img.GetCentre());
-            wxBitmap corner_left_rotated(corner_left_img);
-            wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(project_top_bar_top, wxID_ANY, corner_left_rotated);
+            auto corner_left = create_scaled_bitmap("card_corner_90", p->scrolled, 16);
+            wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(project_top_bar_top, wxID_ANY, corner_left);
             bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
             bar_sizer->AddStretchSpacer(1);
-            auto corner_right = create_scaled_bitmap("card_corner", p->scrolled, 16);
-            wxImage corner_right_img = corner_right.ConvertToImage();
-            corner_right_img = corner_right_img.Rotate(0, corner_right_img.GetCentre());
-            wxBitmap corner_right_rotated(corner_right_img);
-            wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(project_top_bar_top, wxID_ANY, corner_right_rotated);
+            auto corner_right = create_scaled_bitmap("card_corner_0", p->scrolled, 16);
+            wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(project_top_bar_top, wxID_ANY, corner_right);
             bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
             project_top_bar_top->SetSizer(bar_sizer);
         }
@@ -1130,18 +1106,12 @@ Sidebar::Sidebar(Plater *parent)
         project_top_bar_bottom->SetBackgroundColour(*wxWHITE);
         {
             wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
-            auto corner_left = create_scaled_bitmap("card_corner", p->scrolled, 16);
-            wxImage corner_left_img = corner_left.ConvertToImage();
-            corner_left_img = corner_left_img.Rotate(180, corner_left.GetCentre());
-            wxBitmap corner_left_rotated(corner_left_img);
-            wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(project_top_bar_bottom, wxID_ANY, corner_left_rotated);
+            auto corner_left = create_scaled_bitmap("card_corner_180", p->scrolled, 16);
+            wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(project_top_bar_bottom, wxID_ANY, corner_left);
             bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
             bar_sizer->AddStretchSpacer(1);
-            auto corner_right = create_scaled_bitmap("card_corner", p->scrolled, 16);
-            wxImage corner_right_img = corner_right.ConvertToImage();
-            corner_right_img = corner_right_img.Rotate(270, corner_right.GetCentre());
-            wxBitmap corner_right_rotated(corner_right_img);
-            wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(project_top_bar_bottom, wxID_ANY, corner_right_rotated);
+            auto corner_right = create_scaled_bitmap("card_corner_270", p->scrolled, 16);
+            wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(project_top_bar_bottom, wxID_ANY, corner_right);
             bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
             project_top_bar_bottom->SetSizer(bar_sizer);
         }
