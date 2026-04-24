@@ -1448,7 +1448,9 @@ wxBoxSizer* MainFrame::create_side_tools()
 
     // Advanced toggle
     m_advanced_title = new Label(this, Label::Body_12, _L("Advance"));
+    m_advanced_title->SetBackgroundColour(*wxWHITE);
     m_advanced_view = new SwitchButton(this, wxID_ABOUT);
+    m_advanced_view->SetBackgroundColour(*wxWHITE);
     m_advanced_view->SetValue(wxGetApp().get_mode() == comAdvanced);
     m_advanced_view->Bind(wxEVT_TOGGLEBUTTON, [this](wxCommandEvent& e) {
         bool is_advanced = m_advanced_view->GetValue();

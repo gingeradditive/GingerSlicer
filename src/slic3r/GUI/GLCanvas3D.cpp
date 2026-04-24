@@ -8269,8 +8269,17 @@ void GLCanvas3D::_render_collapse_toolbar() const
 
     const Size cnv_size = get_canvas_size();
     const float top  = 0.5f * (float)cnv_size.get_height() - 16.0f;
-    const float left = sidebar_docking_dir == Sidebar::Right ? 0.5f * (float) cnv_size.get_width() - (float) collapse_toolbar.get_width() :
-                                                               -0.5f * (float) cnv_size.get_width();
+    float left = sidebar_docking_dir == Sidebar::Right ? 0.5f * (float) cnv_size.get_width() - (float) collapse_toolbar.get_width() :
+                                                         -0.5f * (float) cnv_size.get_width();
+
+    // Add 16px margin from right when sidebar is collapsed
+    if (plater.is_sidebar_collapsed()) {
+        if (sidebar_docking_dir == Sidebar::Right) {
+            left -= 16.0f;
+        } else {
+            left += 16.0f;
+        }
+    }
 
     collapse_toolbar.set_position(top, left);
     collapse_toolbar.render(*this);
