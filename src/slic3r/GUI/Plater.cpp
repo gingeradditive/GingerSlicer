@@ -631,7 +631,7 @@ static DynamicFilamentList dynamic_filament_list;
 static DynamicFilamentList1Based dynamic_filament_list_1_based;
 
 Sidebar::Sidebar(Plater *parent)
-    : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxSize(42 * wxGetApp().em_unit(), -1)), p(new priv(parent))
+    : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxSize(48 * wxGetApp().em_unit(), -1)), p(new priv(parent))
 {
     Choice::register_dynamic_list("support_filament", &dynamic_filament_list);
     Choice::register_dynamic_list("support_interface_filament", &dynamic_filament_list);
@@ -1202,9 +1202,13 @@ Sidebar::Sidebar(Plater *parent)
     wxPanel* left_border = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(16), -1));
     left_border->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
 
+    wxPanel* right_border = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(16), -1));
+    right_border->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
+
     auto *sizer = new wxBoxSizer(wxHORIZONTAL);
     sizer->Add(left_border, 0, wxEXPAND);
     sizer->Add(p->scrolled, 1, wxEXPAND);
+    sizer->Add(right_border, 0, wxEXPAND);
     SetSizer(sizer);
 }
 
@@ -1542,7 +1546,7 @@ void Sidebar::change_top_border_for_mode_sizer(bool increase_border)
 
 void Sidebar::msw_rescale()
 {
-    SetMinSize(wxSize(42 * wxGetApp().em_unit(), -1));
+    SetMinSize(wxSize(48 * wxGetApp().em_unit(), -1));
     p->m_panel_printer_title->GetSizer()->SetMinSize(-1, 3 * wxGetApp().em_unit());
     p->m_panel_filament_title->GetSizer()
         ->SetMinSize(-1, 3 * wxGetApp().em_unit());
@@ -2652,9 +2656,14 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     m_aui_mgr.SetManagedWindow(q);
     m_aui_mgr.SetDockSizeConstraint(1, 1);
     //m_aui_mgr.GetArtProvider()->SetMetric(wxAUI_DOCKART_PANE_BORDER_SIZE, 0);
-    //m_aui_mgr.GetArtProvider()->SetMetric(wxAUI_DOCKART_SASH_SIZE, 2);
+    m_aui_mgr.GetArtProvider()->SetMetric(wxAUI_DOCKART_SASH_SIZE, 0);
+    m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_SASH_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
     m_aui_mgr.GetArtProvider()->SetMetric(wxAUI_DOCKART_CAPTION_SIZE, 18);
     m_aui_mgr.GetArtProvider()->SetMetric(wxAUI_DOCKART_GRADIENT_TYPE, wxAUI_GRADIENT_NONE);
+    m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_BACKGROUND_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
+    m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_INACTIVE_CAPTION_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
+    m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_INACTIVE_CAPTION_TEXT_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
+    m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_ACTIVE_CAPTION_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
 
     this->q->SetFont(Slic3r::GUI::wxGetApp().normal_font());
 
@@ -2734,7 +2743,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
                                    .CaptionVisible(false)
                                    .PaneBorder(false)
                                    .Gripper(false)
-                                   .BestSize(wxSize(42 * wxGetApp().em_unit(), 90 * wxGetApp().em_unit())));
+                                   .BestSize(wxSize(48 * wxGetApp().em_unit(), 90 * wxGetApp().em_unit())));
 
     auto* panel_sizer = new wxBoxSizer(wxHORIZONTAL);
     panel_sizer->Add(view3D, 1, wxEXPAND | wxALL, 0);
@@ -2757,6 +2766,11 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         }
         // Always enforce no caption/border on sidebar after loading perspective
         sidebar.CaptionVisible(false).PaneBorder(false).Gripper(false);
+        
+        // Re-apply sash color after loading perspective
+        m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_SASH_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
+        m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_BACKGROUND_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
+        m_aui_mgr.Update();
 
         // Keep tracking the current sidebar size, by storing it using `best_size`, which will be stored
         // in the config and re-applied when the app is opened again.
@@ -3341,6 +3355,10 @@ void Plater::priv::reset_window_layout()
     pane.CaptionVisible(false).PaneBorder(false).Gripper(false);
     sidebar_layout.is_collapsed = false;
     update_sidebar(true);
+    
+    // Re-apply sash color after loading perspective
+    m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_SASH_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
+    m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_BACKGROUND_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
 }
 
 Sidebar::DockingState Plater::priv::get_sidebar_docking_state() {
@@ -13207,6 +13225,11 @@ void Plater::sys_color_changed()
     p->preview->sys_color_changed();
     p->sidebar->sys_color_changed();
     p->menus.sys_color_changed();
+
+    // Re-apply sash color when system colors change
+    p->m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_SASH_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
+    p->m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_BACKGROUND_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
+    p->m_aui_mgr.Update();
 
     Layout();
     GetParent()->Layout();
