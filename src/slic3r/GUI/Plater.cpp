@@ -697,12 +697,6 @@ Sidebar::Sidebar(Plater *parent)
         p->m_panel_printer_title->SetSizer(h_sizer_title);
         p->m_panel_printer_title->Layout();
 
-        // 1.2 Add spliters around title bar
-        // add spliter 1
-        //auto spliter_1 = new ::StaticLine(p->scrolled);
-        //spliter_1->SetBackgroundColour("#A6A9AA");
-        //scrolled_sizer->Add(spliter_1, 0, wxEXPAND);
-
         // add top bar before printer title (3 bars: white top, gray middle, white bottom)
         wxWindow* printer_top_bar_middle = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
         printer_top_bar_middle->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
@@ -896,8 +890,6 @@ Sidebar::Sidebar(Plater *parent)
         hsizer_printer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
         vsizer_printer->Add(hsizer_printer, 0, wxEXPAND, 0);
 
-        vsizer_printer->AddSpacer(FromDIP(16));
-
         p->m_panel_printer_content->SetSizer(vsizer_printer);
         p->m_panel_printer_content->Layout();
         scrolled_sizer->Add(p->m_panel_printer_content, 0, wxEXPAND | wxLEFT | wxRIGHT, FromDIP(16));
@@ -1069,7 +1061,6 @@ Sidebar::Sidebar(Plater *parent)
     wxSizer *sizer_filaments2 = new wxBoxSizer(wxVERTICAL);
     sizer_filaments2->AddSpacer(FromDIP(16));
     sizer_filaments2->Add(p->sizer_filaments, 0, wxEXPAND, 0);
-    sizer_filaments2->AddSpacer(FromDIP(16));
     p->m_panel_filament_content->SetSizer(sizer_filaments2);
     p->m_panel_filament_content->Layout();
     scrolled_sizer->Add(p->m_panel_filament_content, 0, wxEXPAND | wxLEFT | wxRIGHT, FromDIP(16));
