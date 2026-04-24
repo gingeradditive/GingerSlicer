@@ -1199,6 +1199,26 @@ Sidebar::Sidebar(Plater *parent)
     p->object_layers->Hide();
     p->sizer_params->Add(p->object_layers->get_sizer(), 0, wxEXPAND | wxTOP, 0);
 
+    // Add bottom bar decoration (3 bars: white top, gray middle, white bottom)
+    wxWindow* bottom_bar_top = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+    bottom_bar_top->SetBackgroundColour(*wxWHITE);
+    {
+        wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
+        auto corner_left = create_scaled_bitmap("card_corner_90", p->scrolled, 16);
+        wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(bottom_bar_top, wxID_ANY, corner_left);
+        bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
+        bar_sizer->AddStretchSpacer(1);
+        auto corner_right = create_scaled_bitmap("card_corner_0", p->scrolled, 16);
+        wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(bottom_bar_top, wxID_ANY, corner_right);
+        bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
+        bottom_bar_top->SetSizer(bar_sizer);
+    }
+    scrolled_sizer->Add(bottom_bar_top, 0, wxEXPAND);
+
+    wxWindow* bottom_bar_middle = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+    bottom_bar_middle->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
+    scrolled_sizer->Add(bottom_bar_middle, 0, wxEXPAND);
+
     wxPanel* left_border = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(16), -1));
     left_border->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
 
