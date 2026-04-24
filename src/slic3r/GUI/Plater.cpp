@@ -1202,13 +1202,9 @@ Sidebar::Sidebar(Plater *parent)
     wxPanel* left_border = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(16), -1));
     left_border->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
 
-    wxPanel* right_border = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(16), -1));
-    right_border->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
-
     auto *sizer = new wxBoxSizer(wxHORIZONTAL);
     sizer->Add(left_border, 0, wxEXPAND);
     sizer->Add(p->scrolled, 1, wxEXPAND);
-    sizer->Add(right_border, 0, wxEXPAND);
     SetSizer(sizer);
 }
 
