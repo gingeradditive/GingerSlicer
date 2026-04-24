@@ -84,7 +84,8 @@ static Slic3r::ColorRGBA ERROR_BG_LIGHT_COLOR_DARK   = { 0.753f, 0.192f, 0.039f,
 
 void GLCanvas3D::update_render_colors()
 {
-    DEFAULT_BG_LIGHT_COLOR = ImGuiWrapper::from_ImVec4(RenderColor::colors[RenderCol_3D_Background]);
+    // Fix background color to #E7E7E7
+    // DEFAULT_BG_LIGHT_COLOR = ImGuiWrapper::from_ImVec4(RenderColor::colors[RenderCol_3D_Background]);
 }
 
 void GLCanvas3D::load_render_colors()
