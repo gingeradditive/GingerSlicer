@@ -761,6 +761,13 @@ Sidebar::Sidebar(Plater *parent)
             // Populate from AppConfig
             update_printer_host_list();
 
+            // Apply the selected host immediately on startup.
+            // Without this, print_host stays on preset/default until user re-selects the dropdown.
+            {
+                AppConfig *app_config = wxGetApp().app_config;
+                apply_printer_host_to_config(app_config->get_selected_printer_host());
+            }
+
             m_printer_host_list->Bind(wxEVT_COMBOBOX, [this](wxCommandEvent& e) {
                 int sel = m_printer_host_list->GetSelection();
                 if (sel != wxNOT_FOUND) {
@@ -1263,6 +1270,11 @@ void Sidebar::apply_printer_host_to_config(const std::string &host)
 
 void Sidebar::update_all_preset_comboboxes()
 {
+    {
+        AppConfig *app_config = wxGetApp().app_config;
+        apply_printer_host_to_config(app_config->get_selected_printer_host());
+    }
+
     PresetBundle &preset_bundle = *wxGetApp().preset_bundle;
     const auto print_tech = preset_bundle.printers.get_edited_preset().printer_technology();
 
