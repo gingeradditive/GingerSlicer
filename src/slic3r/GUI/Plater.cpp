@@ -631,7 +631,7 @@ static DynamicFilamentList dynamic_filament_list;
 static DynamicFilamentList1Based dynamic_filament_list_1_based;
 
 Sidebar::Sidebar(Plater *parent)
-    : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxSize(48 * wxGetApp().em_unit(), -1)), p(new priv(parent))
+    : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxSize(44 * wxGetApp().em_unit(), -1)), p(new priv(parent))
 {
     Choice::register_dynamic_list("support_filament", &dynamic_filament_list);
     Choice::register_dynamic_list("support_interface_filament", &dynamic_filament_list);
@@ -1527,7 +1527,7 @@ void Sidebar::change_top_border_for_mode_sizer(bool increase_border)
 
 void Sidebar::msw_rescale()
 {
-    SetMinSize(wxSize(48 * wxGetApp().em_unit(), -1));
+    SetMinSize(wxSize(44 * wxGetApp().em_unit(), -1));
     p->m_panel_printer_title->GetSizer()->SetMinSize(-1, 3 * wxGetApp().em_unit());
     p->m_panel_filament_title->GetSizer()
         ->SetMinSize(-1, 3 * wxGetApp().em_unit());
@@ -2724,7 +2724,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
                                    .CaptionVisible(false)
                                    .PaneBorder(false)
                                    .Gripper(false)
-                                   .BestSize(wxSize(48 * wxGetApp().em_unit(), 90 * wxGetApp().em_unit())));
+                                   .BestSize(wxSize(44 * wxGetApp().em_unit(), 90 * wxGetApp().em_unit())));
 
     auto* panel_sizer = new wxBoxSizer(wxHORIZONTAL);
     panel_sizer->Add(view3D, 1, wxEXPAND | wxALL, 0);
@@ -2747,6 +2747,9 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         }
         // Always enforce no caption/border on sidebar after loading perspective
         sidebar.CaptionVisible(false).PaneBorder(false).Gripper(false);
+        
+        // Force sidebar width after loading perspective
+        sidebar.BestSize(wxSize(44 * wxGetApp().em_unit(), sidebar.best_size.GetHeight()));
         
         // Re-apply sash color after loading perspective
         m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_SASH_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
