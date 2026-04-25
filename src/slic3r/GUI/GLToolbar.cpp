@@ -278,6 +278,10 @@ bool GLToolbar::init(const BackgroundTexture::Metadata& background_texture)
     if (res)
         m_background_texture.metadata = background_texture;
 
+    // Load background extension textures
+    m_background_begin_texture.load_from_file(path + "toolbar_background_begin.png", false, GLTexture::SingleThreaded, false);
+    m_background_end_texture.load_from_file(path + "toolbar_background_end.png", false, GLTexture::SingleThreaded, false);
+
     return res;
 }
 
@@ -1382,6 +1386,17 @@ void GLToolbar::render_horizontal(const GLCanvas3D& parent,GLToolbarItem::EType 
     if (type == GLToolbarItem::SeparatorLine)
         right = left + width * 0.5;
     const float bottom = top - height;
+
+    // Draw background extension textures (16px on each side)
+    const float extension_width = 2.0f * 16.0f * inv_cnv_w;
+    const unsigned int begin_tex_id = m_background_begin_texture.get_id();
+    const unsigned int end_tex_id = m_background_end_texture.get_id();
+
+    if (begin_tex_id != 0)
+        GLTexture::render_texture(begin_tex_id, left - extension_width, left, bottom, top);
+
+    if (end_tex_id != 0)
+        GLTexture::render_texture(end_tex_id, right, right + extension_width, bottom, top);
 
     render_background(left, top, right, bottom, border_w, border_h);
 
