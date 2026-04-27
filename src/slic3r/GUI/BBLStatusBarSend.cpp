@@ -244,7 +244,7 @@ bool BBLStatusBarSend::is_english_text(wxString str)
             continue;
         }
         else {
-            int result = pattern_Special.find(regex_str.c_str());
+            int result = static_cast<int>(pattern_Special.find(regex_str.c_str()));
             if (result < 0 || result > pattern_Special.length()) {
                 return false;
             }
