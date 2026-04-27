@@ -24,7 +24,7 @@ namespace Slic3r::Feature::FuzzySkin {
 static double random_value() {
     thread_local std::random_device rd;
     // Hash thread ID for random number seed if no hardware rng seed is available
-    thread_local std::mt19937 gen(rd.entropy() > 0 ? rd() : std::hash<std::thread::id>()(std::this_thread::get_id()));
+    thread_local std::mt19937 gen(rd.entropy() > 0 ? rd() : static_cast<unsigned int>(std::hash<std::thread::id>()(std::this_thread::get_id())));
     thread_local std::uniform_real_distribution<double> dist(0.0, 1.0);
     return dist(gen);
 }
