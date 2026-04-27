@@ -161,7 +161,7 @@ int ComboBox::Append(const wxString &item,
     datas.push_back(clientData);
     types.push_back(wxClientData_None);
     drop.Invalidate();
-    return texts.size() - 1;
+    return static_cast<int>(texts.size() - 1);
 }
 
 void ComboBox::DoClear()
@@ -186,7 +186,7 @@ void ComboBox::DoDeleteOneItem(unsigned int pos)
     drop.Invalidate(true);
 }
 
-unsigned int ComboBox::GetCount() const { return texts.size(); }
+unsigned int ComboBox::GetCount() const { return static_cast<unsigned int>(texts.size()); }
 
 wxString ComboBox::GetString(unsigned int n) const
 {
