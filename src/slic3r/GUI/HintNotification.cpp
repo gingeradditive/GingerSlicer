@@ -317,7 +317,7 @@ void HintDatabase::init()
 }
 void HintDatabase::init_random_hint_id()
 {
-	srand(time(NULL));
+	srand(static_cast<unsigned int>(time(NULL)));
 	m_hint_id = rand() % m_loaded_hints.size();
 }
 void HintDatabase::load_hints_from_file(const boost::filesystem::path& path)
@@ -527,7 +527,7 @@ size_t HintDatabase::get_random_next()
 		auto compare_wieght = [](const HintData& a, const HintData& b) { return a.weight < b.weight; };
 		std::sort(m_loaded_hints.begin(), m_loaded_hints.end(), compare_wieght);
 		m_sorted_hints = true;
-		srand(time(NULL));
+		srand(static_cast<unsigned int>(time(NULL)));
 	}
 	std::vector<size_t> candidates; // index in m_loaded_hints
 	// total weight
@@ -643,35 +643,35 @@ static int get_utf8_seq_length(const char* seq, size_t size)
 	else if (c < 0xE0) { // 0xC0-0xDF
 	 // add a utf-8 sequence (2 bytes)
 		if (2 > size) {
-			return size; // prevent overrun
+			return static_cast<int>(size); // prevent overrun
 		}
 		length += 2;
 	}
 	else if (c < 0xF0) { // 0xE0-0xEF
 	 // add a utf-8 sequence (3 bytes)
 		if (3 > size) {
-			return size; // prevent overrun
+			return static_cast<int>(size); // prevent overrun
 		}
 		length += 3;
 	}
 	else if (c < 0xF8) { // 0xF0-0xF7
 	 // add a utf-8 sequence (4 bytes)
 		if (4 > size) {
-			return size; // prevent overrun
+			return static_cast<int>(size); // prevent overrun
 		}
 		length += 4;
 	}
 	else if (c < 0xFC) { // 0xF8-0xFB
 	 // add a utf-8 sequence (5 bytes)
 		if (5 > size) {
-			return size; // prevent overrun
+			return static_cast<int>(size); // prevent overrun
 		}
 		length += 5;
 	}
 	else if (c < 0xFE) { // 0xFC-0xFD
 	 // add a utf-8 sequence (6 bytes)
 		if (6 > size) {
-			return size; // prevent overrun
+			return static_cast<int>(size); // prevent overrun
 		}
 		length += 6;
 	}
@@ -746,7 +746,7 @@ void NotificationManager::HintNotification::count_lines()
 		}
 		m_lines_count++;
 	}
-	int prev_end = m_endlines.size() > 1 ? m_endlines[m_endlines.size() - 2] : 0;
+	int prev_end = m_endlines.size() > 1 ? static_cast<int>(m_endlines[m_endlines.size() - 2]) : 0;
 	int size_of_last_line = ImGui::CalcTextSize(text.substr(prev_end, last_end - prev_end).c_str()).x;
 	// hypertext calculation
 	if (!m_hypertext.empty()) {
@@ -898,7 +898,7 @@ void NotificationManager::HintNotification::render_text(ImGuiWrapper& imgui, con
 				line = ImGui::ColorMarkerStart + line;
 			}
 
-			last_end = m_endlines[i];
+			last_end = static_cast<int>(m_endlines[i]);
 			if (m_text1.size() > m_endlines[i])
 				last_end += (m_text1[m_endlines[i]] == '\n' || m_text1[m_endlines[i]] == ' ' ? 1 : 0);
 			imgui.text(line.c_str());
@@ -935,7 +935,7 @@ void NotificationManager::HintNotification::render_text(ImGuiWrapper& imgui, con
 					line = ImGui::ColorMarkerStart + line;
 				}
 
-				last_end = m_endlines2[i];
+				last_end = static_cast<int>(m_endlines2[i]);
 				if (m_text2.size() > m_endlines2[i])
 					last_end += (m_text2[m_endlines2[i]] == '\n' || m_text2[m_endlines2[i]] == ' ' ? 1 : 0);
 				imgui.text(line.c_str());
