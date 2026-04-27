@@ -118,13 +118,13 @@ public:
             return;
 
         boost::posix_time::ptime time = boost::posix_time::microsec_clock::local_time();
-        stage_durations[stage] = (time - m_stage_start_times[stage]).total_milliseconds();
+        stage_durations[stage] = static_cast<uint32_t>((time - m_stage_start_times[stage]).total_milliseconds());
     }
 
     void tic() { tic_time = boost::posix_time::microsec_clock::local_time(); }
     uint32_t toc() {
         toc_time = boost::posix_time::microsec_clock::local_time();
-        return (toc_time - tic_time).total_milliseconds();
+        return static_cast<uint32_t>((toc_time - tic_time).total_milliseconds());
     }
     void stage_add(TreeSupportStage stage)
     {
@@ -792,7 +792,7 @@ void TreeSupport::detect_overhangs(bool check_support_necessity/* = false*/)
                 if (!is_auto(stype) && layer_nr > enforce_support_layers)
                     continue;
 
-                Layer* layer = m_object->get_layer(layer_nr);
+                Layer* layer = m_object->get_layer(static_cast<int>(layer_nr));
 
                 if (layer->lower_layer == nullptr) {
                     for (auto& slice : layer->lslices_extrudable) {
@@ -815,7 +815,7 @@ void TreeSupport::detect_overhangs(bool check_support_necessity/* = false*/)
 
                 // normal overhang
                 ExPolygons lower_layer_offseted = offset_ex(lower_polys, support_offset_scaled, SUPPORT_SURFACES_OFFSET_PARAMETERS);
-                overhangs_all_layers[layer_nr] = std::move(diff_ex(curr_polys, lower_layer_offseted));
+                overhangs_all_layers[layer_nr] = diff_ex(curr_polys, lower_layer_offseted);
 
                 double duration{ std::chrono::duration_cast<second_>(clock_::now() - t0).count() };
                 if (duration > 30 || overhangs_all_layers[layer_nr].size() > 100) {
@@ -885,7 +885,7 @@ void TreeSupport::detect_overhangs(bool check_support_necessity/* = false*/)
             if (m_object->print()->canceled())
                 break;
 
-            Layer* layer = m_object->get_layer(layer_nr);
+            Layer* layer = m_object->get_layer(static_cast<int>(layer_nr));
             Layer* lower_layer = layer->lower_layer;
             if (!lower_layer)
                 continue;
@@ -961,7 +961,7 @@ void TreeSupport::detect_overhangs(bool check_support_necessity/* = false*/)
             break;
         Layer* layer = m_object->get_layer(layer_nr);
         for (auto& overhang : overhangs_all_layers[layer_nr]) {
-            OverhangCluster* cluster = find_and_insert_cluster(overhangClusters, overhang, layer_nr, extrusion_width_scaled);
+            OverhangCluster* cluster = find_and_insert_cluster(overhangClusters, overhang, static_cast<int>(layer_nr), extrusion_width_scaled);
             if (overlaps({ overhang }, layer->cantilevers))
                 cluster->is_cantilever = true;
         }
@@ -979,7 +979,7 @@ void TreeSupport::detect_overhangs(bool check_support_necessity/* = false*/)
             // 3. check whether the small overhang is sharp tail
             cluster.is_sharp_tail = false;
             for (size_t layer_id = cluster.min_layer; layer_id <= cluster.max_layer; layer_id++) {
-                Layer* layer = m_object->get_layer(layer_id);
+                Layer* layer = m_object->get_layer(static_cast<int>(layer_id));
                 if (overlaps(layer->sharp_tails, cluster.merged_poly)) {
                     cluster.is_sharp_tail = true;
                     break;
@@ -1067,7 +1067,7 @@ void TreeSupport::detect_overhangs(bool check_support_necessity/* = false*/)
             m_object->remove_bridges_from_contacts(lower_layer, layer, extrusion_width_scaled, &layer->loverhangs, max_bridge_length, break_bridge);
         }
 
-		int nDetected = layer->loverhangs.size();
+		int nDetected = static_cast<int>(layer->loverhangs.size());
         // enforcers now follow same logic as normal support. See STUDIO-3692
         if (layer_nr < enforcers.size() && lower_layer) {
             ExPolygons enforced_overhangs   = intersection_ex(diff_ex(layer->lslices_extrudable, lower_layer->lslices_extrudable), enforcers[layer_nr]);
@@ -1077,7 +1077,7 @@ void TreeSupport::detect_overhangs(bool check_support_necessity/* = false*/)
                 append(layer->loverhangs, enforced_overhangs);
             }
         }
-        int nEnforced = layer->loverhangs.size();
+        int nEnforced = static_cast<int>(layer->loverhangs.size());
 
         // add sharp tail overhangs
         append(layer->loverhangs, sharp_tail_overhangs);
@@ -1350,7 +1350,7 @@ void TreeSupport::generate_toolpaths()
     }
 
     if (m_object->support_layer_count() > m_raft_layers) {
-        const SupportLayer *ts_layer = m_object->get_support_layer(m_raft_layers);
+        const SupportLayer *ts_layer = m_object->get_support_layer(static_cast<int>(m_raft_layers));
         for (const ExPolygon& expoly : ts_layer->floor_areas)
             raft_areas.push_back(expoly);
         for (const ExPolygon& expoly : ts_layer->roof_areas)
@@ -1359,11 +1359,11 @@ void TreeSupport::generate_toolpaths()
             raft_areas.push_back(expoly);
     }
 
-    raft_areas = std::move(offset_ex(raft_areas, scale_(object_config.raft_first_layer_expansion)));
+    raft_areas = offset_ex(raft_areas, scale_(object_config.raft_first_layer_expansion));
 
     size_t layer_nr = 0;
     for (; layer_nr < m_slicing_params.base_raft_layers; layer_nr++) {
-        SupportLayer *ts_layer = m_object->get_support_layer(layer_nr);
+        SupportLayer *ts_layer = m_object->get_support_layer(static_cast<int>(layer_nr));
         coordf_t expand_offset = (layer_nr == 0 ? m_object_config->raft_first_layer_expansion.value : 0.);
         auto raft_areas1 = offset_ex(raft_areas, scale_(expand_offset));
 
@@ -1390,7 +1390,7 @@ void TreeSupport::generate_toolpaths()
 
     // subtract the non-raft support bases, otherwise we'll get support base on top of raft interfaces which is not stable
     ExPolygons first_non_raft_base;
-    SupportLayer* first_non_raft_layer = m_object->get_support_layer(m_raft_layers);
+    SupportLayer* first_non_raft_layer = m_object->get_support_layer(static_cast<int>(m_raft_layers));
     if (first_non_raft_layer) {
         for (auto& area_group : first_non_raft_layer->area_groups) {
             if (area_group.type == SupportLayer::BaseType)
@@ -1407,7 +1407,7 @@ void TreeSupport::generate_toolpaths()
          layer_nr < m_slicing_params.base_raft_layers + m_slicing_params.interface_raft_layers;
          layer_nr++)
     {
-        SupportLayer *ts_layer = m_object->get_support_layer(layer_nr);
+        SupportLayer *ts_layer = m_object->get_support_layer(static_cast<int>(layer_nr));
 
         Flow support_flow(support_extrusion_width, ts_layer->height, nozzle_diameter);
         Fill* filler_interface = Fill::new_from_type(ipRectilinear);
@@ -1428,7 +1428,7 @@ void TreeSupport::generate_toolpaths()
 
     // layers between raft and object
     for (; layer_nr < m_raft_layers; layer_nr++) {
-        SupportLayer *ts_layer = m_object->get_support_layer(layer_nr);
+        SupportLayer *ts_layer = m_object->get_support_layer(static_cast<int>(layer_nr));
         Flow support_flow(support_extrusion_width, ts_layer->height, nozzle_diameter);
         Fill* filler_raft = Fill::new_from_type(ipRectilinear);
         filler_raft->angle = PI / 2;
@@ -1460,7 +1460,7 @@ void TreeSupport::generate_toolpaths()
 
                 //m_object->print()->set_status(70, (boost::format(_u8L("Support: generate toolpath at layer %d")) % layer_id).str());
 
-                SupportLayer* ts_layer = m_object->get_support_layer(layer_id);
+                SupportLayer* ts_layer = m_object->get_support_layer(static_cast<int>(layer_id));
                 Flow support_flow(support_extrusion_width, ts_layer->height, nozzle_diameter);
                 Flow interface_flow = support_material_interface_flow(m_object, ts_layer->height); // update flow using real support layer height
                 coordf_t support_spacing         = object_config.support_base_pattern_spacing.value + support_flow.spacing();
@@ -1477,9 +1477,9 @@ void TreeSupport::generate_toolpaths()
                             Flow flow = m_raft_layers == 0 ? m_object->print()->brim_flow() : support_flow;
                             make_perimeter_and_inner_brim(ts_layer->support_fills.entities, poly, wall_count, flow,
                                                           area_group.type == SupportLayer::RoofType ? erSupportMaterialInterface : erSupportMaterial);
-                            polys = std::move(offset_ex(poly, -flow.scaled_spacing()));
+                            polys = offset_ex(poly, -flow.scaled_spacing());
                         } else if (area_group.type == SupportLayer::Roof1stLayer) {
-                            polys = std::move(offset_ex(poly, 0.5*support_flow.scaled_width()));
+                            polys = offset_ex(poly, 0.5*support_flow.scaled_width());
                         }
                         else {
                             polys.push_back(poly);
@@ -1633,7 +1633,7 @@ void TreeSupport::move_bounds_to_contact_nodes(std::vector<TreeSupport3D::Suppor
     m_ts_data = print_object.alloc_tree_support_preview_cache();
     // convert move_bounds back to Support Nodes for tree skeleton preview
     this->contact_nodes.resize(move_bounds.size());
-    for (int layer_nr = move_bounds.size() - 1; layer_nr >= 0; layer_nr--) {
+    for (int layer_nr = static_cast<int>(move_bounds.size()) - 1; layer_nr >= 0; layer_nr--) {
         TreeSupport3D::SupportElements &elements      = move_bounds[layer_nr];
         auto            &contact_nodes_layer = this->contact_nodes[layer_nr];
         for (size_t i = 0; i < elements.size(); i++) {
@@ -1968,8 +1968,8 @@ void TreeSupport::draw_circles()
                 if (print->canceled())
                     break;
 
-                const std::vector<SupportNode*>& curr_layer_nodes = contact_nodes[layer_nr];
-                SupportLayer* ts_layer = m_object->get_support_layer(layer_nr + m_raft_layers);
+                const std::vector<SupportNode*>& curr_layer_nodes = contact_nodes[static_cast<int>(layer_nr)];
+                SupportLayer* ts_layer = m_object->get_support_layer(static_cast<int>(layer_nr + m_raft_layers));
                 assert(ts_layer != nullptr);
 
                 // skip if current layer has no points. This fixes potential crash in get_collision (see jira BBL001-355)
@@ -2009,7 +2009,7 @@ void TreeSupport::draw_circles()
                         if (top_z_distance > EPSILON) {
                             float accum_height = 0;
                             for (size_t layer_id = obj_layer_nr + 1;
-                                 layer_id < m_ts_data->m_layer_outlines.size() && (accum_height += m_object->get_layer(layer_id)->height) && accum_height <= top_z_distance;
+                                 layer_id < m_ts_data->m_layer_outlines.size() && (accum_height += m_object->get_layer(static_cast<int>(layer_id))->height) && accum_height <= top_z_distance;
                                  layer_id++) {
                                 collision = union_ex(collision, offset_ex(m_ts_data->m_layer_outlines[layer_id], scale_(top_z_distance)));
                             }
@@ -2140,10 +2140,10 @@ void TreeSupport::draw_circles()
                         // find the lowest interface layer
                         // TODO the gap may not be exact when "independent support layer height" is enabled
                         size_t layer_nr_next = layer_nr - bottom_interface_layers;
-                        size_t obj_layer_nr_next = m_ts_data->layer_heights[layer_nr_next].obj_layer_nr;
+                        size_t obj_layer_nr_next = m_ts_data->layer_heights[static_cast<int>(layer_nr_next)].obj_layer_nr;
                         for (size_t i = 0; i <= bottom_gap_layers && i <= obj_layer_nr_next; i++)
                         {
-                            const Layer *below_layer      = m_object->get_layer(obj_layer_nr_next - i);
+                            const Layer *below_layer      = m_object->get_layer(static_cast<int>(obj_layer_nr_next - i));
                             ExPolygons bottom_interface = intersection_ex(base_areas, below_layer->lslices);
                             floor_areas.insert(floor_areas.end(), bottom_interface.begin(), bottom_interface.end());
                         }
@@ -2151,14 +2151,14 @@ void TreeSupport::draw_circles()
                     if (floor_areas.empty() == false) {
                         //floor_areas = std::move(diff_ex(floor_areas, avoid_region_interface));
                         //floor_areas = std::move(offset2_ex(floor_areas, contact_dist_scaled, -contact_dist_scaled));
-                        base_areas = std::move(diff_ex(base_areas, offset_ex(floor_areas, 10)));
+                        base_areas = diff_ex(base_areas, offset_ex(floor_areas, 10));
                     }
                 }
                 if (bottom_gap_layers > 0 && m_ts_data->layer_heights[layer_nr].obj_layer_nr > bottom_gap_layers) {
-                    const Layer* below_layer = m_object->get_layer(m_ts_data->layer_heights[layer_nr].obj_layer_nr - bottom_gap_layers);
+                    const Layer* below_layer = m_object->get_layer(static_cast<int>(m_ts_data->layer_heights[layer_nr].obj_layer_nr - bottom_gap_layers));
                     ExPolygons bottom_gap_area = intersection_ex(floor_areas, below_layer->lslices);
                     if (!bottom_gap_area.empty()) {
-                        floor_areas = std::move(diff_ex(floor_areas, bottom_gap_area));
+                        floor_areas = diff_ex(floor_areas, bottom_gap_area);
                     }
                 }
                 auto &area_groups = ts_layer->area_groups;
@@ -2195,7 +2195,7 @@ void TreeSupport::draw_circles()
                         ts_layer->lslices.emplace_back(*expoly);
                 }
 
-                ts_layer->lslices = std::move(union_ex(ts_layer->lslices));
+                ts_layer->lslices = union_ex(ts_layer->lslices);
                 //Must update bounding box which is used in avoid crossing perimeter
                 ts_layer->lslices_bboxes.clear();
                 ts_layer->lslices_bboxes.reserve(ts_layer->lslices.size());
@@ -2216,7 +2216,7 @@ void TreeSupport::draw_circles()
             for (int layer_nr = 1; layer_nr < contact_nodes.size(); layer_nr++) {
                 if (print->canceled()) break;
                 const std::vector<SupportNode*>& curr_layer_nodes = contact_nodes[layer_nr];
-                SupportLayer* ts_layer = m_object->get_support_layer(layer_nr + m_raft_layers);
+                SupportLayer* ts_layer = m_object->get_support_layer(static_cast<int>(layer_nr + m_raft_layers));
                 assert(ts_layer != nullptr);
 
                 // skip if current layer has no points. This fixes potential crash in get_collision (see jira BBL001-355)
@@ -2228,18 +2228,18 @@ void TreeSupport::draw_circles()
 
                 int layer_nr_lower = layer_nr - 1;
                 for (; layer_nr_lower >= 0; layer_nr_lower--) {
-                    if (!m_object->get_support_layer(layer_nr_lower + m_raft_layers)->area_groups.empty()) break;
+                    if (!m_object->get_support_layer(static_cast<int>(layer_nr_lower + m_raft_layers))->area_groups.empty()) break;
                 }
                 if (layer_nr_lower <= 0) continue;
 
-                SupportLayer* lower_layer = m_object->get_support_layer(layer_nr_lower + m_raft_layers);
+                SupportLayer* lower_layer = m_object->get_support_layer(static_cast<int>(layer_nr_lower + m_raft_layers));
                 ExPolygons& base_areas_lower = lower_layer->base_areas;
 
                 ExPolygons overhang;
                 if (global_lightning_infill)
                 {
                     //search overhangs globally
-                    overhang = std::move(diff_ex(offset_ex(base_areas_lower, -2.0 * scale_(support_extrusion_width)), base_areas));
+                    overhang = diff_ex(offset_ex(base_areas_lower, -2.0 * scale_(support_extrusion_width)), base_areas);
                 }
                 else
                 {
@@ -2250,13 +2250,13 @@ void TreeSupport::draw_circles()
                             Polygon rev_hole = hole;
                             rev_hole.make_counter_clockwise();
                             ExPolygons ex_hole;
-                            ex_hole.emplace_back(std::move(ExPolygon(rev_hole)));
+                            ex_hole.emplace_back(ExPolygon(rev_hole));
                             for (auto& other_area : base_areas)
                                 //if (&other_area != &base_area)
-                                    ex_hole = std::move(diff_ex(ex_hole, other_area));
-                            overhang = std::move(union_ex(overhang, ex_hole));
+                                    ex_hole = diff_ex(ex_hole, other_area);
+                            overhang = union_ex(overhang, ex_hole);
                         }
-                    overhang = std::move(intersection_ex(overhang, offset_ex(base_areas_lower, -0.5 * scale_(support_extrusion_width))));
+                    overhang = intersection_ex(overhang, offset_ex(base_areas_lower, -0.5 * scale_(support_extrusion_width)));
                 }
 
                 overhangs.emplace_back(to_polygons(overhang));
@@ -2301,7 +2301,7 @@ void TreeSupport::draw_circles()
 
             // polygon pointer: depth, direction, farPoint
             std::map<const Polygon*, std::tuple<int, Point, Point>> holePropagationInfos;
-            for (int layer_nr = contact_nodes.size() - 1; layer_nr > 0; layer_nr--) {
+            for (int layer_nr = static_cast<int>(contact_nodes.size()) - 1; layer_nr > 0; layer_nr--) {
                 if (print->canceled()) break;
                 //m_object->print()->set_status(66, (boost::format(_u8L("Support: fix holes at layer %d")) % layer_nr).str());
 
@@ -2433,7 +2433,7 @@ void TreeSupport::drop_nodes()
     SupportNode::diameter_angle_scale_factor = diameter_angle_scale_factor;
     float        DO_NOT_MOVER_UNDER_MM       = is_slim ? 0 : 5;                     // do not move contact points under 5mm
 
-    auto get_max_move_dist = [this, &config, tan_angle, wall_count, support_extrusion_width](const SupportNode *node, int power = 1) {
+    auto get_max_move_dist = [this, tan_angle, support_extrusion_width](const SupportNode *node, int power = 1) {
         if (node->max_move_dist == 0) {
             node->radius        = get_radius(node);
             node->max_move_dist = std::min(tan_angle * node->height, support_extrusion_width);
@@ -2500,7 +2500,7 @@ void TreeSupport::drop_nodes()
         if (layer_contact_nodes.empty())
             continue;
 
-        int layer_nr_next = layer_nr - 1;
+        int layer_nr_next = static_cast<int>(layer_nr) - 1;
         coordf_t print_z = layer_heights[layer_nr].print_z;
         coordf_t print_z_next = layer_heights[layer_nr_next].print_z;
         coordf_t height_next   = layer_heights[layer_nr_next].height;
@@ -2509,9 +2509,9 @@ void TreeSupport::drop_nodes()
 
         std::deque<std::pair<size_t, SupportNode*>> unsupported_branch_leaves; // All nodes that are leaves on this layer that would result in unsupported ('mid-air') branches.
 
-        m_object->print()->set_status(60 + int(10 * (1 - float(layer_nr) / contact_nodes.size())), _u8L("Generating support"));// (boost::format(_u8L("Support: propagate branches at layer %d")) % layer_nr).str());
+        m_object->print()->set_status(60 + static_cast<int>(10 * (1 - static_cast<float>(layer_nr) / static_cast<float>(contact_nodes.size()))), _u8L("Generating support"));// (boost::format(_u8L("Support: propagate branches at layer %d")) % layer_nr).str());
 
-        Polygons layer_contours = std::move(m_ts_data->get_contours_with_holes(obj_layer_nr));
+        Polygons layer_contours = m_ts_data->get_contours_with_holes(obj_layer_nr);
         //std::unordered_map<Line, bool, LineHash>& mst_line_x_layer_contour_cache = m_mst_line_x_layer_contour_caches[layer_nr];
         tbb::concurrent_unordered_map<Line, bool, LineHash> mst_line_x_layer_contour_cache;
         auto is_line_cut_by_contour = [&mst_line_x_layer_contour_cache,&layer_contours](Point a, Point b)
@@ -2662,7 +2662,7 @@ void TreeSupport::drop_nodes()
                     // Make sure the next pass doesn't drop down either of these (since that already happened).
                     node_parent->merged_neighbours.push_front(node_parent == p_node ? neighbour : p_node);
                     const bool to_buildplate = !is_inside_ex(get_collision(0, obj_layer_nr_next), next_position);
-                    SupportNode* next_node = m_ts_data->create_node(next_position, node_parent->distance_to_top + 1, obj_layer_nr_next, node_parent->support_roof_layers_below - 1, to_buildplate, node_parent,
+                    SupportNode* next_node = m_ts_data->create_node(next_position, node_parent->distance_to_top + 1, static_cast<int>(obj_layer_nr_next), node_parent->support_roof_layers_below - 1, to_buildplate, node_parent,
                         print_z_next, height_next);
                     get_max_move_dist(next_node);
                     m_ts_data->m_mutex.lock();
@@ -2713,7 +2713,7 @@ void TreeSupport::drop_nodes()
                     ExPolygons overhangs_next = diff_clipped({ node.overhang }, get_collision(0, obj_layer_nr_next));
                     for(auto& overhang:overhangs_next) {
                         Point        next_pt     = overhang.contour.centroid();
-                        SupportNode *next_node   = m_ts_data->create_node(next_pt, p_node->distance_to_top + 1, obj_layer_nr_next, p_node->support_roof_layers_below - 1,
+                        SupportNode *next_node   = m_ts_data->create_node(next_pt, p_node->distance_to_top + 1, static_cast<int>(obj_layer_nr_next), p_node->support_roof_layers_below - 1,
                                                                           to_buildplate, p_node, print_z_next, height_next);
                         next_node->max_move_dist = 0;
                         next_node->overhang = std::move(overhang);
@@ -2859,7 +2859,7 @@ void TreeSupport::drop_nodes()
                 }
                 auto              next_collision = get_collision(0, obj_layer_nr_next);
                 const bool   to_buildplate  = !is_inside_ex(m_ts_data->m_layer_outlines[obj_layer_nr_next], next_layer_vertex);
-                SupportNode *     next_node     = m_ts_data->create_node(next_layer_vertex, node.distance_to_top + 1, obj_layer_nr_next, node.support_roof_layers_below - 1, to_buildplate, p_node,
+                SupportNode *     next_node     = m_ts_data->create_node(next_layer_vertex, node.distance_to_top + 1, static_cast<int>(obj_layer_nr_next), node.support_roof_layers_below - 1, to_buildplate, p_node,
                     print_z_next, height_next);
                 // don't increase radius if next node will collide partially with the object (STUDIO-7883)
                 to_outside             = projection_onto(next_collision, next_node->position);
@@ -3101,7 +3101,7 @@ std::vector<LayerHeightData> TreeSupport::plan_layer_heights()
             return std::abs(l1.print_z - node1->print_z) < std::abs(l2.print_z - node1->print_z);
         });
         if (it == layer_heights.end()) it = std::prev(it);
-        int layer_nr2 = std::distance(layer_heights.begin(), it);
+        int layer_nr2 = static_cast<int>(std::distance(layer_heights.begin(), it));
         contact_nodes2[layer_nr2].insert(contact_nodes2[layer_nr2].end(), contact_nodes[layer_nr].begin(), contact_nodes[layer_nr].end());
     }
     contact_nodes = contact_nodes2;
@@ -3227,7 +3227,7 @@ void TreeSupport::generate_contact_points()
             if (m_object->print()->canceled())
                 break;
             Layer* layer = m_object->get_layer(layer_nr);
-            auto& curr_nodes = contact_nodes[layer_nr-1];
+            auto& curr_nodes = contact_nodes[static_cast<int>(layer_nr)-1];
 
             std::unordered_set<Point, PointHash> already_inserted;
             auto                                 bottom_z = m_object->get_layer(layer_nr)->bottom_z();
@@ -3235,7 +3235,7 @@ void TreeSupport::generate_contact_points()
             bool                                 is_sharp_tail = false;
 
             // take the least restrictive avoidance possible
-            ExPolygons relevant_forbidden = offset_ex(m_ts_data->m_layer_outlines[layer_nr - 1], scale_(MIN_BRANCH_RADIUS));
+            ExPolygons relevant_forbidden = offset_ex(m_ts_data->m_layer_outlines[static_cast<int>(layer_nr) - 1], scale_(MIN_BRANCH_RADIUS));
             // prevent rounding errors down the line, points placed directly on the line of the forbidden area may not be added otherwise.
             relevant_forbidden = offset_ex(union_ex(relevant_forbidden), scaled<float>(0.005), jtMiter, 1.2);
 
@@ -3252,7 +3252,7 @@ void TreeSupport::generate_contact_points()
                     // print_z=object_layer->bottom_z: it directly contacts the bottom
                     // height=z_distance_top: it's height is exactly the gap distance
                     // dist_mm_to_top=0: it directly contacts the bottom
-                    contact_node = m_ts_data->create_node(pt, -gap_layers, layer_nr-1, roof_layers + 1, to_buildplate, SupportNode::NO_PARENT, bottom_z, z_distance_top, 0,
+                    contact_node = m_ts_data->create_node(pt, -gap_layers, static_cast<int>(layer_nr)-1, roof_layers + 1, to_buildplate, SupportNode::NO_PARENT, bottom_z, z_distance_top, 0,
                                                           radius);
                     contact_node->overhang = overhang;
                     contact_node->is_sharp_tail = is_sharp_tail;
@@ -3308,11 +3308,11 @@ void TreeSupport::generate_contact_points()
 
                     // add supports along contours
                     libnest2d::placers::EdgeCache<ExPolygon> edge_cache(overhang);
-                    for (size_t i = 0; i < edge_cache.holeCount() + 1; i++) {
+                    for (size_t i = 0; i < static_cast<size_t>(edge_cache.holeCount()) + 1; i++) {
                         double step     = point_spread / (i == 0 ? edge_cache.circumference() : edge_cache.circumference(i - 1));
                         double distance = 0;
                         while (distance < 1) {
-                            auto         pt           = i == 0 ? edge_cache.coords(distance) : edge_cache.coords(i - 1, distance);
+                            auto         pt           = i == 0 ? edge_cache.coords(distance) : edge_cache.coords(static_cast<int>(i) - 1, distance);
                             SupportNode *contact_node = insert_point(pt, overhang,radius, false, add_interface);
                             distance += step;
                         }
@@ -3352,7 +3352,7 @@ void TreeSupport::generate_contact_points()
 
 
 
-    int nNodes = all_nodes.size();
+    int nNodes = static_cast<int>(all_nodes.size());
     avg_node_per_layer = nodes_angle = 0;
     if (nNodes > 0) {
         avg_node_per_layer = nNodes / nonempty_layers;
@@ -3397,7 +3397,7 @@ TreeSupportData::TreeSupportData(const PrintObject &object, coordf_t xy_distance
     for (std::size_t layer_nr  = 0; layer_nr < object.layers().size(); ++layer_nr)
     {
         const Layer* layer = object.get_layer(layer_nr);
-        m_max_move_distances[layer_nr] = layer->height * branch_scale_factor;
+        m_max_move_distances[static_cast<int>(layer_nr)] = layer->height * branch_scale_factor;
         m_layer_outlines.push_back(ExPolygons());
         ExPolygons& outline = m_layer_outlines.back();
         for (const ExPolygon& poly : layer->lslices) {
@@ -3518,7 +3518,7 @@ const ExPolygons& TreeSupportData::calculate_avoidance(const RadiusLayerPair& ke
     }
     const ExPolygons &collision       = get_collision(radius, layer_nr);
     avoidance_areas.insert(avoidance_areas.end(), collision.begin(), collision.end());
-    avoidance_areas = std::move(union_ex(avoidance_areas));
+    avoidance_areas = union_ex(avoidance_areas);
     auto ret = m_avoidance_cache.insert({key, std::move(avoidance_areas)});
     //assert(ret.second);
     return ret.first->second;
