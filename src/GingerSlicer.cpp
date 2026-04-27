@@ -470,8 +470,8 @@ static int decode_png_to_thumbnail(std::string png_file, ThumbnailData& thumbnai
         return -2;
     }
 
-    thumbnail_data.width = img.cols;
-    thumbnail_data.height = img.rows;
+    thumbnail_data.width = static_cast<unsigned int>(img.cols);
+    thumbnail_data.height = static_cast<unsigned int>(img.rows);
     thumbnail_data.pixels = std::move(img.buf);
 
     return 0;
@@ -602,7 +602,7 @@ static int load_assemble_plate_list(std::string config_file, std::vector<assembl
         ifs >> root_json;
         ifs.close();
 
-        int plate_count = root_json[JSON_ASSEMPLE_PLATES].size();
+        int plate_count = static_cast<int>(root_json[JSON_ASSEMPLE_PLATES].size());
         if ((plate_count <= 0) || (plate_count > MAX_PLATE_COUNT)) {
             BOOST_LOG_TRIVIAL(error) << __FUNCTION__<< boost::format(": invalid plate count %1%")%plate_count;
             return CLI_CONFIG_FILE_ERROR;
@@ -621,7 +621,7 @@ static int load_assemble_plate_list(std::string config_file, std::vector<assembl
                 BOOST_LOG_TRIVIAL(debug) << boost::format("Plate %1%, has %2% plate params") % (plate_index + 1)  % assemble_plate.plate_params.size();
             }
 
-            int object_count = plate_json[JSON_ASSEMPLE_OBJECTS].size();
+            int object_count = static_cast<int>(plate_json[JSON_ASSEMPLE_OBJECTS].size());
             if (object_count <= 0) {
                 BOOST_LOG_TRIVIAL(error) << __FUNCTION__<< boost::format(": invalid object count %1% in plate %2%")%object_count %(plate_index+1);
                 return CLI_CONFIG_FILE_ERROR;
@@ -703,7 +703,7 @@ static int load_assemble_plate_list(std::string config_file, std::vector<assembl
             }
             if (plate_json.contains(JSON_ASSEMPLE_ASSEMBLE_PARAMS)) {
                 json assemble_params_json = plate_json[JSON_ASSEMPLE_ASSEMBLE_PARAMS];
-                int assemble_count = assemble_params_json.size();
+                int assemble_count = static_cast<int>(assemble_params_json.size());
                 for (int i = 0; i < assemble_count; i++)
                 {
                     assembled_param_info_t assembled_param;
@@ -714,7 +714,7 @@ static int load_assemble_plate_list(std::string config_file, std::vector<assembl
                     }
                     if (assemble_params_json[i].contains(JSON_ASSEMPLE_OBJECT_HEIGHT_RANGES)) {
                         json height_range_json = assemble_params_json[i][JSON_ASSEMPLE_OBJECT_HEIGHT_RANGES];
-                        int range_count = height_range_json.size();
+                        int range_count = static_cast<int>(height_range_json.size());
 
                         BOOST_LOG_TRIVIAL(debug) << boost::format("Plate %1%, assemble object %2% has %3% height ranges") % (plate_index + 1) %i % range_count;
 
@@ -793,7 +793,7 @@ static int construct_assemble_list(std::vector<assemble_plate_info_t> &assemble_
 
         assemble_plate_info_t& assemble_plate_info = assemble_plate_info_list[index];
 
-        int object_count = assemble_plate_info.assemble_obj_list.size();
+        int object_count = static_cast<int>(assemble_plate_info.assemble_obj_list.size());
 
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": Plate %1%, name %2%, obj count %3%, plate params count %4%") % (index + 1) %assemble_plate_info.plate_name %object_count %assemble_plate_info.plate_params.size();
         PlateData* plate_data = new PlateData();
@@ -903,7 +903,7 @@ static int construct_assemble_list(std::vector<assemble_plate_info_t> &assemble_
 
             for (size_t copy_index = 1; copy_index < assemble_object.count; copy_index++)
             {
-                int array_index = copy_index;
+                int array_index = static_cast<int>(copy_index);
 
                 ModelObject* copy_obj = temp_model.add_object(*object);
                 copy_obj->name = object_name + "_" + std::to_string(copy_index + 1);
@@ -970,7 +970,7 @@ static int construct_assemble_list(std::vector<assemble_plate_info_t> &assemble_
             }
         }
 
-        assemble_plate_info.filaments_count = used_filaments.size();
+        assemble_plate_info.filaments_count = static_cast<int>(used_filaments.size());
         assemble_plate_info.assemble_obj_list.clear();
         assemble_plate_info.assemble_obj_list.shrink_to_fit();
         assemble_plate_info.plate_params.clear();
@@ -1481,7 +1481,7 @@ int CLI::run(int argc, char **argv)
                         current_filaments_system_name = current_filaments_name;
                         BOOST_LOG_TRIVIAL(info) << boost::format("no inherits_group: use system name the same as current name");
                     }
-                    filament_count = current_filaments_name.size();
+                    filament_count = static_cast<int>(current_filaments_name.size());
                     upward_compatible_printers = config.option<ConfigOptionStrings>("upward_compatible_machine", true)->values;
                     current_print_compatible_printers  = config.option<ConfigOptionStrings>("print_compatible_printers", true)->values;
                     current_different_settings = config.option<ConfigOptionStrings>("different_settings_to_system", true)->values;
@@ -1538,7 +1538,7 @@ int CLI::run(int argc, char **argv)
                     //clone objects process
                     if (clone_count > 1)
                     {
-                        unsigned int object_count = model.objects.size();
+                        unsigned int object_count = static_cast<unsigned int>(model.objects.size());
 
                         for (unsigned int obj_index = 0; obj_index < object_count; obj_index++)
                         {
@@ -1666,7 +1666,7 @@ int CLI::run(int argc, char **argv)
         }
     }
 
-    auto load_config_file = [config_substitution_rule](const std::string& file, DynamicPrintConfig& config, std::string& config_type,
+    auto load_config_file = [](const std::string& file, DynamicPrintConfig& config, std::string& config_type,
                                 std::string& config_name, std::string& filament_id, std::string& config_from) {
         if (! boost::filesystem::exists(file)) {
             boost::nowide::cerr << __FUNCTION__<< ": can not find setting file: " << file << std::endl;
@@ -1823,7 +1823,7 @@ int CLI::run(int argc, char **argv)
     }
 
     //load filaments files
-    int load_filament_count = load_filaments.size();
+    int load_filament_count = static_cast<int>(load_filaments.size());
     std::vector<int> load_filaments_index;
     std::set<std::string> load_filaments_set;
     bool disable_wipe_tower_after_mapping = false;
@@ -2437,7 +2437,7 @@ int CLI::run(int argc, char **argv)
 
         load_default_gcodes_to_config(load_machine_config, Preset::TYPE_PRINTER);
         if (new_printer_name.empty()) {
-            int diff_keys_size = different_keys_set.size();
+            int diff_keys_size = static_cast<int>(different_keys_set.size());
             ret = update_full_config(m_print_config, load_machine_config, different_keys_set, false, skip_modified_gcodes);
             if (diff_keys_size != different_keys_set.size()) {
                 //changed
@@ -2490,10 +2490,10 @@ int CLI::run(int argc, char **argv)
                                         ConfigOptionFloats* option = m_print_config.option<ConfigOptionFloats>(key);
                                         if (option) {
                                             //de-serialize the values from param_iter->second, and do the compare here
-                                            unsigned int array_count = option->size();
+                                            unsigned int array_count = static_cast<unsigned int>(option->size());
                                             ConfigOptionFloats new_option;
                                             new_option.deserialize(param_iter->second);
-                                            unsigned int new_array_count = new_option.size();
+                                            unsigned int new_array_count = static_cast<unsigned int>(new_option.size());
                                             for (unsigned int index = 0; index < array_count; index++)
                                             {
                                                 if ((index < new_array_count) && new_option.values[index] != 0.f && (new_option.values[index] < option->values[index]))
@@ -2574,7 +2574,7 @@ int CLI::run(int argc, char **argv)
 
         load_default_gcodes_to_config(load_machine_config, Preset::TYPE_PRINT);
         if (new_process_name.empty()) {
-            int diff_keys_size = different_keys_set.size();
+            int diff_keys_size = static_cast<int>(different_keys_set.size());
             ret = update_full_config(m_print_config, load_process_config, different_keys_set, false, skip_modified_gcodes);
             if (diff_keys_size != different_keys_set.size()) {
                 //changed
@@ -2661,7 +2661,7 @@ int CLI::run(int argc, char **argv)
             //parse the filament value to index th
             //loop through options and apply them
             std::set<std::string> different_keys_set(different_keys.begin(), different_keys.end());
-            int diff_keys_size = different_keys_set.size();
+            int diff_keys_size = static_cast<int>(different_keys_set.size());
             BOOST_LOG_TRIVIAL(info) << boost::format("update filament %1%'s config to newest, different size %2%, name %3%, different_settings %4%")
                 %filament_index%different_keys_set.size()%load_filaments_name[index] % different_settings[filament_index];
             for (const t_config_option_key &opt_key : config.keys()) {
@@ -3126,7 +3126,7 @@ int CLI::run(int argc, char **argv)
         }
 
         std::vector<int> extruders = plate->get_extruders_under_cli(true, print_config);
-        unsigned int filaments_cnt = extruders.size();
+        unsigned int filaments_cnt = static_cast<unsigned int>(extruders.size());
         if ((filaments_cnt <= 1) && !is_smooth_timelapse){
             plate_obj_size_info.has_wipe_tower = false;
             BOOST_LOG_TRIVIAL(info) << boost::format("filaments_cnt=%1%, set to no wipe tower")%filaments_cnt;
@@ -3329,7 +3329,7 @@ int CLI::run(int argc, char **argv)
         }
     }
 
-    int downward_check_size = downward_check_printers.size();
+    int downward_check_size = static_cast<int>(downward_check_printers.size());
     if (downward_check_size > 0)
     {
         downward_check_status.resize(downward_check_size, false);
@@ -3798,7 +3798,7 @@ int CLI::run(int argc, char **argv)
     if (!assemble_plate_info_list.empty())
     {
         //need to arrange for assemble cases
-        int plate_count = assemble_plate_info_list.size();
+        int plate_count = static_cast<int>(assemble_plate_info_list.size());
         if (plate_count != partplate_list.get_plate_count())
         {
             BOOST_LOG_TRIVIAL(error) << boost::format("mismatch plate count, to_assemble %1%, generated %2%") % plate_count % partplate_list.get_plate_count();
@@ -3808,7 +3808,7 @@ int CLI::run(int argc, char **argv)
 
         for (size_t i = 0; i < plate_count; i++)
         {
-            Slic3r::GUI::PartPlate* cur_plate = (Slic3r::GUI::PartPlate*)partplate_list.get_plate(i);
+            Slic3r::GUI::PartPlate* cur_plate = (Slic3r::GUI::PartPlate*)partplate_list.get_plate(static_cast<int>(i));
             //lock those plates no need to arrange
             if (!assemble_plate_info_list[i].need_arrange)
                 cur_plate->lock(true);
@@ -3817,7 +3817,7 @@ int CLI::run(int argc, char **argv)
         for (size_t i = 0; i < plate_count; i++)
         {
             assemble_plate_info_t& assemble_plate = assemble_plate_info_list[i];
-            Slic3r::GUI::PartPlate* cur_plate = (Slic3r::GUI::PartPlate*)partplate_list.get_plate(i);
+            Slic3r::GUI::PartPlate* cur_plate = (Slic3r::GUI::PartPlate*)partplate_list.get_plate(static_cast<int>(i));
             BOOST_LOG_TRIVIAL(info) << boost::format("plate %1%, need arrange %2%, filaments_count %3%") % (i+1) % assemble_plate.need_arrange % assemble_plate.filaments_count;
             if (assemble_plate.need_arrange)
             {
@@ -3828,9 +3828,9 @@ int CLI::run(int argc, char **argv)
                 get_print_sequence(cur_plate, m_print_config, arrange_cfg.is_seq_print);
 
                 //Step-1: prepare the arranged data
-                partplate_list.lock_plate(i, false);
-                partplate_list.select_plate(i);
-                BOOST_LOG_TRIVIAL(info) << boost::format("plate %1% set to selected") % i;
+                partplate_list.lock_plate(static_cast<int>(i), false);
+                partplate_list.select_plate(static_cast<int>(i));
+                BOOST_LOG_TRIVIAL(info) << boost::format("plate %1% set to selected") % static_cast<int>(i);
                 size_t plate_obj_count = assemble_plate.loaded_obj_list.size();
                 for (size_t oidx = 0; oidx < plate_obj_count; ++oidx)
                 {
@@ -3838,9 +3838,9 @@ int CLI::run(int argc, char **argv)
 
                     for (size_t inst_idx = 0; inst_idx < mo->instances.size(); ++inst_idx)
                     {
-                        ModelInstance* minst = mo->instances[inst_idx];
+                        ModelInstance* minst = mo->instances[static_cast<int>(inst_idx)];
                         ArrangePolygon   ap = get_instance_arrange_poly(minst, m_print_config);
-                        ap.itemid = selected.size();
+                        ap.itemid = static_cast<int>(selected.size());
                         selected.emplace_back(std::move(ap));
                         BOOST_LOG_TRIVIAL(debug) << boost::format("plate %1%: add object %2%  object index %3%, into selected") % (i+1) % ap.name %(oidx+1);
                     }
@@ -3885,16 +3885,16 @@ int CLI::run(int argc, char **argv)
                     wipe_y_option->set_at(&wt_y_opt, i, 0);
 
 
-                    ArrangePolygon wipe_tower_ap = cur_plate->estimate_wipe_tower_polygon(m_print_config, i, assemble_plate.filaments_count, true);
+                    ArrangePolygon wipe_tower_ap = cur_plate->estimate_wipe_tower_polygon(m_print_config, static_cast<int>(i), assemble_plate.filaments_count, true);
 
-                    wipe_tower_ap.bed_idx = i;
+                    wipe_tower_ap.bed_idx = static_cast<int>(i);
                     unselected.emplace_back(wipe_tower_ap);
                 }
 
                 // add the virtual object into unselect list if has
-                partplate_list.preprocess_exclude_areas(unselected, i + 1);
+                partplate_list.preprocess_exclude_areas(unselected, static_cast<int>(i) + 1);
                 if (avoid_extrusion_cali_region)
-                    partplate_list.preprocess_nonprefered_areas(unselected, i + 1);
+                    partplate_list.preprocess_nonprefered_areas(unselected, static_cast<int>(i) + 1);
 
                 //Step-2:prepare the arrange params
                 arrange_cfg.allow_rotations = allow_rotations;
@@ -3944,7 +3944,7 @@ int CLI::run(int argc, char **argv)
                 BOOST_LOG_TRIVIAL(info) << boost::format("finished plate %1%'s arranging") % (i + 1);
 
                 //step-4: postprocess the bed index and result
-                partplate_list.clear(false, false, true, i);
+                partplate_list.clear(false, false, true, static_cast<int>(i));
 
                 for (ArrangePolygon& ap : selected) {
                     partplate_list.postprocess_bed_index_for_current_plate(ap);
@@ -3984,7 +3984,7 @@ int CLI::run(int argc, char **argv)
         for (size_t i = 0; i < plate_count; i++)
         {
             //unlock all the plates
-            Slic3r::GUI::PartPlate* cur_plate = (Slic3r::GUI::PartPlate*)partplate_list.get_plate(i);
+            Slic3r::GUI::PartPlate* cur_plate = (Slic3r::GUI::PartPlate*)partplate_list.get_plate(static_cast<int>(i));
             cur_plate->lock(false);
         }
 
@@ -4073,10 +4073,10 @@ int CLI::run(int argc, char **argv)
 
                             //preprocess by partplate list
                             //remove the locked plate's instances, neither in selected, nor in un-selected
-                            bool locked = partplate_list.preprocess_arrange_polygon(oidx, inst_idx, ap, true);
+                            bool locked = partplate_list.preprocess_arrange_polygon(static_cast<int>(oidx), static_cast<int>(inst_idx), ap, true);
                             if (!locked)
                             {
-                                ap.itemid = selected.size();
+                                ap.itemid = static_cast<int>(selected.size());
                                 if (minst->printable)
                                     selected.emplace_back(ap);
                                 else
@@ -4085,7 +4085,7 @@ int CLI::run(int argc, char **argv)
                             else
                             {
                                 //skip this object due to be locked in plate
-                                ap.itemid = locked_aps.size();
+                                ap.itemid = static_cast<int>(locked_aps.size());
                                 locked_aps.emplace_back(ap);
                                 boost::nowide::cout <<__FUNCTION__ << boost::format(": skip locked instance, obj_id %1%, instance_id %2%") % oidx % inst_idx;
                             }
@@ -4104,7 +4104,7 @@ int CLI::run(int argc, char **argv)
                     {
                         //prepare the wipe tower
                         int plate_count = partplate_list.get_plate_count();
-                        int extruder_size = used_filament_set.size();
+                        int extruder_size = static_cast<int>(used_filament_set.size());
 
                         auto printer_structure_opt = m_print_config.option<ConfigOptionEnum<PrinterStructure>>("printer_structure");
                         const float tower_brim_width      = m_print_config.option<ConfigOptionFloat>("prime_tower_width", true)->value;
@@ -4164,23 +4164,23 @@ int CLI::run(int argc, char **argv)
                         for (size_t inst_idx = 0; inst_idx < mo->instances.size(); ++inst_idx)
                         {
                             ModelInstance*   minst = mo->instances[inst_idx];
-                            bool             in_plate = cur_plate->contain_instance(oidx, inst_idx) || cur_plate->intersect_instance(oidx, inst_idx);
+                            bool             in_plate = cur_plate->contain_instance(static_cast<int>(oidx), static_cast<int>(inst_idx)) || cur_plate->intersect_instance(static_cast<int>(oidx), static_cast<int>(inst_idx));
                             ArrangePolygon   ap = get_instance_arrange_poly(minst, m_print_config);
 
-                            ArrangePolygons& cont = mo->instances[inst_idx]->printable ?
+                            ArrangePolygons& cont = mo->instances[static_cast<int>(inst_idx)]->printable ?
                                 (in_plate ? selected : unselected) :
                                 unprintable;
-                            bool locked = partplate_list.preprocess_arrange_polygon_other_locked(oidx, inst_idx, ap, in_plate);
-                            BOOST_LOG_TRIVIAL(info) << boost::format("name %4% in_plate %1% printable %2%, locked %3%")%in_plate %mo->instances[inst_idx]->printable %locked % ap.name ;
+                            bool locked = partplate_list.preprocess_arrange_polygon_other_locked(static_cast<int>(oidx), static_cast<int>(inst_idx), ap, in_plate);
+                            BOOST_LOG_TRIVIAL(info) << boost::format("name %4% in_plate %1% printable %2%, locked %3%")%in_plate %mo->instances[static_cast<int>(inst_idx)]->printable %locked % ap.name ;
                             if (!locked)
                             {
-                                ap.itemid = cont.size();
+                                ap.itemid = static_cast<int>(cont.size());
                                 cont.emplace_back(std::move(ap));
                             }
                             else
                             {
                                 //skip this object due to be not in current plate, treated as locked
-                                ap.itemid = locked_aps.size();
+                                ap.itemid = static_cast<int>(locked_aps.size());
                                 locked_aps.emplace_back(std::move(ap));
                                 BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format("arrange: skip locked instance, obj_id %1%, name %2%") % oidx % mo->name;
                             }
@@ -4212,12 +4212,12 @@ int CLI::run(int argc, char **argv)
                         float w = dynamic_cast<const ConfigOptionFloat *>(m_print_config.option("prime_tower_width"))->value;
                         float a = dynamic_cast<const ConfigOptionFloat *>(m_print_config.option("wipe_tower_rotation_angle"))->value;
                         float v = dynamic_cast<const ConfigOptionFloat *>(m_print_config.option("prime_volume"))->value;
-                        unsigned int filaments_cnt = plate_data_src[plate_to_slice-1]->slice_filaments_info.size();
+                        unsigned int filaments_cnt = static_cast<unsigned int>(plate_data_src[plate_to_slice-1]->slice_filaments_info.size());
                         if ((filaments_cnt == 0) || need_skip)
                         {
                             // slice filaments info invalid
                             std::vector<int> extruders = cur_plate->get_extruders_under_cli(true, m_print_config);
-                            filaments_cnt = extruders.size();
+                            filaments_cnt = static_cast<unsigned int>(extruders.size());
                             BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format("arrange: slice filaments info invalid or need_skip, get from partplate: filament_count %1%")%filaments_cnt;
                         }
 
@@ -4818,8 +4818,8 @@ int CLI::run(int argc, char **argv)
                                 for (ModelInstance *i : model_object->instances)
                                 {
                                     i->use_loaded_id_for_label = true;
-                                    if (skip_maps.find(i->loaded_id) != skip_maps.end()) {
-                                        skip_maps[i->loaded_id] = true;
+                                    if (skip_maps.find(static_cast<int>(i->loaded_id)) != skip_maps.end()) {
+                                        skip_maps[static_cast<int>(i->loaded_id)] = true;
                                         i->printable = false;
                                         if (i->print_volume_state == ModelInstancePVS_Inside) {
                                             skipped_count++;
@@ -5767,7 +5767,7 @@ int CLI::run(int argc, char **argv)
             const int cali_thumbnail_height = 2560;
             gcode_viewer.render_calibration_thumbnail(*calibration_data, cali_thumbnail_width, cali_thumbnail_height,
                 calibration_params, partplate_list, opengl_mgr);
-            //generate_calibration_thumbnail(*calibration_data, thumbnail_width, thumbnail_height, calibration_params);
+            // generate_calibration_thumbnail(*calibration_data, thumbnail_width, thumbnail_height, calibration_params);
             //*plate_bboxes[index] = p->generate_first_layer_bbox();
             calibration_thumbnails.push_back(calibration_data);*/
 
@@ -5816,7 +5816,7 @@ int CLI::run(int argc, char **argv)
                 auto bb = unscaled(bb_scaled);
                 bbox_all.merge(bb);
                 data.area *= (SCALING_FACTOR * SCALING_FACTOR); // unscale area
-                data.id = obj->id().id;
+                data.id = static_cast<int>(obj->id().id);
                 data.bbox = { bb.min.x(),bb.min.y(),bb.max.x(),bb.max.y() };
                 id_bboxes.emplace_back(std::move(data));
             }
