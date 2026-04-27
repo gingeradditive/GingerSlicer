@@ -369,7 +369,7 @@ Vec2d find_least_supports_rotation(const ModelObject &      mo,
     if (is_on_floor(pocfg)) {
 
         std::vector<XYRotation> inputs = get_chull_rotations(bp.mesh, bp.max_tries);
-        bp.max_tries = inputs.size();
+        bp.max_tries = static_cast<unsigned int>(inputs.size());
 
         // If the model can be placed on the bed directly, we only need to
         // check the 3D convex hull face rotations.
@@ -458,7 +458,7 @@ Vec2d find_min_z_height_rotation(const ModelObject &mo,
     }
 
     inputs.shrink_to_fit();
-    bp.max_tries = inputs.size();
+    bp.max_tries = static_cast<unsigned int>(inputs.size());
 
     auto objfn = [&bp, &chull](const XYRotation &rot) {
         bp.statusfn();
