@@ -258,7 +258,7 @@ void PrintHostJobQueue::priv::progress_fn(Http::Progress progress, bool &cancel)
     }
 
     if (! cancel) {
-        int gui_progress = progress.ultotal > 0 ? 100*progress.ulnow / progress.ultotal : 0;
+        int gui_progress = progress.ultotal > 0 ? (int)(100*progress.ulnow / progress.ultotal) : 0;
         if (gui_progress != prev_progress) {
             emit_progress(gui_progress);
             prev_progress = gui_progress;
