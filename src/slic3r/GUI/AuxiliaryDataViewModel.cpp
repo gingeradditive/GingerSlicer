@@ -162,7 +162,7 @@ int AuxiliaryModel::Compare(const wxDataViewItem& item1, const wxDataViewItem& i
         wxUIntPtr litem1 = (wxUIntPtr)item1.GetID();
         wxUIntPtr litem2 = (wxUIntPtr)item2.GetID();
 
-        return litem1 - litem2;
+        return static_cast<int>(litem1 - litem2);
     }
 
     return wxDataViewModel::Compare(item1, item2, column, ascending);
@@ -241,7 +241,7 @@ unsigned int AuxiliaryModel::GetChildren(const wxDataViewItem& parent,
         node = m_root;
     }
 
-    count = node->GetChildren().GetCount();
+    count = static_cast<unsigned int>(node->GetChildren().GetCount());
     for (unsigned int pos = 0; pos < count; pos++)
     {
         AuxiliaryModelNode* child = node->GetChildren().Item(pos);
