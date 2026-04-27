@@ -603,17 +603,17 @@ void process_perimeter_polygon(const Polygon &orig_polygon, float z_coord, const
 std::pair<size_t, size_t> find_previous_and_next_perimeter_point(const std::vector<SeamCandidate> &perimeter_points,
                                                                  size_t point_index) {
   const SeamCandidate &current = perimeter_points[point_index];
-  int prev = point_index - 1; //for majority of points, it is true that neighbours lie behind and in front of them in the vector
-  int next = point_index + 1;
+  int prev = static_cast<int>(point_index - 1); //for majority of points, it is true that neighbours lie behind and in front of them in the vector
+  int next = static_cast<int>(point_index + 1);
 
   if (point_index == current.perimeter.start_index) {
     // if point_index is equal to start, it means that the previous neighbour is at the end
-    prev = current.perimeter.end_index;
+    prev = static_cast<int>(current.perimeter.end_index);
   }
 
   if (point_index == current.perimeter.end_index - 1) {
     // if point_index is equal to end, than next neighbour is at the start
-    next = current.perimeter.start_index;
+    next = static_cast<int>(current.perimeter.start_index);
   }
 
   assert(prev >= 0);
@@ -1017,7 +1017,7 @@ void SeamPlacer::gather_seam_candidates(const PrintObject *po, const SeamPlacerI
                     (tbb::blocked_range<size_t> r) {
                       for (size_t layer_idx = r.begin(); layer_idx < r.end(); ++layer_idx) {
                         PrintObjectSeamData::LayerSeams &layer_seams = seam_data.layers[layer_idx];
-                        const Layer *layer = po->get_layer(layer_idx);
+                        const Layer *layer = po->get_layer(static_cast<int>(layer_idx));
                         auto unscaled_z = layer->slice_z;
                         std::vector<const LayerRegion*> regions;
                         //NOTE corresponding region ptr may be null, if the layer has zero perimeters
@@ -1174,7 +1174,7 @@ std::optional<std::pair<size_t, size_t>> SeamPlacer::find_next_seam_in_layer(
 std::vector<std::pair<size_t, size_t>> SeamPlacer::find_seam_string(const PrintObject *po,
                                                                     std::pair<size_t, size_t> start_seam, const SeamPlacerImpl::SeamComparator &comparator) const {
   const std::vector<PrintObjectSeamData::LayerSeams> &layers = m_seam_per_object.find(po)->second.layers;
-  int layer_idx = start_seam.first;
+  int layer_idx = static_cast<int>(start_seam.first);
 
   //initialize searching for seam string - cluster of nearby seams on previous and next layers
   int next_layer = layer_idx + 1;
