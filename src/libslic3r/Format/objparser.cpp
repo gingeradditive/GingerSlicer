@@ -212,7 +212,7 @@ static bool obj_parseline(const char *line, ObjData &data)
 			vertex.coordIdx			= 0;
 			vertex.normalIdx		= 0;
 			vertex.textureCoordIdx	= 0;
-			vertex.coordIdx = strtol(line, &endptr, 10);
+			vertex.coordIdx = static_cast<int>(strtol(line, &endptr, 10));
 			// Coordinate has to be defined
 			if (endptr == 0 || (*endptr != ' ' && *endptr != '\t' && *endptr != '/' && *endptr != 0))
 				return false;
@@ -222,7 +222,7 @@ static bool obj_parseline(const char *line, ObjData &data)
 				// Texture coordinate index may be missing after a 1st slash, but then the normal index has to be present.
 				if (*line != '/') {
 					// Parse the texture coordinate index.
-					vertex.textureCoordIdx = strtol(line, &endptr, 10);
+					vertex.textureCoordIdx = static_cast<int>(strtol(line, &endptr, 10));
 					if (endptr == 0 || (*endptr != ' ' && *endptr != '\t' && *endptr != '/' && *endptr != 0))
 						return false;
 					line = endptr;
@@ -230,7 +230,7 @@ static bool obj_parseline(const char *line, ObjData &data)
 				if (*line == '/') {
 					// Parse normal index.
 					++ line;
-					vertex.normalIdx = strtol(line, &endptr, 10);
+					vertex.normalIdx = static_cast<int>(strtol(line, &endptr, 10));
 					if (endptr == 0 || (*endptr != ' ' && *endptr != '\t' && *endptr != 0))
 						return false;
 					line = endptr;
@@ -256,7 +256,7 @@ static bool obj_parseline(const char *line, ObjData &data)
 		}
         if (data.usemtls.size() > 0) {
             int face_index_count = 0;
-            for (int i = data.vertices.size() - 1; i >= 0; i--) {
+            for (int i = static_cast<int>(data.vertices.size()) - 1; i >= 0; i--) {
                 if (data.vertices[i].coordIdx == -1) {
 					break;
 				}
@@ -361,7 +361,7 @@ static bool obj_parseline(const char *line, ObjData &data)
 		if (*line != 0)
 			return false;
 		ObjSmoothingGroup group;
-        group.vertexIdxFirst = (int)data.vertices.size();
+        group.vertexIdxFirst = static_cast<int>(data.vertices.size());
         group.smoothingGroupID = g;
 		data.smoothingGroups.push_back(group);
 		break;
