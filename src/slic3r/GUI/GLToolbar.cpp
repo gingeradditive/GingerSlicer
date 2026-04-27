@@ -1081,7 +1081,7 @@ int GLToolbar::contains_mouse_horizontal(const Vec2d& mouse_pos, const GLCanvas3
                 (float)scaled_mouse_pos.x() <= right &&
                 bottom <= (float)scaled_mouse_pos.y() &&
                 (float)scaled_mouse_pos.y() <= top)
-                return id;
+                return static_cast<int>(id);
 
             left = right;
             right += gap_size;
@@ -1110,7 +1110,7 @@ int GLToolbar::contains_mouse_horizontal(const Vec2d& mouse_pos, const GLCanvas3
                 (float)scaled_mouse_pos.x() <= right &&
                 bottom <= (float)scaled_mouse_pos.y() &&
                 (float)scaled_mouse_pos.y() <= top)
-                return id;
+                return static_cast<int>(id);
 
             left = right;
             right += gap_size;
@@ -1159,7 +1159,7 @@ int GLToolbar::contains_mouse_vertical(const Vec2d& mouse_pos, const GLCanvas3D&
                 (float)scaled_mouse_pos.x() <= right &&
                 bottom <= (float)scaled_mouse_pos.y() &&
                 (float)scaled_mouse_pos.y() <= top)
-                return id;
+                return static_cast<int>(id);
 
             top = bottom;
             bottom -= gap_size;
@@ -1191,7 +1191,7 @@ int GLToolbar::contains_mouse_vertical(const Vec2d& mouse_pos, const GLCanvas3D&
                 (float)scaled_mouse_pos.x() <= right &&
                 bottom <= (float)scaled_mouse_pos.y() &&
                 (float)scaled_mouse_pos.y() <= top)
-                return id;
+                return static_cast<int>(id);
 
             top = bottom;
             bottom -= gap_size;
