@@ -221,14 +221,14 @@ static std::vector<std::pair<TreeSupportSettings, std::vector<size_t>>> group_me
             for (size_t layer_nr = range.begin(); layer_nr < range.end(); layer_nr++) {
                 if (print_object.print()->canceled())
                     break;
-                Layer* layer = print_object.get_layer(layer_nr);
+                Layer* layer = print_object.get_layer(static_cast<int>(layer_nr));
                 // Filter out areas whose diameter that is smaller than extrusion_width, but we don't want to lose any details.
                 layer->lslices_extrudable = intersection_ex(layer->lslices, offset2_ex(layer->lslices, -extrusion_width_scaled / 2, extrusion_width_scaled));
             }
         });
 
     size_t num_overhang_layers = support_auto ? num_object_layers : std::min(num_object_layers, std::max(size_t(support_enforce_layers), enforcers_layers.size()));
-    tbb::parallel_for(tbb::blocked_range<LayerIndex>(1, num_overhang_layers),
+    tbb::parallel_for(tbb::blocked_range<LayerIndex>(1, static_cast<int>(num_overhang_layers)),
         [&print_object, &config, &print_config, &enforcers_layers, &blockers_layers,
          support_auto, support_enforce_layers, support_threshold_auto, tan_threshold, enforcer_overhang_offset, num_raft_layers, radius_sample_resolution, &throw_on_cancel, &out]
         (const tbb::blocked_range<LayerIndex> &range) {
@@ -457,13 +457,13 @@ static std::vector<std::pair<TreeSupportSettings, std::vector<size_t>>> group_me
 {
     using AvoidanceType = TreeModelVolumes::AvoidanceType;
     const bool min_xy_dist = config.xy_distance > config.xy_min_distance;
-    if (! contains(volumes.getAvoidance(config.getRadius(0), current_layer - 1, p.second == LineStatus::TO_BP_SAFE ? AvoidanceType::FastSafe : AvoidanceType::Fast, false, min_xy_dist), p.first))
+    if (! contains(volumes.getAvoidance(config.getRadius(0), static_cast<LayerIndex>(current_layer - 1), p.second == LineStatus::TO_BP_SAFE ? AvoidanceType::FastSafe : AvoidanceType::Fast, false, min_xy_dist), p.first))
         return true;
     if (config.support_rests_on_model && (p.second != LineStatus::TO_BP && p.second != LineStatus::TO_BP_SAFE))
         return ! contains(
             p.second == LineStatus::TO_MODEL_GRACIOUS || p.second == LineStatus::TO_MODEL_GRACIOUS_SAFE ?
-                volumes.getAvoidance(config.getRadius(0), current_layer - 1, p.second == LineStatus::TO_MODEL_GRACIOUS_SAFE ? AvoidanceType::FastSafe : AvoidanceType::Fast, true, min_xy_dist) :
-                volumes.getCollision(config.getRadius(0), current_layer - 1, min_xy_dist),
+                volumes.getAvoidance(config.getRadius(0), static_cast<LayerIndex>(current_layer - 1), p.second == LineStatus::TO_MODEL_GRACIOUS_SAFE ? AvoidanceType::FastSafe : AvoidanceType::Fast, true, min_xy_dist) :
+                volumes.getCollision(config.getRadius(0), static_cast<LayerIndex>(current_layer - 1), min_xy_dist),
             p.first);
     return false;
 }
@@ -819,15 +819,15 @@ static std::optional<std::pair<Point, size_t>> polyline_sample_next_point_at_dis
     }
 
     coord_t step_size = safe_step_size;
-    int     steps = distance > last_step_offset_without_check ? (distance - last_step_offset_without_check) / step_size : 0;
-    if (distance - steps * step_size > last_step_offset_without_check) {
+    int     steps = distance > last_step_offset_without_check ? static_cast<int>((distance - last_step_offset_without_check) / step_size) : 0;
+    if (distance - static_cast<coord_t>(steps) * step_size > last_step_offset_without_check) {
         if ((steps + 1) * step_size <= distance)
             // This will be the case when last_step_offset_without_check >= safe_step_size
             ++ steps;
         else
             do_final_difference = true;
     }
-    if (steps + (distance < last_step_offset_without_check || (distance % step_size) != 0) < int(min_amount_offset) && min_amount_offset > 1) {
+    if (steps + (distance < last_step_offset_without_check || (distance % step_size) != 0) < static_cast<int>(min_amount_offset) && min_amount_offset > 1) {
         // yes one can add a bool as the standard specifies that a result from compare operators has to be 0 or 1
         // reduce the stepsize to ensure it is offset the required amount of times
         step_size = distance / min_amount_offset;
@@ -923,7 +923,7 @@ public:
                 // add all points that would not be valid
                 for (const LineInformation &line : points)
                     for (const std::pair<Point, LineStatus> &point_data : line)
-                        add_point_as_influence_area(point_data, this_layer_idx,
+                        add_point_as_influence_area(point_data, static_cast<LayerIndex>(this_layer_idx),
                             // don't move until
                             roof_tip_layers - dtt_roof_tip,
                             // supports roof
@@ -950,7 +950,7 @@ public:
             // Ovalisation should be disabled for these to improve the quality of the lines when tip_diameter=line_width
             bool disable_ovalistation = config.min_radius < 3 * config.support_line_width && roof_tip_layers == 0 && dtt_roof_tip == 0 && line.size() > 5;
             for (const std::pair<Point, LineStatus> &point_data : line)
-                add_point_as_influence_area(point_data, insert_layer_idx - dtt_roof_tip,
+                add_point_as_influence_area(point_data, static_cast<LayerIndex>(insert_layer_idx - dtt_roof_tip),
                     // don't move until
                     dont_move_until > dtt_roof_tip ? dont_move_until - dtt_roof_tip : 0,
                     // supports roof
@@ -995,9 +995,9 @@ private:
                 state.elephant_foot_increases = 0;
                 state.use_min_xy_dist = min_xy_dist;
                 state.supports_roof = roof;
-                state.dont_move_until = dont_move_until;
+                state.dont_move_until = static_cast<uint32_t>(dont_move_until);
                 state.can_use_safe_radius = safe_radius;
-                state.missing_roof_layers = force_tip_to_roof ? dont_move_until : 0;
+                state.missing_roof_layers = force_tip_to_roof ? static_cast<uint32_t>(dont_move_until) : 0;
                 state.skip_ovalisation = skip_ovalisation;
                 move_bounds[insert_layer].emplace_back(state, std::move(circle));
             }
@@ -1144,8 +1144,8 @@ void sample_overhang_area(
             {
                 const bool min_xy_dist = interface_placer.config.xy_distance > interface_placer.config.xy_min_distance;
                 const Polygons &forbidden_next_raw = interface_placer.config.support_rests_on_model ?
-                    interface_placer.volumes.getCollision(interface_placer.config.getRadius(0), layer_idx - (dtt_roof + 1), min_xy_dist) :
-                    interface_placer.volumes.getAvoidance(interface_placer.config.getRadius(0), layer_idx - (dtt_roof + 1), TreeModelVolumes::AvoidanceType::Fast, false, min_xy_dist);
+                    interface_placer.volumes.getCollision(interface_placer.config.getRadius(0), static_cast<LayerIndex>(layer_idx - (dtt_roof + 1)), min_xy_dist) :
+                    interface_placer.volumes.getAvoidance(interface_placer.config.getRadius(0), static_cast<LayerIndex>(layer_idx - (dtt_roof + 1)), TreeModelVolumes::AvoidanceType::Fast, false, min_xy_dist);
                 // prevent rounding errors down the line
                 //FIXME maybe use SafetyOffset::Yes at the following diff() instead?
                 forbidden_next = offset(union_ex(forbidden_next_raw), scaled<float>(0.005), jtMiter, 1.2);
@@ -1158,9 +1158,9 @@ void sample_overhang_area(
                     // Produce support head points supporting an interface layer: First produce the interface lines, then sample them.
                     overhang_lines = split_lines(
                         convert_lines_to_internal(interface_placer.volumes, interface_placer.config,
-                            ensure_maximum_distance_polyline(generate_roof_lines(last_overhang, layer_idx - dtt_before), connect_length, 1), layer_idx - dtt_before),
+                            ensure_maximum_distance_polyline(generate_roof_lines(last_overhang, static_cast<LayerIndex>(layer_idx - dtt_before)), connect_length, 1), static_cast<LayerIndex>(layer_idx - dtt_before)),
                         [&interface_placer, layer_idx, dtt_before](const std::pair<Point, LineStatus> &p)
-                            { return evaluate_point_for_next_layer_function(interface_placer.volumes, interface_placer.config, layer_idx - dtt_before, p); })
+                            { return evaluate_point_for_next_layer_function(interface_placer.volumes, interface_placer.config, static_cast<LayerIndex>(layer_idx - dtt_before), p); })
                         .first;
                 }
                 break;
@@ -1172,10 +1172,10 @@ void sample_overhang_area(
 
         layer_generation_dtt = std::max(dtt_roof, size_t(1)) - 1; // 1 inside max and -1 outside to avoid underflow. layer_generation_dtt=dtt_roof-1 if dtt_roof!=0;
         // if the roof should be valid, check that the area does generate lines. This is NOT guaranteed.
-        if (overhang_lines.empty() && dtt_roof != 0 && generate_roof_lines(overhang_area, layer_idx - layer_generation_dtt).empty())
+        if (overhang_lines.empty() && dtt_roof != 0 && generate_roof_lines(overhang_area, static_cast<LayerIndex>(layer_idx - layer_generation_dtt)).empty())
             for (size_t idx = 0; idx < dtt_roof; idx++) {
                 // check for every roof area that it has resulting lines. Remember idx 1 means the 2. layer of roof => higher idx == lower layer
-                if (generate_roof_lines(added_roofs[idx], layer_idx - idx).empty()) {
+                if (generate_roof_lines(added_roofs[idx], static_cast<LayerIndex>(layer_idx - idx)).empty()) {
                     dtt_roof = idx;
                     layer_generation_dtt = std::max(dtt_roof, size_t(1)) - 1;
                     break;
@@ -1192,7 +1192,7 @@ void sample_overhang_area(
         bool supports_roof = dtt_roof > 0;
         bool continuous_tips = !supports_roof && large_horizontal_roof;
         Polylines polylines = ensure_maximum_distance_polyline(
-            generate_support_infill_lines(overhang_area, interface_placer.support_parameters, supports_roof, layer_idx - layer_generation_dtt,
+            generate_support_infill_lines(overhang_area, interface_placer.support_parameters, supports_roof, static_cast<LayerIndex>(layer_idx - layer_generation_dtt),
                 supports_roof ? mesh_group_settings.support_roof_line_distance : mesh_group_settings.support_tree_branch_distance),
             continuous_tips ? interface_placer.config.min_radius / 2 : connect_length, 1);
         size_t point_count = 0;
@@ -1213,7 +1213,7 @@ void sample_overhang_area(
                     overhang_area),
                 connect_length, min_support_points);
         }
-        overhang_lines = convert_lines_to_internal(interface_placer.volumes, interface_placer.config, polylines, layer_idx - dtt_roof);
+        overhang_lines = convert_lines_to_internal(interface_placer.volumes, interface_placer.config, polylines, static_cast<LayerIndex>(layer_idx - dtt_roof));
     }
 
     assert(dtt_roof <= layer_idx);
@@ -1227,7 +1227,7 @@ void sample_overhang_area(
             // Sample along these lines
             overhang_lines,
             // First layer index to insert the tree tips or interfaces.
-            layer_idx - dtt_roof,
+            static_cast<LayerIndex>(layer_idx - dtt_roof),
             // Remaining roof tip layers.
             interface_placer.force_tip_to_roof ? num_support_roof_layers - dtt_roof : 0,
             // Supports roof already? How many roof layers were already produced above these tips?
@@ -1336,8 +1336,8 @@ static void generate_initial_areas(
             Polygons relevant_forbidden;
             {
                 const Polygons &relevant_forbidden_raw = config.support_rests_on_model ?
-                    volumes.getCollision(config.getRadius(0), layer_idx, min_xy_dist) :
-                    volumes.getAvoidance(config.getRadius(0), layer_idx, AvoidanceType::Fast, false, min_xy_dist);
+                    volumes.getCollision(config.getRadius(0), static_cast<LayerIndex>(layer_idx), min_xy_dist) :
+                    volumes.getAvoidance(config.getRadius(0), static_cast<LayerIndex>(layer_idx), AvoidanceType::Fast, false, min_xy_dist);
                 // prevent rounding errors down the line, points placed directly on the line of the forbidden area may not be added otherwise.
                 relevant_forbidden = offset(union_ex(relevant_forbidden_raw), scaled<float>(0.005), jtMiter, 1.2);
             }
@@ -1370,7 +1370,7 @@ static void generate_initial_areas(
                             circle_length_to_half_linewidth_change,
                         extra_outset - extra_total_offset_acc);
                     extra_total_offset_acc += offset_current_step;
-                    const Polygons &raw_collision = volumes.getCollision(0, layer_idx, true);
+                    const Polygons &raw_collision = volumes.getCollision(0, static_cast<LayerIndex>(layer_idx), true);
                     const coord_t   offset_step   = config.xy_min_distance + config.support_line_width;
                     // Reducing the remaining overhang by the areas already supported.
                     //FIXME 1.5 * extra_total_offset_acc seems to be too much, it may remove some remaining overhang without being supported at all.
@@ -1683,7 +1683,7 @@ static Point move_inside_if_outside(const Polygons &polygons, Point from, int di
                 config.getRadius(resulting_eff_dtt + 1, current_elem.elephant_foot_increases) <= current_ceil_radius &&
                 config.getRadius(resulting_eff_dtt + 1, current_elem.elephant_foot_increases) <= support_element_radius(config, current_elem))
                 ++ resulting_eff_dtt;
-            current_elem.effective_radius_height = resulting_eff_dtt;
+            current_elem.effective_radius_height = static_cast<uint32_t>(resulting_eff_dtt);
         }
         radius = support_element_collision_radius(config, current_elem);
 
@@ -2054,7 +2054,7 @@ static void increase_areas_one_layer(
 {
     SupportElementState out;
     out.next_position   = next_position;
-    out.layer_idx       = layer_idx;
+    out.layer_idx       = static_cast<LayerIndex>(layer_idx);
     out.use_min_xy_dist = first.use_min_xy_dist || second.use_min_xy_dist;
     out.supports_roof   = first.supports_roof || second.supports_roof;
     out.dont_move_until = std::max(first.dont_move_until, second.dont_move_until);
@@ -2457,7 +2457,7 @@ static void create_layer_pathing(const TreeModelVolumes &volumes, const TreeSupp
     auto dur_inc   = std::chrono::duration_values<std::chrono::nanoseconds>::zero();
     auto dur_total = std::chrono::duration_values<std::chrono::nanoseconds>::zero();
 
-    LayerIndex last_merge_layer_idx = move_bounds.size();
+    LayerIndex last_merge_layer_idx = static_cast<LayerIndex>(move_bounds.size());
     bool new_element = false;
     const auto _tiny_area_threshold = tiny_area_threshold();
 
@@ -3395,7 +3395,7 @@ static void generate_support_areas(Print &print, TreeSupport* tree_support, cons
         const int       num_layers = int(print_object.layer_count()) + num_raft_layers;
         overhangs.resize(num_layers);
         for (size_t i = 0; i < print_object.layer_count(); i++) {
-            for (ExPolygon& expoly : print_object.get_layer(i)->loverhangs) {
+            for (ExPolygon& expoly : print_object.get_layer(static_cast<int>(i))->loverhangs) {
                 Polygons polys = to_polygons(expoly);
                 if (tree_support->overhang_types[&expoly] == TreeSupport::SharpTail) { polys = offset(polys, scale_(0.2));
                 }
@@ -3827,7 +3827,7 @@ void organic_draw_branches(
                                 coord_t                         bottom_radius = support_element_radius(config, *branch.path.front());
                                 // Don't propagate further than 1.5 * bottom radius.
                                 //LayerIndex                      layers_propagate_max = 2 * bottom_radius / config.layer_height;
-                                LayerIndex                      layers_propagate_max = 5 * bottom_radius / config.layer_height;
+                                LayerIndex                      layers_propagate_max = static_cast<LayerIndex>(5 * bottom_radius / config.layer_height);
                                 LayerIndex                      layer_bottommost = branch.path.front()->state.verylost ? 
                                     // If the tree bottom is hanging in the air, bring it down to some surface.
                                     0 : 
