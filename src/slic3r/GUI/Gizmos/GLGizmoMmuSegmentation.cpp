@@ -771,7 +771,7 @@ void GLGizmoMmuSegmentation::update_model_object()
         const ModelObjectPtrs &mos = wxGetApp().model().objects;
         size_t obj_idx = std::find(mos.begin(), mos.end(), mo) - mos.begin();
         wxGetApp().obj_list()->update_info_items(obj_idx);
-        wxGetApp().plater()->get_partplate_list().notify_instance_update(obj_idx, 0);
+        wxGetApp().plater()->get_partplate_list().notify_instance_update(static_cast<int>(obj_idx), 0);
         m_parent.post_event(SimpleEvent(EVT_GLCANVAS_SCHEDULE_BACKGROUND_PROCESS));
     }
 }
