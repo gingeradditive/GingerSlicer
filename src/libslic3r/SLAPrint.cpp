@@ -1007,7 +1007,7 @@ bool SLAPrintObject::invalidate_step(SLAPrintObjectStep step)
 
 bool SLAPrintObject::invalidate_all_steps()
 {
-    return Inherited::invalidate_all_steps() | m_print->invalidate_all_steps();
+    return Inherited::invalidate_all_steps() || m_print->invalidate_all_steps();
 }
 
 double SLAPrintObject::get_elevation() const {
