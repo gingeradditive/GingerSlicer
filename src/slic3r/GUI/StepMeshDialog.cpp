@@ -124,7 +124,7 @@ StepMeshDialog::StepMeshDialog(wxWindow* parent, Slic3r::Step& file, double line
     font.SetUnderlined(true);
     tips->SetForegroundColour(wxColour(0, 151, 137));
     tips->SetFont(font);
-    tips->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& e) {
+    tips->Bind(wxEVT_LEFT_DOWN, [](wxMouseEvent& e) {
         wxLaunchDefaultBrowser("https://github.com/SoftFever/OrcaSlicer/wiki/stl-transformation");
     });
     info->Wrap(FromDIP(400));
@@ -163,7 +163,7 @@ StepMeshDialog::StepMeshDialog(wxWindow* parent, Slic3r::Step& file, double line
         e.Skip();
     }));
     // textctrl bind slider
-    linear_input->Bind(wxEVT_TEXT, ([this, linear_slider, linear_input](wxCommandEvent& e) {
+    linear_input->Bind(wxEVT_TEXT, ([linear_slider, linear_input](wxCommandEvent& e) {
         double slider_value_long;
         int slider_value;
         wxString value = linear_input->GetTextCtrl()->GetValue();
@@ -216,7 +216,7 @@ StepMeshDialog::StepMeshDialog(wxWindow* parent, Slic3r::Step& file, double line
         e.Skip();
     }));
     // textctrl bind slider
-    angle_input->Bind(wxEVT_TEXT, ([this, angle_slider, angle_input](wxCommandEvent& e) {
+    angle_input->Bind(wxEVT_TEXT, ([angle_slider, angle_input](wxCommandEvent& e) {
         double slider_value_long;
         int slider_value;
         wxString value = angle_input->GetTextCtrl()->GetValue();
