@@ -492,7 +492,7 @@ ModelObject* Model::add_object(const ModelObject &other)
     // BBS: backup
     if (need_backup) {
         if (auto model = other.get_model()) {
-            auto iter = object_backup_id_map.find(other.id().id);
+            auto iter = object_backup_id_map.find(static_cast<int>(other.id().id));
             if (iter != object_backup_id_map.end()) {
                 object_backup_id_map.emplace(new_object->id().id, iter->second);
                 object_backup_id_map.erase(iter);
@@ -580,22 +580,22 @@ void Model::collect_reusable_objects(std::vector<ObjectBase*>& objects)
 
 void Model::set_object_backup_id(ModelObject const& object, int uuid)
 {
-    object_backup_id_map[object.id().id] = uuid;
+    object_backup_id_map[static_cast<int>(object.id().id)] = uuid;
     if (uuid >= next_object_backup_id) next_object_backup_id = uuid + 1;
 }
 
 int Model::get_object_backup_id(ModelObject const& object)
 {
-    auto i = object_backup_id_map.find(object.id().id);
+    auto i = object_backup_id_map.find(static_cast<int>(object.id().id));
     if (i == object_backup_id_map.end()) {
-        i = object_backup_id_map.insert(std::make_pair(object.id().id, next_object_backup_id++)).first;
+        i = object_backup_id_map.insert(std::make_pair(static_cast<int>(object.id().id), next_object_backup_id++)).first;
     }
     return i->second;
 }
 
 int Model::get_object_backup_id(ModelObject const& object) const
 {
-    return object_backup_id_map.find(object.id().id)->second;
+    return object_backup_id_map.find(static_cast<int>(object.id().id))->second;
 }
 
 void Model::delete_material(t_model_material_id material_id)
@@ -781,7 +781,7 @@ void Model::convert_multipart_object(unsigned int max_extruders)
             // Revert the centering operation.
             trafo_volume.set_offset(trafo_volume.get_offset() - o->origin_translation);
             int counter = 1;
-            auto copy_volume = [o, v, max_extruders, &counter, &extruder_counter](ModelVolume *new_v) {
+            auto copy_volume = [o, v, &counter](ModelVolume *new_v) {
                 assert(new_v != nullptr);
                 new_v->name = (counter > 1) ? o->name + "_" + std::to_string(counter++) : o->name;
                 //BBS: Use extruder priority: volumn > object > default
@@ -1157,7 +1157,7 @@ ModelObject& ModelObject::assign_copy(ModelObject &&rhs)
     this->sla_support_points          = std::move(rhs.sla_support_points);
     this->sla_points_status           = std::move(rhs.sla_points_status);
     this->sla_drain_holes             = std::move(rhs.sla_drain_holes);
-    this->brim_points                 = std::move(brim_points);
+    this->brim_points                 = std::move(rhs.brim_points);
     this->layer_config_ranges         = std::move(rhs.layer_config_ranges);
     this->layer_height_profile        = std::move(rhs.layer_height_profile);
     this->printable                   = std::move(rhs.printable);
@@ -2988,7 +2988,7 @@ bool Model::obj_import_vertex_color_deal(const std::vector<unsigned char> &verte
             auto volume = obj->volumes[0];
             volume->config.set("extruder", first_extruder_id);
             auto face_count = volume->mesh().its.indices.size();
-            volume->mmu_segmentation_facets.reserve(face_count);
+            volume->mmu_segmentation_facets.reserve(static_cast<int>(face_count));
             if (volume->mesh().its.vertices.size() != vertex_filament_ids.size()) {
                 return false;
             }
@@ -3010,7 +3010,7 @@ bool Model::obj_import_vertex_color_deal(const std::vector<unsigned char> &verte
                 case _3_SAME_COLOR: {
                     std::string result;
                     get_real_filament_id(filament_id0, result);
-                    volume->mmu_segmentation_facets.set_triangle_from_string(i, result);
+                    volume->mmu_segmentation_facets.set_triangle_from_string(static_cast<int>(i), result);
                     break;
                 }
                 case _3_DIFF_COLOR: {
@@ -3034,16 +3034,16 @@ bool Model::obj_import_vertex_color_deal(const std::vector<unsigned char> &verte
                     int                  max_sita_vertex_index = 0;
                     for (size_t j = 1; j < sitas.size(); j++) {
                         if (sitas[j] > max_sita) {
-                            max_sita_vertex_index = j;
+                            max_sita_vertex_index = static_cast<int>(j);
                             max_sita = sitas[j];
                         }
                     }
                     if (max_sita_vertex_index == 0) {
-                        volume->mmu_segmentation_facets.set_triangle_from_string(i, result0 + result1 + result2 + (result1 + result2 + "5" )+ "3"); //"1C0C2C0C1C13"
+                        volume->mmu_segmentation_facets.set_triangle_from_string(static_cast<int>(i), result0 + result1 + result2 + (result1 + result2 + "5" )+ "3"); //"1C0C2C0C1C13"
                     } else if (max_sita_vertex_index == 1) {
-                        volume->mmu_segmentation_facets.set_triangle_from_string(i, result0 + result1 + result2 + (result0 + result2 + "9") + "3");
+                        volume->mmu_segmentation_facets.set_triangle_from_string(static_cast<int>(i), result0 + result1 + result2 + (result0 + result2 + "9") + "3");
                     } else{// if (max_sita_vertex_index == 2)
-                        volume->mmu_segmentation_facets.set_triangle_from_string(i, result0 + result1 + result2 + (result1 + result0 + "1") + "3");
+                        volume->mmu_segmentation_facets.set_triangle_from_string(static_cast<int>(i), result0 + result1 + result2 + (result1 + result0 + "1") + "3");
                     }
                     break;
                 }
@@ -3053,11 +3053,11 @@ bool Model::obj_import_vertex_color_deal(const std::vector<unsigned char> &verte
                     get_real_filament_id(filament_id1, result1);
                     get_real_filament_id(filament_id2, result2);
                     if (iso_index == 0) {
-                        volume->mmu_segmentation_facets.set_triangle_from_string(i, result0 + result1 + result1 + "2");
+                        volume->mmu_segmentation_facets.set_triangle_from_string(static_cast<int>(i), result0 + result1 + result1 + "2");
                     } else if (iso_index == 1) {
-                        volume->mmu_segmentation_facets.set_triangle_from_string(i, result1 + result0 + result0 + "6");
+                        volume->mmu_segmentation_facets.set_triangle_from_string(static_cast<int>(i), result1 + result0 + result0 + "6");
                     } else if (iso_index == 2) {
-                        volume->mmu_segmentation_facets.set_triangle_from_string(i, result2 + result0 + result0 + "A");
+                        volume->mmu_segmentation_facets.set_triangle_from_string(static_cast<int>(i), result2 + result0 + result0 + "A");
                     }
                     break;
                 }
@@ -3081,15 +3081,15 @@ bool Model::obj_import_face_color_deal(const std::vector<unsigned char> &face_fi
             auto volume        = obj->volumes[0];
             volume->config.set("extruder", first_extruder_id);
             auto face_count    = volume->mesh().its.indices.size();
-            volume->mmu_segmentation_facets.reserve(face_count);
+            volume->mmu_segmentation_facets.reserve(static_cast<int>(face_count));
             if (volume->mesh().its.indices.size() != face_filament_ids.size()) { return false; }
             for (size_t i = 0; i < volume->mesh().its.indices.size(); i++) {
-                auto face         = volume->mesh().its.indices[i];
-                auto filament_id = face_filament_ids[i];
+                auto face         = volume->mesh().its.indices[static_cast<int>(i)];
+                auto filament_id = face_filament_ids[static_cast<int>(i)];
                 if (filament_id <= 1) { continue; }
                 std::string result;
                 get_real_filament_id(filament_id, result);
-                volume->mmu_segmentation_facets.set_triangle_from_string(i, result);
+                volume->mmu_segmentation_facets.set_triangle_from_string(static_cast<int>(i), result);
             }
             return true;
         }
