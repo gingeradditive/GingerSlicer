@@ -66,14 +66,14 @@ void SpinInput::Create(wxWindow *parent,
     text_ctrl->Bind(wxEVT_KILL_FOCUS, &SpinInput::onTextLostFocus, this);
     text_ctrl->Bind(wxEVT_TEXT_ENTER, &SpinInput::onTextEnter, this);
     text_ctrl->Bind(wxEVT_KEY_DOWN, &SpinInput::keyPressed, this);
-    text_ctrl->Bind(wxEVT_RIGHT_DOWN, [this](auto &e) {}); // disable context menu
+    text_ctrl->Bind(wxEVT_RIGHT_DOWN, [](auto &e) {}); // disable context menu
     button_inc = createButton(true);
     button_dec = createButton(false);
     delta      = 0;
     timer.Bind(wxEVT_TIMER, &SpinInput::onTimer, this);
 
     long initialFromText;
-    if (text.ToLong(&initialFromText)) initial = initialFromText;
+    if (text.ToLong(&initialFromText)) initial = static_cast<int>(initialFromText);
     SetRange(min, max);
     SetValue(initial);
     SetStep(step);
@@ -115,7 +115,7 @@ void SpinInput::SetValue(const wxString &text)
 {
     long value;
     if ( text.ToLong(&value) )
-        SetValue(value);
+        SetValue(static_cast<int>(value));
 }
 
 void SpinInput::SetValue(int value)
@@ -284,7 +284,7 @@ void SpinInput::onTextEnter(wxCommandEvent &event)
     long value;
     if (!text_ctrl->GetValue().ToLong(&value)) { value = val; }
     if (value != val) {
-        SetValue(value);
+        SetValue(static_cast<int>(value));
         sendSpinEvent();
     }
     event.SetId(GetId());
@@ -312,7 +312,7 @@ void SpinInput::keyPressed(wxKeyEvent &event)
             value = value + step;
         }
         if (value != val) {
-            SetValue(value);
+            SetValue(static_cast<int>(value));
             sendSpinEvent();
         }
         break;
