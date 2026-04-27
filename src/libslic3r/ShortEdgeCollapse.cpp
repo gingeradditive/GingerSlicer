@@ -129,8 +129,8 @@ void its_short_edge_collpase(indexed_triangle_set &mesh, size_t target_triangle_
 
                 int neighbor_to_remove_face_idx = triangles_neighbors[face_idx][edge_idx];
                 // remove faces
-                remove_face(face_idx, neighbor_to_remove_face_idx);
-                remove_face(neighbor_to_remove_face_idx, face_idx);
+                remove_face(static_cast<int>(face_idx), static_cast<int>(neighbor_to_remove_face_idx));
+                remove_face(static_cast<int>(neighbor_to_remove_face_idx), static_cast<int>(face_idx));
                 allowed_face_removals-=2;
 
                 // break. this triangle is done
@@ -162,7 +162,7 @@ void its_short_edge_collpase(indexed_triangle_set &mesh, size_t target_triangle_
     for (size_t idx : face_indices) {
         Vec3i32 final_face;
         for (size_t i = 0; i < 3; ++i) {
-            final_face[i] = get_final_index(mesh.indices[idx][i]);
+            final_face[i] = get_final_index(static_cast<int>(mesh.indices[idx][i]));
         }
         if (final_face[0] == final_face[1] || final_face[1] == final_face[2] || final_face[2] == final_face[0]) {
             continue; // discard degenerate triangles
@@ -173,7 +173,7 @@ void its_short_edge_collpase(indexed_triangle_set &mesh, size_t target_triangle_
                 final_vertices_mapping[final_face[i]] = final_vertices.size();
                 final_vertices.push_back(mesh.vertices[final_face[i]]);
             }
-            final_face[i] = final_vertices_mapping[final_face[i]];
+            final_face[i] = static_cast<int>(final_vertices_mapping[final_face[i]]);
         }
 
         final_indices.push_back(final_face);
