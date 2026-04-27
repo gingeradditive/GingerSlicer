@@ -628,21 +628,21 @@ void GLModel::render(const std::pair<size_t, size_t>& range)
     if (position) {
         position_id = shader->get_attrib_location("v_position");
         if (position_id != -1) {
-            glsafe(::glVertexAttribPointer(position_id, Geometry::position_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, (const void*)Geometry::position_offset_bytes(data.format)));
+            glsafe(::glVertexAttribPointer(position_id, static_cast<GLsizei>(Geometry::position_stride_floats(data.format)), GL_FLOAT, GL_FALSE, static_cast<GLsizei>(vertex_stride_bytes), (const void*)Geometry::position_offset_bytes(data.format)));
             glsafe(::glEnableVertexAttribArray(position_id));
         }
     }
     if (normal) {
         normal_id = shader->get_attrib_location("v_normal");
         if (normal_id != -1) {
-            glsafe(::glVertexAttribPointer(normal_id, Geometry::normal_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, (const void*)Geometry::normal_offset_bytes(data.format)));
+            glsafe(::glVertexAttribPointer(normal_id, static_cast<GLsizei>(Geometry::normal_stride_floats(data.format)), GL_FLOAT, GL_FALSE, static_cast<GLsizei>(vertex_stride_bytes), (const void*)Geometry::normal_offset_bytes(data.format)));
             glsafe(::glEnableVertexAttribArray(normal_id));
         }
     }
     if (tex_coord) {
         tex_coord_id = shader->get_attrib_location("v_tex_coord");
         if (tex_coord_id != -1) {
-            glsafe(::glVertexAttribPointer(tex_coord_id, Geometry::tex_coord_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, (const void*)Geometry::tex_coord_offset_bytes(data.format)));
+            glsafe(::glVertexAttribPointer(tex_coord_id, static_cast<GLsizei>(Geometry::tex_coord_stride_floats(data.format)), GL_FLOAT, GL_FALSE, static_cast<GLsizei>(vertex_stride_bytes), (const void*)Geometry::tex_coord_offset_bytes(data.format)));
             glsafe(::glEnableVertexAttribArray(tex_coord_id));
         }
     }
@@ -650,7 +650,7 @@ void GLModel::render(const std::pair<size_t, size_t>& range)
     shader->set_uniform("uniform_color", data.color);
 
     glsafe(::glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_render_data.ibo_id));
-    glsafe(::glDrawElements(mode, range.second - range.first, index_type, (const void*)(range.first * Geometry::index_stride_bytes(data))));
+    glsafe(::glDrawElements(mode, static_cast<GLsizei>(range.second - range.first), index_type, (const void*)(range.first * Geometry::index_stride_bytes(data))));
     glsafe(::glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
 
     if (tex_coord_id != -1)
@@ -711,19 +711,19 @@ void GLModel::render_instanced(unsigned int instances_vbo, unsigned int instance
     glsafe(::glBindBuffer(GL_ARRAY_BUFFER, m_render_data.vbo_id));
 
     if (position) {
-        glsafe(::glVertexAttribPointer(position_id, Geometry::position_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, (const void*)Geometry::position_offset_bytes(data.format)));
+        glsafe(::glVertexAttribPointer(position_id, static_cast<GLsizei>(Geometry::position_stride_floats(data.format)), GL_FLOAT, GL_FALSE, static_cast<GLsizei>(vertex_stride_bytes), (const void*)Geometry::position_offset_bytes(data.format)));
         glsafe(::glEnableVertexAttribArray(position_id));
     }
 
     if (normal) {
-        glsafe(::glVertexAttribPointer(normal_id, Geometry::normal_stride_floats(data.format), GL_FLOAT, GL_FALSE, vertex_stride_bytes, (const void*)Geometry::normal_offset_bytes(data.format)));
+        glsafe(::glVertexAttribPointer(normal_id, static_cast<GLsizei>(Geometry::normal_stride_floats(data.format)), GL_FLOAT, GL_FALSE, static_cast<GLsizei>(vertex_stride_bytes), (const void*)Geometry::normal_offset_bytes(data.format)));
         glsafe(::glEnableVertexAttribArray(normal_id));
     }
 
     shader->set_uniform("uniform_color", data.color);
 
     glsafe(::glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_render_data.ibo_id));
-    glsafe(::glDrawElementsInstanced(mode, indices_count(), index_type, (const void*)0, instances_count));
+    glsafe(::glDrawElementsInstanced(mode, static_cast<GLsizei>(indices_count()), index_type, (const void*)0, instances_count));
     glsafe(::glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
 
     if (normal)
@@ -1336,7 +1336,7 @@ GLModel::Geometry smooth_cylinder(unsigned int resolution, float radius, float h
 
     // bottom cap vertices
     Vec3f cap_center = Vec3f::Zero();
-    unsigned int cap_center_id = data.vertices_count();
+    unsigned int cap_center_id = static_cast<unsigned int>(data.vertices_count());
     Vec3f normal = -Vec3f::UnitZ();
 
     data.add_vertex(cap_center, normal);
