@@ -410,8 +410,8 @@ WipingPanel::WipingPanel(wxWindow* parent, const std::vector<float>& matrix, con
             if (i == j) {
                 edit_boxes[i][j]->SetValue(wxString("0"));
                 edit_boxes[i][j]->SetEditable(false);
-                edit_boxes[i][j]->Bind(wxEVT_KILL_FOCUS, [this](wxFocusEvent&) {});
-                edit_boxes[i][j]->Bind(wxEVT_SET_FOCUS, [this](wxFocusEvent&) {});
+                edit_boxes[i][j]->Bind(wxEVT_KILL_FOCUS, [](wxFocusEvent&) {});
+                edit_boxes[i][j]->Bind(wxEVT_SET_FOCUS, [](wxFocusEvent&) {});
             }
             else {
                 edit_boxes[i][j]->SetValue(wxString("") << int(m_matrix[m_number_of_extruders * j + i] * flush_multiplier));
