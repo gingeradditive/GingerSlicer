@@ -482,8 +482,8 @@ wxBitmap* get_default_extruder_color_icon(bool thin_icon/* = false*/)
     static Slic3r::GUI::BitmapCache bmp_cache;
 
     const double em = Slic3r::GUI::wxGetApp().em_unit();
-    const int icon_width = lround((thin_icon ? 2 : 4.5) * em);
-    const int icon_height = lround(2 * em);
+    const int icon_width = static_cast<int>(lround((thin_icon ? 2 : 4.5) * em));
+    const int icon_height = static_cast<int>(lround(2 * em));
 
     wxClientDC cdc((wxWindow*)Slic3r::GUI::wxGetApp().mainframe);
     wxMemoryDC dc(&cdc);
@@ -528,8 +528,8 @@ std::vector<wxBitmap*> get_extruder_color_icons(bool thin_icon/* = false*/)
      * and scale them in respect to em_unit value
      */
     const double em = Slic3r::GUI::wxGetApp().em_unit();
-    const int icon_width = lround((thin_icon ? 2 : 4.4) * em);
-    const int icon_height = lround(2 * em);
+    const int icon_width = static_cast<int>(lround((thin_icon ? 2 : 4.4) * em));
+    const int icon_height = static_cast<int>(lround(2 * em));
 
     int index = 0;
     for (const std::string &color : colors)
@@ -821,7 +821,7 @@ void ModeSizer::set_items_border(int border)
 
 void ModeSizer::msw_rescale()
 {
-    this->SetHGap(std::lround(m_hgap_unscaled * em_unit(m_parent)));
+    this->SetHGap(static_cast<int>(std::lround(m_hgap_unscaled * em_unit(m_parent))));
     for (size_t m = 0; m < m_mode_btns.size(); m++)
         m_mode_btns[m]->msw_rescale();
 }
