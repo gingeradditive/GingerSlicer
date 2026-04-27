@@ -27,7 +27,7 @@ wxPanel(parent, wxID_ANY, wxDefaultPosition, wxSize(32 * wxGetApp().em_unit(), -
 int Bed_2D::calculate_grid_step(const BoundingBox& bb, const double& scale)
 {
     // Orca: use 500 x 500 bed size as baseline.
-    int min_edge = (bb.size() * (1 / scale)).minCoeff(); // Get short edge 
+    int min_edge = static_cast<int>((bb.size() * (1 / scale)).minCoeff()); // Get short edge 
                                            // if the grid is too dense, we increase the step
     return   min_edge >= 6000 ? 100        // Short edge >= 6000mm  Main Grid: 5 x 100 = 500mm
            : min_edge >= 1200 ? 50         // Short edge >= 1200mm  Main Grid: 5 x 50  = 250mm
@@ -142,7 +142,7 @@ void Bed_2D::repaint(const std::vector<Vec2d>& shape)
     for (auto pt : shape)
     {
         Point pt_pix = to_pixels(pt, ch);
-        pt_list.push_back(new wxPoint(pt_pix(0), pt_pix(1)));
+        pt_list.push_back(new wxPoint(static_cast<int>(pt_pix(0)), static_cast<int>(pt_pix(1))));
 	}
 	dc.DrawPolygon(&pt_list, 0, 0);
 
@@ -159,7 +159,7 @@ void Bed_2D::repaint(const std::vector<Vec2d>& shape)
 		for (size_t i = 0; i < pl.points.size() - 1; i++) {
             Point pt1 = to_pixels(pl.points[i  ], ch);
             Point pt2 = to_pixels(pl.points[i+1], ch);
-            dc.DrawLine(pt1(0), pt1(1), pt2(0), pt2(1));
+            dc.DrawLine(static_cast<int>(pt1(0)), static_cast<int>(pt1(1)), static_cast<int>(pt2(0)), static_cast<int>(pt2(1)));
 		}
 	}
     dc.SetPen(wxPen(wxColour(lines_bold_color), 1, wxPENSTYLE_SOLID));
@@ -167,7 +167,7 @@ void Bed_2D::repaint(const std::vector<Vec2d>& shape)
 		for (size_t i = 0; i < pl.points.size() - 1; i++) {
             Point pt1 = to_pixels(pl.points[i  ], ch);
             Point pt2 = to_pixels(pl.points[i+1], ch);
-            dc.DrawLine(pt1(0), pt1(1), pt2(0), pt2(1));
+            dc.DrawLine(static_cast<int>(pt1(0)), static_cast<int>(pt1(1)), static_cast<int>(pt2(0)), static_cast<int>(pt2(1)));
 		}
 	}
 
@@ -184,7 +184,7 @@ void Bed_2D::repaint(const std::vector<Vec2d>& shape)
 	auto arrow_angle = Geometry::deg2rad(45.0);
     dc.SetPen(wxPen(wxColour(encode_color(ColorRGB::X())), 2, wxPENSTYLE_SOLID));  // red // ORCA match axis colors
 	auto x_end = Vec2d(origin_px(0) + axes_len, origin_px(1));
-	dc.DrawLine(wxPoint(origin_px(0), origin_px(1)), wxPoint(x_end(0), x_end(1)));
+	dc.DrawLine(wxPoint(static_cast<int>(origin_px(0)), static_cast<int>(origin_px(1))), wxPoint(static_cast<int>(x_end(0)), static_cast<int>(x_end(1))));
 	//for (auto angle : { -arrow_angle, arrow_angle }) {  // ORCA dont draw arrows
 	//	Vec2d end = Eigen::Translation2d(x_end) * Eigen::Rotation2Dd(angle) * Eigen::Translation2d(- x_end) * Eigen::Vector2d(x_end(0) - arrow_len, x_end(1));
 	//	dc.DrawLine(wxPoint(x_end(0), x_end(1)), wxPoint(end(0), end(1)));
@@ -192,7 +192,7 @@ void Bed_2D::repaint(const std::vector<Vec2d>& shape)
 
     dc.SetPen(wxPen(wxColour(encode_color(ColorRGB::Y())), 2, wxPENSTYLE_SOLID));  // green // ORCA match axis colors
 	auto y_end = Vec2d(origin_px(0), origin_px(1) - axes_len);
-	dc.DrawLine(wxPoint(origin_px(0), origin_px(1)), wxPoint(y_end(0), y_end(1)));
+	dc.DrawLine(wxPoint(static_cast<int>(origin_px(0)), static_cast<int>(origin_px(1))), wxPoint(static_cast<int>(y_end(0)), static_cast<int>(y_end(1))));
 	//for (auto angle : { -arrow_angle, arrow_angle }) {  // ORCA dont draw arrows
 	//	Vec2d end = Eigen::Translation2d(y_end) * Eigen::Rotation2Dd(angle) * Eigen::Translation2d(- y_end) * Eigen::Vector2d(y_end(0), y_end(1) + arrow_len);
 	//	dc.DrawLine(wxPoint(y_end(0), y_end(1)), wxPoint(end(0), end(1)));
@@ -201,7 +201,7 @@ void Bed_2D::repaint(const std::vector<Vec2d>& shape)
 	// draw origin
     dc.SetPen(wxPen(wxColour(encode_color(ColorRGB::Z())), 1, wxPENSTYLE_SOLID));    // ORCA match axis colors
     dc.SetBrush(wxBrush(wxColour(encode_color(ColorRGB::Z())), wxBRUSHSTYLE_SOLID)); // ORCA match axis colors
-	dc.DrawCircle(origin_px(0), origin_px(1), 3);
+	dc.DrawCircle(static_cast<int>(origin_px(0)), static_cast<int>(origin_px(1)), 3);
 
 	static const auto origin_label = wxString("(0,0)");
 	dc.SetTextForeground(wxColour("#FFFFFF"));
@@ -211,8 +211,8 @@ void Bed_2D::repaint(const std::vector<Vec2d>& shape)
 	const auto origin_label_y = origin_px(1) - extent.GetHeight() - 2;
     dc.SetPen(  wxPen(  wxColour(wxColour(bed_color)), 1, wxPENSTYLE_SOLID));
     dc.SetBrush(wxBrush(wxColour(wxColour(bed_color)), wxBRUSHSTYLE_SOLID));
-    dc.DrawRectangle(wxPoint(origin_label_x, origin_label_y), extent);  // ORCA draw a background to origin position text to improve readability when overlaps with grid
-	dc.DrawText(origin_label, origin_label_x, origin_label_y);
+    dc.DrawRectangle(wxPoint(static_cast<int>(origin_label_x), static_cast<int>(origin_label_y)), extent);  // ORCA draw a background to origin position text to improve readability when overlaps with grid
+	dc.DrawText(origin_label, static_cast<int>(origin_label_x), static_cast<int>(origin_label_y));
 
     // ORCA add grid size value as information for large scale beds
     auto grid_label = wxString("1x1 Grid: " + std::to_string(step) + " mm");
@@ -222,17 +222,17 @@ void Bed_2D::repaint(const std::vector<Vec2d>& shape)
     ),ch);
     dc.SetTextForeground(wxColour("#262E30"));
     dc.SetFont(wxFont(10, wxFONTFAMILY_DEFAULT, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL));
-    dc.DrawText(grid_label, draw_bb(0), draw_bb(1) + 5);
+    dc.DrawText(grid_label, static_cast<int>(draw_bb(0)), static_cast<int>(draw_bb(1) + 5));
 
 	// draw current position
 	if (m_pos!= Vec2d(0, 0)) {
         auto pos_px = to_pixels(m_pos, ch);
         dc.SetPen(wxPen(wxColour(200, 0, 0), 2, wxPENSTYLE_SOLID));
         dc.SetBrush(wxBrush(wxColour(200, 0, 0), wxBRUSHSTYLE_TRANSPARENT));
-		dc.DrawCircle(pos_px(0), pos_px(1), 5);
+		dc.DrawCircle(static_cast<int>(pos_px(0)), static_cast<int>(pos_px(1)), 5);
 
-		dc.DrawLine(pos_px(0) - 15, pos_px(1), pos_px(0) + 15, pos_px(1));
-		dc.DrawLine(pos_px(0), pos_px(1) - 15, pos_px(0), pos_px(1) + 15);
+		dc.DrawLine(static_cast<int>(pos_px(0) - 15), static_cast<int>(pos_px(1)), static_cast<int>(pos_px(0) + 15), static_cast<int>(pos_px(1)));
+		dc.DrawLine(static_cast<int>(pos_px(0)), static_cast<int>(pos_px(1) - 15), static_cast<int>(pos_px(0)), static_cast<int>(pos_px(1) + 15));
 	}
 }
 
