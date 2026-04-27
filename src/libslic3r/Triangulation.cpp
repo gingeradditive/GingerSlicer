@@ -124,7 +124,7 @@ Triangulation::Indices Triangulation::triangulate(const Points    &points,
         CDT::Face_handle f;
         for (const auto& p : cdt_points) {
             auto handle = cdt.insert(p.first, f);
-            handle->info() = p.second;
+            handle->info() = static_cast<uint32_t>(p.second);
             vertices_handle[p.second] = handle;
             f = handle->face();
         }
@@ -250,7 +250,7 @@ Triangulation::Indices Triangulation::triangulate(const ExPolygons &expolygons){
     // reverse map for changes
     Changes changes2(changes.size(), std::numeric_limits<uint32_t>::max());
     for (size_t i = 0; i < changes.size(); ++i)
-        changes2[changes[i]] = i;
+        changes2[changes[i]] = static_cast<uint32_t>(i);
 
     // convert indices into expolygons indicies
     for (Vec3i32 &t : indices) 
