@@ -70,7 +70,7 @@ int StepCtrlBase::AppendItem(const wxString &item, wxString const & tip)
 {
     steps.push_back(item);
     tips.push_back(tip);
-    return steps.size() - 1;
+    return static_cast<int>(steps.size() - 1);
 }
 
 void StepCtrlBase::DeleteAllItems()
@@ -83,7 +83,7 @@ void StepCtrlBase::DeleteAllItems()
     }
 }
 
-unsigned int StepCtrlBase::GetCount() const { return steps.size(); }
+unsigned int StepCtrlBase::GetCount() const { return static_cast<unsigned int>(steps.size()); }
 
 wxString StepCtrlBase::GetItemText(unsigned int item) const
 {
@@ -173,7 +173,7 @@ void StepCtrl::mouseMove(wxMouseEvent &event)
     if (index < 0)
         index = 0;
     else if (index >= steps.size())
-        index = steps.size() - 1;
+        index = static_cast<int>(steps.size() - 1);
     if (index != pos_thumb.y) {
         pos_thumb.y = index;
         Refresh();
@@ -189,7 +189,7 @@ void StepCtrl::mouseUp(wxMouseEvent &event)
     if (index < 0)
         index = 0;
     else if (index >= steps.size())
-        index = steps.size() - 1;
+        index = static_cast<int>(steps.size() - 1);
     pos_thumb = {0, 0};
     SelectItem(index);
     if (HasCapture())
