@@ -2022,7 +2022,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
     m_placeholder_parser_integration.parser = print.placeholder_parser();
     m_placeholder_parser_integration.parser.update_timestamp();
     m_placeholder_parser_integration.parser.update_user_name();
-    m_placeholder_parser_integration.context.rng = std::mt19937(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+    m_placeholder_parser_integration.context.rng = std::mt19937(static_cast<unsigned int>(std::chrono::high_resolution_clock::now().time_since_epoch().count()));
     // Enable passing global variables between PlaceholderParser invocations.
     m_placeholder_parser_integration.context.global_config = std::make_unique<DynamicConfig>();
     print.update_object_placeholders(m_placeholder_parser_integration.parser.config_writable(), ".gcode");
@@ -2457,7 +2457,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
 
         pa_test.set_speed(fast_speed, slow_speed);
         pa_test.draw_numbers() = print.calib_params().print_numbers;
-        gcode += pa_test.generate_test(params.start, params.step, std::llround(std::ceil((params.end - params.start) / params.step)) + 1);
+        gcode += pa_test.generate_test(params.start, params.step, static_cast<int>(std::llround(std::ceil((params.end - params.start) / params.step)) + 1));
 
         file.write(gcode);
     } else {
@@ -3022,7 +3022,7 @@ static bool custom_gcode_sets_temperature(const std::string &gcode, const int mc
                         long temp_parsed = strtol(ptr, &endptr, 10);
                         if (endptr > ptr) {
                             ptr = endptr;
-                            temp_out = temp_parsed;
+                            temp_out = static_cast<int>(temp_parsed);
                             // Let the caller know that the custom G-code sets the temperature
                             // Only do this after successfully parsing temperature since G10
                             // can be used for other reasons
@@ -5195,9 +5195,9 @@ bool GCode::_needSAFC(const ExtrusionPath &path)
     };
 
     return std::any_of(std::begin(supported_patterns), std::end(supported_patterns), [&](const InfillPattern pattern) {
-        return this->on_first_layer() && this->config().bottom_surface_pattern == pattern ||
-               path.role() == erSolidInfill && this->config().internal_solid_infill_pattern == pattern ||
-               path.role() == erTopSolidInfill && this->config().top_surface_pattern == pattern;
+        return (this->on_first_layer() && this->config().bottom_surface_pattern == pattern) ||
+               (path.role() == erSolidInfill && this->config().internal_solid_infill_pattern == pattern) ||
+               (path.role() == erTopSolidInfill && this->config().top_surface_pattern == pattern);
     });
 }
 
@@ -6265,7 +6265,7 @@ bool GCode::needs_retraction(const Polyline &travel, ExtrusionRole role, LiftTyp
                     continue;
 
                 Polygons temp;
-                temp.emplace_back(std::move(instance_bbox.polygon()));
+                temp.emplace_back(instance_bbox.polygon());
                 if (intersection_pl(travel, temp).empty())
                     continue;
 
