@@ -962,10 +962,10 @@ int ConfigBase::load_from_json(const std::string &file, ConfigSubstitutionContex
                         // remove unneeded key
                         if (get_wall_sequence.empty()) {
                             std::string wall_sqe_string = "wall_sequence";
-                            int pos=different_settings[index].find(wall_sqe_string);
+                            int pos=static_cast<int>(different_settings[index].find(wall_sqe_string));
 
                             if (pos != different_settings[index].npos) {
-                                int erase_len = wall_sqe_string.size();
+                                int erase_len = static_cast<int>(wall_sqe_string.size());
                                 if (pos + erase_len < different_settings[index].size() && different_settings[index][pos + erase_len] == ';')
                                     erase_len++;
                                 different_settings[index].erase(pos, erase_len);
