@@ -163,7 +163,7 @@ void update_selected_items_axis_align(ArrangePolygons& selected, const DynamicPr
         double angle = 0.0;
         {
             const auto& pts = ap.transformed_poly().contour;
-            int         lpt = pts.size();
+            int         lpt = static_cast<int>(pts.size());
             double      a00 = 0, a10 = 0, a01 = 0, a20 = 0, a11 = 0, a02 = 0, a30 = 0, a21 = 0, a12 = 0, a03 = 0;
             double      xi, yi, xi2, yi2, xi_1, yi_1, xi_12, yi_12, dxy, xii_1, yii_1;
             xi_1 = pts.back().x();
@@ -679,9 +679,9 @@ protected:
         }
         // for layered printing, we want extruder change as few as possible
         // this has very weak effect, CAN NOT use a large weight
-        int last_extruder_cnt = extruder_ids.size();
+        int last_extruder_cnt = static_cast<int>(extruder_ids.size());
         extruder_ids.insert(item.extrude_ids.begin(), item.extrude_ids.end());
-        int new_extruder_cnt= extruder_ids.size();
+        int new_extruder_cnt = static_cast<int>(extruder_ids.size());
         if (!params.is_seq_print) {
             score += 1 * (new_extruder_cnt-last_extruder_cnt);
         }
@@ -797,7 +797,7 @@ public:
                     }
                 });
 
-        m_pck.unfitIndicator([this](std::string name) {
+        m_pck.unfitIndicator([](std::string name) {
             BOOST_LOG_TRIVIAL(debug) << "arrange progress: " + name;
                 });
 
