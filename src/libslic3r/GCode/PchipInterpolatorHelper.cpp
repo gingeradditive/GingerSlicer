@@ -59,8 +59,8 @@ void PchipInterpolatorHelper::computePCHIP() {
     d_.resize(n+1);
 
     for (size_t i = 0; i < n; ++i) {
-        h_[i] = h(i);
-        delta_[i] = delta(i);
+        h_[static_cast<int>(i)] = h(i);
+        delta_[static_cast<int>(i)] = delta(i);
     }
 
     d_[0] = delta_[0];
