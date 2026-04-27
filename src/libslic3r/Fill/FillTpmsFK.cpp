@@ -404,13 +404,13 @@ void FillTpmsFK::_fill_surface_single(const FillParams&              params,
 
     std::vector<std::vector<double>> data(posxy.size(), std::vector<double>(posxy[0].size()));
 
-    int width      = posxy[0].size();
-    int height     = posxy.size();
+    int width      = static_cast<int>(posxy[0].size());
+    int height     = static_cast<int>(posxy.size());
     int total_size = (height) * (width);
     tbb::parallel_for(tbb::blocked_range<size_t>(0, total_size),
                       [&width, &scalar_field, &data, &posxy](const tbb::blocked_range<size_t>& range) {
                           for (size_t k = range.begin(); k < range.end(); ++k) {
-                              int i      = k / (width);
+                              int i      = static_cast<int>(k / (width));
                               int j      = k % (width);
                               data[i][j] = scalar_field(posxy[i][j].x, posxy[i][j].y);
                           }
