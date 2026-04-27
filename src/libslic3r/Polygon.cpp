@@ -333,7 +333,7 @@ void Polygon::densify(float min_length, std::vector<float>* lengths_ptr)
 
     for (size_t j=1; j<=points.size(); ++j) {
         bool last = j == points.size();
-        int i = last ? 0 : j;
+        int i = last ? 0 : static_cast<int>(j);
 
         if (lengths[j] - lengths[j-1] > min_length) {
             Point diff = points[i] - points[j-1];
