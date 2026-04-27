@@ -112,7 +112,7 @@ TreeModelVolumes::TreeModelVolumes(
         tbb::parallel_for(tbb::blocked_range<size_t>(num_raft_layers, num_layers, std::min<size_t>(1, std::max<size_t>(16, num_layers / (8 * tbb::this_task_arena::max_concurrency())))),
             [&](const tbb::blocked_range<size_t> &range) {
             for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++ layer_idx)
-                outlines[layer_idx] = polygons_simplify(to_polygons(print_object.get_layer(layer_idx - num_raft_layers)->lslices), mesh_settings.resolution, polygons_strictly_simple);
+                outlines[layer_idx] = polygons_simplify(to_polygons(print_object.get_layer(static_cast<int>(layer_idx - num_raft_layers))->lslices), mesh_settings.resolution, polygons_strictly_simple);
         });
     }
 #endif
@@ -190,7 +190,7 @@ void TreeModelVolumes::precalculate(const PrintObject& print_object, const coord
     // while it is possible to calculate, up to which layer the avoidance should be calculated, this simulation is easier to understand, and does not need to be adjusted if something of the radius calculation is changed.
     // Overhead with an assumed worst case of 6600 layers was about 2ms
     for (LayerIndex distance_to_top = 0; distance_to_top <= max_layer; ++ distance_to_top) {
-        const LayerIndex current_layer = max_layer - distance_to_top;
+        const LayerIndex current_layer = static_cast<LayerIndex>(max_layer - distance_to_top);
         auto update_radius_until_layer = [&radius_until_layer, current_layer](coord_t r) {
             auto it = radius_until_layer.find(r);
             if (it == radius_until_layer.end())
@@ -213,11 +213,11 @@ void TreeModelVolumes::precalculate(const PrintObject& print_object, const coord
 
     // Append additional radiis needed for collision.
     // To calculate collision holefree for every radius, the collision of radius m_increase_until_radius will be required.
-    radius_until_layer[ceilRadius(m_increase_until_radius + m_current_min_xy_dist_delta)] = max_layer;
+    radius_until_layer[ceilRadius(m_increase_until_radius + m_current_min_xy_dist_delta)] = static_cast<int>(max_layer);
     // Collision for radius 0 needs to be calculated everywhere, as it will be used to ensure valid xy_distance in drawAreas.
-    radius_until_layer[0] = max_layer;
+    radius_until_layer[0] = static_cast<int>(max_layer);
     if (m_current_min_xy_dist_delta != 0)
-        radius_until_layer[m_current_min_xy_dist_delta] = max_layer;
+        radius_until_layer[m_current_min_xy_dist_delta] = static_cast<int>(max_layer);
 
     // Now that required_avoidance_limit contains the maximum of ild and regular required radius just copy.
     std::vector<RadiusLayerPair> relevant_collision_radiis{ radius_until_layer.begin(), radius_until_layer.end() };
@@ -404,10 +404,10 @@ void TreeModelVolumes::calculateCollision(const std::vector<RadiusLayerPair> &ke
     tbb::parallel_for(tbb::blocked_range<size_t>(0, keys.size()),
         [&](const tbb::blocked_range<size_t> &range) {
         for (size_t ikey = range.begin(); ikey != range.end(); ++ ikey) {
-            const LayerIndex radius        = keys[ikey].first;
+            const LayerIndex radius        = static_cast<LayerIndex>(keys[ikey].first);
             const size_t     max_layer_idx = keys[ikey].second;
             // recursive call to parallel_for.
-            calculateCollision(radius, max_layer_idx, throw_on_cancel);
+            calculateCollision(radius, static_cast<LayerIndex>(max_layer_idx), throw_on_cancel);
         }
     });
 }
@@ -451,7 +451,7 @@ void TreeModelVolumes::calculateCollision(const coord_t radius, const LayerIndex
             LayerPolygonCache collision_areas_offsetted;
             collision_areas_offsetted.allocate(
                 std::max<LayerIndex>(0, data.begin() - z_distance_bottom_layers),
-                std::min<LayerIndex>(outlines.size(), data.end() + z_distance_top_layers));
+                std::min<LayerIndex>(static_cast<int>(outlines.size()), data.end() + z_distance_top_layers));
             tbb::parallel_for(tbb::blocked_range<LayerIndex>(collision_areas_offsetted.begin(), collision_areas_offsetted.end()),
                 [&outlines, &machine_border = std::as_const(m_machine_border), offset_value = radius + xy_distance, &collision_areas_offsetted, &throw_on_cancel]
                 (const tbb::blocked_range<LayerIndex> &range) {
@@ -808,7 +808,7 @@ void TreeModelVolumes::calculateWallRestrictions(const std::vector<RadiusLayerPa
             std::vector<Polygons> data_min;
             if (m_current_min_xy_dist_delta > 0)
                 data_min.assign(buffer_size, Polygons{});
-            tbb::parallel_for(tbb::blocked_range<LayerIndex>(min_layer_bottom, max_required_layer + 1),
+            tbb::parallel_for(tbb::blocked_range<LayerIndex>(static_cast<int>(min_layer_bottom), static_cast<int>(max_required_layer + 1)),
                 [this, &data, &data_min, radius, min_layer_bottom, &throw_on_cancel](const tbb::blocked_range<LayerIndex> &range) {
                 for (LayerIndex layer_idx = range.begin(); layer_idx < range.end(); ++ layer_idx) {
                     data[layer_idx - min_layer_bottom] = polygons_simplify(
@@ -842,8 +842,8 @@ coord_t TreeModelVolumes::ceilRadius(const coord_t radius) const
         coord_t initial_radius_delta = SUPPORT_TREE_EXPONENTIAL_THRESHOLD - m_radius_0;
         auto ignore = [this](coord_t r) { return std::binary_search(m_ignorable_radii.begin(), m_ignorable_radii.end(), r); };
         if (initial_radius_delta > SUPPORT_TREE_COLLISION_RESOLUTION) {
-            const int num_steps = round_up_divide(initial_radius_delta, SUPPORT_TREE_EXPONENTIAL_THRESHOLD);
-            const int stepsize  = initial_radius_delta / num_steps;
+            const int num_steps = static_cast<int>(round_up_divide(initial_radius_delta, SUPPORT_TREE_EXPONENTIAL_THRESHOLD));
+            const int stepsize  = static_cast<int>(initial_radius_delta / num_steps);
             out += stepsize;
             for (auto step = 0; step < num_steps; ++ step) {
                 if (out >= radius && ! ignore(out))
