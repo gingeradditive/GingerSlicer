@@ -792,8 +792,8 @@ void SkeletalTrapezoidation::generateTransitionMids(ptr_vector_t<std::list<Trans
         }
         coord_t start_R = edge.from->data.distance_to_boundary;
         coord_t end_R = edge.to->data.distance_to_boundary;
-        int start_bead_count = edge.from->data.bead_count;
-        int end_bead_count = edge.to->data.bead_count;
+        int start_bead_count = static_cast<int>(edge.from->data.bead_count);
+        int end_bead_count = static_cast<int>(edge.to->data.bead_count);
 
         if (start_R == end_R)
         { // No transitions occur when both end points have the same distance_to_boundary
