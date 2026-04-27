@@ -858,7 +858,7 @@ template<typename Fnc> TriangleMesh create_mesh_per_glyph(DataBase &input, Fnc w
         const BoundingBoxes &line_bbs = bbs[text_line_index];
         const TextLine      &line     = input.text_lines[text_line_index];
         PolygonPoints        samples  = sample_slice(line, line_bbs, shape.scale);
-        std::vector<double>  angles   = calculate_angles(em_2_polygon, samples, line.polygon);
+        std::vector<double>  angles   = calculate_angles(em_2_polygon, samples, line.polygon.cast<int32_t>());
 
         for (size_t i = 0; i < line_bbs.size(); ++i) {
             const BoundingBox &letter_bb = line_bbs[i];
@@ -1144,7 +1144,7 @@ void create_volume(TriangleMesh                    &&mesh,
     // select only actual volume
     // when new volume is created change selection to this volume
     auto                add_to_selection = [volume](const ModelVolume *vol) { return vol == volume; };
-    wxDataViewItemArray sel              = obj_list->reorder_volumes_and_get_selection(object_idx, add_to_selection);
+    wxDataViewItemArray sel              = obj_list->reorder_volumes_and_get_selection(static_cast<int>(object_idx), add_to_selection);
     if (!sel.IsEmpty())
         obj_list->select_item(sel.front());
 
