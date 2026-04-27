@@ -473,11 +473,11 @@ void PrintHostQueueDialog::on_progress(Event &evt)
     wxCHECK_RET(evt.job_id < (size_t)job_list->GetItemCount(), "Out of bounds access to job list");
 
     if (evt.progress < 100) {
-        set_state(evt.job_id, ST_PROGRESS);
-        job_list->SetValue(wxVariant(evt.progress), evt.job_id, COL_PROGRESS);
+        set_state((int)evt.job_id, ST_PROGRESS);
+        job_list->SetValue(wxVariant(evt.progress), (unsigned int)evt.job_id, COL_PROGRESS);
     } else {
-        set_state(evt.job_id, ST_COMPLETED);
-        job_list->SetValue(wxVariant(100), evt.job_id, COL_PROGRESS);
+        set_state((int)evt.job_id, ST_COMPLETED);
+        job_list->SetValue(wxVariant(100), (unsigned int)evt.job_id, COL_PROGRESS);
     }
 
     on_list_select();
@@ -485,9 +485,9 @@ void PrintHostQueueDialog::on_progress(Event &evt)
     if (evt.progress > 0)
     {
         wxVariant nm, hst;
-        job_list->GetValue(nm, evt.job_id, COL_FILENAME);
-        job_list->GetValue(hst, evt.job_id, COL_HOST);
-        wxGetApp().notification_manager()->set_upload_job_notification_percentage(evt.job_id + 1, into_u8(nm.GetString()), into_u8(hst.GetString()), evt.progress / 100.f);
+        job_list->GetValue(nm, (unsigned int)evt.job_id, COL_FILENAME);
+        job_list->GetValue(hst, (unsigned int)evt.job_id, COL_HOST);
+        wxGetApp().notification_manager()->set_upload_job_notification_percentage((unsigned int)(evt.job_id + 1), into_u8(nm.GetString()), into_u8(hst.GetString()), evt.progress / 100.f);
     }
 }
 
@@ -495,35 +495,35 @@ void PrintHostQueueDialog::on_error(Event &evt)
 {
     wxCHECK_RET(evt.job_id < (size_t)job_list->GetItemCount(), "Out of bounds access to job list");
 
-    set_state(evt.job_id, ST_ERROR);
+    set_state((int)evt.job_id, ST_ERROR);
 
     auto errormsg = format_wxstr("%1%\n%2%", _L("Error uploading to print host") + ":", evt.status);
-    job_list->SetValue(wxVariant(0), evt.job_id, COL_PROGRESS);
-    job_list->SetValue(wxVariant(errormsg), evt.job_id, COL_ERRORMSG);    // Stashes the error message into a hidden column for later
+    job_list->SetValue(wxVariant(0), (unsigned int)evt.job_id, COL_PROGRESS);
+    job_list->SetValue(wxVariant(errormsg), (unsigned int)evt.job_id, COL_ERRORMSG);    // Stashes the error message into a hidden column for later
 
     on_list_select();
 
     GUI::show_error(nullptr, errormsg);
 
     wxVariant nm, hst;
-    job_list->GetValue(nm, evt.job_id, COL_FILENAME);
-    job_list->GetValue(hst, evt.job_id, COL_HOST);
-    wxGetApp().notification_manager()->upload_job_notification_show_error(evt.job_id + 1, into_u8(nm.GetString()), into_u8(hst.GetString()));
+    job_list->GetValue(nm, (unsigned int)evt.job_id, COL_FILENAME);
+    job_list->GetValue(hst, (unsigned int)evt.job_id, COL_HOST);
+    wxGetApp().notification_manager()->upload_job_notification_show_error((unsigned int)(evt.job_id + 1), into_u8(nm.GetString()), into_u8(hst.GetString()));
 }
 
 void PrintHostQueueDialog::on_cancel(Event &evt)
 {
     wxCHECK_RET(evt.job_id < (size_t)job_list->GetItemCount(), "Out of bounds access to job list");
 
-    set_state(evt.job_id, ST_CANCELLED);
-    job_list->SetValue(wxVariant(0), evt.job_id, COL_PROGRESS);
+    set_state((int)evt.job_id, ST_CANCELLED);
+    job_list->SetValue(wxVariant(0), (unsigned int)evt.job_id, COL_PROGRESS);
 
     on_list_select();
 
     wxVariant nm, hst;
-    job_list->GetValue(nm, evt.job_id, COL_FILENAME);
-    job_list->GetValue(hst, evt.job_id, COL_HOST);
-    wxGetApp().notification_manager()->upload_job_notification_show_canceled(evt.job_id + 1, into_u8(nm.GetString()), into_u8(hst.GetString()));
+    job_list->GetValue(nm, (unsigned int)evt.job_id, COL_FILENAME);
+    job_list->GetValue(hst, (unsigned int)evt.job_id, COL_HOST);
+    wxGetApp().notification_manager()->upload_job_notification_show_canceled((unsigned int)(evt.job_id + 1), into_u8(nm.GetString()), into_u8(hst.GetString()));
 }
 
 void PrintHostQueueDialog::on_info(Event& evt)
@@ -581,7 +581,7 @@ void PrintHostQueueDialog::save_user_data(int udt)
     {
         for (size_t i = 0; i < job_list->GetColumnCount() - 1; i++)
         {
-            app_config->set("print_host_queue_dialog_column_" + std::to_string(i), std::to_string(job_list->GetColumn(i)->GetWidth()));
+            app_config->set("print_host_queue_dialog_column_" + std::to_string(i), std::to_string(job_list->GetColumn((int)i)->GetWidth()));
         }
     }    
 }
