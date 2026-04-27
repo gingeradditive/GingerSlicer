@@ -262,7 +262,7 @@ void fixSelfIntersections(const coord_t epsilon, Polygons &thiss)
     // Points too close to line segments should be moved a little away from those line segments, but less than epsilon,
     //   so at least half-epsilon distance between points can still be guaranteed.
     const coord_t grid_size  = scaled<coord_t>(2.);
-    auto              query_grid = createLocToLineGrid(thiss, grid_size);
+    auto              query_grid = createLocToLineGrid(thiss, static_cast<int>(grid_size));
 
     const auto    move_dist         = std::max<int64_t>(2L, half_epsilon - 2);
     const int64_t half_epsilon_sqrd = half_epsilon * half_epsilon;
