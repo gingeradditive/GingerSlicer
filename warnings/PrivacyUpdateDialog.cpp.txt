@@ -1,1 +1,0 @@
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/PrivacyUpdateDialog.cpp:117:31: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]

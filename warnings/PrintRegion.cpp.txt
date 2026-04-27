@@ -1,1 +1,0 @@
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/PrintRegion.cpp:18:12: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'unsigned int' [-Wshorten-64-to-32]

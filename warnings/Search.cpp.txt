@@ -1,8 +1,0 @@
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Search.cpp:444:31: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Search.cpp:450:31: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Search.cpp:63:34: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Search.cpp:63:34: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Search.cpp:63:34: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Search.cpp:63:34: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Search.cpp:63:34: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Search.cpp:63:34: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]

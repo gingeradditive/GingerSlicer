@@ -1,3 +1,0 @@
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/Utils/SimplyPrint.cpp:190:34: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/Utils/SimplyPrint.cpp:298:32: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/Utils/SimplyPrint.cpp:421:42: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]

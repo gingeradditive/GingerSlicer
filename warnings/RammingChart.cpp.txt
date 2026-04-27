@@ -1,2 +1,0 @@
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/RammingChart.cpp:225:36: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'const int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/RammingChart.cpp:310:50: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'const int' [-Wshorten-64-to-32]
