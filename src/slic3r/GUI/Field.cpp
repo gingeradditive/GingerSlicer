@@ -928,7 +928,7 @@ void TextCtrl::msw_rescale()
     if (m_opt.height >= 0)
         size.SetHeight(m_opt.height*m_em_unit);
     else if (parent_is_custom_ctrl && opt_height > 0)
-        size.SetHeight(lround(opt_height*m_em_unit));
+        size.SetHeight(static_cast<int>(lround(opt_height*m_em_unit)));
     if (m_opt.width >= 0) size.SetWidth(m_opt.width*m_em_unit);
 
     if (size != wxDefaultSize)
@@ -1145,7 +1145,7 @@ void SpinCtrl::BUILD() {
         bEnterPressed = true;
     }), temp->GetId());
 
-	temp->GetTextCtrl()->Bind(wxEVT_TEXT, ([this, temp](wxCommandEvent e)
+	temp->GetTextCtrl()->Bind(wxEVT_TEXT, ([this](wxCommandEvent e)
 	{
 // 		# On OSX / Cocoa, SpinInput::GetValue() doesn't return the new value
 // 		# when it was changed from the text control, so the on_change callback
@@ -1227,11 +1227,11 @@ void SpinCtrl::msw_rescale()
 
     SpinInput* field = dynamic_cast<SpinInput*>(window);
     if (parent_is_custom_ctrl) {
-        field->GetTextCtrl()->SetSize(wxSize(def_width_wider() * m_em_unit, lround(opt_height * m_em_unit)));
+        field->GetTextCtrl()->SetSize(wxSize(def_width_wider() * m_em_unit, static_cast<int>(lround(opt_height * m_em_unit))));
     } else {
         field->GetTextCtrl()->SetMinSize(wxSize(def_width_wider() * m_em_unit, int(1.9f * field->GetFont().GetPixelSize().y)));
     }
-    field->SetSize(wxSize(def_width_wider() * m_em_unit, lround(opt_height * m_em_unit)));
+    field->SetSize(wxSize(def_width_wider() * m_em_unit, static_cast<int>(lround(opt_height * m_em_unit))));
     field->Rescale();
 }
 
@@ -1464,7 +1464,7 @@ void Choice::set_selection()
 				break;
 			++idx;
 		}
-		idx == m_opt.enum_values.size() ? field->SetValue(text_value) : field->SetSelection(idx);
+		idx == static_cast<int>(m_opt.enum_values.size()) ? field->SetValue(text_value) : field->SetSelection(idx);
 	}
 }
 
@@ -1481,7 +1481,7 @@ void Choice::set_value(const std::string& value, bool change_event)  //! Redunda
 	}
 
     choice_ctrl* field = dynamic_cast<choice_ctrl*>(window);
-	idx == m_opt.enum_values.size() ?
+	idx == static_cast<int>(m_opt.enum_values.size()) ?
 		field->SetValue(value) :
 		field->SetSelection(idx);
 
@@ -1531,7 +1531,7 @@ void Choice::set_value(const boost::any& value, bool change_event)
             field->SetValue(text_value);
         }
         else
-			field->SetSelection(idx);
+			field->SetSelection(static_cast<int>(idx));
 
         if (!m_value.empty() && m_opt.opt_key == "sparse_infill_density") {
             // If m_value was changed before, then update m_value here too to avoid case 
@@ -1568,7 +1568,7 @@ void Choice::set_value(const boost::any& value, bool change_event)
 
 			const std::vector<std::string>& values = m_opt.enum_values;
 			auto it = std::find(values.begin(), values.end(), key);
-			val = it == values.end() ? 0 : it - values.begin();
+			val = it == values.end() ? 0 : static_cast<int>(it - values.begin());
 		}
         if (m_opt.nullable) {
             if (val != ConfigOptionEnumsGenericNullable::nil_value())
@@ -1759,7 +1759,7 @@ void Choice::msw_rescale()
     if (m_opt.height >= 0)
         size.SetHeight(m_opt.height * m_em_unit);
     else if (parent_is_custom_ctrl && opt_height > 0)
-        size.SetHeight(lround(opt_height * m_em_unit));
+        size.SetHeight(static_cast<int>(lround(opt_height * m_em_unit)));
     if (m_opt.width >= 0) size.SetWidth(m_opt.width * m_em_unit);
 
     if (parent_is_custom_ctrl)
@@ -1796,7 +1796,7 @@ void ColourPicker::BUILD()
 	// 	// recast as a wxWindow to fit the calling convention
 	window = dynamic_cast<wxWindow*>(temp);
 
-	temp->Bind(wxEVT_COLOURPICKER_CHANGED, ([this,temp](wxCommandEvent e) {
+	temp->Bind(wxEVT_COLOURPICKER_CHANGED, ([this](wxCommandEvent e) {
         #ifdef __WXMSW__
             draw_bmp_btn(temp, temp->GetColour());
         #endif
@@ -1932,7 +1932,7 @@ void ColourPicker::msw_rescale()
     if (m_opt.height >= 0)
         size.SetHeight(m_opt.height * m_em_unit);
     else if (parent_is_custom_ctrl && opt_height > 0)
-        size.SetHeight(lround(opt_height * m_em_unit));
+        size.SetHeight(static_cast<int>(lround(opt_height * m_em_unit)));
     if (m_opt.width >= 0) size.SetWidth(m_opt.width * m_em_unit);
     if (parent_is_custom_ctrl)
         field->SetSize(size);
@@ -2065,7 +2065,7 @@ void PointCtrl::msw_rescale()
     wxSize  field_size((m_opt.width >= 0 ? m_opt.width : def_width_wider()) * m_em_unit, -1); // ORCA match width with other components
 
     if (parent_is_custom_ctrl) {
-        field_size.SetHeight(lround(opt_height * m_em_unit));
+        field_size.SetHeight(static_cast<int>(lround(opt_height * m_em_unit)));
         x_input->SetSize(field_size);
         y_input->SetSize(field_size);
     }
