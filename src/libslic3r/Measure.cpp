@@ -154,7 +154,7 @@ void MeasuringImpl::update_planes()
         // Find next unvisited triangle:
         for (; seed_facet_idx < num_of_facets; ++ seed_facet_idx)
             if (m_face_to_plane[seed_facet_idx] == size_t(-1)) {
-                facet_queue[facet_queue_cnt ++] = seed_facet_idx;
+                facet_queue[static_cast<int>(facet_queue_cnt) ++] = seed_facet_idx;
                 normal_ptr = &face_normals[seed_facet_idx];
                 m_face_to_plane[seed_facet_idx] = m_planes.size();
                 m_planes.emplace_back();
@@ -375,7 +375,7 @@ void MeasuringImpl::extract_features(int plane_idx)
                 lengths.push_back(v2.norm());
                 if (first_different_angle_idx == 0 && angles.size() > 1) {
                     if (! are_angles_same(angles.back(), angles[angles.size()-2]))
-                        first_different_angle_idx = angles.size()-1;
+                        first_different_angle_idx = static_cast<int>(angles.size()-1);
                 }
             }
             assert(border.size() == angles.size());
@@ -477,7 +477,7 @@ void MeasuringImpl::extract_features(int plane_idx)
             // Merge adjacent edges where needed.
             assert(std::all_of(edges.begin(), edges.end(),
                             [](const SurfaceFeature& f) { return f.get_type() == SurfaceFeatureType::Edge; }));
-            for (int i=edges.size()-1; i>=0; --i) {
+            for (int i=static_cast<int>(edges.size()-1); i>=0; --i) {
                 const auto& [first_start, first_end] = edges[i==0 ? edges.size()-1 : i-1].get_edge();
                 const auto& [second_start, second_end] =   edges[i].get_edge();
 
@@ -530,7 +530,7 @@ std::optional<SurfaceFeature> MeasuringImpl::get_feature(size_t face_idx, const 
     const PlaneData& plane = m_planes[m_face_to_plane[face_idx]];
 
     if (! plane.features_extracted)
-        extract_features(m_face_to_plane[face_idx]);
+        extract_features(static_cast<int>(m_face_to_plane[face_idx]));
 
     size_t closest_feature_idx = size_t(-1);
     double min_dist = std::numeric_limits<double>::max();
@@ -599,7 +599,7 @@ std::optional<SurfaceFeature> MeasuringImpl::get_feature(size_t face_idx, const 
 
 int MeasuringImpl::get_num_of_planes() const
 {
-    return (m_planes.size());
+    return static_cast<int>(m_planes.size());
 }
 
 
