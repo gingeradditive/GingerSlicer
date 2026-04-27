@@ -791,7 +791,7 @@ unsigned int ParamsModel::GetChildren(const wxDataViewItem& parent, wxDataViewIt
                 array.Add(wxDataViewItem((void*)child.get()));
     }
 
-    return array.Count();
+    return static_cast<unsigned int>(array.Count());
 }
 unsigned int ParamsModel::GetColumnCount() const { return 1; }
 wxString     ParamsModel::GetColumnType(unsigned int col) const {
