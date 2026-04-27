@@ -112,7 +112,7 @@ int TabCtrl::AppendItem(const wxString &item,
     sizer->Add(btn, 0, wxALIGN_CENTER_VERTICAL | wxALL, TAB_BUTTON_SPACE * 2);
     sizer->AddStretchSpacer(1);
     relayout();
-    return btns.size() - 1;
+    return static_cast<int>(btns.size() - 1);
 }
 
 bool TabCtrl::DeleteItem(int item)
@@ -283,7 +283,7 @@ void TabCtrl::buttonClicked(wxCommandEvent &event)
     SetFocus();
     auto btn  = event.GetEventObject();
     auto iter = std::find(btns.begin(), btns.end(), btn);
-    SelectItem(iter == btns.end() ? -1 : iter - btns.begin());
+    SelectItem(iter == btns.end() ? -1 : static_cast<int>(iter - btns.begin()));
 }
 
 void TabCtrl::keyDown(wxKeyEvent &event)
