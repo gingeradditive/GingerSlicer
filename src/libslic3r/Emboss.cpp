@@ -328,7 +328,7 @@ bool Emboss::divide_segments_for_close_point(ExPolygons &expolygons, double dist
                 } else if (index == (pts.size()-1)) continue;
 
                 // do not doubled side point of segment
-                const ExPolygonsIndex id = ids.cvt(index);
+                const ExPolygonsIndex id = ids.cvt(static_cast<uint32_t>(index));
                 const ExPolygon &expoly = expolygons[id.expolygons_index];
                 const Polygon &poly = id.is_contour() ? expoly.contour : expoly.holes[id.hole_index()];
                 const Points &poly_pts = poly.points;
@@ -365,7 +365,7 @@ bool Emboss::divide_segments_for_close_point(ExPolygons &expolygons, double dist
         auto it2 = it+1;
         while (it2 != divs.end() && it2->second == index) ++it2;
 
-        ExPolygonsIndex id = ids.cvt(index);
+        ExPolygonsIndex id = ids.cvt(static_cast<uint32_t>(index));
         ExPolygon &expoly = expolygons[id.expolygons_index];
         Polygon &poly = id.is_contour() ? expoly.contour : expoly.holes[id.hole_index()];
         Points &pts = poly.points;        
@@ -1501,7 +1501,7 @@ indexed_triangle_set polygons2model_unique(
 {
     // CW order of triangle indices
     std::vector<Vec3i32> shape_triangles=Triangulation::triangulate(shape2d, points);
-    uint32_t           count_point     = points.size();
+    uint32_t           count_point     = static_cast<uint32_t>(points.size());
 
     indexed_triangle_set result;
     result.vertices.reserve(2 * count_point);
@@ -1533,7 +1533,7 @@ indexed_triangle_set polygons2model_unique(
     size_t polygon_offset = 0;
     auto add_quads = [&polygon_offset,&result, &count_point]
     (const Polygon& polygon) {
-        uint32_t polygon_points = polygon.points.size();
+        uint32_t polygon_points = static_cast<uint32_t>(polygon.points.size());
         // previous index
         uint32_t prev = polygon_offset + polygon_points - 1;
         for (uint32_t p = 0; p < polygon_points; ++p) { 
@@ -1603,7 +1603,7 @@ indexed_triangle_set polygons2model_duplicit(
     size_t polygon_offset = 0;
     auto add_quads = [&polygon_offset, &result, count_point, &changes]
     (const Polygon &polygon) {
-        uint32_t polygon_points = polygon.points.size();
+        uint32_t polygon_points = static_cast<uint32_t>(polygon.points.size());
         // previous index
         uint32_t prev = changes[polygon_offset + polygon_points - 1];
         for (uint32_t p = 0; p < polygon_points; ++p) {
@@ -1909,8 +1909,8 @@ PolygonPoints Emboss::sample_slice(const TextLine &slice, const BoundingBoxes &b
         if (!bb.defined)
             return cursor;
         Point   letter_center  = bb.center();
-        int32_t shape_distance = shapes_x_cursor - letter_center.x();
-        shapes_x_cursor        = letter_center.x();
+        int32_t shape_distance = static_cast<int32_t>(shapes_x_cursor - letter_center.x());
+        shapes_x_cursor        = static_cast<int32_t>(letter_center.x());
         double  distance_mm    = shape_distance * scale;
         int32_t distance_polygon = static_cast<int32_t>(std::round(scale_(distance_mm)));
         if (is_reverse)
@@ -1927,7 +1927,7 @@ PolygonPoints Emboss::sample_slice(const TextLine &slice, const BoundingBoxes &b
 
     // calc transformation for letters on the Left side from center
     if (first_right_index < bbs.size()) {
-        shapes_x_cursor = bbs[first_right_index].center().x();
+        shapes_x_cursor = static_cast<int32_t>(bbs[first_right_index].center().x());
         cursor          = samples[first_right_index];
     }else{
         // only left side exists
@@ -1964,8 +1964,8 @@ float get_align_y_offset(FontProp::VerticalAlign align, unsigned count_lines, co
 int32_t get_align_x_offset(FontProp::HorizontalAlign align, const BoundingBox &shape_bb, const BoundingBox &line_bb)
 {
     switch (align) {
-    case FontProp::HorizontalAlign::right: return -shape_bb.max.x() + (shape_bb.size().x() - line_bb.size().x());
-    case FontProp::HorizontalAlign::center: return -shape_bb.center().x() + (shape_bb.size().x() - line_bb.size().x()) / 2;
+    case FontProp::HorizontalAlign::right: return static_cast<int32_t>(-shape_bb.max.x() + (shape_bb.size().x() - line_bb.size().x()));
+    case FontProp::HorizontalAlign::center: return static_cast<int32_t>(-shape_bb.center().x() + (shape_bb.size().x() - line_bb.size().x()) / 2);
     case FontProp::HorizontalAlign::left: // no change
     default: break;
     }
