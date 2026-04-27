@@ -1068,7 +1068,7 @@ int PresetBundle::validate_presets(const std::string &file_name, DynamicPrintCon
 
 void PresetBundle::remove_users_preset(AppConfig &config, std::map<std::string, std::map<std::string, std::string>> *my_presets)
 {
-    auto check_removed = [my_presets, this](Preset &preset) -> bool {
+    auto check_removed = [my_presets](Preset &preset) -> bool {
         if (my_presets == nullptr) return true;
         if (my_presets->find(preset.name) != my_presets->end()) return false;
         if (!preset.sync_info.empty()) return false; // syncing, not remove
@@ -1813,7 +1813,7 @@ void PresetBundle::export_selections(AppConfig &config)
 
 // BBS
 void PresetBundle::set_num_filaments(unsigned int n, std::vector<std::string> new_colors) {
-    int old_filament_count = this->filament_presets.size();
+    int old_filament_count = static_cast<int>(this->filament_presets.size());
     if (n > old_filament_count && old_filament_count != 0)
         filament_presets.resize(n, filament_presets.back());
     else {
@@ -1833,7 +1833,7 @@ void PresetBundle::set_num_filaments(unsigned int n, std::vector<std::string> ne
 }
 void PresetBundle::set_num_filaments(unsigned int n, std::string new_color)
 {
-    int old_filament_count = this->filament_presets.size();
+    int old_filament_count = static_cast<int>(this->filament_presets.size());
     if (n > old_filament_count && old_filament_count != 0)
         filament_presets.resize(n, filament_presets.back());
     else {
@@ -1972,7 +1972,7 @@ bool PresetBundle::check_filament_temp_equation_by_printer_type_and_nozzle_for_m
 //BBS: check whether this is the only edited filament
 bool PresetBundle::is_the_only_edited_filament(unsigned int filament_index)
 {
-    int n = this->filament_presets.size();
+    int n = static_cast<int>(this->filament_presets.size());
     if (filament_index >= n)
         return false;
 
@@ -2782,7 +2782,7 @@ std::pair<PresetsConfigSubstitutions, size_t> PresetBundle::load_vendor_configs_
     PresetCollection         *presets = nullptr;
     size_t                   presets_loaded = 0;
 
-    auto parse_subfile = [this, path, vendor_name, presets_loaded, current_vendor_profile, base_bundle](
+    auto parse_subfile = [this, path, vendor_name, current_vendor_profile, base_bundle](
         ConfigSubstitutionContext& substitution_context,
         PresetsConfigSubstitutions& substitutions,
         LoadConfigBundleAttributes& flags,
