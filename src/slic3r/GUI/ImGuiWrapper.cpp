@@ -2580,7 +2580,7 @@ void ImGuiWrapper::init_font(bool compress)
 #endif
 
     float font_scale = m_font_size/15;
-    int icon_sz = lround(16 * font_scale); // default size of icon is 16 px
+    int icon_sz = static_cast<int>(lround(16 * font_scale)); // default size of icon is 16 px
 
     int rect_id = io.Fonts->CustomRects.Size;  // id of the rectangle added next
     // add rectangles for the icons to the font atlas
