@@ -108,7 +108,7 @@ void TempInput::Create(wxWindow *parent, wxString text, wxString label, wxString
         SetFinish();
         Slic3r::GUI::wxGetApp().GetMainTopWindow()->SetFocus();
     });
-    text_ctrl->Bind(wxEVT_RIGHT_DOWN, [this](auto &e) {}); // disable context menu
+    text_ctrl->Bind(wxEVT_RIGHT_DOWN, [](auto &e) {}); // disable context menu
     text_ctrl->Bind(wxEVT_LEFT_DOWN, [this](auto &e) {
         if (m_read_only) { 
             return;
@@ -148,7 +148,7 @@ void TempInput::SetFinish()
 wxString TempInput::erasePending(wxString &str)
 {
     wxString tmp   = str;
-    int      index = tmp.size() - 1;
+    int      index = static_cast<int>(tmp.size()) - 1;
     while (index != -1) {
         if (tmp[index] < '0' || tmp[index] > '9') {
             tmp.erase(index, 1);
