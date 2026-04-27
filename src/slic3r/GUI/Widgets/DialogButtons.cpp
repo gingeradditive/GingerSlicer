@@ -167,7 +167,7 @@ int DialogButtons::FromDIP(int d) {
 void DialogButtons::on_keydown(wxKeyEvent& e) {
     wxObject* current = e.GetEventObject();
     int key = e.GetKeyCode();
-    int cnt = m_buttons.size();
+    int cnt = static_cast<int>(m_buttons.size());
     if(cnt > 1){
         int i = -1;
         for (Button* btn : m_buttons){
