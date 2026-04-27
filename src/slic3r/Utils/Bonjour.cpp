@@ -1015,7 +1015,7 @@ void Bonjour::priv::resolve_perform()
 		asio::deadline_timer timer(*io_service);
 		retries--;
 		std::function<void(const error_code&)> timer_handler = [&](const error_code& error) {
-			int replies_count = replies.size();
+			int replies_count = static_cast<int>(replies.size());
 			// end 
 			if (retries == 0 || error || replies_count > 0) {
 				// is this correct ending?
