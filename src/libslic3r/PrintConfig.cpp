@@ -29,7 +29,7 @@ std::set<std::string> SplitStringAndRemoveDuplicateElement(const std::string &st
         if (pos < size) {
             std::string sub_str = strs.substr(i, pos - i);
             result.insert(sub_str);
-            i = pos + separator.size() - 1;
+            i = pos + (int)separator.size() - 1;
         }
     }
 
