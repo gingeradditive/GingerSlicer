@@ -140,7 +140,7 @@ void ArrangeJob::prepare_selected() {
             ArrangePolygon&& ap = prepare_arrange_polygon(mo->instances[i]);
             //BBS: partplate_list preprocess
             //remove the locked plate's instances, neither in selected, nor in un-selected
-            bool locked = plate_list.preprocess_arrange_polygon(oidx, i, ap, inst_sel[i]);
+            bool locked = plate_list.preprocess_arrange_polygon(static_cast<int>(oidx), static_cast<int>(i), ap, inst_sel[i]);
             if (!locked)
                 {
                 ArrangePolygons& cont = mo->instances[i]->printable ?
@@ -148,13 +148,13 @@ void ArrangeJob::prepare_selected() {
                         m_unselected) :
                     m_unprintable;
 
-                ap.itemid = cont.size();
+                ap.itemid = static_cast<int>(cont.size());
                 cont.emplace_back(std::move(ap));
                 }
             else
                 {
                 //skip this object due to be locked in plate
-                ap.itemid = m_locked.size();
+                ap.itemid = static_cast<int>(m_locked.size());
                 m_locked.emplace_back(std::move(ap));
                 if (inst_sel[i])
                     selected_is_locked = true;
@@ -190,12 +190,12 @@ void ArrangeJob::prepare_all() {
 
     PartPlateList& plate_list = m_plater->get_partplate_list();    
     for (size_t i = 0; i < plate_list.get_plate_count(); i++) {
-        PartPlate* plate = plate_list.get_plate(i);
+        PartPlate* plate = plate_list.get_plate(static_cast<int>(i));
         bool same_as_global_print_seq = true;
         plate->get_real_print_seq(&same_as_global_print_seq);
         if (plate->is_locked() == false && !same_as_global_print_seq) {
             plate->lock(true);
-            m_uncompatible_plates.push_back(i);
+            m_uncompatible_plates.push_back(static_cast<int>(i));
         }
     }
 
@@ -212,18 +212,18 @@ void ArrangeJob::prepare_all() {
             ArrangePolygon&& ap = prepare_arrange_polygon(mo->instances[i]);
             //BBS: partplate_list preprocess
             //remove the locked plate's instances, neither in selected, nor in un-selected
-            bool locked = plate_list.preprocess_arrange_polygon(oidx, i, ap, true);
+            bool locked = plate_list.preprocess_arrange_polygon(static_cast<int>(oidx), static_cast<int>(i), ap, true);
             if (!locked)
             {
                 ArrangePolygons& cont = mo->instances[i]->printable ? m_selected :m_unprintable;
 
-                ap.itemid = cont.size();
+                ap.itemid = static_cast<int>(cont.size());
                 cont.emplace_back(std::move(ap));
             }
             else
             {
                 //skip this object due to be locked in plate
-                ap.itemid = m_locked.size();
+                ap.itemid = static_cast<int>(m_locked.size());
                 m_locked.emplace_back(std::move(ap));
                 selected_is_locked = true;
                 BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(": skip locked instance, obj_id %1%, instance_id %2%") % oidx % i;
@@ -259,7 +259,7 @@ arrangement::ArrangePolygon estimate_wipe_tower_info(int plate_index, std::set<i
     int plate_index_valid = std::min(plate_index, plate_count - 1);
 
     // we have to estimate the depth using the extruder number of all plates
-    int extruder_size = extruder_ids.size();
+    int extruder_size = static_cast<int>(extruder_ids.size());
 
     auto arrange_poly = ppl.get_plate(plate_index_valid)->estimate_wipe_tower_polygon(full_config, plate_index, extruder_size);
     arrange_poly.bed_idx = plate_index;
@@ -391,22 +391,22 @@ void ArrangeJob::prepare_partplate() {
         ModelObject* mo = model.objects[oidx];
         for (size_t inst_idx = 0; inst_idx < mo->instances.size(); ++inst_idx)
         {
-            bool             in_plate = plate->contain_instance(oidx, inst_idx) || plate->intersect_instance(oidx, inst_idx);
+            bool             in_plate = plate->contain_instance(static_cast<int>(oidx), static_cast<int>(inst_idx)) || plate->intersect_instance(static_cast<int>(oidx), static_cast<int>(inst_idx));
             ArrangePolygon&& ap = prepare_arrange_polygon(mo->instances[inst_idx]);
 
             ArrangePolygons& cont = mo->instances[inst_idx]->printable ?
                 (in_plate ? m_selected : m_unselected) :
                 m_unprintable;
-            bool locked = plate_list.preprocess_arrange_polygon_other_locked(oidx, inst_idx, ap, in_plate);
+            bool locked = plate_list.preprocess_arrange_polygon_other_locked(static_cast<int>(oidx), static_cast<int>(inst_idx), ap, in_plate);
             if (!locked)
             {
-                ap.itemid = cont.size();
+                ap.itemid = static_cast<int>(cont.size());
                 cont.emplace_back(std::move(ap));
             }
             else
             {
                 //skip this object due to be not in current plate, treated as locked
-                ap.itemid = m_locked.size();
+                ap.itemid = static_cast<int>(m_locked.size());
                 m_locked.emplace_back(std::move(ap));
                 //BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(": skip locked instance, obj_id %1%, name %2%") % oidx % mo->name;
             }
