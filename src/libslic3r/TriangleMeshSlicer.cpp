@@ -1685,7 +1685,7 @@ static ExPolygons make_expolygons_simple(std::vector<IntersectionLine> &lines)
                 if (slice.contour.contains(hole.points.front())) {
                     double area = slice.contour.area();
                     if (area < current_contour_area) {
-                        slice_idx = &slice - slices.data();
+                        slice_idx = static_cast<int>(&slice - slices.data());
                         current_contour_area = area;
                     }
                 }
