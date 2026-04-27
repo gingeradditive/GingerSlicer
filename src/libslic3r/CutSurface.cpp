@@ -593,7 +593,7 @@ SurfaceCut Slic3r::cut_surface(const ExPolygons &shapes,
     // fix - convert shape_point_id to expolygon index 
     // save 1 param(s2i) from diff_models call
     for (priv::SurfacePatch &patch : patches)
-        patch.shape_id = s2i.cvt(patch.shape_id).expolygons_index;
+        patch.shape_id = static_cast<uint32_t>(s2i.cvt(patch.shape_id).expolygons_index);
 
     // calc distance to projection for all outline points of cutAOI(shape)
     // it is used for distiguish the top one
@@ -836,7 +836,7 @@ indexed_triangle_set Slic3r::its_mask(const indexed_triangle_set &its,
         for (const auto vi : t) {
             uint32_t &cvt = cvt_vetices[vi];
             if (cvt == std::numeric_limits<uint32_t>::max())
-                cvt = vertices_count++;
+                cvt = static_cast<uint32_t>(vertices_count++);
         }
     }
     if (faces_count == 0) return {};
@@ -933,7 +933,7 @@ priv::CutMesh priv::to_cgal(const indexed_triangle_set &its,
     assert(faces_count <= indices.size());
 
     CutMesh result;
-    result.reserve(vertices_count, edges_count, faces_count);
+    result.reserve(static_cast<size_type>(vertices_count), static_cast<size_type>(edges_count), static_cast<size_type>(faces_count));
 
     std::vector<VI> to_filtrated_vertices_index(vertices.size());
     size_t filtrated_vertices_index = 0;
@@ -1046,9 +1046,9 @@ priv::CutMesh priv::to_cgal(const ExPolygons  &shapes,
     };
 
     size_t count_point = count_points(shapes);
-    result.reserve(result.number_of_vertices() + 2 * count_point,
-                   result.number_of_edges() + 4 * count_point,
-                   result.number_of_faces() + 2 * count_point);
+    result.reserve(static_cast<size_type>(result.number_of_vertices() + 2 * count_point),
+                   static_cast<size_type>(result.number_of_edges() + 4 * count_point),
+                   static_cast<size_type>(result.number_of_faces() + 2 * count_point));
 
     // Identify polygon
     for (const ExPolygon &shape : shapes) {
@@ -1089,7 +1089,7 @@ priv::ModelCutId priv::ModelCut2index::calc_id(uint32_t index) const
     // find shape index
     for (size_t model_index = 1; model_index < m_offsets.size(); ++model_index) {
         if (m_offsets[model_index] > index) break;
-        result.model_index = model_index;
+        result.model_index = static_cast<uint32_t>(model_index);
     }
     result.cut_index = index - m_offsets[result.model_index];
     return result;
@@ -1721,17 +1721,17 @@ float priv::calc_distance(const P3 &p,
     size_t max_i   = 0;
     float  max_val = 0.f;
     for (size_t i = 0; i < 3; i++) {
-        float val = start[i] - end[i];
+        float val = start[static_cast<int>(i)] - end[static_cast<int>(i)];
         // abs value
         if (val < 0.f) val *= -1.f;
         if (max_val < val) {
             max_val = val;
-            max_i   = i;
+            max_i   = static_cast<int>(i);
         }
     }
 
-    float from_start    = p[max_i] - start[max_i];
-    float best_distance = projection_ratio * (end[max_i] - start[max_i]);
+    float from_start    = p[static_cast<int>(max_i)] - start[static_cast<int>(max_i)];
+    float best_distance = projection_ratio * (end[static_cast<int>(max_i)] - start[static_cast<int>(max_i));
     return from_start - best_distance;
 }
 
@@ -1746,7 +1746,7 @@ priv::VDistances priv::calc_distances(const SurfacePatches &patches,
         // map is created during intersection by corefine visitor
         const VertexShapeMap &vert_shape_map = 
             models[patch.model_id].property_map<VI, const IntersectingElement *>(vert_shape_map_name).first;
-        uint32_t patch_index = &patch - &patches.front();
+        uint32_t patch_index = static_cast<uint32_t>(&patch - &patches.front());
         // map is created during patch creation / dividing
         const CvtVI2VI& cvt = patch.mesh.property_map<VI, VI>(patch_source_name).first;
         // for each point on outline
@@ -1758,7 +1758,7 @@ priv::VDistances priv::calc_distances(const SurfacePatches &patches,
             if (ie == nullptr) continue;
             assert(ie->shape_point_index != std::numeric_limits<uint32_t>::max());
             assert(ie->attr != (unsigned char) IntersectingElement::Type::undefined);
-            uint32_t pi = ie->shape_point_index;
+            uint32_t pi = static_cast<uint32_t>(ie->shape_point_index);
             assert(pi <= count_shapes_points);
             std::vector<ProjectionDistance> &pds = result[pi];
             uint32_t model_index = patch.model_id;
@@ -1893,12 +1893,12 @@ uint32_t priv::get_closest_point_index(const SearchData &sd,
 
     if (use_index) { 
         assert(is_same(line.b, point_index));
-        return point_index; 
+        return static_cast<uint32_t>(point_index); 
     }
     auto id = s2i.cvt(point_index);
     if (id.point_index != 0) {
         assert(is_same(line.a, point_index - 1));
-        return point_index - 1;
+        return static_cast<uint32_t>(point_index - 1);
     }
     const ExPolygon &shape = shapes[id.expolygons_index];
     size_t count_polygon_points = (id.polygon_index == 0) ?
@@ -1907,7 +1907,7 @@ uint32_t priv::get_closest_point_index(const SearchData &sd,
     size_t prev_point_index = point_index  + (count_polygon_points - 1);
     assert(is_same(line.a, prev_point_index));
     // return previous point index
-    return prev_point_index;
+    return static_cast<uint32_t>(prev_point_index);
 }
 
 // use AABB Tree Lines
@@ -2048,8 +2048,8 @@ void priv::fill_polygon_distances(const ProjectionDistance &pd,
                                             shape.contour.points :
                                             shape.holes[id.polygon_index - 1].points;
     // border of indexes for Polygon
-    uint32_t first_index = index - id.point_index;
-    uint32_t last_index  = first_index + points.size();        
+    uint32_t first_index = static_cast<uint32_t>(index - id.point_index);
+    uint32_t last_index  = first_index + static_cast<uint32_t>(points.size());        
 
     uint32_t act_index = index;
     const ProjectionDistance* act_pd = &pd;
@@ -2223,7 +2223,7 @@ priv::ProjectionDistances priv::choose_best_distance(
     // vector of patches for shape
     std::vector<std::vector<uint32_t>> shapes_patches(shapes.size());
     for (const SurfacePatch &patch : patches)
-        shapes_patches[patch.shape_id].push_back(&patch-&patches.front());
+        shapes_patches[patch.shape_id].push_back(static_cast<uint32_t>(&patch-&patches.front()));
 
     // collect one closest projection for each outline point
     ProjectionDistances result(distances.size());
@@ -2606,8 +2606,8 @@ BoundingBoxf3 priv::bounding_box(const CutAOI &cut, const CutMesh &mesh) {
         for(VI vi: mesh.vertices_around_face(mesh.halfedge(fi))){
             const P3& p = mesh.point(vi);
             for (size_t i = 0; i < 3; ++i) { 
-                if (min[i] > p[i]) min[i] = p[i];
-                if (max[i] < p[i]) max[i] = p[i];
+                if (min[static_cast<int>(i)] > p[static_cast<int>(i)]) min[static_cast<int>(i)] = p[static_cast<int>(i)];
+                if (max[static_cast<int>(i)] < p[static_cast<int>(i)]) max[static_cast<int>(i)] = p[static_cast<int>(i)];
             }
         } 
     }
@@ -2658,7 +2658,7 @@ priv::SurfacePatch priv::create_surface_patch(const std::vector<FI> &fis,
     }
     mesh.remove_property_map(is_counted);
 
-    uint32_t count_faces = fis.size();    
+    uint32_t count_faces = static_cast<uint32_t>(fis.size());    
     // IMPROVE: Value is greater than neccessary, count edges used twice
     uint32_t count_edges = count_faces*3; 
 
@@ -2675,7 +2675,7 @@ priv::SurfacePatch priv::create_surface_patch(const std::vector<FI> &fis,
             for (VI vi : mesh.vertices_around_face(mesh.halfedge(fi))) {
                 VI &vi_cvt = mesh2result[vi];
                 if (!vi_cvt.is_valid()) {
-                    vi_cvt = VI(cm.vertices().size());
+                    vi_cvt = VI(static_cast<size_type>(cm.vertices().size()));
                     cm.add_vertex(mesh.point(vi));
                 }
                 t[index++] = vi_cvt;
@@ -2695,7 +2695,7 @@ priv::SurfacePatch priv::create_surface_patch(const std::vector<FI> &fis,
                 }
                 VI &vi_cvt = mesh2result[vi];
                 if (!vi_cvt.is_valid()) {
-                    vi_cvt = VI(cm.vertices().size());
+                    vi_cvt = VI(static_cast<size_type>(cm.vertices().size()));
                     cm.add_vertex(mesh.point(vi));
                 }
                 t[index++] = vi_cvt;
@@ -3243,14 +3243,14 @@ std::vector<bool> priv::select_patches(const ProjectionDistances &best_distances
         if (in_distances[d.patch_index]) continue;
         in_distances[d.patch_index] = true;
 
-        ExPolygonsIndex id = s2i.cvt(&d - &best_distances.front());
+        ExPolygonsIndex id = s2i.cvt(static_cast<uint32_t>(&d - &best_distances.front()));
         used_shapes_patches[id.expolygons_index].push_back(d.patch_index);
     }
 
     // vector of patches for shape
     std::vector<std::vector<uint32_t>> shapes_patches(shapes.size());
     for (const SurfacePatch &patch : patches) 
-        shapes_patches[patch.shape_id].push_back(&patch - &patches.front());
+        shapes_patches[patch.shape_id].push_back(static_cast<uint32_t>(&patch - &patches.front()));
 
 #ifdef DEBUG_OUTPUT_DIR
     std::string store_dir = DEBUG_OUTPUT_DIR + "select_patches/";
@@ -3542,7 +3542,7 @@ SurfaceCut priv::patch2cut(SurfacePatch &patch)
         // assert(vi.idx() == sc.vertices.size());
         // vi is not continous
         // assert(vi.idx() < vertices_size);
-        convert_map[vi] = sc.vertices.size();
+        convert_map[vi] = static_cast<value_type>(sc.vertices.size());
         const P3 &p = mesh.point(vi);
         sc.vertices.emplace_back(p.x(), p.y(), p.z());
     }
