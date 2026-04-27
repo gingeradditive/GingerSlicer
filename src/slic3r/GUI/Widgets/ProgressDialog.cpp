@@ -467,9 +467,9 @@ wxString ProgressDialog::GetFormattedTime(unsigned long timeInSec)
     if (timeInSec == (unsigned long) -1) {
         timeAsHMS = wxGetTranslation("Unknown");
     } else {
-        unsigned hours   = timeInSec / 3600;
-        unsigned minutes = (timeInSec % 3600) / 60;
-        unsigned seconds = timeInSec % 60;
+        unsigned hours   = static_cast<unsigned int>(timeInSec / 3600);
+        unsigned minutes = static_cast<unsigned int>((timeInSec % 3600) / 60);
+        unsigned seconds = static_cast<unsigned int>(timeInSec % 60);
         timeAsHMS.Printf("%u:%02u:%02u", hours, minutes, seconds);
     }
 
