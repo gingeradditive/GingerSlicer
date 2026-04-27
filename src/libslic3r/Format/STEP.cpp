@@ -135,11 +135,11 @@ bool StepPreProcessor::isGBK(const std::string str) {
             i++;
             continue;
         } else {
-            if (str[i] >= 0x81 &&
-                str[i] <= 0xfe &&
-                str[i + 1] >= 0x40 &&
-                str[i + 1] <= 0xfe &&
-                str[i + 1] != 0xf7) {
+            if ((unsigned char)str[i] >= 0x81 &&
+                (unsigned char)str[i] <= 0xfe &&
+                (unsigned char)str[i + 1] >= 0x40 &&
+                (unsigned char)str[i + 1] <= 0xfe &&
+                (unsigned char)str[i + 1] != 0xf7) {
                 i += 2;
                 continue;
             }
@@ -329,7 +329,7 @@ bool load_step(const char *path, Model *model, bool& is_cancel,
                 for (Standard_Integer aNodeIter = 1; aNodeIter <= aTriangulation->NbNodes(); ++aNodeIter) {
                     gp_Pnt aPnt = aTriangulation->Node(aNodeIter);
                     aPnt.Transform(aTrsf);
-                    points.emplace_back(std::move(Vec3f(aPnt.X(), aPnt.Y(), aPnt.Z())));
+                    points.emplace_back(Vec3f(aPnt.X(), aPnt.Y(), aPnt.Z()));
                 }
                 // BBS: copy triangles
                 const TopAbs_Orientation anOrientation = anExpSF.Current().Orientation();
@@ -377,7 +377,7 @@ bool load_step(const char *path, Model *model, bool& is_cancel,
     for (size_t i = 0; i < stl.size(); i++) {
         if (stepFn) {
             if ((i % stage_unit3) == 0) {
-                stepFn(LOAD_STEP_STAGE_GET_MESH, i, stl.size(), cb_cancel);
+                stepFn(LOAD_STEP_STAGE_GET_MESH, static_cast<int>(i), static_cast<int>(stl.size()), cb_cancel);
                 is_cancel = cb_cancel;
             }
             if (cb_cancel) {
