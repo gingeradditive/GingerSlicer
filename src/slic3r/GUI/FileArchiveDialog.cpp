@@ -83,14 +83,14 @@ unsigned int ArchiveViewModel::GetChildren(const wxDataViewItem& parent, wxDataV
         for (std::shared_ptr<ArchiveViewNode>child : m_top_children) {
             array.push_back(wxDataViewItem((void*)child.get()));
         }
-        return m_top_children.size();
+        return static_cast<unsigned int>(m_top_children.size());
     }
        
     ArchiveViewNode* node = static_cast<ArchiveViewNode*>(parent.GetID());
     for (std::shared_ptr<ArchiveViewNode> child : node->get_children()) {
         array.push_back(wxDataViewItem((void*)child.get()));
     }
-    return node->get_children().size();
+    return static_cast<unsigned int>(node->get_children().size());
 }
 
 void ArchiveViewModel::GetValue(wxVariant& variant, const wxDataViewItem& item, unsigned int col) const 
@@ -216,7 +216,7 @@ FileArchiveDialog::FileArchiveDialog(wxWindow* parent_window, mz_zip_archive* ar
         if (mz_zip_reader_file_stat(archive, i, &stat)) {
             std::string extra(1024, 0);
             boost::filesystem::path path;
-            size_t extra_size = mz_zip_reader_get_filename_from_extra(archive, i, extra.data(), extra.size());
+            mz_uint extra_size = mz_zip_reader_get_filename_from_extra(archive, i, extra.data(), static_cast<mz_uint>(extra.size()));
             if (extra_size > 0) {
                 path = boost::filesystem::path(extra.substr(0, extra_size));
             } else {
@@ -255,7 +255,7 @@ FileArchiveDialog::FileArchiveDialog(wxWindow* parent_window, mz_zip_archive* ar
     if (entry_count == 1)
         on_all_button();
 
-    toggle_column->SetWidth((4 + depth) * em);
+    toggle_column->SetWidth(static_cast<int>((4 + depth) * em));
 
     wxBoxSizer* btn_sizer = create_btn_sizer();
 
