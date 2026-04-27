@@ -96,7 +96,7 @@ int get_values_from_json(std::string file_path, std::vector<std::string>& keys, 
         //throw ConfigurationError(format("Failed loading json file \"%1%\": %2%", file_path, err.what()));
         return 0;
     }
-    return key_values.size();
+    return static_cast<int>(key_values.size());
 }
 
 ConfigFileType guess_config_file_type(const ptree &tree)
@@ -2682,7 +2682,7 @@ void add_correct_opts_to_diff(const std::string &opt_key, t_config_option_keys& 
 {
     const T* opt_init = static_cast<const T*>(other.option(opt_key));
     const T* opt_cur = static_cast<const T*>(this_c.option(opt_key));
-    int opt_init_max_id = opt_init->values.size() - 1;
+    int opt_init_max_id = static_cast<int>(opt_init->values.size()) - 1;
     if (opt_init_max_id < 0) {
         for (int i = 0; i < int(opt_cur->values.size()); i++)
             vec.emplace_back(opt_key + "#" + std::to_string(i));
@@ -3274,7 +3274,7 @@ std::string PhysicalPrinter::get_full_name(std::string preset_name) const
 
 std::string PhysicalPrinter::get_short_name(std::string full_name)
 {
-    int pos = full_name.find(separator());
+    int pos = static_cast<int>(full_name.find(separator()));
     if (pos > 0)
         boost::erase_tail(full_name, full_name.length() - pos);
     return full_name;
@@ -3282,7 +3282,7 @@ std::string PhysicalPrinter::get_short_name(std::string full_name)
 
 std::string PhysicalPrinter::get_preset_name(std::string name)
 {
-    int pos = name.find(separator());
+    int pos = static_cast<int>(name.find(separator()));
     boost::erase_head(name, pos + 3);
     return Preset::remove_suffix_modified(name);
 }
