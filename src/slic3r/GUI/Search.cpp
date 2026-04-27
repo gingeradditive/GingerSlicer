@@ -60,7 +60,7 @@ template<class T>
 void change_opt_key(std::string &opt_key, DynamicPrintConfig *config, int &cnt)
 {
     T *opt_cur = static_cast<T *>(config->option(opt_key));
-    cnt        = opt_cur->values.size();
+    cnt        = static_cast<int>(opt_cur->values.size());
     return;
 
     if (opt_cur->values.size() > 0) opt_key += "#" + std::to_string(0);
@@ -440,7 +440,7 @@ void SearchItem::OnPaint(wxPaintEvent &event)
     auto b_first_list  = std::vector<int>();
     auto b_second_list = std::vector<int>();
 
-    auto position      = 0;
+    auto position      = size_t(0);
     while ((position = m_text.find("<b>", position)) != wxString::npos) {
         b_first_list.push_back(position);
         position++;
