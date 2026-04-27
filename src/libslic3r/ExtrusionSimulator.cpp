@@ -532,8 +532,8 @@ void gcode_paint_layer(
 	float					 thickness,
 	A2f 					&acc)
 {
-	int nc = acc.shape()[1];
-	int nr = acc.shape()[0];
+	int nc = static_cast<int>(acc.shape()[1]);
+	int nr = static_cast<int>(acc.shape()[0]);
 //	printf("gcode_paint_layer %d,%d\n", nc, nr);
 	for (size_t iLine = 1; iLine != polyline.size(); ++iLine) {
 		const V2f &p1 = polyline[iLine - 1];
@@ -644,8 +644,8 @@ void gcode_spread_points(
 	const ExtrusionPoints   &points, 
 	ExtrusionSimulationType simulationType)
 {
-	int nc = acc.shape()[1];
-	int nr = acc.shape()[0];
+	int nc = static_cast<int>(acc.shape()[1]);
+	int nr = static_cast<int>(acc.shape()[0]);
 
 	// Maximum radius of the spreading points, to allocate a large enough cell array.
 	float rmax = 0.f;
@@ -803,7 +803,7 @@ void gcode_spread_points(
 			// 3) Prefix sum the areas per excess height.
 			// The excess height is discrete with the number of excess cells.
 			areas_sum[n_cells-1] = cells[n_cells-1].area * cells[n_cells-1].fraction_covered;
-			for (int i = n_cells - 2; i >= 0; -- i) {
+			for (int i = static_cast<int>(n_cells) - 2; i >= 0; -- i) {
 				const Cell &cell = cells[i];
 				areas_sum[i] = areas_sum[i + 1] + cell.area * cell.fraction_covered;
 			}
