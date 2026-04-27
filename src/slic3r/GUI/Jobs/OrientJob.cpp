@@ -48,7 +48,7 @@ void OrientJob::prepare_selection(std::vector<bool> obj_sel, bool only_one_plate
 
             bool locked = false;
             if (!only_one_plate) {
-                int plate_index = plate_list.find_instance(oidx, inst_idx);
+                int plate_index = plate_list.find_instance(static_cast<int>(oidx), static_cast<int>(inst_idx));
                 if ((plate_index >= 0)&&(plate_index < plate_list.get_plate_count())) {
                     if (plate_list.is_locked(plate_index)) {
                         if (selected) {
@@ -127,7 +127,7 @@ void OrientJob::prepare_partplate() {
         ModelObject* mo = model.objects[oidx];
         for (size_t inst_idx = 0; inst_idx < mo->instances.size(); ++inst_idx)
         {
-            obj_sel[oidx] = plate->contain_instance(oidx, inst_idx);
+            obj_sel[oidx] = plate->contain_instance(static_cast<int>(oidx), static_cast<int>(inst_idx));
         }
     }
 
