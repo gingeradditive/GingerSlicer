@@ -26,8 +26,8 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, wxBoxSizer* side_tools) :
     SetBackgroundColour(default_btn_bg);
 
     int em = em_unit(this);// Slic3r::GUI::wxGetApp().em_unit();
-    m_btn_margin = std::lround(0.3 * em);
-    m_line_margin = std::lround(0.1 * em);
+    m_btn_margin = static_cast<int>(std::lround(0.3 * em));
+    m_line_margin = static_cast<int>(std::lround(0.1 * em));
 
     m_sizer = new wxBoxSizer(wxHORIZONTAL);
     this->SetSizer(m_sizer);
@@ -57,7 +57,7 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, wxBoxSizer* side_tools) :
 
     // BBS: disable custom paint
     //this->Bind(wxEVT_PAINT, &ButtonsListCtrl::OnPaint, this);
-    Bind(wxEVT_SYS_COLOUR_CHANGED, [this](auto& e){
+    Bind(wxEVT_SYS_COLOUR_CHANGED, [](auto& e){
     });
     Bind(wxEVT_DPI_CHANGED, [this](wxDPIChangedEvent& e) {
         // Rescale buttons when DPI changes (moving between monitors)
@@ -133,8 +133,8 @@ void ButtonsListCtrl::Rescale()
         btn->Rescale();
     }
 
-    m_btn_margin = std::lround(0.3 * em);
-    m_line_margin = std::lround(0.1 * em);
+    m_btn_margin = static_cast<int>(std::lround(0.3 * em));
+    m_line_margin = static_cast<int>(std::lround(0.1 * em));
     m_buttons_sizer->SetVGap(m_btn_margin);
     m_buttons_sizer->SetHGap(m_btn_margin);
 
@@ -209,7 +209,7 @@ bool ButtonsListCtrl::InsertPage(size_t n, const wxString &text, bool bSelect /*
             //SetSelection(sel);
             
             wxCommandEvent evt = wxCommandEvent(wxCUSTOMEVT_NOTEBOOK_SEL_CHANGED);
-            evt.SetId(sel);
+            evt.SetId(static_cast<int>(sel));
             wxPostEvent(this->GetParent(), evt);
         }
     });
@@ -224,7 +224,7 @@ void ButtonsListCtrl::RemovePage(size_t n)
 {
     Button* btn = m_pageButtons[n];
     m_pageButtons.erase(m_pageButtons.begin() + n);
-    m_buttons_sizer->Remove(n);
+    m_buttons_sizer->Remove(static_cast<int>(n));
 #if __WXOSX__
     RemoveChild(btn);
 #else
