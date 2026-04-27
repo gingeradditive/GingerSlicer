@@ -168,7 +168,7 @@ std::unique_ptr<CompressedImageBuffer> compress_thumbnail_colpic(const Thumbnail
         }
     }
 
-    ColPic_EncodeStr(color16_buf.data(), width, height, output_buf.data(), output_buf.size(), 1024);
+    ColPic_EncodeStr(color16_buf.data(), width, height, output_buf.data(), static_cast<int>(output_buf.size()), 1024);
 
     auto out  = std::make_unique<CompressedColPic>();
     out->size = output_buf.size();
