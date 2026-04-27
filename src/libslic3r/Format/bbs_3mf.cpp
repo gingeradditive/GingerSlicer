@@ -587,10 +587,10 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
 
     for (auto it = ps.total_volumes_per_extruder.begin(); it != ps.total_volumes_per_extruder.end(); it++) {
         double volume                           = it->second;
-        auto [used_filament_m, used_filament_g] = get_used_filament_from_volume(volume, it->first);
+        auto [used_filament_m, used_filament_g] = get_used_filament_from_volume(volume, static_cast<int>(it->first));
 
         FilamentInfo info;
-        info.id = it->first;
+        info.id = static_cast<int>(it->first);
         info.used_g = used_filament_g;
         info.used_m = used_filament_m;
         slice_filaments_info.push_back(info);
@@ -2076,7 +2076,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         }
 
         const ConfigOptionStrings* filament_ids_opt = config.option<ConfigOptionStrings>("filament_settings_id");
-        int max_filament_id = filament_ids_opt ? filament_ids_opt->size() : std::numeric_limits<int>::max();
+        int max_filament_id = filament_ids_opt ? static_cast<int>(filament_ids_opt->size()) : std::numeric_limits<int>::max();
         for (ModelObject* mo : m_model->objects) {
             const ConfigOptionInt* extruder_opt = dynamic_cast<const ConfigOptionInt*>(mo->config.option("extruder"));
             int extruder_id = 0;
@@ -2205,7 +2205,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 }
             }
 
-            for (int index = delete_ids.size() - 1; index >= 0; index--)
+            for (int index = static_cast<int>(delete_ids.size()) - 1; index >= 0; index--)
                 m_model->delete_object(delete_ids[index]);
         }
 
@@ -2241,7 +2241,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             // try unicode path extra
             std::string extra(1024, 0);
             for (mz_uint i = 0; i < archive.m_total_files; ++i) {
-                size_t n = mz_zip_reader_get_extra(&archive, i, extra.data(), extra.size());
+                size_t n = mz_zip_reader_get_extra(&archive, i, extra.data(), static_cast<mz_uint>(extra.size()));
                 if (n > 0 && path2 == ZipUnicodePathExtraField::decode(extra.substr(0, n))) {
                     index = i;
                     break;
@@ -2602,7 +2602,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 dest_file = stat.m_filename;
             } else {
                 std::string extra(1024, 0);
-                size_t n = mz_zip_reader_get_extra(&archive, stat.m_file_index, extra.data(), extra.size());
+                size_t n = mz_zip_reader_get_extra(&archive, stat.m_file_index, extra.data(), static_cast<mz_uint>(extra.size()));
                 dest_file = ZipUnicodePathExtraField::decode(extra.substr(0, n), stat.m_filename);
             }
             std::string temp_path = model.get_auxiliary_file_temp_path();
@@ -4750,23 +4750,23 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
 
             // recreate custom supports, seam and mmu segmentation from previously loaded attribute
             {
-                volume->supported_facets.reserve(triangles_count);
-                volume->seam_facets.reserve(triangles_count);
-                volume->mmu_segmentation_facets.reserve(triangles_count);
-                volume->fuzzy_skin_facets.reserve(triangles_count);
+                volume->supported_facets.reserve(static_cast<int>(triangles_count));
+                volume->seam_facets.reserve(static_cast<int>(triangles_count));
+                volume->mmu_segmentation_facets.reserve(static_cast<int>(triangles_count));
+                volume->fuzzy_skin_facets.reserve(static_cast<int>(triangles_count));
                 for (size_t i=0; i<triangles_count; ++i) {
                     assert(i < sub_object->geometry.custom_supports.size());
                     assert(i < sub_object->geometry.custom_seam.size());
                     assert(i < sub_object->geometry.mmu_segmentation.size());
                     assert(i < sub_object->geometry.fuzzy_skin.size());
                     if (! sub_object->geometry.custom_supports[i].empty())
-                        volume->supported_facets.set_triangle_from_string(i, sub_object->geometry.custom_supports[i]);
+                        volume->supported_facets.set_triangle_from_string(static_cast<int>(i), sub_object->geometry.custom_supports[i]);
                     if (! sub_object->geometry.custom_seam[i].empty())
-                        volume->seam_facets.set_triangle_from_string(i, sub_object->geometry.custom_seam[i]);
+                        volume->seam_facets.set_triangle_from_string(static_cast<int>(i), sub_object->geometry.custom_seam[i]);
                     if (! sub_object->geometry.mmu_segmentation[i].empty())
-                        volume->mmu_segmentation_facets.set_triangle_from_string(i, sub_object->geometry.mmu_segmentation[i]);
+                        volume->mmu_segmentation_facets.set_triangle_from_string(static_cast<int>(i), sub_object->geometry.mmu_segmentation[i]);
                     if (!sub_object->geometry.fuzzy_skin[i].empty())
-                        volume->fuzzy_skin_facets.set_triangle_from_string(i, sub_object->geometry.fuzzy_skin[i]);
+                        volume->fuzzy_skin_facets.set_triangle_from_string(static_cast<int>(i), sub_object->geometry.fuzzy_skin[i]);
                 }
                 volume->supported_facets.shrink_to_fit();
                 volume->seam_facets.shrink_to_fit();
@@ -5819,7 +5819,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             }
 
             if (proFn) {
-                proFn(EXPORT_STAGE_ADD_THUMBNAILS, 0, plate_data_list.size(), cb_cancel);
+                proFn(EXPORT_STAGE_ADD_THUMBNAILS, 0, static_cast<int>(plate_data_list.size()), cb_cancel);
                 if (cb_cancel)
                     return false;
             }
@@ -5915,7 +5915,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 }
             }
             if (proFn) {
-                proFn(EXPORT_STAGE_ADD_THUMBNAILS, plate_data_list.size(), plate_data_list.size(), cb_cancel);
+                proFn(EXPORT_STAGE_ADD_THUMBNAILS, static_cast<int>(plate_data_list.size()), static_cast<int>(plate_data_list.size()), cb_cancel);
                 if (cb_cancel)
                     return false;
             }
@@ -5928,7 +5928,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             for (unsigned int index = 0; index < calibration_data.size(); index++)
             {
                 if (proFn) {
-                    proFn(EXPORT_STAGE_ADD_THUMBNAILS, index, calibration_data.size(), cb_cancel);
+                    proFn(EXPORT_STAGE_ADD_THUMBNAILS, index, static_cast<int>(calibration_data.size()), cb_cancel);
                     if (cb_cancel)
                         return false;
                 }
@@ -6082,7 +6082,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                     std::size_t                 left_size = size;
                     while (ifs) {
                         ifs.read(buf.data(), buf.size());
-                        int read_bytes = ifs.gcount();
+                        int read_bytes = static_cast<int>(ifs.gcount());
                         MD5_Update(&ctx, (unsigned char *) buf.data(), read_bytes);
                     }
                     MD5_Final(digest, &ctx);
@@ -6562,7 +6562,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 if (sub_model && obj != objects_data.begin()->second.object) continue;
 
                 if (proFn) {
-                    proFn(EXPORT_STAGE_ADD_MODELS, object_index++, model.objects.size(), cb_cancel);
+                    proFn(EXPORT_STAGE_ADD_MODELS, object_index++, static_cast<int>(model.objects.size()), cb_cancel);
                     if (cb_cancel)
                         return false;
                 }
@@ -7566,7 +7566,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         for (unsigned int i = 0; i < (unsigned int)plate_data_list.size(); ++i)
         {
             PlateData* plate_data = plate_data_list[i];
-            int instance_size = plate_data->objects_and_instances.size();
+            int instance_size = static_cast<int>(plate_data->objects_and_instances.size());
 
             if (plate_data != nullptr) {
                 stream << "  <" << PLATE_TAG << ">\n";
@@ -7692,9 +7692,9 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                         else if (obj){
                             inst =  obj->instances[inst_id];
                             if (use_loaded_id && (inst->loaded_id > 0))
-                                identify_id = inst->loaded_id;
+                                identify_id = static_cast<int>(inst->loaded_id);
                             else
-                                identify_id = inst->id().id;
+                                identify_id = static_cast<int>(inst->id().id);
                         }
                         obj_id = objects_data.find(obj)->second.object_id;
 
@@ -7829,9 +7829,9 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                         }
                         inst =  obj->instances[inst_id];
                         if (m_use_loaded_id && (inst->loaded_id > 0))
-                            identify_id = inst->loaded_id;
+                            identify_id = static_cast<int>(inst->loaded_id);
                         else
-                            identify_id = inst->id().id;
+                            identify_id = static_cast<int>(inst->id().id);
                         bool skipped = std::find(plate_data->skipped_objects.begin(), plate_data->skipped_objects.end(), identify_id) !=
                                        plate_data->skipped_objects.end();
                         stream << "    <" << OBJECT_TAG << " " << IDENTIFYID_ATTR << "=\"" << std::to_string(identify_id) << "\" " << NAME_ATTR << "=\"" << xml_escape(obj->name)
@@ -7876,7 +7876,7 @@ bool _BBS_3MF_Exporter::_add_gcode_file_to_archive(mz_zip_archive& archive, cons
     for (unsigned int i = 0; i < (unsigned int)plate_data_list.size(); ++i)
     {
         if (proFn) {
-            proFn(EXPORT_STAGE_ADD_GCODE, i, plate_data_list.size(), cb_cancel);
+            proFn(EXPORT_STAGE_ADD_GCODE, i, static_cast<int>(plate_data_list.size()), cb_cancel);
             if (cb_cancel)
                 return false;
         }
@@ -8006,7 +8006,7 @@ bool _BBS_3MF_Exporter::_add_auxiliary_dir_to_archive(mz_zip_archive &archive, c
 
     static std::string const nocomp_exts[] = {".png", ".jpg", ".mp4", ".jpeg"};
     std::deque<boost::filesystem::path> directories({dir});
-    int root_dir_len = dir.string().length() + 1;
+    int root_dir_len = static_cast<int>(dir.string().length()) + 1;
     //boost file access
     while (!directories.empty()) {
         boost::system::error_code ec;
@@ -8107,11 +8107,11 @@ public:
         auto model = object.get_model();
         auto o = m_temp_model.add_object(object);
         int backup_id = model->get_object_backup_id(object);
-        push_task({ AddObject, (size_t) backup_id, object.get_model()->get_backup_path(), o, 1 });
+        push_task({ { AddObject, (size_t) backup_id, object.get_model()->get_backup_path(), o, 1 } });
     }
 
     void remove_object_mesh(ModelObject& object) {
-        push_task({ RemoveObject, object.id().id, object.get_model()->get_backup_path() });
+        push_task({ { RemoveObject, object.id().id, object.get_model()->get_backup_path() } });
     }
 
     void backup_soon() {
@@ -8236,7 +8236,7 @@ private:
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << " inital and interval = " << m_interval;
         m_next_backup = boost::get_system_time() + boost::posix_time::seconds(m_interval);
         boost::unique_lock lock(m_mutex);
-        m_thread = std::move(boost::thread(boost::ref(*this)));
+        m_thread = boost::thread(boost::ref(*this));
     }
 
     ~_BBS_Backup_Manager() {
@@ -8350,7 +8350,7 @@ public:
                 else
                     m_cond.wait(lock);
                 if (m_interval > 0 && boost::get_system_time() > m_next_backup) {
-                    m_tasks.push_back({ Backup, 0, std::string(), nullptr, ++m_task_seq });
+                    m_tasks.push_back({ { Backup, 0, std::string(), nullptr, ++m_task_seq } });
                     m_next_backup += boost::posix_time::seconds(m_interval);
                     // Maybe wakeup from power sleep
                     if (m_next_backup < boost::get_system_time())
