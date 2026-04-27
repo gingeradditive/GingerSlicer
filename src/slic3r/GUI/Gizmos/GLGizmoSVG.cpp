@@ -756,7 +756,7 @@ void draw(const ExPolygonsWithIds &shapes_with_ids, unsigned max_size)
 template<unsigned int N> // N .. count of channels per pixel
 void draw_side_outline(const ExPolygons &shape, const std::array<unsigned char, N> &color, std::vector<unsigned char> &data, size_t data_width, double scale)
 {
-    int count_lines = data.size() / (N * data_width);
+    int count_lines = static_cast<int>(data.size() / (N * data_width));
     size_t data_line  = N * data_width;
     auto get_offset  = [count_lines, data_line](int x, int y) {
         // NOTE: y has opposit direction in texture
@@ -835,7 +835,7 @@ void draw_filled(const ExPolygons &shape, const std::array<unsigned char, N>& co
         bb.max *= scale;
     }
 
-    int count_lines = data.size() / (N * data_width);
+    int count_lines = static_cast<int>(data.size() / (N * data_width));
     size_t data_line = N * data_width;
     auto get_offset = [count_lines, data_line](int x, int y) {
         // NOTE: y has opposit direction in texture
