@@ -473,7 +473,7 @@ std::vector<std::string> UpdateVersionDialog::splitWithStl(std::string str,std::
     std::string::size_type pos;
     std::vector<std::string> result;
     str += pattern;
-    int size = str.size();
+    int size = static_cast<int>(str.size());
     for (int i = 0; i < size; i++)
     {
         pos = str.find(pattern, i);
@@ -481,7 +481,7 @@ std::vector<std::string> UpdateVersionDialog::splitWithStl(std::string str,std::
         {
             std::string s = str.substr(i, pos - i);
             result.push_back(s);
-            i = pos + pattern.size() - 1;
+            i = static_cast<int>(pos + pattern.size() - 1);
         }
     }
     return result;
