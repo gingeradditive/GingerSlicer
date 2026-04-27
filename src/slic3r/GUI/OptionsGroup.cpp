@@ -341,10 +341,10 @@ void OptionsGroup::activate_line(Line& line)
                 label_style |= staticbox ? 0 : wxST_ELLIPSIZE_END;
 #endif /* __WXGTK__ */
                 label = new wxStaticText(this->ctrl_parent(), wxID_ANY, line.label + (line.label.IsEmpty() ? "" : ": "),
-                    wxDefaultPosition, wxSize(label_width * wxGetApp().em_unit(), -1), label_style);
+                    wxDefaultPosition, wxSize(static_cast<int>(label_width * wxGetApp().em_unit()), -1), label_style);
                 label->SetBackgroundStyle(wxBG_STYLE_PAINT);
                 label->SetFont(wxGetApp().normal_font());
-                label->Wrap(label_width * wxGetApp().em_unit()); // avoid a Linux/GTK bug
+                label->Wrap(static_cast<int>(label_width * wxGetApp().em_unit())); // avoid a Linux/GTK bug
             }
             if (!line.near_label_widget)
                 grid_sizer->Add(label, 0, (staticbox ? 0 : wxALIGN_RIGHT | wxRIGHT) | wxALIGN_CENTER_VERTICAL, line.label.IsEmpty() ? 0 : 5);
@@ -778,7 +778,7 @@ bool ConfigOptionsGroup::update_visibility(ConfigOptionMode mode)
         return show;
     }
 
-	int opt_mode_size = m_options_mode.size();
+	int opt_mode_size = static_cast<int>(m_options_mode.size());
 	if (m_grid_sizer->GetEffectiveRowsCount() != opt_mode_size &&
 		opt_mode_size == 1)
 		return m_options_mode[0] <= mode;
@@ -968,9 +968,9 @@ boost::any ConfigOptionsGroup::get_config_value(const DynamicPrintConfig& config
 	case coFloats:
 	case coFloat:{
 		double val = opt->type == coFloats ?
-					config.opt_float(opt_key, idx) :
+					config.opt_float(opt_key, static_cast<unsigned int>(idx)) :
 						opt->type == coFloat ? config.opt_float(opt_key) :
-						config.option<ConfigOptionPercents>(opt_key)->get_at(idx);
+							config.option<ConfigOptionPercents>(opt_key)->get_at(static_cast<unsigned int>(idx));
 		ret = double_to_string(val);
 		}
 		break;
@@ -998,13 +998,13 @@ boost::any ConfigOptionsGroup::get_config_value(const DynamicPrintConfig& config
 		ret = config.opt_bool(opt_key);
 		break;
 	case coBools:
-		ret = config.opt_bool(opt_key, idx);
+		ret = config.opt_bool(opt_key, static_cast<unsigned int>(idx));
 		break;
 	case coInt:
 		ret = config.opt_int(opt_key);
 		break;
 	case coInts:
-		ret = config.opt_int(opt_key, idx);
+		ret = config.opt_int(opt_key, static_cast<unsigned int>(idx));
 		break;
 	case coEnum:
         if (!config.has("first_layer_sequence_choice") && opt_key == "first_layer_sequence_choice") {
@@ -1027,7 +1027,7 @@ boost::any ConfigOptionsGroup::get_config_value(const DynamicPrintConfig& config
         break;
     // BBS
     case coEnums:
-        ret = config.opt_int(opt_key, idx);
+        ret = config.opt_int(opt_key, static_cast<unsigned int>(idx));
         break;
     case coPoint:
         ret = config.option<ConfigOptionPoint>(opt_key)->value;
@@ -1102,9 +1102,9 @@ boost::any ConfigOptionsGroup::get_config_value2(const DynamicPrintConfig& confi
     case coFloats:
     case coFloat:{
         double val = opt->type == coFloats ?
-            config.opt_float(opt_key, idx) :
+            config.opt_float(opt_key, static_cast<unsigned int>(idx)) :
             opt->type == coFloat ? config.opt_float(opt_key) :
-            config.option<ConfigOptionPercents>(opt_key)->get_at(idx);
+            config.option<ConfigOptionPercents>(opt_key)->get_at(static_cast<unsigned int>(idx));
         ret = val;
     }
                 break;
@@ -1128,19 +1128,19 @@ boost::any ConfigOptionsGroup::get_config_value2(const DynamicPrintConfig& confi
         ret = config.opt_bool(opt_key);
         break;
     case coBools:
-        ret = static_cast<unsigned char>(config.opt_bool(opt_key, idx));
+        ret = static_cast<unsigned char>(config.opt_bool(opt_key, static_cast<unsigned int>(idx)));
         break;
     case coInt:
         ret = config.opt_int(opt_key);
         break;
     case coInts:
-        ret = config.opt_int(opt_key, idx);
+        ret = config.opt_int(opt_key, static_cast<unsigned int>(idx));
         break;
     case coEnum:
         ret = config.option(opt_key)->getInt();
         break;
     case coEnums:
-        ret = config.opt_int(opt_key, idx);
+        ret = config.opt_int(opt_key, static_cast<unsigned int>(idx));
         break;
     case coPoint:
         ret = config.option<ConfigOptionPoint>(opt_key)->value;
