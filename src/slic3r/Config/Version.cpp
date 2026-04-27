@@ -244,7 +244,7 @@ size_t Index::load(const boost::filesystem::path &path)
     		if (semver)
     			throw file_parser_error("Key cannot be a semantic version", path, idx_line);\
     		// Verify validity of the key / value pair.
-			std::string svalue = unquote_value(value, end, path.string(), idx_line);
+			std::string svalue = unquote_value(value, end, path.string(), static_cast<int>(idx_line));
     		if (strcmp(key, "min_slic3r_version") == 0 || strcmp(key, "max_slic3r_version") == 0) {
     			if (! svalue.empty())
 					semver = Semver::parse(svalue);
@@ -262,7 +262,7 @@ size_t Index::load(const boost::filesystem::path &path)
 		if (! semver)
 			throw file_parser_error("Invalid semantic version", path, idx_line);
 		ver.config_version = *semver;
-		ver.comment = (end <= key_end) ? "" : unquote_version_comment(value, end, path.string(), idx_line);
+		ver.comment = (end <= key_end) ? "" : unquote_version_comment(value, end, path.string(), static_cast<int>(idx_line));
 		m_configs.emplace_back(ver);
     }
 
