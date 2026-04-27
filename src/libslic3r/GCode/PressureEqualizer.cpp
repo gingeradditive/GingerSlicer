@@ -255,7 +255,7 @@ void PressureEqualizer::process_layer(const std::string &gcode)
 
             // now run the pressure equalizer across the segment like a streamroller
             // it operates on a sliding window that moves forward across gcode line by line
-            for (int i = idx_begin_current_extrusion; i < idx_end_current_extrusion; ++i) {
+            for (long i = idx_begin_current_extrusion; i < idx_end_current_extrusion; ++i) {
                 // feed pressure equalizer past lines, going back to max_look_back_limit (or start of segment)
                 const auto start_idx = std::max<long>(idx_begin_current_extrusion, i - max_look_back_limit);
                 adjust_volumetric_rate(start_idx, i);
