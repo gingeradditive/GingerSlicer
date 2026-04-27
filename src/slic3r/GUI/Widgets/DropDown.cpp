@@ -109,7 +109,7 @@ wxString DropDown::GetValue() const
 void DropDown::SetValue(const wxString &value)
 {
     auto i = std::find(texts.begin(), texts.end(), value);
-    selection = i == texts.end() ? -1 : std::distance(texts.begin(), i);
+    selection = i == texts.end() ? -1 : static_cast<int>(std::distance(texts.begin(), i));
 }
 
 void DropDown::SetCornerRadius(double radius)
@@ -257,7 +257,7 @@ void DropDown::render(wxDC &dc)
 
     // draw position bar
     if (rowSize.y * texts.size() > size.y) {
-        int    height = rowSize.y * texts.size();
+        int    height = static_cast<int>(rowSize.y * texts.size());
         wxRect rect = {size.x - 6, -offset.y * size.y / height, 4,
                        size.y * size.y / height};
         dc.SetPen(wxPen(border_color.defaultColor()));
