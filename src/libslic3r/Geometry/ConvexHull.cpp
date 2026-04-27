@@ -43,7 +43,7 @@ Pointf3s convex_hull(Pointf3s points)
     // sort input points
     std::sort(points.begin(), points.end(), [](const Vec3d &a, const Vec3d &b){ return a.x() < b.x() || (a.x() == b.x() && a.y() < b.y()); });
 
-    int n = points.size(), k = 0;
+    int n = static_cast<int>(points.size()), k = 0;
     Pointf3s hull;
 
     if (n >= 3)
