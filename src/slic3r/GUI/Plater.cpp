@@ -679,7 +679,7 @@ Sidebar::Sidebar(Plater *parent)
         p->m_text_printer_settings = new Label(p->m_panel_printer_title, _L("Printer"), LB_PROPAGATE_MOUSE_EVENT);
         p->m_text_printer_settings->SetFont(Label::Head_14);
 
-        p->m_printer_icon->Bind(wxEVT_BUTTON, [this](wxCommandEvent& e) {
+        p->m_printer_icon->Bind(wxEVT_BUTTON, [](wxCommandEvent& e) {
             //auto wizard_t = new ConfigWizard(wxGetApp().mainframe);
             //wizard_t->run(ConfigWizard::RR_USER, ConfigWizard::SP_CUSTOM);
             });
@@ -1268,7 +1268,7 @@ void Sidebar::remove_unused_filament_combos(const size_t current_extruder_count)
     if (current_extruder_count >= p->combos_filament.size())
         return;
     while (p->combos_filament.size() > current_extruder_count) {
-        const int last = p->combos_filament.size() - 1;
+        const int last = static_cast<int>(p->combos_filament.size()) - 1;
         auto sizer_filaments = this->p->sizer_filaments->GetItem(last % 2)->GetSizer();
         sizer_filaments->Remove(last / 2);
         (*p->combos_filament[last]).Destroy();
@@ -1283,7 +1283,7 @@ void Sidebar::remove_unused_filament_combos(const size_t current_extruder_count)
         size_t c0 = sizer_filaments0->GetChildren().GetCount();
         size_t c1 = sizer_filaments1->GetChildren().GetCount();
         if (c0 < c1)
-            sizer_filaments1->Remove(c1 - 1);
+            sizer_filaments1->Remove(static_cast<int>(c1 - 1));
         else if (c0 > c1)
             sizer_filaments1->AddStretchSpacer(1);
     }
@@ -1673,7 +1673,7 @@ void Sidebar::on_filaments_change(size_t num_filaments)
     while (i < num_filaments)
     {
         PlaterPresetComboBox* choice/*{ nullptr }*/;
-        init_filament_combo(&choice, i);
+        init_filament_combo(&choice, static_cast<int>(i));
         int last_selection = choices.back()->GetSelection();
         choices.push_back(choice);
 
@@ -1719,8 +1719,8 @@ void Sidebar::delete_filament() {
         p->editing_filament = -1;
     }
 
-    wxGetApp().preset_bundle->set_num_filaments(filament_count);
-    wxGetApp().plater()->on_filaments_change(filament_count);
+    wxGetApp().preset_bundle->set_num_filaments(static_cast<unsigned int>(filament_count));
+    wxGetApp().plater()->on_filaments_change(static_cast<unsigned int>(filament_count));
     wxGetApp().get_tab(Preset::TYPE_PRINT)->update();
     wxGetApp().preset_bundle->export_selections(*wxGetApp().app_config);
 }
@@ -1728,7 +1728,7 @@ void Sidebar::delete_filament() {
 void Sidebar::add_custom_filament(wxColour new_col) {
     if (p->combos_filament.size() >= MAXIMUM_EXTRUDER_NUMBER) return;
 
-    int         filament_count = p->combos_filament.size() + 1;
+    int         filament_count = static_cast<int>(p->combos_filament.size()) + 1;
     std::string new_color      = new_col.GetAsString(wxC2S_HTML_SYNTAX).ToStdString();
     wxGetApp().preset_bundle->set_num_filaments(filament_count, new_color);
     wxGetApp().plater()->on_filaments_change(filament_count);
@@ -2747,7 +2747,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
 
         // Keep tracking the current sidebar size, by storing it using `best_size`, which will be stored
         // in the config and re-applied when the app is opened again.
-        this->sidebar->Bind(wxEVT_IDLE, [&sidebar, this](wxIdleEvent& e) {
+        this->sidebar->Bind(wxEVT_IDLE, [&sidebar](wxIdleEvent& e) {
             if (sidebar.IsShown() && sidebar.IsDocked() && sidebar.rect.GetWidth() > 0) {
                 sidebar.BestSize(sidebar.rect.GetWidth(), sidebar.best_size.GetHeight());
             }
@@ -3237,7 +3237,7 @@ void Plater::priv::select_view_3D(const std::string& name, bool no_slice)
         const Slic3r::DynamicPrintConfig& config = wxGetApp().preset_bundle->full_config();
         auto& print = q->get_partplate_list().get_current_fff_print();
         auto print_config = print.config();
-        int numExtruders = wxGetApp().preset_bundle->filament_presets.size();
+        int numExtruders = static_cast<int>(wxGetApp().preset_bundle->filament_presets.size());
 
         Model::setExtruderParams(config, numExtruders);
         Model::setPrintSpeedTable(config, print_config);
@@ -3462,7 +3462,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
 
 
     // BBS
-    int filaments_cnt = config->opt<ConfigOptionStrings>("filament_colour")->values.size();
+    int filaments_cnt = static_cast<int>(config->opt<ConfigOptionStrings>("filament_colour")->values.size());
     bool one_by_one = input_files.size() == 1 || printer_technology == ptSLA/* || filaments_cnt <= 1*/;
     if (! one_by_one) {
         for (const auto &path : input_files) {
@@ -3495,7 +3495,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
     int tolal_model_count                   = 0;
 
     int progress_percent = 0;
-    int total_files = input_files.size();
+    int total_files = static_cast<int>(input_files.size());
     const int stage_percent[IMPORT_STAGE_MAX+1] = {
             5,      // IMPORT_STAGE_RESTORE
             10,     // IMPORT_STAGE_OPEN
@@ -3574,7 +3574,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                     q->skip_thumbnail_invalid = true;
                     model = Slic3r::Model::read_from_archive(path.string(), &config_loaded, &config_substitutions, en_3mf_file_type, strategy, &plate_data, &project_presets,
                                                              &file_version,
-                                                             [this, &dlg, real_filename, &progress_percent, &file_percent, stage_percent, INPUT_FILES_RATIO, total_files, i,
+                                                             [&dlg, real_filename, &progress_percent, stage_percent, INPUT_FILES_RATIO, total_files, i,
                                                               &is_user_cancel](int import_stage, int current, int total, bool &cancel) {
                                                                  bool     cont = true;
                                                                  float percent_float = (100.0f * (float)i / (float)total_files) + INPUT_FILES_RATIO * ((float)stage_percent[import_stage] + (float)current * (float)(stage_percent[import_stage + 1] - stage_percent[import_stage]) /(float) total) / (float)total_files;
@@ -3603,7 +3603,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                         }
                         int size = extruderIds.size() == 0 ? 0 : *(extruderIds.rbegin());
 
-                        int filament_size = sidebar->combos_filament().size();
+                        int filament_size = static_cast<int>(sidebar->combos_filament().size());
                         while (filament_size < MAXIMUM_EXTRUDER_NUMBER && filament_size < size) {
                             int         filament_count = filament_size + 1;
                             wxColour    new_col        = Plater::get_next_color_for_filament();
@@ -3962,7 +3962,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                 Semver                file_version;
                 
                 //ObjImportColorFn obj_color_fun=nullptr;
-                auto obj_color_fun = [this, &path](std::vector<RGBA> &input_colors, bool is_single_color, std::vector<unsigned char> &filament_ids,
+                auto obj_color_fun = [&path](std::vector<RGBA> &input_colors, bool is_single_color, std::vector<unsigned char> &filament_ids,
                                                    unsigned char &first_extruder_id) {
                     if (!boost::iends_with(path.string(), ".obj")) { return; }
                     const std::vector<std::string> extruder_colours = wxGetApp().plater()->get_extruder_colors_from_plater_config();
@@ -3979,7 +3979,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                         if (angle <= 0) angle = 0.5;
                         bool split_compound = wxGetApp().app_config->get_bool("is_split_compound");
                         model = Slic3r::Model:: read_from_step(path.string(), strategy,
-                        [this, &dlg, real_filename, &progress_percent, &file_percent, step_percent, INPUT_FILES_RATIO, total_files, i](int load_stage, int current, int total, bool &cancel)
+                        [&dlg, real_filename, &progress_percent, step_percent, INPUT_FILES_RATIO, total_files, i](int load_stage, int current, int total, bool &cancel)
                         {
                                 bool     cont = true;
                                 float percent_float = (100.0f * (float)i / (float)total_files) + INPUT_FILES_RATIO * ((float)step_percent[load_stage] + (float)current * (float)(step_percent[load_stage + 1] - step_percent[load_stage]) / (float)total) / (float)total_files;
@@ -4003,7 +4003,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                                 }
                             }
                         },
-                        [this, &path, &is_user_cancel, &linear, &angle, &split_compound](Slic3r::Step& file, double& linear_value, double& angle_value, bool& is_split)-> int {
+                        [&is_user_cancel, &linear, &angle, &split_compound](Slic3r::Step& file, double& linear_value, double& angle_value, bool& is_split)-> int {
                             if (wxGetApp().app_config->get_bool("enable_step_mesh_setting")) {
                                 StepMeshDialog mesh_dlg(nullptr, file, linear, angle);
                                 if (mesh_dlg.ShowModal() == wxID_OK) {
@@ -4024,7 +4024,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                 }else {
                     model = Slic3r::Model:: read_from_file(
                     path.string(), nullptr, nullptr, strategy, &plate_data, &project_presets, &is_xxx, &file_version, nullptr,
-                    [this, &dlg, real_filename, &progress_percent, &file_percent, INPUT_FILES_RATIO, total_files, i, &designer_model_id, &designer_country_code](int current, int total, bool &cancel, std::string &mode_id, std::string &code)
+                    [&dlg, real_filename, &progress_percent, INPUT_FILES_RATIO, total_files, i, &designer_model_id, &designer_country_code](int current, int total, bool &cancel, std::string &mode_id, std::string &code)
                     {
                             designer_model_id = mode_id;
                             designer_country_code = code;
@@ -4379,7 +4379,7 @@ std::vector<size_t> Plater::priv::load_model_objects(const ModelObjectPtrs& mode
 #endif /* AUTOPLACEMENT_ON_LOAD */
     bool scaled_down = false;
     std::vector<size_t> obj_idxs;
-    unsigned int obj_count = model.objects.size();
+    unsigned int obj_count = static_cast<unsigned int>(model.objects.size());
 
 #ifdef AUTOPLACEMENT_ON_LOAD
     ModelInstancePtrs new_instances;
@@ -4761,7 +4761,7 @@ void Plater::priv::remove(size_t obj_idx)
     m_worker.cancel_all();
     model.delete_object(obj_idx);
     //BBS: notify partplate the instance removed
-    partplate_list.notify_instance_removed(obj_idx, -1);
+    partplate_list.notify_instance_removed(static_cast<int>(obj_idx), -1);
     update();
     // Delete object from Sidebar list. Do it after update, so that the GLScene selection is updated with the modified model.
     sidebar->obj_list()->delete_object_from_list(obj_idx);
@@ -4796,7 +4796,7 @@ bool Plater::priv::delete_object_from_model(size_t obj_idx, bool refresh_immedia
 
     model.delete_object(obj_idx);
     //BBS: notify partplate the instance removed
-    partplate_list.notify_instance_removed(obj_idx, -1);
+    partplate_list.notify_instance_removed(static_cast<int>(obj_idx), -1);
 
     //BBS
     if (refresh_immediately) {
@@ -6359,7 +6359,7 @@ void Plater::priv::on_select_preset(wxCommandEvent &evt)
     // BBS: Save the model in the current platelist
     std::vector<vector<int> > plate_object;
     for (size_t i = 0; i < old_plate_list.get_plate_count(); ++i) {
-        PartPlate* plate = old_plate_list.get_plate(i);
+        PartPlate* plate = old_plate_list.get_plate(static_cast<int>(i));
         std::vector<int> obj_idxs;
         for (int obj_idx = 0; obj_idx < model.objects.size(); obj_idx++) {
             if (plate && plate->contain_instance(obj_idx, 0)) {
@@ -6926,7 +6926,7 @@ void Plater::priv::on_action_slice_plate(SimpleEvent&)
         const Slic3r::DynamicPrintConfig& config = wxGetApp().preset_bundle->full_config();
         auto& print = q->get_partplate_list().get_current_fff_print();
         auto print_config = print.config();
-        int numExtruders = wxGetApp().preset_bundle->filament_presets.size();
+        int numExtruders = static_cast<int>(wxGetApp().preset_bundle->filament_presets.size());
 
         Model::setExtruderParams(config, numExtruders);
         Model::setPrintSpeedTable(config, print_config);
@@ -6945,7 +6945,7 @@ void Plater::priv::on_action_slice_all(SimpleEvent&)
         const Slic3r::DynamicPrintConfig& config = wxGetApp().preset_bundle->full_config();
         auto& print = q->get_partplate_list().get_current_fff_print();
         auto print_config = print.config();
-        int numExtruders = wxGetApp().preset_bundle->filament_presets.size();
+        int numExtruders = static_cast<int>(wxGetApp().preset_bundle->filament_presets.size());
 
         Model::setExtruderParams(config, numExtruders);
         Model::setPrintSpeedTable(config, print_config);
@@ -7333,7 +7333,7 @@ ThumbnailsList Plater::priv::generate_thumbnails(const ThumbnailsParams& params,
     for (const Vec2d& size : params.sizes) {
         thumbnails.push_back(ThumbnailData());
         Point isize(size); // round to ints
-        generate_thumbnail(thumbnails.back(), isize.x(), isize.y(), params, camera_type);
+        generate_thumbnail(thumbnails.back(), static_cast<unsigned int>(isize.x()), static_cast<unsigned int>(isize.y()), params, camera_type);
         if (!thumbnails.back().is_valid())
             thumbnails.pop_back();
     }
@@ -7380,7 +7380,7 @@ PlateBBoxData Plater::priv::generate_first_layer_bbox()
         bb.max -= orig2d;
         bbox_all.merge(bb);
         data.area *= (SCALING_FACTOR * SCALING_FACTOR); // unscale area
-        data.id = obj->id().id;
+        data.id = static_cast<int>(obj->id().id);
         data.bbox = { bb.min.x(),bb.min.y(),bb.max.x(),bb.max.y() };
         id_bboxes.emplace_back(data);
     }
@@ -8078,7 +8078,7 @@ int Plater::priv::get_active_snapshot_index()
     const size_t active_snapshot_time = this->undo_redo_stack().active_snapshot_time();
     const std::vector<UndoRedo::Snapshot>& ss_stack = this->undo_redo_stack().snapshots();
     const auto it = std::lower_bound(ss_stack.begin(), ss_stack.end(), UndoRedo::Snapshot(active_snapshot_time));
-    return it - ss_stack.begin();
+    return static_cast<int>(it - ss_stack.begin());
 }
 
 void Plater::priv::take_snapshot(const std::string& snapshot_name, const UndoRedo::SnapshotType snapshot_type)
@@ -8789,7 +8789,7 @@ void Plater::import_model_id(wxString download_info)
     p->project.reset();
 
     /* prepare project and profile */
-    boost::thread import_thread = Slic3r::create_thread([&percent, &cont, &cancel, &retry_count, max_retries, &msg, &target_path, &download_ok, download_url, &filename] {
+    boost::thread import_thread = Slic3r::create_thread([&percent, &cont, &cancel, &retry_count, &msg, &target_path, &download_ok, download_url, &filename] {
 
         // Orca: NetworkAgent is not needed and only prevents this from running
 //        NetworkAgent* m_agent = Slic3r::GUI::wxGetApp().getAgent();
@@ -8886,7 +8886,7 @@ void Plater::import_model_id(wxString download_info)
                                 size_limit = true;
                             }
                         }
-                        percent = progress.dlnow * 100 / progress.dltotal;
+                        percent = static_cast<int>(progress.dlnow * 100 / progress.dltotal);
                     }
 
                     if (size_limit) {
@@ -9253,12 +9253,12 @@ void Plater::_calib_pa_pattern(const Calib_Params& params)
 
         auto cur_plate = get_partplate_list().get_plate(plate_idx);
         if (!cur_plate) {
-            plate_idx = get_partplate_list().create_plate();
+            plate_idx = static_cast<int>(get_partplate_list().create_plate());
             cur_plate = get_partplate_list().get_plate(plate_idx);
         }
 
         object_idxs.emplace_back(obj_idx);
-        get_partplate_list().add_to_plate(obj_idx, 0, plate_idx);
+        get_partplate_list().add_to_plate(static_cast<int>(obj_idx), 0, plate_idx);
         const Vec3d obj_offset{unscale<double>(ai.translation(X)),
                                unscale<double>(ai.translation(Y)),
                                0};
@@ -10157,7 +10157,7 @@ bool Plater::preview_zip_archive(const boost::filesystem::path& archive_path)
                         fs::path archive_path(name);
 
                         std::string extra(1024, 0);
-                        size_t extra_size = mz_zip_reader_get_filename_from_extra(&archive, i, extra.data(), extra.size());
+                        mz_uint extra_size = static_cast<mz_uint>(mz_zip_reader_get_filename_from_extra(&archive, i, extra.data(), extra.size()));
                         if (extra_size > 0) {
                             archive_path = fs::path(extra.substr(0, extra_size));
                             name = archive_path.string();
@@ -11097,7 +11097,7 @@ void Plater::set_number_of_copies(/*size_t num*/)
     ModelObject* model_object = p->model.objects[obj_idx];
 
     const int num = GetNumberFromUser( " ", _L("Number of copies:"),
-                                    _L("Copies of the selected object"), model_object->instances.size(), 0, 1000, this );
+                                    _L("Copies of the selected object"), static_cast<int>(model_object->instances.size()), 0, 1000, this );
     if (num < 0)
         return;
 
@@ -11548,7 +11548,7 @@ void Plater::export_stl(bool extended, bool selection_only, bool multi_stls)
                 if (it != object->model_object()->instances.end()) {
                     const bool one_inst_only = selection_only && ! selection.is_single_full_object();
 
-                    const int instance_idx = it - object->model_object()->instances.begin();
+                    const int instance_idx = static_cast<int>(it - object->model_object()->instances.begin());
                     const Transform3d& inst_transform = one_inst_only
                                                             ? Transform3d::Identity()
                                                             : object->model_object()->instances[instance_idx]->get_transformation().get_matrix();
@@ -13815,7 +13815,7 @@ void Plater::show_object_info()
 {
     NotificationManager *notify_manager = get_notification_manager();
     const Selection& selection = get_selection();
-    int selCount = selection.get_volume_idxs().size();
+    int selCount = static_cast<int>(selection.get_volume_idxs().size());
     ModelObjectPtrs objects = model().objects;
     int obj_idx = selection.get_object_idx();
     std::string info_text;
@@ -13825,7 +13825,7 @@ void Plater::show_object_info()
         if (selection.get_mode() == Selection::EMode::Volume) {
             info_text += (boost::format(_utf8(L("Number of currently selected parts: %1%\n"))) % selCount).str();
         } else if (selection.get_mode() == Selection::EMode::Instance) {
-            int content_count = selection.get_content().size();
+            int content_count = static_cast<int>(selection.get_content().size());
             info_text += (boost::format(_utf8(L("Number of currently selected objects: %1%\n"))) % content_count).str();
         }
         notify_manager->bbl_show_objectsinfo_notification(info_text, false, !(p->current_panel == p->view3D));
