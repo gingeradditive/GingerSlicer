@@ -507,7 +507,7 @@ void NotificationManager::PopNotification::count_lines()
 						letter_count++;
 					}
 					if (letter_count > 0) {
-						output_count = into_u8(wx_text.SubString(0, letter_count - 1)).size();
+						output_count = static_cast<int>(into_u8(wx_text.SubString(0, letter_count - 1)).size());
                     }
                     m_endlines.push_back(last_end + output_count);
                     last_end += output_count;
@@ -526,7 +526,7 @@ void NotificationManager::PopNotification::count_lines()
 	}
 	// hypertext calculation
 	if (!m_hypertext.empty()) {
-		int prev_end = m_endlines.size() > 1 ? m_endlines[m_endlines.size() - 2] : 0; // m_endlines.size() - 2 because we are fitting hypertext instead of last endline
+		int prev_end = m_endlines.size() > 1 ? static_cast<int>(m_endlines[m_endlines.size() - 2]) : 0; // m_endlines.size() - 2 because we are fitting hypertext instead of last endline
 		if (ImGui::CalcTextSize((escape_string_cstyle(text.substr(prev_end, last_end - prev_end)) + m_hypertext).c_str()).x > m_window_width - m_window_width_offset) {
 			m_endlines.push_back(last_end);
 			m_lines_count++;
@@ -589,9 +589,9 @@ void NotificationManager::PopNotification::bbl_render_block_notif_text(ImGuiWrap
 				// regural line
 				line = m_text1.substr(last_end, m_endlines[i] - last_end);
 			}
-			last_end = m_endlines[i];
+			last_end = static_cast<int>(m_endlines[i]);
 			if (m_text1.size() > m_endlines[i])
-				last_end += (m_text1[m_endlines[i]] == '\n' || m_text1[m_endlines[i]] == ' ' ? 1 : 0);
+				last_end += (m_text1[static_cast<int>(m_endlines[i])] == '\n' || m_text1[static_cast<int>(m_endlines[i])] == ' ' ? 1 : 0);
 
 			if (pos_start != string::npos && pos_end != string::npos && m_endlines[i] - line.length() >= pos_start && m_endlines[i] <= pos_end) {
 				push_style_color(ImGuiCol_Text, m_ErrorColor, m_state == EState::FadingOut, m_current_fade_opacity);
@@ -651,9 +651,9 @@ void NotificationManager::PopNotification::render_text(ImGuiWrapper& imgui, cons
 				// regural line
 				line = m_text1.substr(last_end, m_endlines[i] - last_end);
 			}
-			last_end = m_endlines[i];
+			last_end = static_cast<int>(m_endlines[i]);
 			if (m_text1.size() > m_endlines[i])
-				last_end += (m_text1[m_endlines[i]] == '\n' || m_text1[m_endlines[i]] == ' ' ? 1 : 0);
+				last_end += (m_text1[static_cast<int>(m_endlines[i])] == '\n' || m_text1[static_cast<int>(m_endlines[i])] == ' ' ? 1 : 0);
 
             if (pos_start != string::npos && pos_end != string::npos&& m_endlines[i] - line.length() >= pos_start && m_endlines[i] <= pos_end) {
                 push_style_color(ImGuiCol_Text, m_ErrorColor, m_state == EState::FadingOut, m_current_fade_opacity);
@@ -1058,9 +1058,9 @@ void NotificationManager::ExportFinishedNotification::render_text(ImGuiWrapper& 
 		assert(m_text1.size() >= m_endlines[i]);
 		if (m_text1.size() >= m_endlines[i]) {
 			std::string line = m_text1.substr(last_end, m_endlines[i] - last_end);
-			last_end = m_endlines[i];
+			last_end = static_cast<int>(m_endlines[i]);
 			if (m_text1.size() > m_endlines[i])
-				last_end += (m_text1[m_endlines[i]] == '\n' || m_text1[m_endlines[i]] == ' ' ? 1 : 0);
+				last_end += (m_text1[static_cast<int>(m_endlines[i])] == '\n' || m_text1[static_cast<int>(m_endlines[i])] == ' ' ? 1 : 0);
 			ImGui::SetCursorPosX(x_offset);
 			ImGui::SetCursorPosY(starting_y + i * shift_y);
 			imgui.text(line.c_str());
@@ -1307,7 +1307,7 @@ void NotificationManager::URLDownloadNotification::render_close_button_inner(ImG
 	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
 	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
 	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.75f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
+	ImGui::SetCursorPosY(win_size_y / 2 - button_size.y);
 	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
 	{
 		close();
@@ -1321,7 +1321,6 @@ void NotificationManager::URLDownloadNotification::render_close_button_inner(ImG
 		close();
 	}
 	ImGui::PopStyleColor(5);
-
 }
 
 void NotificationManager::URLDownloadNotification::render_pause_cancel_buttons_inner(ImGuiWrapper& imgui, const float win_size_x, const float win_size_y, const float win_pos_x, const float win_pos_y)
@@ -1353,7 +1352,7 @@ void NotificationManager::URLDownloadNotification::render_pause_button_inner(ImG
 	ImVec2 button_pic_size = ImGui::CalcTextSize(into_u8(button_text).c_str());
 	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
 	ImGui::SetCursorPosX(win_size.x - m_line_height * 5.0f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
+	ImGui::SetCursorPosY(win_size_y / 2 - button_size.y);
 	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
 	{
 		trigger_user_action_callback(m_download_paused ? DownloaderUserAction::DownloadUserContinued : DownloaderUserAction::DownloadUserPaused);
@@ -1392,7 +1391,7 @@ void NotificationManager::URLDownloadNotification::render_open_button_inner(ImGu
 	ImVec2 button_pic_size = ImGui::CalcTextSize(into_u8(button_text).c_str());
 	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
 	ImGui::SetCursorPosX(win_size.x - m_line_height * 5.0f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
+	ImGui::SetCursorPosY(win_size_y / 2 - button_size.y);
 	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
 	{
 		trigger_user_action_callback(DownloaderUserAction::DownloadUserOpenedFolder);
@@ -1431,7 +1430,7 @@ void NotificationManager::URLDownloadNotification::render_cancel_button_inner(Im
 	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
 	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
 	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.75f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
+	ImGui::SetCursorPosY(win_size_y / 2 - button_size.y);
 	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
 	{
 		trigger_user_action_callback(DownloaderUserAction::DownloadUserCanceled);
@@ -1451,7 +1450,7 @@ void NotificationManager::URLDownloadNotification::render_cancel_button_inner(Im
 void NotificationManager::URLDownloadNotification::trigger_user_action_callback(DownloaderUserAction action)
 {
 	if (m_user_action_callback) {
-		if (m_user_action_callback(action, m_download_id)) {}
+		if (m_user_action_callback(action, static_cast<int>(m_download_id))) {}
 	}
 }
 
@@ -1608,7 +1607,7 @@ void NotificationManager::PrintHostUploadNotification::render_cancel_button(ImGu
 	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
 	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
 	ImGui::SetCursorPosX(win_size.x - m_line_height * 5.0f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
+	ImGui::SetCursorPosY(win_size_y / 2 - button_size.y);
 	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
 	{
 		wxGetApp().printhost_job_queue().cancel(m_job_id - 1);
@@ -1706,7 +1705,6 @@ void NotificationManager::ProgressIndicatorNotification::render_cancel_button(Im
 	push_style_color(ImGuiCol_TextSelectedBg, ImVec4(0, .75f, .75f, 1.f), m_state == EState::FadingOut, m_current_fade_opacity);
 	ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(.0f, .0f, .0f, .0f));
 
-
 	std::string button_text;
 	button_text = ImGui::CancelButton;
 
@@ -1719,7 +1717,7 @@ void NotificationManager::ProgressIndicatorNotification::render_cancel_button(Im
 	ImVec2 button_pic_size = ImGui::CalcTextSize(button_text.c_str());
 	ImVec2 button_size(button_pic_size.x * 1.25f, button_pic_size.y * 1.25f);
 	ImGui::SetCursorPosX(win_size.x - m_line_height * 2.75f);
-	ImGui::SetCursorPosY(win_size.y / 2 - button_size.y);
+	ImGui::SetCursorPosY(win_size_y / 2 - button_size.y);
 	if (imgui.button(button_text.c_str(), button_size.x, button_size.y))
 	{
 		on_cancel_button();
@@ -1770,7 +1768,7 @@ void NotificationManager::push_notification(NotificationType type,
                                             std::function<bool(wxEvtHandler*)> callback,
                                             int timestamp)
 {
-	int duration = get_standard_duration(level);
+	int duration = static_cast<int>(get_standard_duration(level));
     push_notification_data({ type, level, duration, text, hypertext, callback }, timestamp);
 }
 
@@ -2497,7 +2495,7 @@ void NotificationManager::push_delayed_notification_data(std::unique_ptr<Notific
 			return;
 	}
 	m_waiting_notifications.emplace_back(std::move(notification), condition_callback, initial_delay == 0 ? delay_interval : initial_delay, delay_interval);
-	wxGetApp().plater()->get_current_canvas3D()->schedule_extra_frame(initial_delay == 0 ? delay_interval : initial_delay);
+	wxGetApp().plater()->get_current_canvas3D()->schedule_extra_frame(static_cast<int>(initial_delay == 0 ? delay_interval : initial_delay));
 }
 
 void NotificationManager::stop_delayed_notifications_of_type(const NotificationType type)
