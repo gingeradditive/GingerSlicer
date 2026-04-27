@@ -501,7 +501,7 @@ bool SupportTreeBuildsteps::create_ground_pillar(const Vec3d &hjp,
 
         if (diffbr && diffbr->endp.z() > jp_gnd) {
             auto &br = m_builder.add_diffbridge(*diffbr);
-            if (head_id >= 0) m_builder.head(head_id).bridge_id = br.id;
+            if (head_id >= 0) m_builder.head(static_cast<unsigned int>(head_id)).bridge_id = br.id;
             endp = diffbr->endp;
             radius = diffbr->end_r;
             m_builder.add_junction(endp, radius);
@@ -557,7 +557,7 @@ bool SupportTreeBuildsteps::create_ground_pillar(const Vec3d &hjp,
 
         if (t > 0.) { // Need to make additional bridge
             const Bridge& br = m_builder.add_bridge(endp, nexp, radius);
-            if (head_id >= 0) m_builder.head(head_id).bridge_id = br.id;
+            if (head_id >= 0) m_builder.head(static_cast<unsigned int>(head_id)).bridge_id = br.id;
 
             m_builder.add_junction(nexp, radius);
             endp = nexp;
@@ -755,7 +755,7 @@ void SupportTreeBuildsteps::filter()
 
     for (size_t i = 0; i < heads.size(); ++i)
         if (heads[i].is_valid()) {
-            m_builder.add_head(i, heads[i]);
+            m_builder.add_head(static_cast<unsigned int>(i), heads[i]);
             m_iheads.emplace_back(i);
         }
 
