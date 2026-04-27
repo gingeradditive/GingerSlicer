@@ -172,7 +172,7 @@ void GLGizmoFlatten::update_planes()
 
     // Now we'll go through all the facets and append Points of facets sharing the same normal.
     // This part is still performed in mesh coordinate system.
-    const int                num_of_facets  = ch.facets_count();
+    const int                num_of_facets  = static_cast<int>(ch.facets_count());
     const std::vector<Vec3f> face_normals   = its_face_normals(ch.its);
     const std::vector<Vec3i32> face_neighbors = its_face_neighbors(ch.its);
     std::vector<int>         facet_queue(num_of_facets, 0);
@@ -294,7 +294,7 @@ void GLGizmoFlatten::update_planes()
         // rounding effect at the corners, where we need it most).
         const unsigned int k = 10; // number of iterations
         const float aggressivity = 0.2f;  // agressivity
-        const unsigned int N = polygon.size();
+        const unsigned int N = static_cast<unsigned int>(polygon.size());
         std::vector<std::pair<unsigned int, unsigned int>> neighbours;
         if (k != 0) {
             Pointf3s points_out(2*k*N); // vector long enough to store the future vertices
