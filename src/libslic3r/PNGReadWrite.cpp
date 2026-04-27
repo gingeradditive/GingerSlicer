@@ -233,7 +233,7 @@ static bool write_rgb_or_gray_to_file(const char *file_name_utf8, size_t width, 
     // Initialize rows of PNG.
     row_pointers = reinterpret_cast<png_byte**>(::png_malloc(png_ptr, height * sizeof(png_byte*)));
     {
-        int line_width = width;
+        int line_width = static_cast<int>(width);
         if (png_color_type == PNG_COLOR_TYPE_RGB)
             line_width *= 3;
         for (size_t y = 0; y < height; ++ y) {
