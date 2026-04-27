@@ -78,7 +78,7 @@ void FaceDetector::detect_exterior_face()
         for (auto range : volume_facet_ranges) {
             if (facet_idx >= range.facet_begin && facet_idx < range.facet_end) {
                 tm = range.tm;
-                vol_facet_idx = facet_idx - range.facet_begin;
+                vol_facet_idx = static_cast<uint32_t>(facet_idx - range.facet_begin);
                 break;
             }
         }
