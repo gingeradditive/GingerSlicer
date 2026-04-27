@@ -341,7 +341,7 @@ bool GLGizmoBrimEars::on_mouse(const wxMouseEvent& mouse_event)
 // concludes that the event was not intended for it, it should return false.
 bool GLGizmoBrimEars::gizmo_event(SLAGizmoEventType action, const Vec2d &mouse_position, bool shift_down, bool alt_down, bool control_down)
 {
-    if (action != SLAGizmoEventType::MouseWheelDown || action != SLAGizmoEventType::MouseWheelUp || action != SLAGizmoEventType::Moving) {
+    if (action == SLAGizmoEventType::MouseWheelDown || action == SLAGizmoEventType::MouseWheelUp || action == SLAGizmoEventType::Moving) {
         apply_radius_change();
     }
 
@@ -1039,13 +1039,13 @@ void GLGizmoBrimEars::get_detection_radius_max()
         Points out_points = out_poly.points;
         out_points.push_back(out_points.front());
         double tolerance = 0.0;
-        min_points_num   = MultiPoint::_douglas_peucker(out_points, 0).size();
+        min_points_num   = static_cast<int>(MultiPoint::_douglas_peucker(out_points, 0).size());
         int repeat       = 0;
         int loop_protect = 0;
         for (;;) {
             loop_protect++;
             tolerance += 10;
-            int num = MultiPoint::_douglas_peucker(out_points, tolerance / SCALING_FACTOR).size();
+            int num = static_cast<int>(MultiPoint::_douglas_peucker(out_points, tolerance / SCALING_FACTOR).size());
             if (num == min_points_num) {
                 repeat++;
                 if (repeat > 1)
@@ -1058,7 +1058,7 @@ void GLGizmoBrimEars::get_detection_radius_max()
         for (;;) {
             loop_protect++;
             tolerance -= 1;
-            int num = MultiPoint::_douglas_peucker(out_points, tolerance / SCALING_FACTOR).size();
+            int num = static_cast<int>(MultiPoint::_douglas_peucker(out_points, tolerance / SCALING_FACTOR).size());
             if (num <= min_points_num) {
                 min_points_num = num;
             }else{
@@ -1114,8 +1114,8 @@ void GLGizmoBrimEars::update_raycasters()
         while (remaining > 0) {
             const auto id   = m_grabbers.size();
             auto& g = m_grabbers.emplace_back();
-            g.register_raycasters_for_picking(id);
-            g.raycasters[0] = m_parent.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, id,
+            g.register_raycasters_for_picking(static_cast<int>(id));
+            g.raycasters[0] = m_parent.add_raycaster_for_picking(SceneRaycaster::EType::Gizmo, static_cast<int>(id),
                                                                  *m_cylinder.mesh_raycaster, Transform3d::Identity());
             remaining--;
         }
