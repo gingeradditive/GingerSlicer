@@ -464,7 +464,7 @@ bool doesVolumeIntersect(VolumeSlices& vs1, VolumeSlices& vs2)
     auto& vs2s = vs2.slices;
     bool is_intersect = false;
 
-    tbb::parallel_for(tbb::blocked_range<int>(0, vs1s.size()),
+    tbb::parallel_for(tbb::blocked_range<int>(0, (int)vs1s.size()),
         [&vs1s, &vs2s, &is_intersect](const tbb::blocked_range<int>& range) {
             for (auto i = range.begin(); i != range.end(); ++i) {
                 if (vs1s[i].empty()) continue;
@@ -499,7 +499,7 @@ bool groupingVolumes(std::vector<VolumeSlices> objSliceByVolume, std::vector<gro
         }
     }
 
-    tbb::parallel_for(tbb::blocked_range<int>(0, osvIndex.size()),
+    tbb::parallel_for(tbb::blocked_range<int>(0, (int)osvIndex.size()),
         [&osvIndex, &objSliceByVolume, &offsetValue, &resolution](const tbb::blocked_range<int>& range) {
             for (auto k = range.begin(); k != range.end(); ++k) {
                 for (ExPolygon& poly_ex : objSliceByVolume[osvIndex[k][0]].slices[osvIndex[k][1]])
@@ -507,8 +507,8 @@ bool groupingVolumes(std::vector<VolumeSlices> objSliceByVolume, std::vector<gro
             }
         });
 
-    tbb::parallel_for(tbb::blocked_range<int>(0, osvIndex.size()),
-        [&osvIndex, &objSliceByVolume,&offsetValue, &resolution](const tbb::blocked_range<int>& range) {
+    tbb::parallel_for(tbb::blocked_range<int>(0, (int)osvIndex.size()),
+        [&osvIndex, &objSliceByVolume, &offsetValue](const tbb::blocked_range<int>& range) {
             for (auto k = range.begin(); k != range.end(); ++k) {
                 objSliceByVolume[osvIndex[k][0]].slices[osvIndex[k][1]] = offset_ex(objSliceByVolume[osvIndex[k][0]].slices[osvIndex[k][1]], offsetValue);
             }
@@ -614,7 +614,7 @@ void reGroupingLayerPolygons(std::vector<groupedVolumeSlices>& gvss, ExPolygons 
             poly_ex.douglas_peucker(resolution);
     }
 
-    tbb::parallel_for(tbb::blocked_range<int>(0, epsc.size()),
+    tbb::parallel_for(tbb::blocked_range<int>(0, (int)epsc.size()),
         [&epsc, &gvssc, &epsIndex](const tbb::blocked_range<int>& range) {
             for (auto ie = range.begin(); ie != range.end(); ++ie) {
                 if (epsc[ie].area() <= 0)
