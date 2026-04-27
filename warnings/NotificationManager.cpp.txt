@@ -1,8 +1,0 @@
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/NotificationManager.cpp:510:70: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/NotificationManager.cpp:529:42: warning: implicit conversion loses integer precision: 'value_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/NotificationManager.cpp:592:15: warning: implicit conversion loses integer precision: 'value_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/NotificationManager.cpp:654:15: warning: implicit conversion loses integer precision: 'value_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/NotificationManager.cpp:1454:38: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/NotificationManager.cpp:1773:17: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/NotificationManager.cpp:2500:89: warning: implicit conversion loses integer precision: 'int64_t' (aka 'long long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/NotificationManager.cpp:2500:106: warning: implicit conversion loses integer precision: 'int64_t' (aka 'long long') to 'int' [-Wshorten-64-to-32]

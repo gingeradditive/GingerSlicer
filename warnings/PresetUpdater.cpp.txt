@@ -1,1 +1,0 @@
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/Utils/PresetUpdater.cpp:500:23: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]

@@ -1,1 +1,0 @@
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Point.cpp:213:18: warning: implicit conversion loses integer precision: 'decltype(__x.base() - __y.base())' (aka 'long') to 'int' [-Wshorten-64-to-32]
