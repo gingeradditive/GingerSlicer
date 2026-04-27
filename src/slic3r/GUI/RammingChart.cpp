@@ -222,7 +222,7 @@ void Chart::recalculate_line() {
         // Cubic spline interpolation: see https://en.wikiversity.org/wiki/Cubic_Spline_Interpolation#Methods
         const bool boundary_first_derivative = true; // true - first derivative is 0 at the leftmost and rightmost point
                                                      // false - second ---- || -------
-        const int N = points.size()-1; // last point can be accessed as N, we have N+1 total points
+        const int N = static_cast<int>(points.size()-1); // last point can be accessed as N, we have N+1 total points
         std::vector<float> diag(N+1);
         std::vector<float> mu(N+1);
         std::vector<float> lambda(N+1);
@@ -307,7 +307,7 @@ std::vector<float> Chart::get_ramming_speed(float sampling) const {
     
     const int number_of_samples = std::round( visible_area.m_width / sampling);
     if (number_of_samples>0) {
-        const int dx = (m_line_to_draw.size()-1) / number_of_samples;
+        const int dx = static_cast<int>(m_line_to_draw.size()-1) / number_of_samples;
         for (int j=0;j<number_of_samples;++j) {
             float left =  screen_to_math(wxPoint(0,m_line_to_draw[j*dx])).m_y;
             float right = screen_to_math(wxPoint(0,m_line_to_draw[(j+1)*dx])).m_y;
