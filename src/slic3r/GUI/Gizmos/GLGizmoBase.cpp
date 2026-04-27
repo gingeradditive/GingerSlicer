@@ -219,7 +219,7 @@ bool GLGizmoBase::render_combo(const std::string &label, const std::vector<std::
     }
 
     bool is_changed = selection_idx != selection_out;
-    selection_idx   = selection_out;
+    selection_idx   = static_cast<int>(selection_out);
 
     //if (is_changed) update_connector_shape();
     ImGuiWrapper::pop_combo_style();
@@ -366,7 +366,7 @@ void GLGizmoBase::GizmoImguiSetNextWIndowPos(float &x, float y, float w, float h
 void GLGizmoBase::register_grabbers_for_picking()
 {
     for (size_t i = 0; i < m_grabbers.size(); ++i) {
-        m_grabbers[i].register_raycasters_for_picking((m_group_id >= 0) ? m_group_id : i);
+        m_grabbers[i].register_raycasters_for_picking((m_group_id >= 0) ? m_group_id : static_cast<int>(i));
     }
 }
 
