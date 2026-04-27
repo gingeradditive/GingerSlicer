@@ -44,13 +44,13 @@ static void update_bounding_box(const indexed_triangle_set &its, TriangleMeshSta
 
 static void fill_initial_stats(const indexed_triangle_set &its, TriangleMeshStats &out)
 {
-    out.number_of_facets    = its.indices.size();
+    out.number_of_facets    = static_cast<uint32_t>(its.indices.size());
     out.volume              = its_volume(its);
     update_bounding_box(its, out);
 
     const std::vector<Vec3i32> face_neighbors = its_face_neighbors(its);
-    out.number_of_parts = its_number_of_patches(its, face_neighbors);
-    out.open_edges      = its_num_open_edges(face_neighbors);
+    out.number_of_parts = static_cast<int>(its_number_of_patches(its, face_neighbors));
+    out.open_edges      = static_cast<int>(its_num_open_edges(face_neighbors));
 }
 
 TriangleMesh::TriangleMesh(const std::vector<Vec3f> &vertices, const std::vector<Vec3i32> &faces) : its { faces, vertices }
@@ -745,7 +745,7 @@ int its_remove_degenerate_faces(indexed_triangle_set &its, bool shrink_to_fit)
         return face(0) == face(1) || face(0) == face(2) || face(1) == face(2);
     });
 
-    int removed = std::distance(it, its.indices.end());
+    int removed = static_cast<int>(std::distance(it, its.indices.end()));
     its.indices.erase(it, its.indices.end());
 
     if (removed && shrink_to_fit)
@@ -813,13 +813,13 @@ bool its_store_triangles(const indexed_triangle_set &its,
             size_t vi = t[i];
             auto   it = vertex_map.find(vi);
             if (it != vertex_map.end()) {
-                new_t[i] = it->second;
+                new_t[i] = static_cast<int>(it->second);
                 continue;
             }
             size_t new_vi = its2.vertices.size();
             its2.vertices.push_back(its.vertices[vi]);
             vertex_map[vi] = new_vi;
-            new_t[i]       = new_vi;
+            new_t[i]       = static_cast<int>(new_vi);
         }
         its2.indices.push_back(new_t);
     }
@@ -1636,7 +1636,7 @@ bool its_write_stl_binary(const char *file, const char *label, const std::vector
         ::fwrite(header.data(), header_size, 1, fp);
     }
 
-    uint32_t nfaces = indices.size();
+    uint32_t nfaces = static_cast<uint32_t>(indices.size());
     big_endian_reverse_quads(reinterpret_cast<char*>(&nfaces), 4);
     ::fwrite(&nfaces, 4, 1, fp);
 
