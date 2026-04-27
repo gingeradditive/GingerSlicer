@@ -39,11 +39,11 @@ bool equivalent_areas(const double& bottom_area, const double& top_area)
 
 bool check_color_change(PrintObject *object, size_t frst_layer_id, size_t layers_cnt, bool check_overhangs, std::function<bool(Layer *)> break_condition)
 {
-    double prev_area = area(object->get_layer(frst_layer_id)->lslices);
+    double prev_area = area(object->get_layer(static_cast<int>(frst_layer_id))->lslices);
 
     bool detected = false;
     for (size_t i = frst_layer_id + 1; i < layers_cnt; i++) {
-        Layer *layer    = object->get_layer(i);
+        Layer *layer    = object->get_layer(static_cast<int>(i));
         double cur_area = area(layer->lslices);
 
         // check for overhangs
@@ -209,7 +209,7 @@ Info IMSlider::GetTicksValues() const
     Info                            custom_gcode_per_print_z;
     std::vector<CustomGCode::Item> &values = custom_gcode_per_print_z.gcodes;
 
-    const int val_size = m_values.size();
+    const int val_size = static_cast<int>(m_values.size());
     if (!m_values.empty())
         for (const TickCode &tick : m_ticks.ticks) {
             if (tick.tick > val_size) break;
@@ -765,7 +765,7 @@ void IMSlider::draw_ticks(const ImRect& slideable_region) {
 }
 
 void IMSlider::show_tooltip(const std::string tooltip) {
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, { 6 * m_scale, 3 * m_scale });
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 6 * m_scale, 3 * m_scale });
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, { 3 * m_scale });
     ImGui::PushStyleColor(ImGuiCol_PopupBg, ImGuiWrapper::COL_WINDOW_BACKGROUND);
     ImGui::PushStyleColor(ImGuiCol_Border, { 0,0,0,0 });
@@ -1220,8 +1220,8 @@ void IMSlider::render_input_custom_gcode(std::string custom_gcode)
 }
 
 void IMSlider::do_go_to_layer(size_t layer_number) {
-    layer_number = std::clamp((int)layer_number, m_min_value, m_max_value);
-    GetSelection() == ssLower ? SetLowerValue(layer_number) : SetHigherValue(layer_number);
+    layer_number = std::clamp(static_cast<int>(layer_number), m_min_value, m_max_value);
+    GetSelection() == ssLower ? SetLowerValue(static_cast<int>(layer_number)) : SetHigherValue(static_cast<int>(layer_number));
 }
 
 void IMSlider::render_go_to_layer_dialog()
@@ -1333,7 +1333,7 @@ void IMSlider::render_menu() {
 
 void IMSlider::render_add_menu()
 {
-    int extruder_num = m_extruder_colors.size();
+    int extruder_num = static_cast<int>(m_extruder_colors.size());
 
     if (m_show_menu)
         ImGui::OpenPopup("slider_add_menu_popup");
@@ -1414,7 +1414,7 @@ void IMSlider::render_edit_menu(const TickCode& tick)
             }
             break;
         case CustomGCode::ToolChange: {
-            int extruder_num = m_extruder_colors.size();
+            int extruder_num = static_cast<int>(m_extruder_colors.size());
             if (extruder_num > 1) {
                 if (!m_can_change_color) {
                     begin_menu(_u8L("Change Filament").c_str(), false);
@@ -1558,7 +1558,7 @@ std::string IMSlider::get_label(int tick, LabelType label_type)
     } else {
         if (label_type == ltEstimatedTime) {
             if (m_is_wipe_tower) {
-                size_t layer_number = get_layer_number(value, label_type);
+                size_t layer_number = get_layer_number(static_cast<int>(value), label_type);
                 return (layer_number == size_t(-1) || layer_number == m_layers_times.size()) ? "" : short_and_splitted_time(get_time_dhms(m_layers_times[layer_number]));
             }
             return value < m_layers_times.size() ? short_and_splitted_time(get_time_dhms(m_layers_times[value])) : "";
@@ -1570,7 +1570,7 @@ std::string IMSlider::get_label(int tick, LabelType label_type)
         if (label_type == ltHeightWithLayer) {
             char   buffer[64];
             size_t layer_number;
-            layer_number = m_draw_mode == dmSequentialFffPrint ? (m_values.empty() ? value : value + 1) : m_is_wipe_tower ? get_layer_number(value, label_type) + 1 : (m_values.empty() ? value : value + 1);
+            layer_number = m_draw_mode == dmSequentialFffPrint ? (m_values.empty() ? value : value + 1) : m_is_wipe_tower ? get_layer_number(static_cast<int>(value), label_type) + 1 : (m_values.empty() ? value : value + 1);
             ::sprintf(buffer, "%5s\n%5s", std::to_string(layer_number).c_str(), layer_height);
             return std::string(buffer);
         }
