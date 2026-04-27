@@ -1504,7 +1504,7 @@ bool bbl_calc_md5(std::string &filename, std::string &md5_out)
     std::size_t                 left_size = size;
     while (ifs) {
         ifs.read(buf.data(), buf.size());
-        int read_bytes = ifs.gcount();
+        int read_bytes = static_cast<int>(ifs.gcount());
         MD5_Update(&ctx, (unsigned char *) buf.data(), read_bytes);
     }
     MD5_Final(digest, &ctx);
