@@ -1,2 +1,0 @@
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/GUI_ObjectLayers.cpp:51:30: warning: lambda capture 'editor' is not used [-Wunused-lambda-capture]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/GUI_ObjectLayers.cpp:226:39: warning: lambda capture 'objects_ctrl' is not used [-Wunused-lambda-capture]

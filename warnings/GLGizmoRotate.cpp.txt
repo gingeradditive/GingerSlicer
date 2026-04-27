@@ -1,2 +1,0 @@
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Gizmos/GLGizmoRotate.cpp:694:8: warning: extra tokens at end of #endif directive [-Wextra-tokens]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Gizmos/GLGizmoRotate.cpp:689:35: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]

@@ -1,2 +1,0 @@
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/ElephantFootCompensation.cpp:476:17: warning: implicit conversion loses integer precision: 'typename vector<Point, scalable_allocator<Point>>::size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/ElephantFootCompensation.cpp:501:8: warning: implicit conversion loses integer precision: 'typename vector<Point, scalable_allocator<Point>>::size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]

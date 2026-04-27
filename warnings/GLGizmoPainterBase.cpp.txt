@@ -1,3 +1,0 @@
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Gizmos/GLGizmoPainterBase.cpp:305:47: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Gizmos/GLGizmoPainterBase.cpp:1296:26: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Gizmos/GLGizmoPainterBase.cpp:1389:32: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]

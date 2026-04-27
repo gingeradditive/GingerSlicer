@@ -1,3 +1,0 @@
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Jobs/EmbossJob.cpp:861:58: warning: implicit conversion loses integer precision: 'coord_t' (aka 'long long') to 'int32_t' (aka 'int') [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Jobs/EmbossJob.cpp:1147:88: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Jobs/EmbossJob.cpp:861:58: warning: implicit conversion loses integer precision: 'coord_t' (aka 'long long') to 'int32_t' (aka 'int') [-Wshorten-64-to-32]
