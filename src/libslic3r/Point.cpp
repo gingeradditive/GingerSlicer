@@ -210,7 +210,7 @@ int Point::nearest_point_index(const PointConstPtrs &points) const
         d += sqr<double>((*this)(1) - (*it)->y());
         if (distance != -1 && d > distance) continue;
         
-        idx = it - points.begin();
+        idx = static_cast<int>(it - points.begin());
         distance = d;
         
         if (distance < EPSILON) break;
