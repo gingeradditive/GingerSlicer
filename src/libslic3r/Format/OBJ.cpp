@@ -135,7 +135,7 @@ bool load_obj(const char *path, TriangleMesh *meshptr, ObjInfo& obj_info, std::s
                 assert(cnt == 3 || cnt == 4);
                 // Insert one or two faces (triangulate a quad).
                 its.indices.emplace_back(indices[0], indices[1], indices[2]);
-                int  face_index =its.indices.size() - 1;
+                int  face_index = static_cast<int>(its.indices.size() - 1);
                 RGBA face_color;
                 auto set_face_color = [&uvs, &data, &mtl_data, &obj_info, &face_color](int face_index, const std::string mtl_name) {
                     if (mtl_data.new_mtl_unmap.find(mtl_name) != mtl_data.new_mtl_unmap.end()) {
