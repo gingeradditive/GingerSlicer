@@ -697,7 +697,7 @@ void tree_supports_generate_paths(
                 Vec2d               seam_pt           = pl.back().cast<double>();
                 for (ClipperLib_Z::Path &path : anchor_candidates)
                     for (int i = 0; i < int(path.size()); ++i) {
-                        int j = next_idx_modulo(i, path);
+                        int j = next_idx_modulo(i, static_cast<int>(path.size()));
                         if (path[i].z() == idx_loop || path[j].z() == idx_loop) {
                             Vec2d pi(path[i].x(), path[i].y());
                             Vec2d pj(path[j].x(), path[j].y());
@@ -726,7 +726,7 @@ void tree_supports_generate_paths(
                     const ClipperLib_Z::Path &path             = *closest_contour;
                     double                    remaining_length = anchor_length - (seam_pt - closest_point).norm();
                     int                       i                = closest_point_idx;
-                    int                       j                = next_idx_modulo(i, *closest_contour);
+                    int                       j                = next_idx_modulo(i, static_cast<int>(closest_contour->size()));
                     Vec2d                     pi(path[i].x(), path[i].y());
                     Vec2d                     pj(path[j].x(), path[j].y());
                     Vec2d                     v = pj - pi;
@@ -739,7 +739,7 @@ void tree_supports_generate_paths(
                         pl.points.emplace_back(path[j].x(), path[j].y());
                         pi = pj;
                         for (i = j; path[i].z() == idx_loop && remaining_length > 0; i = j, pi = pj) {
-                            j  = next_idx_modulo(i, path);
+                            j  = next_idx_modulo(i, static_cast<int>(path.size()));
                             pj = Vec2d(path[j].x(), path[j].y());
                             v  = pj - pi;
                             l  = v.norm();
@@ -1470,7 +1470,7 @@ SupportGeneratorLayersPtr generate_support_layers(
                         this_layer_id_interface = other_layer.interface_id() + 1;
                     }
             }
-            object.add_support_layer(layer_id ++, this_layer_id_interface, height_min, zavg);
+            object.add_support_layer(static_cast<int>(layer_id ++), this_layer_id_interface, height_min, zavg);
             if (num_interfaces && ! this_layer_contacts_only)
                 ++ layer_id_interface;
         }
