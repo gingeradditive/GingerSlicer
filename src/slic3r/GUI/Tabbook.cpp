@@ -130,7 +130,7 @@ bool TabButtonsListCtrl::InsertPage(size_t n, const wxString &text, bool bSelect
     btn->SetTextColor(*wxBLACK);
     btn->Bind(wxEVT_BUTTON, [this, btn](wxCommandEvent& event) {
         if (auto it = std::find(m_pageButtons.begin(), m_pageButtons.end(), btn); it != m_pageButtons.end()) {
-            auto sel = it - m_pageButtons.begin();
+            auto sel = static_cast<int>(it - m_pageButtons.begin());
             SetSelection(sel);
             wxCommandEvent evt = wxCommandEvent(wxCUSTOMEVT_TABBOOK_SEL_CHANGED);
             evt.SetId(sel);
@@ -149,7 +149,7 @@ void TabButtonsListCtrl::RemovePage(size_t n)
     if (n >= m_pageButtons.size()) return;
     TabButton *btn = m_pageButtons[n];
     m_pageButtons.erase(m_pageButtons.begin() + n);
-    m_buttons_sizer->Remove(n);
+    m_buttons_sizer->Remove(static_cast<int>(n));
     btn->Reparent(nullptr);
     btn->Destroy();
     m_sizer->Layout();
