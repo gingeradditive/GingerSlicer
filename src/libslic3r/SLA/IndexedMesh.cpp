@@ -413,7 +413,7 @@ PointSet normals(const PointSet& points,
             std::vector<Vec3d> neighnorms;
             neighnorms.reserve(neigh.size());
             for (size_t &tri_id : neigh)
-                neighnorms.emplace_back(mesh.normal_by_face_id(tri_id));
+                neighnorms.emplace_back(mesh.normal_by_face_id(static_cast<int>(tri_id)));
 
             // Throw out duplicates. They would cause trouble with summing. We
             // will use std::unique which works on sorted ranges. We will sort
