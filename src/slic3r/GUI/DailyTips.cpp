@@ -451,7 +451,7 @@ void DailyTipsPanel::render_controller_buttons(const ImVec2& pos, const ImVec2& 
 
         // page index
         m_page_index = HintDatabase::get_instance().get_index() + 1;
-        m_pages_count = HintDatabase::get_instance().get_count();
+        m_pages_count = static_cast<int>(HintDatabase::get_instance().get_count());
         std::string text_str = std::to_string(m_page_index) + "/" + std::to_string(m_pages_count);
         float text_item_width = ImGui::CalcTextSize(text_str.c_str()).x;
         ImGui::PushItemWidth(text_item_width);
