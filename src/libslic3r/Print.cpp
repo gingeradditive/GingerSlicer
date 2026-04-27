@@ -472,7 +472,7 @@ std::vector<unsigned int> Print::extruders(bool conside_custom_gcode) const
 
     if (conside_custom_gcode) {
         //BBS
-        int num_extruders = m_config.filament_colour.size();
+        int num_extruders = (int)m_config.filament_colour.size();
         if (m_model.plates_custom_gcodes.find(m_model.curr_plate_index) != m_model.plates_custom_gcodes.end()) {
             for (auto item : m_model.plates_custom_gcodes.at(m_model.curr_plate_index).gcodes) {
                 if (item.type == CustomGCode::Type::ToolChange && item.extruder <= num_extruders)
@@ -816,7 +816,7 @@ StringObjectException Print::sequential_print_clearance_valid(const Print &print
         }*/
 
         // if objects are not overlapped on y-axis, they will not collide even if they are taller than extruder_clearance_height_to_rod
-        int print_instance_count = print_instance_with_bounding_box.size();
+        int print_instance_count = (int)print_instance_with_bounding_box.size();
         std::map<const PrintInstance*, std::pair<Polygon, float>> too_tall_instances;
         for (int k = 0; k < print_instance_count; k++)
         {
@@ -934,7 +934,7 @@ static StringObjectException layered_print_cleareance_valid(const Print &print, 
 
     //BBS: add the wipe tower check logic
     const PrintConfig &       config   = print.config();
-    int                 filaments_count = print.extruders().size();
+    int                 filaments_count = (int)print.extruders().size();
     int                 plate_index = print.get_plate_index();
     const Vec3d         plate_origin = print.get_plate_origin();
     float               x            = config.wipe_tower_x.get_at(plate_index) + plate_origin(0);
@@ -1053,7 +1053,7 @@ boost::regex regex_g92e0 { "^[ \\t]*[gG]92[ \\t]*[eE](0(\\.0*)?|\\.0+)[ \\t]*(;.
 StringObjectException Print::validate(StringObjectException *warning, Polygons* collison_polygons, std::vector<std::pair<Polygon, float>>* height_polygons) const
 {
     std::vector<unsigned int> extruders = this->extruders();
-    unsigned int nozzles = m_config.nozzle_diameter.size();
+    unsigned int nozzles = (unsigned int)m_config.nozzle_diameter.size();
 
     if (m_objects.empty())
         return {std::string()};
@@ -1798,7 +1798,7 @@ std::map<ObjectID, unsigned int> getObjectExtruderMap(const Print& print) {
     for (const PrintObject* object : print.objects()) {
         // BBS
         if (object->object_first_layer_wall_extruders.empty()){
-            unsigned int objectFirstLayerFirstExtruder = print.config().filament_diameter.size();
+            unsigned int objectFirstLayerFirstExtruder = (unsigned int)print.config().filament_diameter.size();
             auto firstLayerRegions = object->layers().front()->regions();
             if (!firstLayerRegions.empty()) {
                 for (const LayerRegion* regionPtr : firstLayerRegions) {
@@ -1834,7 +1834,7 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
         obj->clear_shared_object();
 
     //add the print_object share check logic
-    auto is_print_object_the_same = [this](const PrintObject* object1, const PrintObject* object2) -> bool{
+    auto is_print_object_the_same = [](const PrintObject* object1, const PrintObject* object2) -> bool{
         if (object1->trafo().matrix() != object2->trafo().matrix())
             return false;
         const ModelObject* model_obj1 = object1->model_object();
@@ -1877,7 +1877,7 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
             return false;
         return true;
     };
-    int object_count = m_objects.size();
+    int object_count = (int)m_objects.size();
     std::set<PrintObject*> need_slicing_objects;
     std::set<PrintObject*> re_slicing_objects;
     if (!use_cache) {
@@ -3437,7 +3437,7 @@ static void to_json(json& j, const groupedVolumeSlices& first_layer_group) {
 
 //load apis from json
 static void from_json(const json& j, Points& p_s) {
-    int array_size = j.size();
+    int array_size = (int)j.size();
     for (int index = 0; index < array_size/2; index++)
     {
         coord_t x = j[2*index], y = j[2*index+1];
@@ -3460,7 +3460,7 @@ static void from_json(const json& j, BoundingBox& bbox) {
 static void from_json(const json& j, ExPolygon& polygon) {
     polygon.contour.points = j[JSON_POLYGON_CONTOUR];
 
-    int holes_count = j[JSON_POLYGON_HOLES].size();
+    int holes_count = (int)j[JSON_POLYGON_HOLES].size();
     for (int holes_index = 0; holes_index < holes_count; holes_index++)
     {
         Polygon poly;
@@ -3504,7 +3504,7 @@ static void from_json(const json& j, ArcSegment& arc_seg) {
 static void from_json(const json& j, Polyline& poly_line) {
     poly_line.points = j[JSON_POINTS];
 
-    int arc_fitting_count = j[JSON_ARC_FITTING].size();
+    int arc_fitting_count = (int)j[JSON_ARC_FITTING].size();
     for (int arc_fitting_index = 0; arc_fitting_index < arc_fitting_count; arc_fitting_index++)
     {
         const json& fitting_json = j[JSON_ARC_FITTING][arc_fitting_index];
@@ -3550,7 +3550,7 @@ static bool convert_extrusion_from_json(const json& entity_json, ExtrusionEntity
             BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << boost::format(": oom when new ExtrusionMultiPath");
             return false;
         }
-        int paths_count = entity_json[JSON_EXTRUSION_PATHS].size();
+        int paths_count = (int)entity_json[JSON_EXTRUSION_PATHS].size();
         for (int path_index = 0; path_index < paths_count; path_index++)
         {
             ExtrusionPath path;
@@ -3566,7 +3566,7 @@ static bool convert_extrusion_from_json(const json& entity_json, ExtrusionEntity
             return false;
         }
         loop->set_loop_role(entity_json[JSON_EXTRUSION_LOOP_ROLE]);
-        int paths_count = entity_json[JSON_EXTRUSION_PATHS].size();
+        int paths_count = (int)entity_json[JSON_EXTRUSION_PATHS].size();
         for (int path_index = 0; path_index < paths_count; path_index++)
         {
             ExtrusionPath path;
@@ -3582,7 +3582,7 @@ static bool convert_extrusion_from_json(const json& entity_json, ExtrusionEntity
             return false;
         }
         collection->no_sort = entity_json[JSON_EXTRUSION_NO_SORT];
-        int entities_count = entity_json[JSON_EXTRUSION_ENTITIES].size();
+        int entities_count = (int)entity_json[JSON_EXTRUSION_ENTITIES].size();
         for (int entity_index = 0; entity_index < entities_count; entity_index++)
         {
             const json& entity_item_json = entity_json[JSON_EXTRUSION_ENTITIES][entity_index];
@@ -3604,7 +3604,7 @@ static bool convert_extrusion_from_json(const json& entity_json, ExtrusionEntity
 
 static void convert_layer_region_from_json(const json& j, LayerRegion& layer_region) {
     //slices
-    int slices_count = j[JSON_LAYER_REGION_SLICES].size();
+    int slices_count = (int)j[JSON_LAYER_REGION_SLICES].size();
     for (int slices_index = 0; slices_index < slices_count; slices_index++)
     {
         Surface surface;
@@ -3614,7 +3614,7 @@ static void convert_layer_region_from_json(const json& j, LayerRegion& layer_reg
     }
 
     //raw_slices
-    int raw_slices_count = j[JSON_LAYER_REGION_RAW_SLICES].size();
+    int raw_slices_count = (int)j[JSON_LAYER_REGION_RAW_SLICES].size();
     for (int raw_slices_index = 0; raw_slices_index < raw_slices_count; raw_slices_index++)
     {
         ExPolygon polygon;
@@ -3625,7 +3625,7 @@ static void convert_layer_region_from_json(const json& j, LayerRegion& layer_reg
 
     //thin fills
     layer_region.thin_fills.no_sort = j[JSON_LAYER_REGION_THIN_FILLS][JSON_EXTRUSION_NO_SORT];
-    int thinfills_entities_count = j[JSON_LAYER_REGION_THIN_FILLS][JSON_EXTRUSION_ENTITIES].size();
+    int thinfills_entities_count = (int)j[JSON_LAYER_REGION_THIN_FILLS][JSON_EXTRUSION_ENTITIES].size();
     for (int thinfills_entities_index = 0; thinfills_entities_index < thinfills_entities_count; thinfills_entities_index++)
     {
         const json& extrusion_entity_json =  j[JSON_LAYER_REGION_THIN_FILLS][JSON_EXTRUSION_ENTITIES][thinfills_entities_index];
@@ -3639,7 +3639,7 @@ static void convert_layer_region_from_json(const json& j, LayerRegion& layer_reg
     }
 
     //fill_expolygons
-    int fill_expolygons_count = j[JSON_LAYER_REGION_FILL_EXPOLYGONS].size();
+    int fill_expolygons_count = (int)j[JSON_LAYER_REGION_FILL_EXPOLYGONS].size();
     for (int fill_expolygons_index = 0; fill_expolygons_index < fill_expolygons_count; fill_expolygons_index++)
     {
         ExPolygon polygon;
@@ -3649,7 +3649,7 @@ static void convert_layer_region_from_json(const json& j, LayerRegion& layer_reg
     }
 
     //fill_surfaces
-    int fill_surfaces_count = j[JSON_LAYER_REGION_FILL_SURFACES].size();
+    int fill_surfaces_count = (int)j[JSON_LAYER_REGION_FILL_SURFACES].size();
     for (int fill_surfaces_index = 0; fill_surfaces_index < fill_surfaces_count; fill_surfaces_index++)
     {
         Surface surface;
@@ -3659,7 +3659,7 @@ static void convert_layer_region_from_json(const json& j, LayerRegion& layer_reg
     }
 
     //fill_no_overlap_expolygons
-    int fill_no_overlap_expolygons_count = j[JSON_LAYER_REGION_FILL_NO_OVERLAP].size();
+    int fill_no_overlap_expolygons_count = (int)j[JSON_LAYER_REGION_FILL_NO_OVERLAP].size();
     for (int fill_no_overlap_expolygons_index = 0; fill_no_overlap_expolygons_index < fill_no_overlap_expolygons_count; fill_no_overlap_expolygons_index++)
     {
         ExPolygon polygon;
@@ -3669,7 +3669,7 @@ static void convert_layer_region_from_json(const json& j, LayerRegion& layer_reg
     }
 
     //unsupported_bridge_edges
-    int unsupported_bridge_edges_count = j[JSON_LAYER_REGION_UNSUPPORTED_BRIDGE_EDGES].size();
+    int unsupported_bridge_edges_count = (int)j[JSON_LAYER_REGION_UNSUPPORTED_BRIDGE_EDGES].size();
     for (int unsupported_bridge_edges_index = 0; unsupported_bridge_edges_index < unsupported_bridge_edges_count; unsupported_bridge_edges_index++)
     {
         Polyline polyline;
@@ -3680,7 +3680,7 @@ static void convert_layer_region_from_json(const json& j, LayerRegion& layer_reg
 
     //perimeters
     layer_region.perimeters.no_sort = j[JSON_LAYER_REGION_PERIMETERS][JSON_EXTRUSION_NO_SORT];
-    int perimeters_entities_count = j[JSON_LAYER_REGION_PERIMETERS][JSON_EXTRUSION_ENTITIES].size();
+    int perimeters_entities_count = (int)j[JSON_LAYER_REGION_PERIMETERS][JSON_EXTRUSION_ENTITIES].size();
     for (int perimeters_entities_index = 0; perimeters_entities_index < perimeters_entities_count; perimeters_entities_index++)
     {
         const json& extrusion_entity_json =  j[JSON_LAYER_REGION_PERIMETERS][JSON_EXTRUSION_ENTITIES][perimeters_entities_index];
@@ -3695,7 +3695,7 @@ static void convert_layer_region_from_json(const json& j, LayerRegion& layer_reg
 
     //fills
     layer_region.fills.no_sort = j[JSON_LAYER_REGION_FILLS][JSON_EXTRUSION_NO_SORT];
-    int fills_entities_count = j[JSON_LAYER_REGION_FILLS][JSON_EXTRUSION_ENTITIES].size();
+    int fills_entities_count = (int)j[JSON_LAYER_REGION_FILLS][JSON_EXTRUSION_ENTITIES].size();
     for (int fills_entities_index = 0; fills_entities_index < fills_entities_count; fills_entities_index++)
     {
         const json& extrusion_entity_json =  j[JSON_LAYER_REGION_FILLS][JSON_EXTRUSION_ENTITIES][fills_entities_index];
@@ -3714,7 +3714,7 @@ static void convert_layer_region_from_json(const json& j, LayerRegion& layer_reg
 
 void extract_layer(const json& layer_json, Layer& layer) {
     //slice_polygons
-    int slice_polygons_count = layer_json[JSON_LAYER_SLICED_POLYGONS].size();
+    int slice_polygons_count = (int)layer_json[JSON_LAYER_SLICED_POLYGONS].size();
     for (int polygon_index = 0; polygon_index < slice_polygons_count; polygon_index++)
     {
         ExPolygon polygon;
@@ -3724,7 +3724,7 @@ void extract_layer(const json& layer_json, Layer& layer) {
     }
 
     //slice_bboxes
-    int sliced_bboxes_count = layer_json[JSON_LAYER_SLLICED_BBOXES].size();
+    int sliced_bboxes_count = (int)layer_json[JSON_LAYER_SLLICED_BBOXES].size();
     for (int bbox_index = 0; bbox_index < sliced_bboxes_count; bbox_index++)
     {
         BoundingBox bbox;
@@ -3734,7 +3734,7 @@ void extract_layer(const json& layer_json, Layer& layer) {
     }
 
     //overhang_polygons
-    int overhang_polygons_count = layer_json[JSON_LAYER_OVERHANG_POLYGONS].size();
+    int overhang_polygons_count = (int)layer_json[JSON_LAYER_OVERHANG_POLYGONS].size();
     for (int polygon_index = 0; polygon_index < overhang_polygons_count; polygon_index++)
     {
         ExPolygon polygon;
@@ -3747,7 +3747,7 @@ void extract_layer(const json& layer_json, Layer& layer) {
     layer.loverhangs_bbox = layer_json[JSON_LAYER_OVERHANG_BBOX];
 
     //layer_regions
-    int layer_region_count = layer.region_count();
+    int layer_region_count = (int)layer.region_count();
     for (int layer_region_index = 0; layer_region_index < layer_region_count; layer_region_index++)
     {
         LayerRegion* layer_region = layer.get_region(layer_region_index);
@@ -3765,7 +3765,7 @@ void extract_support_layer(const json& support_layer_json, SupportLayer& support
 
     support_layer.support_type = support_layer_json[JSON_SUPPORT_LAYER_TYPE];
     //support_islands
-    int islands_count = support_layer_json[JSON_SUPPORT_LAYER_ISLANDS].size();
+    int islands_count = (int)support_layer_json[JSON_SUPPORT_LAYER_ISLANDS].size();
     for (int islands_index = 0; islands_index < islands_count; islands_index++)
     {
         ExPolygon polygon;
@@ -3776,7 +3776,7 @@ void extract_support_layer(const json& support_layer_json, SupportLayer& support
 
     //support_fills
     support_layer.support_fills.no_sort = support_layer_json[JSON_SUPPORT_LAYER_FILLS][JSON_EXTRUSION_NO_SORT];
-    int support_fills_entities_count = support_layer_json[JSON_SUPPORT_LAYER_FILLS][JSON_EXTRUSION_ENTITIES].size();
+    int support_fills_entities_count = (int)support_layer_json[JSON_SUPPORT_LAYER_FILLS][JSON_EXTRUSION_ENTITIES].size();
     for (int support_fills_entities_index = 0; support_fills_entities_index < support_fills_entities_count; support_fills_entities_index++)
     {
         const json& extrusion_entity_json =  support_layer_json[JSON_SUPPORT_LAYER_FILLS][JSON_EXTRUSION_ENTITIES][support_fills_entities_index];
@@ -3796,7 +3796,7 @@ static void from_json(const json& j, groupedVolumeSlices& firstlayer_group)
 {
     firstlayer_group.groupId               =   j[JSON_FIRSTLAYER_GROUP_ID];
 
-    int volume_count = j[JSON_FIRSTLAYER_GROUP_VOLUME_IDS].size();
+    int volume_count = (int)j[JSON_FIRSTLAYER_GROUP_VOLUME_IDS].size();
     for (int volume_index = 0; volume_index < volume_count; volume_index++)
     {
         ObjectID obj_id;
@@ -3805,7 +3805,7 @@ static void from_json(const json& j, groupedVolumeSlices& firstlayer_group)
         firstlayer_group.volume_ids.push_back(std::move(obj_id));
     }
 
-    int slices_count = j[JSON_FIRSTLAYER_GROUP_SLICES].size();
+    int slices_count = (int)j[JSON_FIRSTLAYER_GROUP_SLICES].size();
     for (int slice_index = 0; slice_index < slices_count; slice_index++)
     {
         ExPolygon polygon;
@@ -3909,7 +3909,7 @@ int Print::export_cached_data(const std::string& directory, bool with_space)
                 tbb::blocked_range<size_t>(0, obj->layer_count()),
                 [&layers_json_vector, obj, convert_layer_to_json](const tbb::blocked_range<size_t>& layer_range) {
                     for (size_t layer_index = layer_range.begin(); layer_index < layer_range.end(); ++ layer_index) {
-                        const Layer *layer = obj->get_layer(layer_index);
+                        const Layer *layer = obj->get_layer((int)layer_index);
                         json layer_json;
                         convert_layer_to_json(layer_json, layer);
                         layers_json_vector[layer_index] = std::move(layer_json);
@@ -3937,7 +3937,7 @@ int Print::export_cached_data(const std::string& directory, bool with_space)
                 tbb::blocked_range<size_t>(0, obj->support_layer_count()),
                 [&support_layers_json_vector, obj, convert_layer_to_json](const tbb::blocked_range<size_t>& support_layer_range) {
                     for (size_t s_layer_index = support_layer_range.begin(); s_layer_index < support_layer_range.end(); ++ s_layer_index) {
-                        const SupportLayer *support_layer = obj->get_support_layer(s_layer_index);
+                        const SupportLayer *support_layer = obj->get_support_layer((int)s_layer_index);
                         json support_layer_json, support_islands_json = json::array(), support_fills_json, supportfills_entities_json = json::array();
 
                         convert_layer_to_json(support_layer_json, support_layer);
@@ -4089,12 +4089,11 @@ int Print::load_cached_data(const std::string& directory)
     boost::filesystem::path directory_path(directory);
 
     if (!fs::exists(directory_path)) {
-        BOOST_LOG_TRIVIAL(info) << boost::format("directory %1% not exist.")%directory;
         return CLI_IMPORT_CACHE_NOT_FOUND;
     }
 
-    auto find_region = [this](PrintObject* object, size_t config_hash) -> const PrintRegion* {
-        int regions_count = object->num_printing_regions();
+    auto find_region = [](PrintObject* object, size_t config_hash) -> const PrintRegion* {
+        int regions_count = static_cast<int>(object->num_printing_regions());
         for (int index = 0; index < regions_count; index++ )
         {
             const PrintRegion&  print_region = object->printing_region(index);
@@ -4115,10 +4114,10 @@ int Print::load_cached_data(const std::string& directory)
         obj->clear_layers();
         obj->clear_support_layers();
 
-        int identify_id = model_instance->loaded_id;
+        int identify_id = (int)model_instance->loaded_id;
         if (identify_id <= 0) {
             //for old 3mf
-            identify_id = model_instance->id().id;
+            identify_id = (int)model_instance->id().id;
             BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< boost::format(": object %1%'s loaded_id is 0, need to use the instance_id %2%")%model_obj->name %identify_id;
             //continue;
         }
@@ -4167,11 +4166,9 @@ int Print::load_cached_data(const std::string& directory)
 
             std::string name = root_json.at(JSON_OBJECT_NAME);
             int identify_id = root_json.at(JSON_IDENTIFY_ID);
-            int layer_count = 0, support_layer_count = 0, firstlayer_group_count = 0;
-
-            layer_count = root_json[JSON_LAYERS].size();
-            support_layer_count = root_json[JSON_SUPPORT_LAYERS].size();
-            firstlayer_group_count = root_json[JSON_FIRSTLAYER_GROUPS].size();
+            int layer_count = static_cast<int>(root_json[JSON_LAYERS].size());
+            int support_layer_count = static_cast<int>(root_json[JSON_SUPPORT_LAYERS].size());
+            int firstlayer_group_count = static_cast<int>(root_json[JSON_FIRSTLAYER_GROUPS].size());
 
             BOOST_LOG_TRIVIAL(info) << __FUNCTION__<<boost::format(":will load %1%, identify_id %2%, layer_count %3%, support_layer_count %4%, firstlayer_group_count %5%")
                 %name %identify_id %layer_count %support_layer_count %firstlayer_group_count;
@@ -4219,7 +4216,7 @@ int Print::load_cached_data(const std::string& directory)
                 [&root_json, &obj](const tbb::blocked_range<size_t>& layer_range) {
                     for (size_t layer_index = layer_range.begin(); layer_index < layer_range.end(); ++ layer_index) {
                         const json& layer_json = root_json[JSON_LAYERS][layer_index];
-                        Layer* layer = obj->get_layer(layer_index);
+                        Layer* layer = obj->get_layer((int)layer_index);
                         extract_layer(layer_json, *layer);
                     }
                 }
@@ -4249,7 +4246,7 @@ int Print::load_cached_data(const std::string& directory)
                 [&root_json, &obj](const tbb::blocked_range<size_t>& support_layer_range) {
                     for (size_t layer_index = support_layer_range.begin(); layer_index < support_layer_range.end(); ++ layer_index) {
                         const json& layer_json = root_json[JSON_SUPPORT_LAYERS][layer_index];
-                        SupportLayer* support_layer = obj->get_support_layer(layer_index);
+                        SupportLayer* support_layer = obj->get_support_layer((int)layer_index);
                         extract_support_layer(layer_json, *support_layer);
                     }
                 }
