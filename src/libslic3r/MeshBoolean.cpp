@@ -168,7 +168,7 @@ void triangle_mesh_to_cgal(const std::vector<stl_vertex> &                 V,
     size_t vertices_count = V.size();
     size_t edges_count    = (F.size()* 3) / 2;
     size_t faces_count    = F.size();
-    out.reserve(vertices_count, edges_count, faces_count);
+    out.reserve(static_cast<unsigned int>(vertices_count), static_cast<unsigned int>(edges_count), static_cast<unsigned int>(faces_count));
 
     for (auto &v : V)
         out.add_vertex(typename _Mesh::Point{v.x(), v.y(), v.z()});
@@ -352,7 +352,7 @@ void segment(CGALMesh& src, std::vector<CGALMesh>& dst, double smoothing_alpha =
         //}
         //else
         {
-            dst.emplace_back(std::move(CGALMesh(out)));
+            dst.emplace_back(CGALMesh(out));
         }
     }
     //if (mesh_merged.is_empty() == false) {
@@ -371,7 +371,7 @@ std::vector<TriangleMesh> segment(const TriangleMesh& src, double smoothing_alph
     std::vector<TriangleMesh> out_meshes;
     for (auto& outf_cgal_mesh: out_cgal_meshes)
     {
-        out_meshes.emplace_back(std::move(cgal_to_triangle_mesh(outf_cgal_mesh.m)));
+        out_meshes.emplace_back(cgal_to_triangle_mesh(outf_cgal_mesh.m));
     }
 
     return out_meshes;
@@ -533,11 +533,11 @@ McutMeshPtr triangle_mesh_to_mcut(const indexed_triangle_set &M)
 
 TriangleMesh mcut_to_triangle_mesh(const McutMesh &mcutmesh)
 {
-    uint32_t ccVertexCount = mcutmesh.vertexCoordsArray.size() / 3;
+    uint32_t ccVertexCount = static_cast<uint32_t>(mcutmesh.vertexCoordsArray.size() / 3);
     auto    &ccVertices    = mcutmesh.vertexCoordsArray;
     auto    &ccFaceIndices = mcutmesh.faceIndicesArray;
     auto    &faceSizes     = mcutmesh.faceSizesArray;
-    uint32_t ccFaceCount   = faceSizes.size();
+    uint32_t ccFaceCount   = static_cast<uint32_t>(faceSizes.size());
     // rearrange vertices/faces and save into result mesh
     std::vector<Vec3f> vertices(ccVertexCount);
     for (uint32_t i = 0; i < ccVertexCount; i++) {
