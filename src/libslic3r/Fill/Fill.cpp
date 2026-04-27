@@ -117,9 +117,9 @@ double calculate_infill_rotation_angle(const PrintObject* object,
                                 cs = &cs[1];
                             }
 
-                            int tit = tk[t].find('*');
+                            int tit = static_cast<int>(tk[t].find('*'));
                             if (tit != std::string::npos) // overall angle_cycles
-                                repeats = strtol(&tk[t][tit + 1], &cs, 0);
+                                repeats = static_cast<int>(strtol(&tk[t][tit + 1], &cs, 0));
 
                             if (repeats) {                                // run if overall cycles greater than 0
                                 // Solid signs (D,S,O,M,R) are not handled here; if present they behave as invalid characters.
