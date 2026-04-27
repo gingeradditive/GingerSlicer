@@ -42,7 +42,7 @@ inline float align_floor(float value, float base) { return std::floor((value) / 
 
 static bool is_valid_gcode(const std::string& gcode)
 {
-    int  str_size    = gcode.size();
+    int  str_size    = static_cast<int>(gcode.size());
     int  start_index = 0;
     int  end_index   = 0;
     bool is_valid    = false;
@@ -75,7 +75,7 @@ Polygon chamfer_polygon(Polygon& polygon, double chamfer_dis = 2., double angle_
         return polygon;
     Polygon res;
     res.points.reserve(polygon.points.size() * 2);
-    int    mod           = polygon.points.size();
+    int    mod           = static_cast<int>(polygon.points.size());
     double cos_angle_tol = abs(std::cos(angle_tol));
 
     for (int i = 0; i < polygon.points.size(); i++) {
@@ -110,7 +110,7 @@ Polygon rounding_polygon(Polygon& polygon, double rounding = 2., double angle_to
         return polygon;
     Polygon res;
     res.points.reserve(polygon.points.size() * 2);
-    int    mod           = polygon.points.size();
+    int    mod           = static_cast<int>(polygon.points.size());
     double cos_angle_tol = abs(std::cos(angle_tol));
 
     for (int i = 0; i < polygon.points.size(); i++) {
@@ -180,7 +180,7 @@ Polygon rounding_rectangle(Polygon& polygon, double rounding = 2., double angle_
         return polygon;
     Polygon res;
     res.points.reserve(polygon.points.size() * 2);
-    int    mod           = polygon.points.size();
+    int    mod           = static_cast<int>(polygon.points.size());
     double cos_angle_tol = abs(std::cos(angle_tol));
 
     for (int i = 0; i < polygon.points.size(); i++) {
@@ -354,7 +354,7 @@ IntersectionInfo move_point_along_polygon(
 {
     float            remainingDistance = offset;
     IntersectionInfo res;
-    int              mod = points.size();
+    int              mod = static_cast<int>(points.size());
     if (forward) {
         int next = (startIdx + 1) % mod;
         remainingDistance -= (points[next] - startPoint).norm();
@@ -473,7 +473,7 @@ Polylines remove_points_from_polygon(
             return lhs.dis_from_idx < rhs.dis_from_idx;
         return lhs.idx < rhs.idx;
     });
-    for (int i = inter_info.size() - 1; i >= 0; i--) {
+    for (int i = static_cast<int>(inter_info.size()) - 1; i >= 0; i--) {
         insert_points(new_pl, inter_info[i].idx, inter_info[i].pos, inter_info[i].pair_idx, inter_info[i].is_forward);
     }
 
@@ -682,8 +682,8 @@ public:
 			// Correct for the roundings of a squished extrusion.
 			width += m_layer_height * float(1. - M_PI / 4.);
 			if (m_extrusions.empty() || m_extrusions.back().pos != rotated_current_pos)
-				m_extrusions.emplace_back(WipeTower::Extrusion(rotated_current_pos, 0, m_current_tool));
-			m_extrusions.emplace_back(WipeTower::Extrusion(rot, width, m_current_tool));
+				m_extrusions.emplace_back(WipeTower::Extrusion(rotated_current_pos, 0, static_cast<unsigned int>(m_current_tool)));
+			m_extrusions.emplace_back(WipeTower::Extrusion(rot, width, static_cast<unsigned int>(m_current_tool)));
 		}
 
 		m_gcode += "G1";
@@ -999,7 +999,7 @@ public:
             // Correct for the roundings of a squished extrusion.
             width += m_layer_height * float(1. - M_PI / 4.);
             if (m_extrusions.empty() || m_extrusions.back().pos != rotated_current_pos)
-                m_extrusions.emplace_back(WipeTower::Extrusion(rotated_current_pos, 0, m_current_tool));
+                m_extrusions.emplace_back(WipeTower::Extrusion(rotated_current_pos, 0, static_cast<unsigned int>(m_current_tool)));
             {
                 int n = arc_fit_size;
                 for (int j = 0; j < n; j++) {
@@ -1009,9 +1009,9 @@ public:
                     else if (cur_angle < 0)
                         cur_angle += 2 * PI;
                     Point tmp = arc.center + Point{arc.radius * std::cos(cur_angle), arc.radius * std::sin(cur_angle)};
-                    m_extrusions.emplace_back(WipeTower::Extrusion(this->rotate(unscaled<float>(tmp)), width, m_current_tool));
+                    m_extrusions.emplace_back(WipeTower::Extrusion(this->rotate(unscaled<float>(tmp)), width, static_cast<unsigned int>(m_current_tool)));
                 }
-                m_extrusions.emplace_back(WipeTower::Extrusion(rot, width, m_current_tool));
+                m_extrusions.emplace_back(WipeTower::Extrusion(rot, width, static_cast<unsigned int>(m_current_tool)));
             }
         }
 
@@ -1081,11 +1081,11 @@ public:
                     continue;
                 for (int i = 0; i < pl.fitting_result.size(); i++) {
                     if (pl.fitting_result[i].path_type == EMovePathType::Linear_move) {
-                        for (int j = pl.fitting_result[i].start_point_index; j < pl.fitting_result[i].end_point_index; j++)
+                        for (int j = static_cast<int>(pl.fitting_result[i].start_point_index); j < static_cast<int>(pl.fitting_result[i].end_point_index); j++)
                             segments.push_back({unscaled<float>(pl.points[j]), unscaled<float>(pl.points[j + 1])});
                     } else {
-                        int beg = pl.fitting_result[i].start_point_index;
-                        int end = pl.fitting_result[i].end_point_index;
+                        int beg = static_cast<int>(pl.fitting_result[i].start_point_index);
+                        int end = static_cast<int>(pl.fitting_result[i].end_point_index);
                         segments.push_back({unscaled<float>(pl.points[beg]), unscaled<float>(pl.points[end])});
                         segments.back().is_arc     = true;
                         segments.back().arcsegment = pl.fitting_result[i].arc_data;
