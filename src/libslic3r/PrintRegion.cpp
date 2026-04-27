@@ -15,7 +15,7 @@ unsigned int PrintRegion::extruder(FlowRole role) const
         extruder = m_config.solid_infill_filament;
     else
         throw Slic3r::InvalidArgument("Unknown role");
-    return extruder;
+    return static_cast<unsigned int>(extruder);
 }
 
 Flow PrintRegion::flow(const PrintObject &object, FlowRole role, double layer_height, bool first_layer) const
