@@ -868,22 +868,22 @@ void EdgeGrid::Grid::calculate_sdf()
 	for (size_t r = 0; r < nrows; ++ r) {
 		if (r > 0)
 			for (size_t c = 0; c < ncols; ++ c)
-				danielsson_vstep(r, c, -int(ncols));
+				danielsson_vstep(static_cast<int>(r), static_cast<int>(c), -static_cast<int>(ncols));
 //				PROPAGATE_DANIELSSON_SINGLE_VSTEP3(-int(ncols), c != 0, c + 1 != ncols);
 		for (size_t c = 1; c < ncols; ++ c)
-			danielsson_hstep(r, c, -1);
+			danielsson_hstep(static_cast<int>(r), static_cast<int>(c), -1);
 		for (int c = int(ncols) - 2; c >= 0; -- c)
-			danielsson_hstep(r, c, +1);
+			danielsson_hstep(static_cast<int>(r), static_cast<int>(c), +1);
 	}
 	// Bottom to top propagation.
 	for (int r = int(nrows) - 2; r >= 0; -- r) {
 		for (size_t c = 0; c < ncols; ++ c)
-			danielsson_vstep(r, c, +ncols);
+			danielsson_vstep(static_cast<int>(r), static_cast<int>(c), +static_cast<int>(ncols));
 //			PROPAGATE_DANIELSSON_SINGLE_VSTEP3(+int(ncols), c != 0, c + 1 != ncols);
 		for (size_t c = 1; c < ncols; ++ c)
-			danielsson_hstep(r, c, -1);
+			danielsson_hstep(static_cast<int>(r), static_cast<int>(c), -1);
 		for (int c = int(ncols) - 2; c >= 0; -- c)
-			danielsson_hstep(r, c, +1);
+			danielsson_hstep(static_cast<int>(r), static_cast<int>(c), +1);
 	}
 
 	// Update signed distance field from absolte vectors to the iso-surface.
@@ -1077,8 +1077,8 @@ EdgeGrid::Grid::ClosestPointResult EdgeGrid::Grid::closest_point_signed_distance
 	// Signum of the distance field at pt.
 	int sign_min = 0;
 	double l2_seg_min = 1.;
-	for (int r = bbox.min(1); r <= bbox.max(1); ++ r) {
-		for (int c = bbox.min(0); c <= bbox.max(0); ++ c) {
+	for (int r = static_cast<int>(bbox.min(1)); r <= static_cast<int>(bbox.max(1)); ++ r) {
+		for (int c = static_cast<int>(bbox.min(0)); c <= static_cast<int>(bbox.max(0)); ++ c) {
 			const Cell &cell = m_cells[r * m_cols + c];
 			for (size_t i = cell.begin; i < cell.end; ++ i) {
 				const size_t   contour_idx = m_cell_data[i].first;
@@ -1207,8 +1207,8 @@ bool EdgeGrid::Grid::signed_distance_edges(const Point &pt, coord_t search_radiu
 	// Signum of the distance field at pt.
 	int sign_min = 0;
 	bool on_segment = false;
-	for (int r = bbox.min(1); r <= bbox.max(1); ++ r) {
-		for (int c = bbox.min(0); c <= bbox.max(0); ++ c) {
+	for (int r = static_cast<int>(bbox.min(1)); r <= static_cast<int>(bbox.max(1)); ++ r) {
+		for (int c = static_cast<int>(bbox.min(0)); c <= static_cast<int>(bbox.max(0)); ++ c) {
 			const Cell &cell = m_cells[r * m_cols + c];
 			for (size_t i = cell.begin; i < cell.end; ++ i) {
 				const Contour &contour = m_contours[m_cell_data[i].first];
@@ -1296,7 +1296,7 @@ Polygons EdgeGrid::Grid::contours_simplified(coord_t offset, bool fill_holes) co
 		std::vector<char> cell_inside2(cell_inside);
 		for (int r = 1; r + 1 < int(cell_rows); ++ r) {
 			for (int c = 1; c + 1 < int(cell_cols); ++ c) {
-				int addr = r * cell_cols + c;
+				int addr = static_cast<int>(r) * cell_cols + static_cast<int>(c);
 				if ((cell_inside2[addr - 1] && cell_inside2[addr + 1]) ||
 					(cell_inside2[addr - cell_cols] && cell_inside2[addr + cell_cols]))
 					cell_inside[addr] = true;
