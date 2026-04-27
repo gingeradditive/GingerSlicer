@@ -476,7 +476,7 @@ ImFont *StyleManager::create_imgui_font(const std::string &text, double scale)
 
     const std::vector<unsigned char> &buffer = *font_file.data;
     ImFont * font = m_style_cache.atlas.AddFontFromMemoryTTF(
-        (void *) buffer.data(), buffer.size(), font_size, &font_config, m_style_cache.ranges.Data);
+        (void *) buffer.data(), static_cast<int>(buffer.size()), font_size, &font_config, m_style_cache.ranges.Data);
 
     unsigned char *pixels;
     int            width, height;
