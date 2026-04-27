@@ -455,7 +455,7 @@ bool GLGizmoEmboss::do_mirror(size_t axis)
     if (is_per_glyph) { 
         // init textlines before mirroring on mirrored text volume transformation
         ModelVolumePtrs volumes = prepare_volumes_to_slice(*m_volume);
-        m_text_lines.init(tr, volumes, m_style_manager, m_text_lines.get_lines().size());
+        m_text_lines.init(tr, volumes, m_style_manager, static_cast<unsigned int>(m_text_lines.get_lines().size()));
     }
 
     m_volume->set_transformation(tr); 
@@ -666,7 +666,7 @@ void GLGizmoEmboss::volume_transformation_changing()
     }
     const FontProp &prop = m_volume->text_configuration->style.prop;
     if (prop.per_glyph)
-        init_text_lines(m_text_lines, m_parent.get_selection(), m_style_manager, m_text_lines.get_lines().size());
+        init_text_lines(m_text_lines, m_parent.get_selection(), m_style_manager, static_cast<unsigned int>(m_text_lines.get_lines().size()));
 }
 
 void GLGizmoEmboss::volume_transformation_changed()
@@ -692,7 +692,7 @@ void GLGizmoEmboss::volume_transformation_changed()
 
     bool per_glyph = tc.style.prop.per_glyph;
     if (per_glyph)
-        init_text_lines(m_text_lines, m_parent.get_selection(), m_style_manager, m_text_lines.get_lines().size());
+        init_text_lines(m_text_lines, m_parent.get_selection(), m_style_manager, static_cast<unsigned int>(m_text_lines.get_lines().size()));
 
     bool use_surface = es.projection.use_surface;
 
@@ -1669,7 +1669,7 @@ void GLGizmoEmboss::draw_font_list_line()
     if (exist_change) {
         m_style_manager.clear_glyphs_cache();
         if (m_style_manager.get_font_prop().per_glyph)
-            reinit_text_lines(m_text_lines.get_lines().size());
+            reinit_text_lines(static_cast<unsigned int>(m_text_lines.get_lines().size()));
         process();
     }
 }
@@ -1714,7 +1714,7 @@ void GLGizmoEmboss::draw_font_list()
         if (m_face_names->texture_id == 0)
             init_font_name_texture();
 
-        int show_items_count = is_filtered ? filtered_items_idx.size() : m_face_names->faces.size();
+        int show_items_count = is_filtered ? static_cast<int>(filtered_items_idx.size()) : static_cast<int>(m_face_names->faces.size());
 
         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
         ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(0, 0));
@@ -2714,7 +2714,7 @@ void GLGizmoEmboss::draw_advanced()
     float undo_offset = ImGui::GetStyle().WindowPadding.x;
     if (revertible(tr.alignment, font_prop.align, def_align, _u8L("Revert alignment."), undo_offset, draw_align)) {
         if (font_prop.per_glyph)
-            reinit_text_lines(m_text_lines.get_lines().size());
+            reinit_text_lines(static_cast<unsigned int>(m_text_lines.get_lines().size()));
         // TODO: move with text in finalize to not change position
         process();
     }
@@ -2763,7 +2763,7 @@ void GLGizmoEmboss::draw_advanced()
             // line gap is planed to be stored inside of imgui font atlas
             m_style_manager.clear_imgui_font();
             if (font_prop.per_glyph)
-                reinit_text_lines(m_text_lines.get_lines().size());
+                reinit_text_lines(static_cast<unsigned int>(m_text_lines.get_lines().size()));
             exist_change = true;
         }
     }
@@ -2882,7 +2882,7 @@ void GLGizmoEmboss::draw_advanced()
             m_style_manager.get_style().angle = calc_angle(selection);
         
         if (font_prop.per_glyph)
-            reinit_text_lines(m_text_lines.get_lines().size());
+            reinit_text_lines(static_cast<unsigned int>(m_text_lines.get_lines().size()));
 
         // recalculate for surface cut
         if (use_surface || font_prop.per_glyph) 
