@@ -1006,8 +1006,8 @@ void AuxiliaryPanel::create_folder(wxString name)
 
 std::string AuxiliaryPanel::replaceSpace(std::string s, std::string ts, std::string ns)
 {
-    int    index   = -1;
-    while ((index = s.find(ts.c_str())) >= 0) { s = s.replace(index, ts.length(), ns.c_str()); }
+    size_t index   = std::string::npos;
+    while ((index = s.find(ts.c_str())) != std::string::npos) { s = s.replace(index, ts.length(), ns.c_str()); }
     return s;
 }
 
