@@ -93,14 +93,14 @@ IconManager::Icons IconManager::init(const InitTypes &input)
     stbrp_init_target(&context, width, TEX_HEIGHT_MAX, nodes.data(), num_nodes);
 
     ImVector<stbrp_rect> pack_rects;
-    pack_rects.resize(input.size());
+    pack_rects.resize(static_cast<int>(input.size()));
     memset(pack_rects.Data, 0, (size_t) pack_rects.size_in_bytes());
     for (size_t i = 0; i < input.size(); i++) {
         const ImVec2 &size = input[i].size;
         assert(size.x > 1);
         assert(size.y > 1);
-        pack_rects[i].w = size.x;
-        pack_rects[i].h = size.y;
+        pack_rects[static_cast<int>(i)].w = size.x;
+        pack_rects[static_cast<int>(i)].h = size.y;
     }
     int pack_rects_res = stbrp_pack_rects(&context, &pack_rects[0], pack_rects.Size);
     assert(pack_rects_res == 1);
@@ -171,7 +171,7 @@ IconManager::Icons IconManager::init(const InitTypes &input)
         // scale should be same in both directions
         assert(is_approx(svg_scale, i.size.y / image->width));
                 
-        const stbrp_rect &rect = pack_rects[j];
+        const stbrp_rect &rect = pack_rects[static_cast<int>(j)];
         int n_pixels = rect.w * rect.h;
         std::vector<unsigned char> icon_data(n_pixels * channels, {0});
         ::nsvgRasterize(rast, image, 0, 0, svg_scale, icon_data.data(), i.size.x, i.size.y, i.size.x * channels);
@@ -245,9 +245,9 @@ std::vector<IconManager::Icons> IconManager::init(const std::vector<std::string>
         return {};
     }
 
-    unsigned count_files = file_paths.size();
+    unsigned count_files = static_cast<unsigned int>(file_paths.size());
     // count icons per file
-    unsigned count = states.size();
+    unsigned count = static_cast<unsigned int>(states.size());
     // create result
     std::vector<Icons> result;
     result.reserve(count_files);
