@@ -524,7 +524,7 @@ std::vector<unsigned> MeshRaycaster::get_unobscured_idxs(const Geometry::Transfo
                 is_obscured = true;
         }
         if (! is_obscured)
-            out.push_back(i);
+            out.push_back(static_cast<unsigned int>(i));
     }
     return out;
 }
