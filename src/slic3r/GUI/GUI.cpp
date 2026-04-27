@@ -420,7 +420,7 @@ void create_combochecklist(wxComboCtrl* comboCtrl, const std::string& text, cons
 			wxString label = from_u8(items_str[i]);
 			max_width = std::max(max_width, 60 + popup->GetTextExtent(label).x);
 			popup->Append(label);
-			popup->Check(i / 2, items_str[i + 1] == "1");
+			popup->Check(static_cast<unsigned int>(i / 2), items_str[i + 1] == "1");
 		}
 
 		comboCtrl->SetMinClientSize(wxSize(max_width, -1));
