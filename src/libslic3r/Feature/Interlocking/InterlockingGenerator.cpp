@@ -112,9 +112,9 @@ void InterlockingGenerator::handleThinAreas(const std::unordered_set<GridPoint3>
 
     // Only alter layers when they are present in both meshes, zip should take care if that.
     for (size_t layer_nr = 0; layer_nr < print_object.layer_count(); layer_nr++){
-        auto       layer   = print_object.get_layer(layer_nr);
-        ExPolygons polys_a = to_expolygons(layer->get_region(region_a_index)->slices.surfaces);
-        ExPolygons polys_b = to_expolygons(layer->get_region(region_b_index)->slices.surfaces);
+        auto       layer   = print_object.get_layer(static_cast<int>(layer_nr));
+        ExPolygons polys_a = to_expolygons(layer->get_region(static_cast<int>(region_a_index))->slices.surfaces);
+        ExPolygons polys_b = to_expolygons(layer->get_region(static_cast<int>(region_b_index))->slices.surfaces);
 
         const auto [from_border_a, from_border_b] = growBorderAreasPerpendicular(polys_a, polys_b, detect);
 
@@ -136,8 +136,8 @@ void InterlockingGenerator::handleThinAreas(const std::unordered_set<GridPoint3>
 
         // Expanded thin areas of the opposing polygon should 'eat into' the larger areas of the polygon,
         // and conversely, add the expansions to their own thin areas.
-        layer->get_region(region_a_index)->slices.set(closing_ex(diff_ex(union_ex(polys_a, thin_expansion_a), thin_expansion_b), close_gaps), stInternal);
-        layer->get_region(region_b_index)->slices.set(closing_ex(diff_ex(union_ex(polys_b, thin_expansion_b), thin_expansion_a), close_gaps), stInternal);
+        layer->get_region(static_cast<int>(region_a_index))->slices.set(closing_ex(diff_ex(union_ex(polys_a, thin_expansion_a), thin_expansion_b), close_gaps), stInternal);
+        layer->get_region(static_cast<int>(region_b_index))->slices.set(closing_ex(diff_ex(union_ex(polys_b, thin_expansion_b), thin_expansion_a), close_gaps), stInternal);
     }
 }
 
@@ -182,8 +182,8 @@ std::vector<std::unordered_set<GridPoint3>> InterlockingGenerator::getShellVoxel
         std::vector<ExPolygons> rotated_polygons_per_layer(print_object.layer_count());
         for (size_t layer_nr = 0; layer_nr < print_object.layer_count(); layer_nr++)
         {
-            auto layer = print_object.get_layer(layer_nr);
-            rotated_polygons_per_layer[layer_nr] = to_expolygons(layer->get_region(region)->slices.surfaces);
+            auto layer = print_object.get_layer(static_cast<int>(layer_nr));
+            rotated_polygons_per_layer[static_cast<int>(layer_nr)] = to_expolygons(layer->get_region(static_cast<int>(region))->slices.surfaces);
             expolygons_rotate(rotated_polygons_per_layer[layer_nr], rotation);
         }
 
@@ -226,8 +226,8 @@ std::vector<ExPolygons> InterlockingGenerator::computeUnionedVolumeRegions() con
     for (size_t layer_nr = 0; layer_nr < max_layer_count - 1; layer_nr++) {
         auto& layer_region = layer_regions[static_cast<size_t>(layer_nr)];
         for (size_t region_idx : {region_a_index, region_b_index}) {
-            auto layer = print_object.get_layer(layer_nr);
-            expolygons_append(layer_region, to_expolygons(layer->get_region(region_idx)->slices.surfaces));
+            auto layer = print_object.get_layer(static_cast<int>(layer_nr));
+            expolygons_append(layer_region, to_expolygons(layer->get_region(static_cast<int>(region_idx))->slices.surfaces));
         }
         layer_region = closing_ex(layer_region, ignored_gap_); // Morphological close to merge meshes into single volume
         expolygons_rotate(layer_region, rotation);
@@ -317,8 +317,8 @@ void InterlockingGenerator::applyMicrostructureToOutlines(const std::unordered_s
             const ExPolygons areas_here = intersection_ex(structure_per_layer[region_idx][layer_nr / static_cast<size_t>(beam_layer_count)], layer_outlines);
             const ExPolygons& areas_other = structure_per_layer[!region_idx][layer_nr / static_cast<size_t>(beam_layer_count)];
 
-            auto       layer  = print_object.get_layer(layer_nr);
-            auto&      slices = layer->get_region(region)->slices;
+            auto       layer  = print_object.get_layer(static_cast<int>(layer_nr));
+            auto&      slices = layer->get_region(static_cast<int>(region_idx))->slices;
             ExPolygons polys  = to_expolygons(slices.surfaces);
             slices.set(union_ex(diff_ex(polys, areas_other), // reduce layer areas inward with beams from other mesh
                                 areas_here)                  // extend layer areas outward with newly added beams
