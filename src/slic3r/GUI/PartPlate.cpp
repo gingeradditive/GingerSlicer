@@ -494,7 +494,7 @@ void PartPlate::calc_height_limit() {
     m_height_limit_top.reset();
 
 	Lines3 bottom_h_lines, top_lines, top_h_lines, common_lines;
-	int shape_count = m_shape.size();
+	int shape_count = static_cast<int>(m_shape.size());
 	float first_z = 0.02f;
 	for (int i = 0; i < shape_count; i++) {
 		auto &cur_p = m_shape[i];
@@ -938,7 +938,7 @@ void PartPlate::show_tooltip(const std::string tooltip)
 {
     const auto scale = m_plater->get_current_canvas3D()->get_scale();
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, {6 * scale, 3 * scale});
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, {3 * scale});
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, ImVec2(3 * scale, 3 * scale));
     ImGui::PushStyleColor(ImGuiCol_PopupBg, ImGuiWrapper::COL_WINDOW_BACKGROUND);
     ImGui::PushStyleColor(ImGuiCol_Border, {0, 0, 0, 0});
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.00f, 1.00f, 1.00f, 1.00f));
@@ -1435,7 +1435,7 @@ std::vector<int> PartPlate::get_extruders(bool conside_custom_gcode) const
 		//BBS
         int nums_extruders = 0;
         if (const ConfigOptionStrings *color_option = dynamic_cast<const ConfigOptionStrings *>(wxGetApp().preset_bundle->project_config.option("filament_colour"))) {
-            nums_extruders = color_option->values.size();
+            nums_extruders = static_cast<int>(color_option->values.size());
 			if (m_model->plates_custom_gcodes.find(m_plate_index) != m_model->plates_custom_gcodes.end()) {
 				for (auto item : m_model->plates_custom_gcodes.at(m_plate_index).gcodes) {
 					if (item.type == CustomGCode::Type::ToolChange && item.extruder <= nums_extruders)
@@ -1557,7 +1557,7 @@ std::vector<int> PartPlate::get_extruders_under_cli(bool conside_custom_gcode, D
         //BBS
         int nums_extruders = 0;
         if (const ConfigOptionStrings *color_option = dynamic_cast<const ConfigOptionStrings *>(full_config.option("filament_colour"))) {
-            nums_extruders = color_option->values.size();
+            nums_extruders = static_cast<int>(color_option->values.size());
             if (m_model->plates_custom_gcodes.find(m_plate_index) != m_model->plates_custom_gcodes.end()) {
                 for (auto item : m_model->plates_custom_gcodes.at(m_plate_index).gcodes) {
                     if (item.type == CustomGCode::Type::ToolChange && item.extruder <= nums_extruders)
@@ -1658,7 +1658,7 @@ Vec3d PartPlate::estimate_wipe_tower_size(const DynamicPrintConfig & config, con
 	if (plate_extruder_size == 0)
     {
         std::vector<int> plate_extruders = get_extruders(true);
-        plate_extruder_size = plate_extruders.size();
+        plate_extruder_size = static_cast<int>(plate_extruders.size());
     }
 	if (plate_extruder_size == 0)
 		return wipe_tower_size;
@@ -2273,7 +2273,7 @@ void PartPlate::duplicate_all_instance(unsigned int dup_count, bool need_skip, s
 
             if (need_skip)
             {
-                if (skip_objects.find(instance->loaded_id) != skip_objects.end())
+                if (skip_objects.find(static_cast<int>(instance->loaded_id)) != skip_objects.end())
                 {
                     instance->printable = false;
                     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": skipped object, loaded_id %1%, name %2%, set to unprintable, no need to duplicate") % instance->loaded_id % object->name;
@@ -2284,10 +2284,10 @@ void PartPlate::duplicate_all_instance(unsigned int dup_count, bool need_skip, s
             {
                 ModelObject* newObj = m_model->add_object(*object);
                 newObj->name = object->name +"_"+ std::to_string(index+1);
-                int new_obj_id = m_model->objects.size() - 1;
+                int new_obj_id = static_cast<int>(m_model->objects.size()) - 1;
                 for ( size_t new_instance_id = 0; new_instance_id < newObj->instances.size(); new_instance_id++ )
                 {
-                    obj_to_instance_set.emplace(std::pair(new_obj_id, new_instance_id));
+                    obj_to_instance_set.emplace(std::pair(new_obj_id, static_cast<int>(new_instance_id)));
                     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(": duplicate object into plate: index_pair [%1%,%2%], obj_id %3%") % new_obj_id % new_instance_id % newObj->id().id;
                 }
             }
@@ -3063,7 +3063,7 @@ void PartPlate::update_first_layer_print_sequence(size_t filament_nums)
 			}
 			if (orders.size() < filament_nums) {
 				for (size_t extruder_id = orders.size(); extruder_id < filament_nums; ++extruder_id) {
-					orders.push_back(extruder_id + 1);
+					orders.push_back(static_cast<int>(extruder_id) + 1);
 					need_update_data = true;
 				}
 			}
@@ -3088,7 +3088,7 @@ void PartPlate::update_first_layer_print_sequence(size_t filament_nums)
     }
 	else if (print_sequence_1st.size() < filament_nums) {
         for (size_t extruder_id = print_sequence_1st.size(); extruder_id < filament_nums; ++extruder_id) {
-            print_sequence_1st.push_back(extruder_id + 1);
+            print_sequence_1st.push_back(static_cast<int>(extruder_id) + 1);
 		}
     }
 }
@@ -3584,7 +3584,7 @@ int PartPlateList::create_plate(bool adjust_position)
 	Vec3d origin;
 	int new_index;
 
-	new_index = m_plate_list.size();
+	new_index = static_cast<int>(m_plate_list.size());
 	if (new_index >= MAX_PLATES_COUNT)
 		return -1;
 	int cols = compute_colum_count(new_index + 1);
@@ -3762,8 +3762,8 @@ int PartPlateList::delete_plate(int index)
 			wipe_tower_y->values.erase(wipe_tower_y->values.begin() + index);
 	}
 
-	int cols = compute_colum_count(m_plate_list.size() - 1);
-	int old_cols = compute_colum_count(m_plate_list.size());
+	int cols = compute_colum_count(static_cast<int>(m_plate_list.size()) - 1);
+	int old_cols = compute_colum_count(static_cast<int>(m_plate_list.size()));
 
 	m_plate_list.erase(m_plate_list.begin() + index);
 	update_plate_cols();
@@ -3802,7 +3802,7 @@ int PartPlateList::delete_plate(int index)
 			m_plater->set_bed_position(pos);
 	}
 
-	unprintable_plate.set_index(m_plate_list.size());
+	unprintable_plate.set_index(static_cast<int>(m_plate_list.size()));
 
 	if (old_cols != cols)
 	{
@@ -4000,7 +4000,7 @@ int PartPlateList::get_plate_count() const
 {
 	int ret = 0;
 
-	ret = m_plate_list.size();
+	ret = static_cast<int>(m_plate_list.size());
 
 	return ret;
 }
@@ -4008,7 +4008,7 @@ int PartPlateList::get_plate_count() const
 //update the plate cols due to plate count change
 void PartPlateList::update_plate_cols()
 {
-	m_plate_count = m_plate_list.size();
+	m_plate_count = static_cast<int>(m_plate_list.size());
 
 	m_plate_cols = compute_colum_count(m_plate_count);
 	BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(":m_plate_count %1%, m_plate_cols change to %2%") % m_plate_count % m_plate_cols;
@@ -4354,9 +4354,9 @@ int PartPlateList::notify_instance_removed(int obj_id, int instance_id)
 			PartPlate* plate = m_plate_list[i];
 			assert(plate != NULL);
 
-			plate->update_object_index(obj_id, m_model->objects.size());
+			plate->update_object_index(obj_id, static_cast<int>(m_model->objects.size()));
 		}
-		unprintable_plate.update_object_index(obj_id, m_model->objects.size());
+		unprintable_plate.update_object_index(obj_id, static_cast<int>(m_model->objects.size()));
 	}
 
 	return 0;
@@ -4762,7 +4762,7 @@ void PartPlateList::postprocess_bed_index_for_current_plate(arrangement::Arrange
 	else if (arrange_polygon.bed_idx == 0)
 		arrange_polygon.bed_idx += m_current_plate;
 	else
-		arrange_polygon.bed_idx = m_plate_list.size();
+		arrange_polygon.bed_idx = static_cast<int>(m_plate_list.size());
 
 	return;
 }
@@ -4777,7 +4777,7 @@ void PartPlateList::postprocess_arrange_polygon(arrangement::ArrangePolygon& arr
 		if (arrange_polygon.bed_idx == -1)
 		{
 			// outarea for large object
-			arrange_polygon.bed_idx = m_plate_list.size();
+			arrange_polygon.bed_idx = static_cast<int>(m_plate_list.size());
 			BoundingBox apbox = get_extents(arrange_polygon.transformed_poly());  // the item may have been rotated
 			auto        apbox_size = apbox.size();
 
