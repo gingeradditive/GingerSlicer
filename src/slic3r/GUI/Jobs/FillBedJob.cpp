@@ -63,7 +63,7 @@ void FillBedJob::prepare()
                 if (mo->instances[inst_idx]->printable)
                 {
                     ++ap.priority;
-                    ap.itemid = m_selected.size();
+                    ap.itemid = static_cast<int>(m_selected.size());
                     m_selected.emplace_back(ap);
                 }
                 else
@@ -71,7 +71,7 @@ void FillBedJob::prepare()
                     if (plate_bb.contains(ap_bb))
                     {
                         ap.bed_idx = 0;
-                        ap.itemid = m_unselected.size();
+                        ap.itemid = static_cast<int>(m_unselected.size());
                         ap.row = cur_plate_index / plate_cols;
                         ap.col = cur_plate_index % plate_cols;
                         ap.translation(X) -= bed_stride_x(m_plater) * ap.col;
@@ -81,7 +81,7 @@ void FillBedJob::prepare()
                     else
                     {
                         ap.bed_idx = PartPlateList::MAX_PLATES_COUNT;
-                        ap.itemid = m_locked.size();
+                        ap.itemid = static_cast<int>(m_locked.size());
                         m_locked.emplace_back(ap);
                     }
                 }
@@ -173,7 +173,7 @@ void FillBedJob::prepare()
         ap.poly = m_selected.front().poly;
         ap.bed_idx = PartPlateList::MAX_PLATES_COUNT;
         ap.itemid = -1;
-        ap.setter = [this, mi](const ArrangePolygon &p) {
+        ap.setter = [this](const ArrangePolygon &p) {
             ModelObject *mo = m_plater->model().objects[m_object_idx];
             ModelObject* newObj = m_plater->model().add_object(*mo);
             newObj->name = mo->name +" "+ std::to_string(p.itemid);
@@ -279,7 +279,7 @@ void FillBedJob::finalize(bool canceled, std::exception_ptr &eptr)
         return s + int(ap.priority == 0 && ap.bed_idx == 0);
     });
 
-    int oldSize = m_plater->model().objects.size();
+    int oldSize = static_cast<int>(m_plater->model().objects.size());
 
     if (added_cnt > 0) {
         //BBS: adjust the selected instances
@@ -305,10 +305,10 @@ void FillBedJob::finalize(bool canceled, std::exception_ptr &eptr)
             BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(":selected: bed_id %1%, trans {%2%,%3%}") % ap.bed_idx % unscale<double>(ap.translation(X)) % unscale<double>(ap.translation(Y));
         }
 
-        int   newSize = m_plater->model().objects.size();
+        int   newSize = static_cast<int>(m_plater->model().objects.size());
         auto obj_list = m_plater->sidebar().obj_list();
         for (size_t i = oldSize; i < newSize; i++) {
-            obj_list->add_object_to_list(i, true, true, false);
+            obj_list->add_object_to_list(static_cast<int>(i), true, true, false);
             obj_list->update_printable_state(i, 0);
         }
 
