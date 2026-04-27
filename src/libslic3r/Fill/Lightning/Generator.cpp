@@ -31,7 +31,7 @@ static  std::string get_svg_filename(std::string layer_nr_or_z, std::string tag 
     static bool rand_init = false;
 
     if (!rand_init) {
-        srand(time(NULL));
+        srand(static_cast<unsigned int>(time(NULL)));
         rand_init = true;
     }
 
