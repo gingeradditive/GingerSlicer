@@ -54,9 +54,9 @@ OG_CustomCtrl::OG_CustomCtrl(   wxWindow*            parent,
     m_font = Label::Body_14;
     SetFont(m_font);
     m_em_unit   = em_unit(m_parent);
-    m_v_gap   = lround(1.2 * m_em_unit);
-    m_v_gap2  = lround(0.8 * m_em_unit);
-    m_h_gap   = lround(0.2 * m_em_unit);
+    m_v_gap   = static_cast<int>(lround(1.2 * m_em_unit));
+    m_v_gap2  = static_cast<int>(lround(0.8 * m_em_unit));
+    m_h_gap   = static_cast<int>(lround(0.2 * m_em_unit));
 
     //m_bmp_mode_sz       = get_bitmap_size(create_scaled_bitmap("mode_simple", this, wxOSX ? 10 : 12));
     m_bmp_blinking_sz   = get_bitmap_size(create_scaled_bitmap("blank_16", this));
@@ -103,7 +103,7 @@ void OG_CustomCtrl::init_ctrl_lines()
             wxSize label_sz = GetTextExtent(line.label);
             if (opt_group->split_multi_line) {
                 if (option_set.size() > 1) // BBS
-                    height = (label_sz.y + m_v_gap2) * option_set.size() + m_v_gap - m_v_gap2;
+                    height = static_cast<int>((label_sz.y + m_v_gap2) * option_set.size() + m_v_gap - m_v_gap2);
                 else
                     height = label_sz.y * (label_sz.GetWidth() > int(opt_group->label_width * m_em_unit) ? 2 : 1) + m_v_gap;
             } else {
@@ -158,7 +158,7 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
             ctrl_line.height = size.y;
     };
 
-    auto add_buttons_width = [&h_pos, this] (int blinking_button_width) {
+    auto add_buttons_width = [&h_pos] (int blinking_button_width) {
 #ifndef DISABLE_BLINKING
 #  ifndef DISABLE_UNDO_SYS
         h_pos += 3 * blinking_button_width;
@@ -189,7 +189,7 @@ wxPoint OG_CustomCtrl::get_pos(const Line& line, Field* field_in/* = nullptr*/)
 
             wxString label = line.label;
             if (opt_group->label_width != 0)
-                add_label_width(ctrl_line, label, opt_group->label_width * m_em_unit);
+                add_label_width(ctrl_line, label, static_cast<int>(opt_group->label_width * m_em_unit));
 
             int blinking_button_width = m_bmp_blinking_sz.GetWidth() + m_h_gap;
 
@@ -696,7 +696,7 @@ void OG_CustomCtrl::CtrlLine::msw_rescale()
         if (ctrl->opt_group->split_multi_line) { // BBS
             const std::vector<Option> &option_set = og_line.get_options();
             if (option_set.size() > 1)
-                height = (label_sz.y + ctrl->m_v_gap2) * option_set.size() + ctrl->m_v_gap - ctrl->m_v_gap2;
+                height = static_cast<int>((label_sz.y + ctrl->m_v_gap2) * option_set.size() + ctrl->m_v_gap - ctrl->m_v_gap2);
             else
                 height = label_sz.y * (label_sz.GetWidth() > int(ctrl->opt_group->label_width * ctrl->m_em_unit) ? 2 : 1) + ctrl->m_v_gap;
         } else {
@@ -798,7 +798,7 @@ void OG_CustomCtrl::CtrlLine::render(wxDC& dc, wxCoord h_pos, wxCoord v_pos)
         }
         is_url_string = !suppress_hyperlinks && !og_line.label_path.empty();
         // BBS
-        h_pos = draw_text(dc, wxPoint(h_pos, v_pos), label /* + ":" */, text_clr, ctrl->opt_group->label_width * ctrl->m_em_unit, is_url_string, true);
+        h_pos = draw_text(dc, wxPoint(h_pos, v_pos), label /* + ":" */, text_clr, static_cast<int>(ctrl->opt_group->label_width * ctrl->m_em_unit), is_url_string, true);
     }
 
     // If there's a widget, build it and set result to the correct position.
@@ -922,9 +922,9 @@ wxCoord OG_CustomCtrl::CtrlLine::draw_text(wxDC &dc, wxPoint pos, const wxString
 
         if (ctrl->opt_group->split_multi_line && !is_main) { // BBS
             const std::vector<Option> &option_set = og_line.get_options();
-            pos.y = pos.y + lround(((height - ctrl->m_v_gap + ctrl->m_v_gap2) / option_set.size() - size.y) / 2);
+            pos.y = pos.y + static_cast<int>(lround(((height - ctrl->m_v_gap + ctrl->m_v_gap2) / option_set.size() - size.y) / 2));
         } else {
-            pos.y = pos.y + lround((height - size.y) / 2);
+            pos.y = pos.y + static_cast<int>(lround((height - size.y) / 2));
         }
         if (width > 0)
             rect_label = wxRect(pos, wxSize(size.x, size.y));
@@ -957,7 +957,7 @@ wxPoint OG_CustomCtrl::CtrlLine::draw_blinking_bmp(wxDC& dc, wxPoint pos, bool i
 {
     wxBitmap bmp_blinking = create_scaled_bitmap(is_blinking ? "blank_16" : "empty", ctrl);
     wxCoord h_pos = pos.x;
-    wxCoord v_pos = pos.y + lround((height - get_bitmap_size(bmp_blinking).GetHeight()) / 2);
+    wxCoord v_pos = pos.y + static_cast<int>(lround((height - get_bitmap_size(bmp_blinking).GetHeight()) / 2));
 
     dc.DrawBitmap(bmp_blinking, h_pos, v_pos);
 
