@@ -84,7 +84,8 @@ static Slic3r::ColorRGBA ERROR_BG_LIGHT_COLOR_DARK   = { 0.753f, 0.192f, 0.039f,
 
 void GLCanvas3D::update_render_colors()
 {
-    DEFAULT_BG_LIGHT_COLOR = ImGuiWrapper::from_ImVec4(RenderColor::colors[RenderCol_3D_Background]);
+    // Fix background color to #E7E7E7
+    // DEFAULT_BG_LIGHT_COLOR = ImGuiWrapper::from_ImVec4(RenderColor::colors[RenderCol_3D_Background]);
 }
 
 void GLCanvas3D::load_render_colors()
@@ -7495,7 +7496,7 @@ void GLCanvas3D::_check_and_update_toolbar_icon_scale()
     m_main_toolbar.set_icons_size(size);
     m_assemble_view_toolbar.set_icons_size(size);
     m_separator_toolbar.set_icons_size(size);
-    collapse_toolbar.set_icons_size(size / 2.0);
+    // collapse_toolbar icons size is set statically in init_collapse_toolbar
     m_gizmos.set_overlay_icon_size(size);
 
     //BBS: GUI refactor: GLToolbar
@@ -8268,9 +8269,18 @@ void GLCanvas3D::_render_collapse_toolbar() const
     GLToolbar& collapse_toolbar = plater.get_collapse_toolbar();
 
     const Size cnv_size = get_canvas_size();
-    const float top  = 0.5f * (float)cnv_size.get_height();
-    const float left = sidebar_docking_dir == Sidebar::Right ? 0.5f * (float) cnv_size.get_width() - (float) collapse_toolbar.get_width() :
-                                                               -0.5f * (float) cnv_size.get_width();
+    const float top  = 0.5f * (float)cnv_size.get_height() - 16.0f;
+    float left = sidebar_docking_dir == Sidebar::Right ? 0.5f * (float) cnv_size.get_width() - (float) collapse_toolbar.get_width() :
+                                                         -0.5f * (float) cnv_size.get_width();
+
+    // Add 16px margin from right when sidebar is collapsed
+    if (plater.is_sidebar_collapsed()) {
+        if (sidebar_docking_dir == Sidebar::Right) {
+            left -= 16.0f;
+        } else {
+            left += 16.0f;
+        }
+    }
 
     collapse_toolbar.set_position(top, left);
     collapse_toolbar.render(*this);

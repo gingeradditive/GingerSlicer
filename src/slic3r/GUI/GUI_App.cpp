@@ -100,9 +100,11 @@
 #include "DownloadProgressDialog.hpp"
 
 #include "BitmapCache.hpp"
-#include "Notebook.hpp"
-#include "Widgets/Label.hpp"
+#include "PartPlate.hpp"
+#include "Preferences.hpp"
 #include "Widgets/ProgressDialog.hpp"
+#include "Widgets/Label.hpp"
+#include "Widgets/SwitchButton.hpp"
 
 //BBS: DailyTip and UserGuide Dialog
 #include "ReleaseNote.hpp"
@@ -3264,6 +3266,10 @@ void GUI_App::update_mode()
     if (mainframe->m_printer_view)
         mainframe->m_printer_view->update_mode();
     mainframe->m_webview->update_mode();
+
+    // Update advanced toggle in notebook
+    if (mainframe->m_advanced_view)
+        mainframe->m_advanced_view->SetValue(get_mode() == comAdvanced);
 
     for (auto tab : tabs_list)
         tab->update_mode();

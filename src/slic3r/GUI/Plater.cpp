@@ -631,7 +631,7 @@ static DynamicFilamentList dynamic_filament_list;
 static DynamicFilamentList1Based dynamic_filament_list_1_based;
 
 Sidebar::Sidebar(Plater *parent)
-    : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxSize(42 * wxGetApp().em_unit(), -1)), p(new priv(parent))
+    : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxSize(48 * wxGetApp().em_unit(), -1)), p(new priv(parent))
 {
     Choice::register_dynamic_list("support_filament", &dynamic_filament_list);
     Choice::register_dynamic_list("support_interface_filament", &dynamic_filament_list);
@@ -659,7 +659,7 @@ Sidebar::Sidebar(Plater *parent)
     auto* scrolled_sizer = m_scrolled_sizer = new wxBoxSizer(wxVERTICAL);
     p->scrolled->SetSizer(scrolled_sizer);
 
-    wxColour title_bg = wxColour(248, 248, 248);
+    wxColour title_bg = *wxWHITE;
     wxColour inactive_text = wxColour(86, 86, 86);
     wxColour active_text = wxColour(0, 0, 0);
     wxColour static_line_col = wxColour(166, 169, 170);
@@ -674,10 +674,10 @@ Sidebar::Sidebar(Plater *parent)
         // 1.1 create title bar resources
         p->m_panel_printer_title = new StaticBox(p->scrolled, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL | wxBORDER_NONE);
         p->m_panel_printer_title->SetBackgroundColor(title_bg);
-        p->m_panel_printer_title->SetBackgroundColor2(0xF1F1F1);
 
         p->m_printer_icon = new ScalableButton(p->m_panel_printer_title, wxID_ANY, "printer");
         p->m_text_printer_settings = new Label(p->m_panel_printer_title, _L("Printer"), LB_PROPAGATE_MOUSE_EVENT);
+        p->m_text_printer_settings->SetFont(Label::Head_14);
 
         p->m_printer_icon->Bind(wxEVT_BUTTON, [this](wxCommandEvent& e) {
             //auto wizard_t = new ConfigWizard(wxGetApp().mainframe);
@@ -685,23 +685,35 @@ Sidebar::Sidebar(Plater *parent)
             });
 
         wxBoxSizer* h_sizer_title = new wxBoxSizer(wxHORIZONTAL);
-        h_sizer_title->Add(p->m_printer_icon, 0, wxALIGN_CENTRE | wxLEFT, FromDIP(SidebarProps::TitlebarMargin()));
-        h_sizer_title->AddSpacer(FromDIP(SidebarProps::ElementSpacing()));
+        h_sizer_title->Add(p->m_printer_icon, 0, wxALIGN_CENTRE | wxLEFT, FromDIP(16));
         h_sizer_title->Add(p->m_text_printer_settings, 0, wxALIGN_CENTER);
         h_sizer_title->AddStretchSpacer();
         if (p->m_printer_setting)
             h_sizer_title->Add(p->m_printer_setting, 0, wxALIGN_CENTER);
-        h_sizer_title->AddSpacer(FromDIP(SidebarProps::TitlebarMargin()));
         h_sizer_title->SetMinSize(-1, 3 * em);
 
         p->m_panel_printer_title->SetSizer(h_sizer_title);
         p->m_panel_printer_title->Layout();
 
-        // 1.2 Add spliters around title bar
-        // add spliter 1
-        //auto spliter_1 = new ::StaticLine(p->scrolled);
-        //spliter_1->SetBackgroundColour("#A6A9AA");
-        //scrolled_sizer->Add(spliter_1, 0, wxEXPAND);
+        // add top bar before printer title (3 bars: white top, gray middle, white bottom)
+        wxWindow* printer_top_bar_middle = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+        printer_top_bar_middle->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
+        scrolled_sizer->Add(printer_top_bar_middle, 0, wxEXPAND);
+
+        wxWindow* printer_top_bar_bottom = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+        printer_top_bar_bottom->SetBackgroundColour(*wxWHITE);
+        {
+            wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
+            auto corner_left = create_scaled_bitmap("card_corner_180", p->scrolled, 16);
+            wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(printer_top_bar_bottom, wxID_ANY, corner_left);
+            bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
+            bar_sizer->AddStretchSpacer(1);
+            auto corner_right = create_scaled_bitmap("card_corner_270", p->scrolled, 16);
+            wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(printer_top_bar_bottom, wxID_ANY, corner_right);
+            bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
+            printer_top_bar_bottom->SetSizer(bar_sizer);
+        }
+        scrolled_sizer->Add(printer_top_bar_bottom, 0, wxEXPAND);
 
         // add printer title
         scrolled_sizer->Add(p->m_panel_printer_title, 0, wxEXPAND | wxALL, 0);
@@ -738,8 +750,6 @@ Sidebar::Sidebar(Plater *parent)
         p->combo_printer = combo_printer;
 
         wxBoxSizer* vsizer_printer = new wxBoxSizer(wxVERTICAL);
-
-        vsizer_printer->AddSpacer(FromDIP(16));
 
         // Printer host selection (above machine preset)
         {
@@ -861,7 +871,6 @@ Sidebar::Sidebar(Plater *parent)
             host_sizer->Add(m_printer_host_list, 1, wxLEFT | wxEXPAND, FromDIP(SidebarProps::ElementSpacing()));
             host_sizer->Add(m_btn_add_host, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()));
             host_sizer->Add(m_btn_remove_host, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::IconSpacing()));
-            host_sizer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
             vsizer_printer->Add(host_sizer, 0, wxEXPAND, 0);
             vsizer_printer->AddSpacer(FromDIP(5));
         }
@@ -873,21 +882,17 @@ Sidebar::Sidebar(Plater *parent)
         hsizer_printer->Add(printer_title, 0, wxLEFT | wxALIGN_CENTER_VERTICAL, FromDIP(SidebarProps::ContentMargin()));
         hsizer_printer->Add(combo_printer, 1, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()));
         hsizer_printer->Add(edit_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()));
-        hsizer_printer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
         vsizer_printer->Add(hsizer_printer, 0, wxEXPAND, 0);
-
-        vsizer_printer->AddSpacer(FromDIP(16));
 
         p->m_panel_printer_content->SetSizer(vsizer_printer);
         p->m_panel_printer_content->Layout();
-        scrolled_sizer->Add(p->m_panel_printer_content, 0, wxEXPAND, 0);
+        scrolled_sizer->Add(p->m_panel_printer_content, 0, wxEXPAND | wxLEFT | wxRIGHT, FromDIP(16));
     }
 
     {
     // add filament title
     p->m_panel_filament_title = new StaticBox(p->scrolled, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL | wxBORDER_NONE);
     p->m_panel_filament_title->SetBackgroundColor(title_bg);
-    p->m_panel_filament_title->SetBackgroundColor2(0xF1F1F1);
     p->m_panel_filament_title->Bind(wxEVT_LEFT_UP, [this](wxMouseEvent &e) {
         if (e.GetPosition().x > (p->m_flushing_volume_btn->IsShown()
                 ? p->m_flushing_volume_btn->GetPosition().x : 0))
@@ -903,8 +908,8 @@ Sidebar::Sidebar(Plater *parent)
     bSizer39 = new wxBoxSizer( wxHORIZONTAL );
     p->m_filament_icon = new ScalableButton(p->m_panel_filament_title, wxID_ANY, "filament");
     p->m_staticText_filament_settings = new Label(p->m_panel_filament_title, _L("Filament"), LB_PROPAGATE_MOUSE_EVENT);
-    bSizer39->Add(p->m_filament_icon, 0, wxALIGN_CENTER | wxLEFT, FromDIP(SidebarProps::TitlebarMargin()));
-    bSizer39->AddSpacer(FromDIP(SidebarProps::ElementSpacing()));
+    p->m_staticText_filament_settings->SetFont(Label::Head_14);
+    bSizer39->Add(p->m_filament_icon, 0, wxALIGN_CENTER | wxLEFT, FromDIP(16));
     bSizer39->Add( p->m_staticText_filament_settings, 0, wxALIGN_CENTER );
     bSizer39->Add(FromDIP(10), 0, 0, 0, 0);
     bSizer39->SetMinSize(-1, FromDIP(30));
@@ -914,6 +919,42 @@ Sidebar::Sidebar(Plater *parent)
     auto spliter_1 = new StaticLine(p->scrolled);
     spliter_1->SetLineColour("#A6A9AA");
     scrolled_sizer->Add(spliter_1, 0, wxEXPAND);
+
+    // add top bar before filament title (3 bars: white top, gray middle, white bottom)
+    wxWindow* filament_top_bar_top = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+    filament_top_bar_top->SetBackgroundColour(*wxWHITE);
+    {
+        wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
+        auto corner_left = create_scaled_bitmap("card_corner_90", p->scrolled, 16);
+        wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(filament_top_bar_top, wxID_ANY, corner_left);
+        bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
+        bar_sizer->AddStretchSpacer(1);
+        auto corner_right = create_scaled_bitmap("card_corner_0", p->scrolled, 16);
+        wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(filament_top_bar_top, wxID_ANY, corner_right);
+        bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
+        filament_top_bar_top->SetSizer(bar_sizer);
+    }
+    scrolled_sizer->Add(filament_top_bar_top, 0, wxEXPAND);
+
+    wxWindow* filament_top_bar_middle = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+    filament_top_bar_middle->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
+    scrolled_sizer->Add(filament_top_bar_middle, 0, wxEXPAND);
+
+    wxWindow* filament_top_bar_bottom = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+    filament_top_bar_bottom->SetBackgroundColour(*wxWHITE);
+    {
+        wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
+        auto corner_left = create_scaled_bitmap("card_corner_180", p->scrolled, 16);
+        wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(filament_top_bar_bottom, wxID_ANY, corner_left);
+        bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
+        bar_sizer->AddStretchSpacer(1);
+        auto corner_right = create_scaled_bitmap("card_corner_270", p->scrolled, 16);
+        wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(filament_top_bar_bottom, wxID_ANY, corner_right);
+        bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
+        filament_top_bar_bottom->SetSizer(bar_sizer);
+    }
+    scrolled_sizer->Add(filament_top_bar_bottom, 0, wxEXPAND);
+
     scrolled_sizer->Add(p->m_panel_filament_title, 0, wxEXPAND | wxALL, 0);
     auto spliter_2 = new StaticLine(p->scrolled);
     spliter_2->SetLineColour("#CECECE");
@@ -956,15 +997,9 @@ Sidebar::Sidebar(Plater *parent)
     bSizer39->Add(p->m_flushing_volume_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(5));
     bSizer39->Hide(p->m_flushing_volume_btn);
 
-    // ORCA Moved add button after delete button to prevent add button position change when remove icon automatically hidden
-
-    bSizer39->AddSpacer(FromDIP(20));
-
     if (p->combos_filament.size() <= 1) { // ORCA Fix Flushing button and Delete filament button not hidden on launch while only 1 filament exist
         bSizer39->Hide(p->m_flushing_volume_btn);
     }
-
-
 
     // add filament content
     p->m_panel_filament_content = new wxPanel( p->scrolled, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
@@ -983,8 +1018,6 @@ Sidebar::Sidebar(Plater *parent)
     /* first filament item */
     p->combos_filament[0] = new PlaterPresetComboBox(p->m_panel_filament_content, Preset::TYPE_FILAMENT);
     auto combo_and_btn_sizer = new wxBoxSizer(wxHORIZONTAL);
-    // BBS:  filament double columns
-    combo_and_btn_sizer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
     if (p->combos_filament[0]->clr_picker) {
         p->combos_filament[0]->clr_picker->SetLabel("1");
         combo_and_btn_sizer->Add(p->combos_filament[0]->clr_picker, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT,FromDIP(SidebarProps::ElementSpacing()) - FromDIP(2)); // ElementSpacing - 2 (from combo box))
@@ -1004,19 +1037,16 @@ Sidebar::Sidebar(Plater *parent)
     combobox->edit_btn = edit_btn;
 
     combo_and_btn_sizer->Add(edit_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()) - FromDIP(2)); // ElementSpacing - 2 (from combo box))
-    combo_and_btn_sizer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
 
     p->combos_filament[0]->set_filament_idx(0);
     p->sizer_filaments->GetItem((size_t)0)->GetSizer()->Add(combo_and_btn_sizer, 1, wxEXPAND);
 
     //bSizer_filament_content->Add(p->sizer_filaments, 1, wxALIGN_CENTER | wxALL);
     wxSizer *sizer_filaments2 = new wxBoxSizer(wxVERTICAL);
-    sizer_filaments2->AddSpacer(FromDIP(16));
     sizer_filaments2->Add(p->sizer_filaments, 0, wxEXPAND, 0);
-    sizer_filaments2->AddSpacer(FromDIP(16));
     p->m_panel_filament_content->SetSizer(sizer_filaments2);
     p->m_panel_filament_content->Layout();
-    scrolled_sizer->Add(p->m_panel_filament_content, 0, wxEXPAND, 0);
+    scrolled_sizer->Add(p->m_panel_filament_content, 0, wxEXPAND | wxLEFT | wxRIGHT, FromDIP(16));
     }
 
     {
@@ -1027,6 +1057,42 @@ Sidebar::Sidebar(Plater *parent)
         auto spliter_1 = new StaticLine(p->scrolled);
         spliter_1->SetLineColour("#A6A9AA");
         scrolled_sizer->Add(spliter_1, 0, wxEXPAND);
+
+        // add top bar before project title (3 bars: white top, gray middle, white bottom)
+        wxWindow* project_top_bar_top = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+        project_top_bar_top->SetBackgroundColour(*wxWHITE);
+        {
+            wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
+            auto corner_left = create_scaled_bitmap("card_corner_90", p->scrolled, 16);
+            wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(project_top_bar_top, wxID_ANY, corner_left);
+            bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
+            bar_sizer->AddStretchSpacer(1);
+            auto corner_right = create_scaled_bitmap("card_corner_0", p->scrolled, 16);
+            wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(project_top_bar_top, wxID_ANY, corner_right);
+            bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
+            project_top_bar_top->SetSizer(bar_sizer);
+        }
+        scrolled_sizer->Add(project_top_bar_top, 0, wxEXPAND);
+
+        wxWindow* project_top_bar_middle = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+        project_top_bar_middle->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
+        scrolled_sizer->Add(project_top_bar_middle, 0, wxEXPAND);
+
+        wxWindow* project_top_bar_bottom = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+        project_top_bar_bottom->SetBackgroundColour(*wxWHITE);
+        {
+            wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
+            auto corner_left = create_scaled_bitmap("card_corner_180", p->scrolled, 16);
+            wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(project_top_bar_bottom, wxID_ANY, corner_left);
+            bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
+            bar_sizer->AddStretchSpacer(1);
+            auto corner_right = create_scaled_bitmap("card_corner_270", p->scrolled, 16);
+            wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(project_top_bar_bottom, wxID_ANY, corner_right);
+            bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
+            project_top_bar_bottom->SetSizer(bar_sizer);
+        }
+        scrolled_sizer->Add(project_top_bar_bottom, 0, wxEXPAND);
+
         scrolled_sizer->Add(params_panel->get_top_panel(), 0, wxEXPAND);
         auto spliter_2 = new StaticLine(p->scrolled);
         spliter_2->SetLineColour("#CECECE");
@@ -1098,7 +1164,7 @@ Sidebar::Sidebar(Plater *parent)
 #else
     if (params_panel) {
         params_panel->Reparent(p->scrolled);
-        scrolled_sizer->Add(params_panel, 3, wxEXPAND);
+        scrolled_sizer->Add(params_panel, 3, wxEXPAND | wxLEFT | wxRIGHT, FromDIP(16));
     }
 #endif
     }
@@ -1107,8 +1173,36 @@ Sidebar::Sidebar(Plater *parent)
     p->object_layers->Hide();
     p->sizer_params->Add(p->object_layers->get_sizer(), 0, wxEXPAND | wxTOP, 0);
 
-    auto *sizer = new wxBoxSizer(wxVERTICAL);
+    // Add bottom bar decoration (3 bars: white top, gray middle, white bottom)
+    wxWindow* bottom_bar_top = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+    bottom_bar_top->SetBackgroundColour(*wxWHITE);
+    {
+        wxBoxSizer* bar_sizer = new wxBoxSizer(wxHORIZONTAL);
+        auto corner_left = create_scaled_bitmap("card_corner_90", p->scrolled, 16);
+        wxStaticBitmap* corner_left_bmp = new wxStaticBitmap(bottom_bar_top, wxID_ANY, corner_left);
+        bar_sizer->Add(corner_left_bmp, 0, wxALIGN_CENTER_VERTICAL);
+        bar_sizer->AddStretchSpacer(1);
+        auto corner_right = create_scaled_bitmap("card_corner_0", p->scrolled, 16);
+        wxStaticBitmap* corner_right_bmp = new wxStaticBitmap(bottom_bar_top, wxID_ANY, corner_right);
+        bar_sizer->Add(corner_right_bmp, 0, wxALIGN_CENTER_VERTICAL);
+        bottom_bar_top->SetSizer(bar_sizer);
+    }
+    scrolled_sizer->Add(bottom_bar_top, 0, wxEXPAND);
+
+    wxWindow* bottom_bar_middle = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
+    bottom_bar_middle->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
+    scrolled_sizer->Add(bottom_bar_middle, 0, wxEXPAND);
+
+    wxPanel* left_border = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(16), -1));
+    left_border->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
+
+    wxPanel* right_border = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(16), -1));
+    right_border->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
+
+    auto *sizer = new wxBoxSizer(wxHORIZONTAL);
+    sizer->Add(left_border, 0, wxEXPAND);
     sizer->Add(p->scrolled, 1, wxEXPAND);
+    sizer->Add(right_border, 0, wxEXPAND);
     SetSizer(sizer);
 }
 
@@ -1140,29 +1234,10 @@ void Sidebar::init_filament_combo(PlaterPresetComboBox **combo, const int filame
     auto combo_and_btn_sizer = new wxBoxSizer(wxHORIZONTAL);
 
     // BBS:  filament double columns
-
-    // int em = wxGetApp().em_unit();
-    if ((filament_idx % 2) == 0) // Dont add right column item. this one create equal spacing on left, right & middle
-        combo_and_btn_sizer->AddSpacer(FromDIP((filament_idx % 2) == 0 ? 12 : 3)); // Content Margin
-
     (*combo)->clr_picker->SetLabel(wxString::Format("%d", filament_idx + 1));
     combo_and_btn_sizer->Add((*combo)->clr_picker, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, FromDIP(SidebarProps::ElementSpacing()) - FromDIP(2)); // ElementSpacing - 2 (from combo box))
     combo_and_btn_sizer->Add(*combo, 1, wxALL | wxEXPAND, FromDIP(2))->SetMinSize({-1, FromDIP(30)});
 
-    /* BBS hide del_btn
-    ScalableButton* del_btn = new ScalableButton(p->m_panel_filament_content, wxID_ANY, "delete_filament");
-    del_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent& e){
-        int extruder_count = std::max(1, (int)p->combos_filament.size() - 1);
-
-        update_objects_list_filament_column(std::max(1, extruder_count - 1));
-        on_filaments_change(extruder_count);
-        wxGetApp().preset_bundle->printers.get_edited_preset().set_num_extruders(extruder_count);
-        wxGetApp().preset_bundle->update_multi_material_filament_presets();
-    });
-
-    combo_and_btn_sizer->Add(32 * em / 10, 0, 0, 0, 0);
-    combo_and_btn_sizer->Add(del_btn, 0, wxALIGN_CENTER_VERTICAL, 5 * em / 10);
-    */
     ScalableButton* edit_btn = new ScalableButton(p->m_panel_filament_content, wxID_ANY, "edit");
     edit_btn->SetToolTip(_L("Click to edit preset"));
 
@@ -1176,8 +1251,6 @@ void Sidebar::init_filament_combo(PlaterPresetComboBox **combo, const int filame
     combobox->edit_btn = edit_btn;
 
     combo_and_btn_sizer->Add(edit_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(SidebarProps::ElementSpacing()) - FromDIP(2)); // ElementSpacing - 2 (from combo box))
-
-    combo_and_btn_sizer->AddSpacer(FromDIP(SidebarProps::ContentMargin()));
 
     // BBS:  filament double columns
     auto side = filament_idx % 2;
@@ -1446,7 +1519,7 @@ void Sidebar::change_top_border_for_mode_sizer(bool increase_border)
 
 void Sidebar::msw_rescale()
 {
-    SetMinSize(wxSize(42 * wxGetApp().em_unit(), -1));
+    SetMinSize(wxSize(48 * wxGetApp().em_unit(), -1));
     p->m_panel_printer_title->GetSizer()->SetMinSize(-1, 3 * wxGetApp().em_unit());
     p->m_panel_filament_title->GetSizer()
         ->SetMinSize(-1, 3 * wxGetApp().em_unit());
@@ -2556,9 +2629,14 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     m_aui_mgr.SetManagedWindow(q);
     m_aui_mgr.SetDockSizeConstraint(1, 1);
     //m_aui_mgr.GetArtProvider()->SetMetric(wxAUI_DOCKART_PANE_BORDER_SIZE, 0);
-    //m_aui_mgr.GetArtProvider()->SetMetric(wxAUI_DOCKART_SASH_SIZE, 2);
+    m_aui_mgr.GetArtProvider()->SetMetric(wxAUI_DOCKART_SASH_SIZE, 0);
+    m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_SASH_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
     m_aui_mgr.GetArtProvider()->SetMetric(wxAUI_DOCKART_CAPTION_SIZE, 18);
     m_aui_mgr.GetArtProvider()->SetMetric(wxAUI_DOCKART_GRADIENT_TYPE, wxAUI_GRADIENT_NONE);
+    m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_BACKGROUND_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
+    m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_INACTIVE_CAPTION_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
+    m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_INACTIVE_CAPTION_TEXT_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
+    m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_ACTIVE_CAPTION_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
 
     this->q->SetFont(Slic3r::GUI::wxGetApp().normal_font());
 
@@ -2638,7 +2716,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
                                    .CaptionVisible(false)
                                    .PaneBorder(false)
                                    .Gripper(false)
-                                   .BestSize(wxSize(42 * wxGetApp().em_unit(), 90 * wxGetApp().em_unit())));
+                                   .BestSize(wxSize(48 * wxGetApp().em_unit(), 90 * wxGetApp().em_unit())));
 
     auto* panel_sizer = new wxBoxSizer(wxHORIZONTAL);
     panel_sizer->Add(view3D, 1, wxEXPAND | wxALL, 0);
@@ -2661,6 +2739,11 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         }
         // Always enforce no caption/border on sidebar after loading perspective
         sidebar.CaptionVisible(false).PaneBorder(false).Gripper(false);
+        
+        // Re-apply sash color after loading perspective
+        m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_SASH_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
+        m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_BACKGROUND_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
+        m_aui_mgr.Update();
 
         // Keep tracking the current sidebar size, by storing it using `best_size`, which will be stored
         // in the config and re-applied when the app is opened again.
@@ -3245,6 +3328,10 @@ void Plater::priv::reset_window_layout()
     pane.CaptionVisible(false).PaneBorder(false).Gripper(false);
     sidebar_layout.is_collapsed = false;
     update_sidebar(true);
+    
+    // Re-apply sash color after loading perspective
+    m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_SASH_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
+    m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_BACKGROUND_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
 }
 
 Sidebar::DockingState Plater::priv::get_sidebar_docking_state() {
@@ -7548,9 +7635,10 @@ bool Plater::priv::init_collapse_toolbar()
     collapse_toolbar.set_layout_type(GLToolbar::Layout::Vertical);
     collapse_toolbar.set_horizontal_orientation(GLToolbar::Layout::HO_Right);
     collapse_toolbar.set_vertical_orientation(GLToolbar::Layout::VO_Top);
-    collapse_toolbar.set_border(4.0f);
+    collapse_toolbar.set_border(16.0f);
     collapse_toolbar.set_separator_size(4);
     collapse_toolbar.set_gap_size(2);
+    collapse_toolbar.set_icons_size(32.0f);
 
     collapse_toolbar.del_all_item();
 
@@ -13111,6 +13199,11 @@ void Plater::sys_color_changed()
     p->preview->sys_color_changed();
     p->sidebar->sys_color_changed();
     p->menus.sys_color_changed();
+
+    // Re-apply sash color when system colors change
+    p->m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_SASH_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
+    p->m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_BACKGROUND_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
+    p->m_aui_mgr.Update();
 
     Layout();
     GetParent()->Layout();

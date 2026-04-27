@@ -45,6 +45,8 @@
 #include "PartPlate.hpp"
 #include "Preferences.hpp"
 #include "Widgets/ProgressDialog.hpp"
+#include "Widgets/Label.hpp"
+#include "Widgets/SwitchButton.hpp"
 
 #include <fstream>
 #include <string_view>
@@ -1443,6 +1445,21 @@ wxBoxSizer* MainFrame::create_side_tools()
 
     m_slice_select = eSlicePlate;
     m_print_select = ePrintPlate;
+
+    // Advanced toggle
+    m_advanced_title = new Label(this, Label::Body_12, _L("Advance"));
+    m_advanced_title->SetBackgroundColour(*wxWHITE);
+    m_advanced_view = new SwitchButton(this, wxID_ABOUT);
+    m_advanced_view->SetBackgroundColour(*wxWHITE);
+    m_advanced_view->SetValue(wxGetApp().get_mode() == comAdvanced);
+    m_advanced_view->Bind(wxEVT_TOGGLEBUTTON, [this](wxCommandEvent& e) {
+        bool is_advanced = m_advanced_view->GetValue();
+        wxGetApp().save_mode(is_advanced ? comAdvanced : comSimple);
+        e.Skip();
+    });
+
+    sizer->Add(m_advanced_title, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, FromDIP(4));
+    sizer->Add(m_advanced_view, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, FromDIP(15));
 
     // m_publish_btn = new Button(this, _L("Upload"), "bar_publish", 0, FromDIP(16));
     m_slice_btn = new SideButton(this, _L("Slice plate"), "");

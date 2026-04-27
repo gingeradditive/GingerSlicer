@@ -206,12 +206,13 @@ ParamsPanel::ParamsPanel( wxWindow* parent, wxWindowID id, const wxPoint& pos, c
     if (dynamic_cast<Notebook*>(parent)) {
         // BBS: new layout
         m_top_panel = new StaticBox(this, wxID_ANY, wxDefaultPosition);
-        m_top_panel->SetBackgroundColor(0xF8F8F8);
-        m_top_panel->SetBackgroundColor2(0xF1F1F1);
+        m_top_panel->SetBackgroundColor(*wxWHITE);
+        m_top_panel->SetBorderWidth(0);
 
         m_process_icon = new ScalableButton(m_top_panel, wxID_ANY, "process");
 
         m_title_label = new Label(m_top_panel, _L("Process"));
+        m_title_label->SetFont(Label::Head_14);
 
         //int width, height;
         // BBS: new layout
@@ -221,14 +222,6 @@ ParamsPanel::ParamsPanel( wxWindow* parent, wxWindowID id, const wxPoint& pos, c
         //m_mode_region->GetSize(&width, &height);
         m_tips_arrow = new ScalableButton(m_top_panel, wxID_ANY, "tips_arrow");
         m_tips_arrow->Hide();
-
-        m_title_view = new Label(m_top_panel, Label::Body_12, _L("Advance")); // ORCA match size with advanced toggle on tab.cpp m_static_title
-        m_mode_view = new SwitchButton(m_top_panel, wxID_ABOUT);
-
-        // BBS: new layout
-        //m_search_btn = new ScalableButton(m_top_panel, wxID_ANY, "search", wxEmptyString, wxDefaultSize, wxDefaultPosition, wxBU_EXACTFIT | wxNO_BORDER, true);
-        //m_search_btn->SetToolTip(format_wxstr(_L("Search in settings [%1%]"), _L("Ctrl+") + "F");
-        //m_search_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { wxGetApp().plater()->search(false); });
 
         m_compare_btn = new ScalableButton(m_top_panel, wxID_ANY, "compare", wxEmptyString, wxDefaultSize, wxDefaultPosition, wxBU_EXACTFIT | wxNO_BORDER, true);
         m_compare_btn->SetToolTip(_L("Compare presets"));
@@ -336,8 +329,6 @@ ParamsPanel::ParamsPanel( wxWindow* parent, wxWindowID id, const wxPoint& pos, c
 
     if (m_mode_region)
         m_mode_region->Bind(wxEVT_TOGGLEBUTTON, &ParamsPanel::OnToggled, this);
-    if (m_mode_view)
-        m_mode_view->Bind(wxEVT_TOGGLEBUTTON, &ParamsPanel::OnToggled, this);
     Bind(wxEVT_TOGGLEBUTTON, &ParamsPanel::OnToggled, this); // For Tab's mode switch
     //Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { wxGetApp().plater()->search(false); }, wxID_FIND);
     //m_export_to_file->Bind(wxEVT_BUTTON, [this](wxCommandEvent &) { wxGetApp().mainframe->export_config(); });
@@ -357,7 +348,7 @@ void ParamsPanel::create_layout()
 
     if (m_top_panel) {
         m_mode_sizer = new wxBoxSizer( wxHORIZONTAL );
-        m_mode_sizer->AddSpacer(FromDIP(SidebarProps::TitlebarMargin()));
+        m_mode_sizer->AddSpacer(FromDIP(16));
         m_mode_sizer->Add(m_process_icon, 0, wxALIGN_CENTER);
         m_mode_sizer->AddSpacer(FromDIP(SidebarProps::ElementSpacing()));
         m_mode_sizer->Add( m_title_label, 0, wxALIGN_CENTER );
@@ -366,9 +357,6 @@ void ParamsPanel::create_layout()
         m_mode_sizer->AddSpacer(FromDIP(SidebarProps::ElementSpacing()));
         m_mode_sizer->Add(m_tips_arrow, 0, wxALIGN_CENTER);
         m_mode_sizer->AddStretchSpacer(8);
-        m_mode_sizer->Add( m_title_view, 0, wxALIGN_CENTER );
-        m_mode_sizer->AddSpacer(FromDIP(SidebarProps::ElementSpacing()));
-        m_mode_sizer->Add(m_mode_view, 0, wxALIGN_CENTER);
         m_mode_sizer->AddSpacer(FromDIP(SidebarProps::ElementSpacing() * 6)); // ORCA using spacer prevents shaky mode_view when tips_arrow highlighting mode_region instead using AddStretchSpacer
         m_mode_sizer->Add(m_setting_btn, 0, wxALIGN_CENTER);
         m_mode_sizer->AddSpacer(FromDIP(SidebarProps::IconSpacing()));
@@ -619,7 +607,6 @@ void ParamsPanel::update_mode()
 {
     int app_mode = Slic3r::GUI::wxGetApp().get_mode();
     SwitchButton * mode_view = m_current_tab ? dynamic_cast<Tab*>(m_current_tab)->m_mode_view : nullptr;
-    if (mode_view == nullptr) mode_view = m_mode_view;
     if (mode_view == nullptr) return;
 
     //BBS: disable the mode tab and return directly when enable develop mode
@@ -653,8 +640,6 @@ void ParamsPanel::msw_rescale()
         m_mode_sizer->SetMinSize(-1, 3 * em_unit(this));
     if (m_mode_region)
         ((SwitchButton* )m_mode_region)->Rescale();
-    if (m_mode_view)
-        ((SwitchButton* )m_mode_view)->Rescale();
     for (auto tab : {m_tab_print, m_tab_print_plate, m_tab_print_object, m_tab_print_part, m_tab_print_layer, m_tab_filament, m_tab_printer}) {
         if (tab) dynamic_cast<Tab*>(tab)->msw_rescale();
     }
@@ -746,18 +731,6 @@ void ParamsPanel::delete_subwindows()
     {
         delete m_mode_region;
         m_mode_region = nullptr;
-    }
-
-    if (m_mode_view)
-    {
-        delete m_mode_view;
-        m_mode_view = nullptr;
-    }
-
-    if (m_title_view)
-    {
-        delete m_title_view;
-        m_title_view = nullptr;
     }
 
     if (m_search_btn)
