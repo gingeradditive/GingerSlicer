@@ -123,7 +123,7 @@ wxBoxSizer *PreferencesDialog::create_item_combobox(wxString title, wxWindow *pa
     if (!current_setting.empty()) {
         auto compare  = [current_setting](string possible_setting) { return current_setting == possible_setting; };
         auto iterator = find_if(config_name_index.begin(), config_name_index.end(), compare);
-        current_index = iterator - config_name_index.begin();
+        current_index = static_cast<unsigned int>(iterator - config_name_index.begin());
     }
 
     auto [sizer, combobox] = create_item_combobox_base(title, parent, tooltip, param, vlist, current_index);
@@ -219,7 +219,7 @@ wxBoxSizer *PreferencesDialog::create_item_language_combobox(
         }
 
         if (app_config->get(param) == vlist[i]->CanonicalName) {
-            m_current_language_selected = i;
+            m_current_language_selected = static_cast<int>(i);
         }
         combobox->Append(language_name);
     }
@@ -227,7 +227,7 @@ wxBoxSizer *PreferencesDialog::create_item_language_combobox(
         language = language.substr(0, 2);
         for (size_t i = 0; i < vlist.size(); ++i) {
             if (vlist[i]->CanonicalName.StartsWith(language)) {
-                m_current_language_selected = i;
+                m_current_language_selected = static_cast<int>(i);
                 break;
             }
         }
@@ -269,7 +269,7 @@ wxBoxSizer *PreferencesDialog::create_item_language_combobox(
                 }
             }
 
-            auto check = [this](bool yes_or_no) {
+            auto check = [](bool yes_or_no) {
                 // if (yes_or_no)
                 //    return true;
                 int act_btns = ActionButtons::SAVE;
@@ -330,7 +330,7 @@ wxBoxSizer *PreferencesDialog::create_item_region_combobox(wxString title, wxWin
         }
     }
 
-    combobox->GetDropDown().Bind(wxEVT_COMBOBOX, [this, combobox, current_region, local_regions](wxCommandEvent &e) {
+    combobox->GetDropDown().Bind(wxEVT_COMBOBOX, [combobox, local_regions](wxCommandEvent &e) {
         auto region_index = e.GetSelection();
         auto region       = local_regions[region_index];
 
@@ -636,7 +636,7 @@ wxBoxSizer *PreferencesDialog::create_item_switch(wxString title, wxWindow *pare
     m_sizer_switch->Add( 0, 0, 0, wxEXPAND|wxLEFT, 40 );
 
     //// save config
-    switchbox->Bind(wxEVT_TOGGLEBUTTON, [this, param](wxCommandEvent &e) {
+    switchbox->Bind(wxEVT_TOGGLEBUTTON, [param](wxCommandEvent &e) {
         /* app_config->set(param, std::to_string(e.GetSelection()));
          app_config->save();*/
     });
@@ -772,7 +772,7 @@ wxBoxSizer* PreferencesDialog::create_item_button(
     m_button_download->SetStyle(ButtonStyle::Regular, ButtonType::Window);
     m_button_download->SetToolTip(tooltip2);
 
-    m_button_download->Bind(wxEVT_BUTTON, [this, onclick](auto &e) { onclick(); });
+    m_button_download->Bind(wxEVT_BUTTON, [onclick](auto &e) { onclick(); });
 
     if (button_on_left) {
         m_sizer_checkbox->Add(m_button_download, 0, wxALL, FromDIP(5));
@@ -932,7 +932,7 @@ PreferencesDialog::PreferencesDialog(wxWindow *parent, wxWindowID id, const wxSt
 {
     SetBackgroundColour(*wxWHITE);
     create();
-    Bind(wxEVT_CLOSE_WINDOW, [this](wxCloseEvent& event) {
+    Bind(wxEVT_CLOSE_WINDOW, [](wxCloseEvent& event) {
         event.Skip();
         });
 }
@@ -1144,7 +1144,7 @@ wxWindow* PreferencesDialog::create_general_page()
     auto item_max_recent_count = create_item_input(_L("Maximum recent files"), "", page, _L("Maximum count of recent files"), "max_recent_count", [](wxString value) {
         long max = 0;
         if (value.ToLong(&max))
-            wxGetApp().mainframe->set_max_recent_count(max);
+            wxGetApp().mainframe->set_max_recent_count(static_cast<int>(max));
     });
 
     auto item_recent_models = create_item_checkbox(_L("Add model files (stl/step) to recent file list."), page, _L("Add model files (stl/step) to recent file list."), 50, "recent_models");
