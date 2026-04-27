@@ -1,5 +1,0 @@
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Tabbook.cpp:39:21: warning: implicit conversion loses integer precision: 'long' to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Tabbook.cpp:134:26: warning: implicit conversion loses integer precision: 'decltype(__x.base() - __y.base())' (aka 'long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Tabbook.cpp:136:23: warning: implicit conversion loses integer precision: 'decltype(__x.base() - __y.base())' (aka 'long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Tabbook.cpp:142:51: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Tabbook.cpp:152:29: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]

@@ -99,7 +99,7 @@ indexed_triangle_set its_create_torus(const Slic3r::Polygon &polygon, float radi
         // tube unit top vector is z direction
 
         // Tube
-        int prev_index = model.vertices.size() + 2 * sin_cos.size() - 2;
+        int prev_index = static_cast<int>(model.vertices.size() + 2 * sin_cos.size() - 2);
         for (const auto &[s, c] : sin_cos) {
             Vec2f side = (s * p_dir).cast<float>();
             Vec2f xy0  = side + (*prev_point_d);
@@ -110,7 +110,7 @@ indexed_triangle_set its_create_torus(const Slic3r::Polygon &polygon, float radi
             // create triangle indices
             int f0 = prev_index;
             int s0 = f0 + 1;
-            int f1 = model.vertices.size() - 2;
+            int f1 = static_cast<int>(model.vertices.size() - 2);
             int s1 = f1 + 1;
             prev_index = f1;
             model.indices.emplace_back(s0, f0, s1);
