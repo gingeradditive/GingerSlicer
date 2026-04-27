@@ -1,2 +1,0 @@
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Triangulation.cpp:127:32: warning: implicit conversion loses integer precision: 'const unsigned long' to 'Info' (aka 'unsigned int') [-Wshorten-64-to-32]
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Triangulation.cpp:253:32: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'value_type' (aka 'unsigned int') [-Wshorten-64-to-32]

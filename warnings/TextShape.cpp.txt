@@ -1,1 +1,0 @@
-/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Shape/TextShape.cpp:202:33: warning: moving a temporary object prevents copy elision [-Wpessimizing-move]
