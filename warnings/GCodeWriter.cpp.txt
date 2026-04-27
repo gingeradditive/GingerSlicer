@@ -1,0 +1,1 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/GCodeWriter.cpp:32:26: warning: implicit conversion loses integer precision: 'long' to 'unsigned int' [-Wshorten-64-to-32]

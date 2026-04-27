@@ -1,0 +1,1 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/Utils/OctoPrint.cpp:144:77: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]

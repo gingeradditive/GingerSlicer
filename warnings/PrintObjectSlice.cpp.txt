@@ -1,0 +1,6 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/PrintObjectSlice.cpp:467:55: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/PrintObjectSlice.cpp:503:41: warning: lambda capture 'offsetValue' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/PrintObjectSlice.cpp:511:54: warning: lambda capture 'resolution' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/PrintObjectSlice.cpp:502:59: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/PrintObjectSlice.cpp:510:59: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/PrintObjectSlice.cpp:617:55: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]

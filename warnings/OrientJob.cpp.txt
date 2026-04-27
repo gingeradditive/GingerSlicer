@@ -1,0 +1,4 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Jobs/OrientJob.cpp:51:66: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Jobs/OrientJob.cpp:51:60: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Jobs/OrientJob.cpp:130:59: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Jobs/OrientJob.cpp:130:53: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]

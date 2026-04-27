@@ -1,0 +1,3 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/StepMeshDialog.cpp:127:34: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/StepMeshDialog.cpp:166:38: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/StepMeshDialog.cpp:219:37: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]

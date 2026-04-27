@@ -1,0 +1,6 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/MsgDialog.cpp:225:52: warning: implicit conversion loses integer precision: 'difference_type' (aka 'long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/MsgDialog.cpp:226:32: warning: implicit conversion loses integer precision: 'difference_type' (aka 'long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/MsgDialog.cpp:261:14: warning: implicit conversion loses integer precision: 'const unsigned long' to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/MsgDialog.cpp:270:23: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/MsgDialog.cpp:622:49: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/MsgDialog.cpp:640:41: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]

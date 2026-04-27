@@ -1,0 +1,1 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Arachne/WallToolPaths.cpp:265:63: warning: implicit conversion loses integer precision: 'const coord_t' (aka 'const long long') to 'int' [-Wshorten-64-to-32]

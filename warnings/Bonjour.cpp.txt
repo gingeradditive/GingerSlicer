@@ -1,0 +1,1 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/Utils/Bonjour.cpp:1018:32: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]

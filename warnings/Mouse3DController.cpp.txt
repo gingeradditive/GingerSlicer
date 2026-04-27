@@ -1,0 +1,2 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Mouse3DController.cpp:501:175: warning: use of logical '||' with constant operand [-Wconstant-logical-operand]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Mouse3DController.cpp:501:145: warning: bitwise or with non-zero value always evaluates to true [-Wtautological-bitwise-compare]

@@ -1,0 +1,2 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Jobs/RotoptimizeJob.cpp:58:23: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Jobs/RotoptimizeJob.cpp:58:30: warning: lambda capture 'prev_status' is not used [-Wunused-lambda-capture]

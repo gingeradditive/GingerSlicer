@@ -1,0 +1,6 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Gizmos/GLGizmoBrimEars.cpp:344:53: warning: overlapping comparisons always evaluate to true [-Wtautological-overlap-compare]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Gizmos/GLGizmoBrimEars.cpp:1042:72: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Gizmos/GLGizmoBrimEars.cpp:1048:92: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Gizmos/GLGizmoBrimEars.cpp:1061:92: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Gizmos/GLGizmoBrimEars.cpp:1117:47: warning: implicit conversion loses integer precision: 'const size_type' (aka 'const unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Gizmos/GLGizmoBrimEars.cpp:1118:96: warning: implicit conversion loses integer precision: 'const size_type' (aka 'const unsigned long') to 'int' [-Wshorten-64-to-32]

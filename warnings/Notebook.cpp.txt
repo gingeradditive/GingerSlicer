@@ -1,0 +1,7 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Notebook.cpp:60:37: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Notebook.cpp:29:20: warning: implicit conversion loses integer precision: 'long' to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Notebook.cpp:30:21: warning: implicit conversion loses integer precision: 'long' to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Notebook.cpp:136:20: warning: implicit conversion loses integer precision: 'long' to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Notebook.cpp:137:21: warning: implicit conversion loses integer precision: 'long' to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Notebook.cpp:212:23: warning: implicit conversion loses integer precision: 'decltype(__x.base() - __y.base())' (aka 'long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Notebook.cpp:227:29: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]

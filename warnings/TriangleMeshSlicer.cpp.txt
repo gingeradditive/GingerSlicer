@@ -1,0 +1,1 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/TriangleMeshSlicer.cpp:1688:44: warning: implicit conversion loses integer precision: 'long' to 'int' [-Wshorten-64-to-32]

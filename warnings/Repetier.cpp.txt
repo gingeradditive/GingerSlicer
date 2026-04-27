@@ -1,0 +1,1 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/Utils/Repetier.cpp:76:26: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]

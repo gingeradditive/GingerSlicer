@@ -1,0 +1,2 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Widgets/DropDown.cpp:112:41: warning: implicit conversion loses integer precision: 'typename iterator_traits<__wrap_iter<wxString *>>::difference_type' (aka 'long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Widgets/DropDown.cpp:260:35: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]

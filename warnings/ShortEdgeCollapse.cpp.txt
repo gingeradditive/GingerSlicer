@@ -1,0 +1,4 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/ShortEdgeCollapse.cpp:132:29: warning: implicit conversion loses integer precision: 'const size_t' (aka 'const unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/ShortEdgeCollapse.cpp:133:58: warning: implicit conversion loses integer precision: 'const size_t' (aka 'const unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/ShortEdgeCollapse.cpp:165:29: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'Scalar' (aka 'int') [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/ShortEdgeCollapse.cpp:176:29: warning: implicit conversion loses integer precision: 'mapped_type' (aka 'unsigned long') to 'Scalar' (aka 'int') [-Wshorten-64-to-32]

@@ -1,0 +1,2 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/SLAPrint.cpp:1010:12: warning: use of bitwise '|' with boolean operands [-Wbitwise-instead-of-logical]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/SLAPrint.cpp:1010:12: note: cast one or both operands to int to silence this warning

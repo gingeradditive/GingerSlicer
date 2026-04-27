@@ -1,0 +1,2 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/GUI_ObjectTableSettings.cpp:287:30: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/GUI_ObjectTableSettings.cpp:293:29: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]

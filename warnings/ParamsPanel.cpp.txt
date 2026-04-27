@@ -1,0 +1,3 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/ParamsPanel.cpp:104:47: warning: lambda capture 'checkbox' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/ParamsPanel.cpp:228:45: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/ParamsPanel.cpp:232:44: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]

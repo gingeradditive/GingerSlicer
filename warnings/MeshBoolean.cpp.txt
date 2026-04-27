@@ -1,0 +1,7 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/MeshBoolean.cpp:355:30: warning: moving a temporary object prevents copy elision [-Wpessimizing-move]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/MeshBoolean.cpp:374:33: warning: moving a temporary object prevents copy elision [-Wpessimizing-move]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/MeshBoolean.cpp:536:64: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'uint32_t' (aka 'unsigned int') [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/MeshBoolean.cpp:540:40: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'uint32_t' (aka 'unsigned int') [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/MeshBoolean.cpp:171:46: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'size_type' (aka 'unsigned int') [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/MeshBoolean.cpp:171:33: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'size_type' (aka 'unsigned int') [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/MeshBoolean.cpp:171:17: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'size_type' (aka 'unsigned int') [-Wshorten-64-to-32]

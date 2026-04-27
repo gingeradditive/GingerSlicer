@@ -1,0 +1,2 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Circle.cpp:281:53: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Circle.cpp:383:36: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'const int' [-Wshorten-64-to-32]

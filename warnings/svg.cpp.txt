@@ -1,0 +1,1 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Format/svg.cpp:355:37: warning: moving a temporary object prevents copy elision [-Wpessimizing-move]

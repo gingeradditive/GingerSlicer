@@ -1,0 +1,3 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Jobs/CreateFontNameImageJob.cpp:144:28: warning: implicit conversion loses integer precision: 'Scalar' (aka 'long long') to 'GLsizei' (aka 'int') [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Jobs/CreateFontNameImageJob.cpp:144:48: warning: implicit conversion loses integer precision: 'Scalar' (aka 'long long') to 'GLsizei' (aka 'int') [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Jobs/CreateFontNameImageJob.cpp:147:38: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'GLint' (aka 'int') [-Wshorten-64-to-32]

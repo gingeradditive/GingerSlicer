@@ -1,0 +1,2 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/WipeTowerDialog.cpp:413:59: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/WipeTowerDialog.cpp:414:58: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]

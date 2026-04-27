@@ -1,0 +1,2 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/Utils/ElegooLink.cpp:204:85: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/Utils/ElegooLink.cpp:527:73: warning: implicit conversion loses integer precision: 'std::streamsize' (aka 'long') to 'const int' [-Wshorten-64-to-32]

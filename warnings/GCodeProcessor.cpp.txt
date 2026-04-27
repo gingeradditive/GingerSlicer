@@ -1,0 +1,8 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/GCode/GCodeProcessor.cpp:1812:30: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/GCode/GCodeProcessor.cpp:1847:30: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/GCode/GCodeProcessor.cpp:2596:37: warning: lambda capture 'area_filament_cross_section' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/GCode/GCodeProcessor.cpp:3022:37: warning: lambda capture 'area_filament_cross_section' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/GCode/GCodeProcessor.cpp:3047:23: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/GCode/GCodeProcessor.cpp:4544:41: warning: implicit conversion loses integer precision: 'const unsigned long' to 'unsigned int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/GCode/GCodeProcessor.cpp:4807:22: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/GCode/GCodeProcessor.cpp:4762:85: warning: implicit conversion loses integer precision: 'size_type' (aka 'unsigned long') to 'const int' [-Wshorten-64-to-32]

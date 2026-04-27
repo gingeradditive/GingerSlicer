@@ -1,0 +1,5 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Gizmos/GizmoObjectManipulation.cpp:235:24: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Gizmos/GizmoObjectManipulation.cpp:681:29: warning: suggest braces around initialization of subobject [-Wmissing-braces]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Gizmos/GizmoObjectManipulation.cpp:726:40: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Gizmos/GizmoObjectManipulation.cpp:754:40: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Gizmos/GizmoObjectManipulation.cpp:782:40: warning: lambda capture 'this' is not used [-Wunused-lambda-capture]

@@ -1,0 +1,7 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Support/SupportMaterial.cpp:1590:31: warning: lambda capture 'layer' is not used [-Wunused-lambda-capture]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Support/SupportMaterial.cpp:2159:51: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Support/SupportMaterial.cpp:2250:51: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Support/SupportMaterial.cpp:2252:78: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Support/SupportMaterial.cpp:2262:55: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Support/SupportMaterial.cpp:2445:55: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'const int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Support/SupportMaterial.cpp:2486:40: warning: implicit conversion loses integer precision: 'size_t' (aka 'unsigned long') to 'int' [-Wshorten-64-to-32]

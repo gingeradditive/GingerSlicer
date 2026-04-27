@@ -1,0 +1,1 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/calib.cpp:213:65: warning: implicit conversion loses integer precision: 'std::string::size_type' (aka 'unsigned long') to 'unsigned int' [-Wshorten-64-to-32]

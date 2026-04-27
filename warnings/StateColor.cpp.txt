@@ -1,0 +1,1 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/slic3r/GUI/Widgets/StateColor.cpp:164:75: warning: implicit conversion loses integer precision: 'unsigned long' to 'wxUint32' (aka 'unsigned int') [-Wshorten-64-to-32]

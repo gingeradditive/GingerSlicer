@@ -1,0 +1,4 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/ArcFitter.cpp:60:37: warning: moving a temporary object prevents copy elision [-Wpessimizing-move]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/ArcFitter.cpp:70:37: warning: moving a temporary object prevents copy elision [-Wpessimizing-move]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/ArcFitter.cpp:77:41: warning: moving a temporary object prevents copy elision [-Wpessimizing-move]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/ArcFitter.cpp:90:33: warning: moving a temporary object prevents copy elision [-Wpessimizing-move]

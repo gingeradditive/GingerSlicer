@@ -1,0 +1,4 @@
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Fill/FillRectilinear.cpp:783:31: warning: implicit conversion loses integer precision: 'coord_t' (aka 'long long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Fill/FillRectilinear.cpp:787:46: warning: implicit conversion loses integer precision: 'coord_t' (aka 'long long') to 'int' [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Fill/FillRectilinear.cpp:829:43: warning: implicit conversion loses integer precision: 'long long' to 'uint32_t' (aka 'unsigned int') [-Wshorten-64-to-32]
+/Users/giacomoguaresi/Source/GingerRepos/GingerSlicer/src/libslic3r/Fill/FillRectilinear.cpp:832:43: warning: implicit conversion loses integer precision: 'long long' to 'uint32_t' (aka 'unsigned int') [-Wshorten-64-to-32]
