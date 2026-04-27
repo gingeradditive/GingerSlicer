@@ -201,7 +201,7 @@ namespace Slic3r {
             std::string ret_val;
             CURL* curl = curl_easy_init();
             if (curl) {
-                char* decoded = curl_easy_escape(curl, unescaped.c_str(), unescaped.size());
+                char* decoded = curl_easy_escape(curl, unescaped.c_str(), static_cast<int>(unescaped.size()));
                 if (decoded) {
                     ret_val = std::string(decoded);
                     curl_free(decoded);
@@ -524,7 +524,7 @@ namespace Slic3r {
         set_auth(http);
 
         bool      res          = false;
-        const int packageCount = (size + MAX_UPLOAD_PACKAGE_LENGTH - 1) / MAX_UPLOAD_PACKAGE_LENGTH;
+        const int packageCount = static_cast<int>((size + MAX_UPLOAD_PACKAGE_LENGTH - 1) / MAX_UPLOAD_PACKAGE_LENGTH);
 
         for (size_t i = 0; i < packageCount; i++) {
             BOOST_LOG_TRIVIAL(info) << boost::format("%1%: Uploading file %2%/%3%") % name % (i + 1) % packageCount;
