@@ -302,7 +302,7 @@ void GLGizmoPainterBase::render_cursor_height_range(const Transform3d& trafo) co
     const ModelObject* model_object = wxGetApp().model().objects[selection.get_object_idx()];
     const ModelInstance* mi = model_object->instances[selection.get_instance_idx()];
 
-    int volumes_count = model_object->volumes.size();
+    int volumes_count = static_cast<int>(model_object->volumes.size());
     if (m_cut_contours.size() != volumes_count * 2) {
         m_cut_contours.resize(volumes_count * 2);
     }
@@ -1293,7 +1293,7 @@ void TriangleSelectorPatch::render(ImGuiWrapper* imgui, const Transform3d& matri
             //to make black not too hard too see
             ColorRGBA new_color = adjust_color_for_rendering(color);
             shader->set_uniform("uniform_color", new_color);
-            this->render(buffer_idx, show_wireframe);
+            this->render(static_cast<int>(buffer_idx), show_wireframe);
         }
     }
 
@@ -1386,7 +1386,7 @@ void TriangleSelectorPatch::update_triangles_per_patch()
         return touching_triangles;
     };
 
-    auto calc_fragment_area = [this](const TrianglePatch& patch, float max_limit_area, int stride) {
+    auto calc_fragment_area = [](const TrianglePatch& patch, float max_limit_area, int stride) {
         double total_area = 0.f;
         const std::vector<int>& ti = patch.triangle_indices;
         /*for (int i = 0; i < ti.size() / 3; i++) {
