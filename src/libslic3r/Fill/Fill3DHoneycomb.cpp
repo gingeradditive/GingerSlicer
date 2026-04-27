@@ -284,7 +284,7 @@ void Fill3DHoneycomb::_fill_surface_single(
 
     // copy from fliplines
     if (!polylines.empty()) {
-        int infill_start_idx = polylines_out.size(); // only rotate what belongs to us.
+        int infill_start_idx = static_cast<int>(polylines_out.size()); // only rotate what belongs to us.
         // connect lines
         chain_or_connect_infill(std::move(polylines), expolygon, polylines_out, this->spacing, params);
 
