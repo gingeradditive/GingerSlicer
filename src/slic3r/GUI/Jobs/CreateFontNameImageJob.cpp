@@ -141,10 +141,10 @@ void CreateFontImageJob::finalize(bool canceled, std::exception_ptr &)
     const GLenum target = GL_TEXTURE_2D;
     glsafe(::glBindTexture(target, m_input.texture_id));
 
-    GLsizei w = m_tex_size.x(), h = m_tex_size.y();
+    GLsizei w = static_cast<GLsizei>(m_tex_size.x()), h = static_cast<GLsizei>(m_tex_size.y());
     GLint xoffset = 0; // align to left
     // GLint xoffset = m_input.size.x() - m_tex_size.x(); // align right
-    GLint yoffset = m_input.size.y() * m_input.index;
+    GLint yoffset = static_cast<GLint>(m_input.size.y() * m_input.index);
     glsafe(::glTexSubImage2D(target, m_input.level, xoffset, yoffset, w, h,
                              m_input.format, m_input.type, m_result.data()));
 
