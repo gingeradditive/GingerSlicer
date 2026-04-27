@@ -41,7 +41,7 @@ void FillLine::_fill_surface_single(
     coord_t x_max = bounding_box.max(0) + SCALED_EPSILON;
     Lines lines;
     for (coord_t x = bounding_box.min(0); x <= x_max; x += this->_line_spacing)
-        lines.push_back(this->_line(lines.size(), x, bounding_box.min(1), bounding_box.max(1)));
+        lines.push_back(this->_line(static_cast<int>(lines.size()), x, bounding_box.min(1), bounding_box.max(1)));
 
     // clip paths against a slightly larger expolygon, so that the first and last paths
     // are kept even if the expolygon has vertical sides
