@@ -383,10 +383,10 @@ public:
 
 
 private:
-    wxStaticText* m_staticText_slicer_name;
-    wxStaticText* m_staticText_slicer_version;
-    wxStaticBitmap* m_bitmap;
-    wxStaticText* m_staticText_loading;
+    // wxStaticText* m_staticText_slicer_name;
+    // wxStaticText* m_staticText_slicer_version;
+    // wxStaticBitmap* m_bitmap;
+    // wxStaticText* m_staticText_loading;
 
     wxBitmap    m_main_bitmap;
     wxFont      m_action_font;
@@ -740,7 +740,7 @@ std::vector<std::string> GUI_App::split_str(std::string src, std::string separat
     std::string::size_type pos;
     std::vector<std::string> result;
     src += separator;
-    int size = src.size();
+    int size = static_cast<int>(src.size());
 
     for (int i = 0; i < size; i++)
     {
@@ -749,7 +749,7 @@ std::vector<std::string> GUI_App::split_str(std::string src, std::string separat
         {
             std::string s = src.substr(i, pos - i);
             result.push_back(s);
-            i = pos + separator.size() - 1;
+            i = static_cast<int>(pos + separator.size() - 1);
         }
     }
     return result;
@@ -1597,7 +1597,7 @@ bool GUI_App::on_init_inner()
                 }
             });
 
-        Bind(EVT_SHOW_NO_NEW_VERSION, [this](const wxCommandEvent& evt) {
+        Bind(EVT_SHOW_NO_NEW_VERSION, [](const wxCommandEvent& evt) {
             wxString msg = _L("This is the newest version.");
             InfoDialog dlg(nullptr, _L("Info"), msg);
             dlg.ShowModal();
@@ -2340,7 +2340,7 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 });
             }
             else if (command_str.compare("homepage_modeldepot") == 0) {
-                CallAfter([this] {
+                CallAfter([]() {
                     wxGetApp().open_mall_page_dialog();
                 });
             }
@@ -2417,7 +2417,7 @@ std::string GUI_App::handle_web_request(std::string cmd)
                 }
             }
             else if (command_str.compare("begin_network_plugin_download") == 0) {
-                CallAfter([this] { wxGetApp().ShowDownNetPluginDlg(); });
+                CallAfter([]() { wxGetApp().ShowDownNetPluginDlg(); });
             }
             else if (command_str.compare("get_web_shortcut") == 0) {
                 if (root.get_child_optional("key_event") != boost::none) {
@@ -3447,7 +3447,7 @@ void GUI_App::open_preferences(size_t open_on_tab, const std::string& highlight_
         // the dialog needs to be destroyed before the call to recreate_GUI()
         // or sometimes the application crashes into wxDialogBase() destructor
         // so we put it into an inner scope
-        PreferencesDialog dlg(mainframe, open_on_tab, highlight_option);
+        PreferencesDialog dlg(mainframe, static_cast<int>(open_on_tab), highlight_option);
         dlg.ShowModal();
         this->plater_->get_current_canvas3D()->force_set_focus();
         // BBS
@@ -3603,7 +3603,7 @@ bool GUI_App::check_and_keep_current_preset_changes(const wxString& caption, con
         if (!no_need_change && dlg.ShowModal() == wxID_CANCEL)
             return false;
 
-        auto reset_modifications = [this, is_called_from_configwizard]() {
+        auto reset_modifications = [this]() {
             //if (is_called_from_configwizard)
             //    return; // no need to discared changes. It will be done fromConfigWizard closing
 
@@ -4057,7 +4057,7 @@ int GUI_App::extruders_cnt() const
 {
     const Preset& preset = preset_bundle->printers.get_selected_preset();
     return preset.printer_technology() == ptSLA ? 1 :
-           preset.config.option<ConfigOptionFloats>("nozzle_diameter")->values.size();
+           static_cast<int>(preset.config.option<ConfigOptionFloats>("nozzle_diameter")->values.size());
 }
 
 // extruders count from edited printer preset
@@ -4065,13 +4065,13 @@ int GUI_App::extruders_edited_cnt() const
 {
     const Preset& preset = preset_bundle->printers.get_edited_preset();
     return preset.printer_technology() == ptSLA ? 1 :
-           preset.config.option<ConfigOptionFloats>("nozzle_diameter")->values.size();
+           static_cast<int>(preset.config.option<ConfigOptionFloats>("nozzle_diameter")->values.size());
 }
 
 // BBS
 int GUI_App::filaments_cnt() const
 {
-    return preset_bundle->filament_presets.size();
+    return static_cast<int>(preset_bundle->filament_presets.size());
 }
 
 PrintSequence GUI_App::global_print_sequence() const
