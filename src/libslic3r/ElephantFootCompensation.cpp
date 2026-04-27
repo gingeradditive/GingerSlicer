@@ -473,7 +473,7 @@ static inline void smooth_compensation_banded(const Points &contour, float band,
 		for (int i = 0; i < int(compensation.size()); ++ i) {
 			const Vec2f  pthis = contour[i].cast<float>();
 			
-			int		j     = prev_idx_modulo(i, contour);
+			int		j     = prev_idx_modulo(static_cast<int>(i), contour);
 			Vec2f	pprev = contour[j].cast<float>();
 			float	prev  = compensation[j];
 			float	l2    = (pthis - pprev).squaredNorm();
@@ -498,7 +498,7 @@ static inline void smooth_compensation_banded(const Points &contour, float band,
 				}
 			}
 
-			j = next_idx_modulo(i, contour);
+			j = next_idx_modulo(static_cast<int>(i), contour);
 			pprev = contour[j].cast<float>();
 			float next = compensation[j];
 			l2 = (pprev - pthis).squaredNorm();
