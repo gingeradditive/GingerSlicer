@@ -780,11 +780,11 @@ static std::vector<SegmentedIntersectionLine> slice_region_by_vertical_lines(con
             if (l > r)
                 std::swap(l, r);
             // il, ir are the left / right indices of vertical lines intersecting a segment
-            int il = (l - x0) / line_spacing;
+            int il = static_cast<int>((l - x0) / line_spacing);
             while (il * line_spacing + x0 < l)
                 ++ il;
             il = std::max(int(0), il);
-            int ir = (r - x0 + line_spacing) / line_spacing;
+            int ir = static_cast<int>((r - x0 + line_spacing) / line_spacing);
             while (ir * line_spacing + x0 > r)
                 -- ir;
             ir = std::min(int(segs.size()) - 1, ir);
@@ -825,10 +825,10 @@ static std::vector<SegmentedIntersectionLine> slice_region_by_vertical_lines(con
                 } else {
                     // First calculate the intersection parameter 't' as a rational number with non negative denominator.
                     if (p2.x() > p1.x()) {
-                        is.pos_p = this_x - p1.x();
+                        is.pos_p = static_cast<uint32_t>(this_x - p1.x());
                         is.pos_q = p2.x() - p1.x();
                     } else {
-                        is.pos_p = p1.x() - this_x;
+                        is.pos_p = static_cast<uint32_t>(p1.x() - this_x);
                         is.pos_q = p1.x() - p2.x();
                     }
                     assert(is.pos_q > 1);
