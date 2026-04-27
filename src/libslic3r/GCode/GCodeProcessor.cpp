@@ -1809,7 +1809,7 @@ template<typename T>
 
 int GCodeProcessor::get_gcode_last_filament(const std::string& gcode_str)
 {
-    int str_size = gcode_str.size();
+    int str_size = static_cast<int>(gcode_str.size());
     int start_index = 0;
     int end_index = 0;
     int out_filament = -1;
@@ -1844,7 +1844,7 @@ int GCodeProcessor::get_gcode_last_filament(const std::string& gcode_str)
 //BBS: get last z position from gcode
 bool GCodeProcessor::get_last_z_from_gcode(const std::string& gcode_str, double& z)
 {
-    int str_size = gcode_str.size();
+    int str_size = static_cast<int>(gcode_str.size());
     int start_index = 0;
     int end_index = 0;
     bool is_z_changed = false;
@@ -2593,7 +2593,7 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line, const std::o
     float filament_diameter = (static_cast<size_t>(m_extruder_id) < m_result.filament_diameters.size()) ? m_result.filament_diameters[m_extruder_id] : m_result.filament_diameters.back();
     float filament_radius = 0.5f * filament_diameter;
     float area_filament_cross_section = static_cast<float>(M_PI) * sqr(filament_radius);
-    auto absolute_position = [this, area_filament_cross_section](Axis axis, const GCodeReader::GCodeLine& lineG1) {
+    auto absolute_position = [this](Axis axis, const GCodeReader::GCodeLine& lineG1) {
         bool is_relative = (m_global_positioning_type == EPositioningType::Relative);
         if (axis == E)
             is_relative |= (m_e_local_positioning_type == EPositioningType::Relative);
@@ -3044,7 +3044,7 @@ void  GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line)
         }
     };
 
-    auto move_type = [this](const float& delta_E) {
+    auto move_type = [](const float& delta_E) {
         if (delta_E == 0.0f)
             return EMoveType::Travel;
         else
@@ -4541,7 +4541,7 @@ void GCodeProcessor::run_post_process()
                     ++it;
                 }
                 if (it != m_gcode_lines_map.end() && it->first == move.gcode_id)
-                    move.gcode_id = it->second;
+                    move.gcode_id = static_cast<unsigned int>(it->second);
             }
         }
 
@@ -4759,7 +4759,7 @@ void GCodeProcessor::run_post_process()
             if (tool_number != -1) {
                 if (tool_number < 0 || (int)m_extruder_temps_config.size() <= tool_number) {
                     // found an invalid value, clamp it to a valid one
-                    tool_number = std::clamp<int>(0, m_extruder_temps_config.size() - 1, tool_number);
+                    tool_number = std::clamp<int>(0, static_cast<int>(m_extruder_temps_config.size() - 1), tool_number);
                     // emit warning
                     std::string warning = "GCode Post-Processor encountered an invalid toolchange, maybe from a custom gcode:";
                     warning += "\n> ";
@@ -4804,7 +4804,7 @@ void GCodeProcessor::run_post_process()
                         }
                     },
                     // line replacer
-                    [this, tool_number](const std::string& line) {
+                    [tool_number](const std::string& line) {
                         if (GCodeReader::GCodeLine::cmd_is(line, "M104")) {
                             GCodeReader::GCodeLine gline;
                             GCodeReader reader;
