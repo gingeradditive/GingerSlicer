@@ -65,7 +65,7 @@ wxBitmap* BitmapCache::insert(const std::string &bitmap_key, size_t width, size_
     wxBitmap *bitmap = nullptr;
     auto      it     = m_map.find(bitmap_key);
     if (it == m_map.end()) {
-        bitmap = new wxBitmap(width, height
+        bitmap = new wxBitmap(static_cast<int>(width), static_cast<int>(height)
 #ifdef __WXGTK3__
             , 32
 #endif
@@ -76,13 +76,13 @@ wxBitmap* BitmapCache::insert(const std::string &bitmap_key, size_t width, size_
         // So, We need to let the Mac OS wxBitmap implementation
         // know that the image may already be scaled appropriately for Retina,
         // and thereby that it's not supposed to upscale it.
-        bitmap->CreateScaled(width, height, -1, m_scale);
+        bitmap->CreateScaled(static_cast<int>(width), static_cast<int>(height), -1, m_scale);
 #endif
         m_map[bitmap_key] = bitmap;
     } else {
         bitmap = it->second;
         if (size_t(bitmap->GetWidth()) != width || size_t(bitmap->GetHeight()) != height)
-            bitmap->Create(width, height);
+            bitmap->Create(static_cast<int>(width), static_cast<int>(height));
     }
 #if defined(WIN32) || defined(__APPLE__)
     // Not needed or harmful for GTK2 and GTK3.
@@ -195,7 +195,7 @@ wxBitmap* BitmapCache::insert(const std::string &bitmap_key, const wxBitmap *beg
     size_t x = 0;
     for (const wxBitmap *bmp = begin; bmp != end; ++ bmp) {
         if (bmp->GetWidth() > 0)
-            memDC.DrawBitmap(*bmp, x, 0, true);
+            memDC.DrawBitmap(*bmp, static_cast<int>(x), 0, true);
 #ifdef __APPLE__
         // we should "move" with step equal to non-scaled width
         x += bmp->GetScaledWidth();
@@ -456,7 +456,7 @@ wxBitmap BitmapCache::mksolid(size_t width, size_t height, unsigned char r, unsi
     width  *= scale;
     height *= scale;
 
-    wxImage image(width, height);
+    wxImage image(static_cast<int>(width), static_cast<int>(height));
     image.InitAlpha();
     unsigned char* imgdata = image.GetData();
     unsigned char* imgalpha = image.GetAlpha();
