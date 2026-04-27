@@ -1587,7 +1587,7 @@ static inline std::tuple<Polygons, Polygons, double> detect_contacts(
 
         // Cache support trimming polygons derived from lower layer polygons, possible merged with "on build plate only" trimming polygons.
         auto slices_margin_update =
-            [&slices_margin, &layer, &lower_layer, &lower_layer_polygons, buildplate_only, has_enforcer, &annotations, layer_id]
+            [&slices_margin, &lower_layer, &lower_layer_polygons, buildplate_only, has_enforcer, &annotations, layer_id]
         (float slices_margin_offset, float no_interface_offset) {
             if (slices_margin.offset != slices_margin_offset) {
                 slices_margin.offset = slices_margin_offset;
@@ -2156,7 +2156,7 @@ SupportGeneratorLayersPtr PrintObjectSupportMaterial::top_contact_layers(
             if (object.print()->canceled())
                 break;
 
-            const Layer* layer = object.get_layer(layer_nr);
+            const Layer* layer = object.get_layer(static_cast<int>(layer_nr));
             const Layer* lower_layer = layer->lower_layer;
             if (!lower_layer)
                 continue;
@@ -2247,9 +2247,9 @@ SupportGeneratorLayersPtr PrintObjectSupportMaterial::top_contact_layers(
         std::set<ExPolygon*> removed_overhang;
 
         for (size_t layer_id = layer_id_start; layer_id < num_layers; layer_id++) {
-            const Layer* layer = object.get_layer(layer_id);
+            const Layer* layer = object.get_layer(static_cast<int>(layer_id));
             for (auto& overhang : overhangs_per_layers[layer_id]) {
-                OverhangCluster* cluster = add_overhang(clusters, &overhang, layer_id, fw_scaled);
+                OverhangCluster* cluster = add_overhang(clusters, &overhang, static_cast<int>(layer_id), fw_scaled);
                 if (overlaps({ overhang }, layer->cantilevers))
                     cluster->is_cantilever = true;
             }
@@ -2259,7 +2259,7 @@ SupportGeneratorLayersPtr PrintObjectSupportMaterial::top_contact_layers(
             // 3. check whether the small overhang is sharp tail
             cluster.is_sharp_tail = false;
             for (size_t layer_id = cluster.min_layer; layer_id <= cluster.max_layer; layer_id++) {
-                const Layer* layer = object.get_layer(layer_id);
+                const Layer* layer = object.get_layer(static_cast<int>(layer_id));
                 if (overlaps(layer->sharp_tails, cluster.merged_overhangs_dilated)) {
                     cluster.is_sharp_tail = true;
                     break;
@@ -2442,7 +2442,7 @@ static inline SupportGeneratorLayer* detect_bottom_contacts(
     if (! slicing_params.soluble_interface) {
         // Walk the top surfaces, snap the top of the new bottom surface to the closest top of the top surface,
         // so there will be no support surfaces generated with thickness lower than m_support_layer_height_min.
-        for (size_t top_idx = size_t(std::max<int>(0, contact_idx));
+        for (size_t top_idx = size_t(std::max<const int>(0, contact_idx));
             top_idx < top_contacts.size() && top_contacts[top_idx]->print_z < layer_new.print_z + support_params.support_layer_height_min + EPSILON;
             ++ top_idx) {
             if (top_contacts[top_idx]->print_z > layer_new.print_z - support_params.support_layer_height_min - EPSILON) {
@@ -2483,7 +2483,7 @@ static inline SupportGeneratorLayer* detect_bottom_contacts(
     // Trim the already created base layers above the current layer intersecting with the new bottom contacts layer.
     //FIXME Maybe this is no more needed, as the overlapping base layers are trimmed by the bottom layers at the final stage?
     touching = expand(touching, float(SCALED_EPSILON));
-    for (int layer_id_above = layer_id + 1; layer_id_above < int(object.total_layer_count()); ++ layer_id_above) {
+    for (int layer_id_above = static_cast<int>(layer_id + 1); layer_id_above < static_cast<int>(object.total_layer_count()); ++ layer_id_above) {
         const Layer &layer_above = *object.layers()[layer_id_above];
         if (layer_above.print_z > layer_new.print_z - EPSILON)
             break;
