@@ -33,7 +33,7 @@ inline float align_floor(float value, float base)
 
 static bool is_valid_gcode(const std::string &gcode)
 {
-    int  str_size    = gcode.size();
+    int  str_size    = static_cast<int>(gcode.size());
     int  start_index = 0;
     int  end_index   = 0;
     bool is_valid    = false;
@@ -196,8 +196,8 @@ public:
 			// Correct for the roundings of a squished extrusion.
 			width += m_layer_height * float(1. - M_PI / 4.);
 			if (m_extrusions.empty() || m_extrusions.back().pos != rotated_current_pos)
-				m_extrusions.emplace_back(WipeTower::Extrusion(rotated_current_pos, 0, m_current_tool));
-			m_extrusions.emplace_back(WipeTower::Extrusion(rot, width, m_current_tool));
+				m_extrusions.emplace_back(WipeTower::Extrusion(rotated_current_pos, 0, static_cast<unsigned int>(m_current_tool)));
+			m_extrusions.emplace_back(WipeTower::Extrusion(rot, width, static_cast<unsigned int>(m_current_tool)));
 		}
 
 		m_gcode += "G1";
@@ -1313,7 +1313,7 @@ WipeTower::ToolChangeResult WipeTower::finish_layer(bool extrude_perimeter, bool
         else {
             // limit max chamfer width to 3 mm
             int chamfer_loops_num = (int)(max_chamfer_width / spacing);
-            int dist_to_1st = m_layer_info - m_plan.begin() - m_first_layer_idx;
+            int dist_to_1st = static_cast<int>(m_layer_info - m_plan.begin() - m_first_layer_idx);
             loops_num = std::min(loops_num, chamfer_loops_num) - dist_to_1st;
         }
     }
@@ -1558,7 +1558,7 @@ int WipeTower::first_toolchange_to_nonsoluble_nonsupport(
 {
     for (size_t idx=0; idx<tool_changes.size(); ++idx)
         if (! m_filpar[tool_changes[idx].new_tool].is_soluble && ! m_filpar[tool_changes[idx].new_tool].is_support)
-            return idx;
+            return static_cast<int>(idx);
     return -1;
 }
 
