@@ -26,7 +26,7 @@ std::string FileGet::escape_url(const std::string& unescaped)
 	CURL* curl = curl_easy_init();
 	if (curl) {
 		int decodelen;
-		char* decoded = curl_easy_unescape(curl, unescaped.c_str(), unescaped.size(), &decodelen);
+		char* decoded = curl_easy_unescape(curl, unescaped.c_str(), static_cast<int>(unescaped.size()), &decodelen);
 		if (decoded) {
 			ret_val = std::string(decoded);
 			curl_free(decoded);
@@ -286,7 +286,7 @@ void FileGet::priv::get_perform()
 					m_written = written_previously + written_this_session;
 				}
 				wxCommandEvent* evt = new wxCommandEvent(EVT_DWNLDR_FILE_PROGRESS);
-				int             percent_total = m_absolute_size == 0 ? 0 : (written_previously + progress.dlnow) * 100 / m_absolute_size;
+				int             percent_total = m_absolute_size == 0 ? 0 : static_cast<int>((written_previously + progress.dlnow) * 100 / m_absolute_size);
 				evt->SetString(std::to_string(percent_total));
 				evt->SetInt(m_id);
 				m_evt_handler->QueueEvent(evt);
