@@ -161,8 +161,8 @@ void GridCellFilamentsEditor::Create(wxWindow* parent,
     ::ComboBox *bitmap_combo = new ComboBox(parent, id, wxEmptyString,
                                wxDefaultPosition, wxSize(((*m_icons)[0])->GetWidth() + 10, -1), 0, nullptr, CB_NO_DROP_ICON | CB_NO_TEXT | wxCB_READONLY);
     if (m_icons) {
-        int array_count = m_choices.GetCount();
-        int icon_count = m_icons->size();
+        int array_count = static_cast<int>(m_choices.GetCount());
+        int icon_count = static_cast<int>(m_icons->size());
         for (int i = 0; i < array_count; i++)
         {
             wxBitmap* bitmap = (i < icon_count) ? (*m_icons)[i] : (*m_icons)[0];
@@ -401,7 +401,7 @@ void GridCellChoiceEditor::Create(wxWindow *parent, wxWindowID id, wxEvtHandler 
     if (!m_allowOthers) style |= wxCB_READONLY;
     ::ComboBox *bitmap_combo = new ComboBox(parent, id, wxEmptyString, wxDefaultPosition, wxSize(100, -1), 0, nullptr, wxCB_READONLY);
     bitmap_combo->SetFont(::Label::Body_12);
-    int         array_count  = m_choices.GetCount();
+    int         array_count  = static_cast<int>(m_choices.GetCount());
     for (int i = 0; i < array_count; i++) {
         bitmap_combo->Append(m_choices[i]);
     }
@@ -974,7 +974,7 @@ void ObjectGrid::OnKeyDown( wxKeyEvent& event )
 void ObjectGrid::paste_data( wxTextDataObject& text_data )
 {
     wxString buf = text_data.GetText();
-    int clip_size = buf.size();
+    int clip_size = static_cast<int>(buf.size());
 
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(", clip_size %1%, pasted_data %2%") %clip_size %buf;
     if (clip_size <= 0)
@@ -1022,7 +1022,7 @@ void ObjectGrid::paste_data( wxTextDataObject& text_data )
         wxChar split_char2 = '\n';
         bool finished = false;
         while (!finished && (temp.Length() > 0)) {
-            int pos = temp.find(split_char2);
+            int pos = static_cast<int>(temp.find(split_char2));
             if (pos == 0)
             {
                 temp = temp.substr(1);
@@ -1042,7 +1042,7 @@ void ObjectGrid::paste_data( wxTextDataObject& text_data )
             }
 
             while(true) {
-                pos = temp_line.find(split_char1);
+                pos = static_cast<int>(temp_line.find(split_char1));
                 if (pos == 0)
                 {
                     temp_line = temp_line.substr(1);
@@ -1230,12 +1230,12 @@ wxString ObjectGridTable::GetTypeName(int row, int col)
 
 int ObjectGridTable::GetNumberRows()
 {
-    return m_grid_data.size() + 1;
+    return static_cast<int>(m_grid_data.size()) + 1;
 }
 
 int ObjectGridTable::GetNumberCols()
 {
-    return m_col_data.size();
+    return static_cast<int>(m_col_data.size());
 }
 
 bool ObjectGridTable::IsEmptyCell( int row, int col )
@@ -1731,7 +1731,7 @@ void ObjectGridTable::SetColLabelValue( int col, const wxString& value )
 {
     if ( col > (int)(m_colLabels.GetCount()) - 1 )
     {
-        int n = m_colLabels.GetCount();
+        int n = static_cast<int>(m_colLabels.GetCount());
         int i;
 
         for ( i = n; i <= col; i++ )
@@ -1894,7 +1894,7 @@ void ObjectGridTable::init_cols(ObjectGrid *object_grid)
     col->choices.Add(_L("Inner brim only"));
     col->choices.Add(_L("Outer and inner brim"));
     col->choices.Add(_L("No-brim"));
-    col->choice_count = col->choices.size();
+    col->choice_count = static_cast<int>(col->choices.size());
     m_col_data.push_back(col);
 
     //reset icon for Bed Adhesion
@@ -1926,7 +1926,7 @@ void ObjectGridTable::construct_object_configs(ObjectGrid *object_grid)
         BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << "found invalid m_model, should not happen" << std::endl;
         return;
     }
-    int object_count = m_panel->m_model->objects.size();
+    int object_count = static_cast<int>(m_panel->m_model->objects.size());
     PartPlateList& partplate_list = m_panel->m_plater->get_partplate_list();
     DynamicPrintConfig&  global_config   = wxGetApp().preset_bundle->prints.get_edited_preset().config;
     const DynamicPrintConfig* plater_config = m_panel->m_plater->config();
@@ -1979,7 +1979,7 @@ void ObjectGridTable::construct_object_configs(ObjectGrid *object_grid)
         object_grid->ori_speed_perimeter = *(global_config.option<ConfigOptionFloat>(m_col_data[col_speed_perimeter]->key));
         m_grid_data.push_back(object_grid);
 
-        int volume_count = object->volumes.size();
+        int volume_count = static_cast<int>(object->volumes.size());
         if (volume_count <= 1)
             continue;
 
@@ -2324,7 +2324,7 @@ void ObjectGridTable::sort_by_default()
 
 void ObjectGridTable::sort_row_data(compare_row_func sort_func)
 {
-    int size = m_grid_data.size();
+    int size = static_cast<int>(m_grid_data.size());
     if (!size)
         return;
 
@@ -2807,7 +2807,7 @@ int ObjectTablePanel::init_filaments_and_colors()
     //DynamicPrintConfig&  global_config   = wxGetApp().preset_bundle->prints.get_edited_preset().config;
     const DynamicPrintConfig* global_config = m_plater->config();
     const std::vector<std::string> filament_presets = wxGetApp().preset_bundle->filament_presets;
-    m_filaments_count = filament_presets.size();
+    m_filaments_count = static_cast<int>(filament_presets.size());
     if (m_filaments_count <= 0) {
         BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << boost::format(", can not get filaments, count: %1%, set to default") %m_filaments_count;
         set_default_filaments_and_colors();
@@ -2821,7 +2821,7 @@ int ObjectTablePanel::init_filaments_and_colors()
     }
     m_filaments_colors.resize(m_filaments_count);
     m_filaments_name.resize(m_filaments_count);
-    unsigned int color_count = filament_opt->values.size();
+    unsigned int color_count = static_cast<unsigned int>(filament_opt->values.size());
     if (color_count != m_filaments_count) {
         BOOST_LOG_TRIVIAL(warning) << __FUNCTION__ << boost::format(", invalid color count:%1%, extruder count: %2%") %color_count %m_filaments_count;
     }
@@ -3484,13 +3484,13 @@ void GridCellTextEditor::BeginEdit(int row, int col, wxGrid *grid)
     Text()->GetTextCtrl()->SetInsertionPointEnd();
     
 
-    m_control->Bind(wxEVT_TEXT_ENTER, [this, row, col, grid](wxCommandEvent &e) {
+    m_control->Bind(wxEVT_TEXT_ENTER, [grid](wxCommandEvent &e) {
         grid->HideCellEditControl();
         grid->SaveEditControlValue();
         e.Skip();
     });
 
-    m_control->Bind(wxEVT_CHAR_HOOK, [this, row, col, grid](wxKeyEvent &e) {
+    m_control->Bind(wxEVT_CHAR_HOOK, [grid](wxKeyEvent &e) {
 		if (e.GetKeyCode() == WXK_ESCAPE) {
             grid->HideCellEditControl();
             grid->SaveEditControlValue();
