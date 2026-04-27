@@ -210,7 +210,7 @@ std::string CalibPressureAdvance::draw_number(double                            
                                               double                              speed,
                                               GCodeWriter                        &writer)
 {
-    auto              sNumber = convert_number_to_string(value, m_number_len);
+    auto              sNumber = convert_number_to_string(value, static_cast<unsigned int>(m_number_len));
     std::stringstream gcode;
     gcode << writer.set_speed(speed);
 
