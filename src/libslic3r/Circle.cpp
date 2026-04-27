@@ -278,7 +278,7 @@ bool ArcSegment::try_create_arc(
     if (!Circle::try_create_circle(points, max_radius, tolerance, test_circle))
         return false;
 
-    int mid_point_index = ((points.size() - 2) / 2) + 1;
+    int mid_point_index = static_cast<int>((points.size() - 2) / 2) + 1;
     ArcSegment test_arc;
     if (!ArcSegment::try_create_arc(test_circle, points[0], points[mid_point_index], points[points.size() - 1], test_arc, approximate_length, path_tolerance_percent))
         return false;
@@ -380,7 +380,7 @@ bool ArcSegment::are_points_within_slice(const ArcSegment& test_arc, const Point
     double previous_polar = test_arc.polar_start_theta;
     bool will_cross_zero = false;
     bool crossed_zero = false;
-    const int point_count = points.size();
+    const int point_count = static_cast<int>(points.size());
 
     Vec2d start_norm(((double)test_arc.start_point.x() - (double)test_arc.center.x()) / test_arc.radius,
                      ((double)test_arc.start_point.y() - (double)test_arc.center.y()) / test_arc.radius);
