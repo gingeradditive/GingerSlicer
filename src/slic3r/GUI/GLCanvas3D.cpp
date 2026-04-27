@@ -202,7 +202,7 @@ void GLCanvas3D::LayersEditing::show_tooltip_information(const GLCanvas3D& canva
 
     if (ImGui::IsItemHovered()) {
         ImGui::BeginTooltip2(ImVec2(x, y));
-        auto draw_text_with_caption = [this, &caption_max, &imgui](const wxString& caption, const wxString& text) {
+        auto draw_text_with_caption = [&caption_max, &imgui](const wxString& caption, const wxString& text) {
             imgui.text_colored(ImGuiWrapper::COL_ACTIVE, caption);
             ImGui::SameLine(caption_max);
             imgui.text_colored(ImGuiWrapper::COL_WINDOW_BG, text);
@@ -647,7 +647,7 @@ void GLCanvas3D::LayersEditing::generate_layer_height_texture()
     m_layers_texture.cells = Slic3r::generate_layer_height_texture(
         *m_slicing_parameters,
         Slic3r::generate_object_layers(*m_slicing_parameters, m_layer_height_profile, false),
-        m_layers_texture.data.data(), m_layers_texture.height, m_layers_texture.width, level_of_detail_2nd_level);
+        m_layers_texture.data.data(), static_cast<int>(m_layers_texture.height), static_cast<int>(m_layers_texture.width), level_of_detail_2nd_level);
     m_layers_texture.valid = true;
 }
 
@@ -2406,10 +2406,10 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
         if (m_selection.contains_volume(volume_id)) {
             if (m_canvas_type == ECanvasType::CanvasAssembleView) {
                 if (!volume->is_modifier)
-                    instance_ids_selected.emplace_back(volume->geometry_id.second);
+                    instance_ids_selected.emplace_back(static_cast<unsigned int>(volume->geometry_id.second));
             }
             else {
-                instance_ids_selected.emplace_back(volume->geometry_id.second);
+                instance_ids_selected.emplace_back(static_cast<unsigned int>(volume->geometry_id.second));
             }
         }
         if (mvs == nullptr || force_full_scene_refresh) {
@@ -2566,7 +2566,7 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
             // Find the object index of this print_object in the Model::objects list.
             auto it = std::find(sla_print->model().objects.begin(), sla_print->model().objects.end(), model_object);
             assert(it != sla_print->model().objects.end());
-			object_idx = it - sla_print->model().objects.begin();
+            object_idx = static_cast<int>(it - sla_print->model().objects.begin());
 			// Cache the Z offset to be applied to all volumes with this object_idx.
 			shift_zs[object_idx] = print_object->get_current_elevation() / relative_correction_z;
             // Collect indices of this print_object's instances, for which the SLA support meshes are to be added to the scene.
@@ -2575,10 +2575,10 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
             for (size_t print_instance_idx = 0; print_instance_idx < print_object->instances().size(); ++ print_instance_idx) {
                 const SLAPrintObject::Instance &instance = print_object->instances()[print_instance_idx];
                 // Find index of ModelInstance corresponding to this SLAPrintObject::Instance.
-				auto it = std::find_if(model_object->instances.begin(), model_object->instances.end(),
+										auto it = std::find_if(model_object->instances.begin(), model_object->instances.end(),
                     [&instance](const ModelInstance *mi) { return mi->id() == instance.instance_id; });
+										int instance_idx = static_cast<int>(it - model_object->instances.begin());
                 assert(it != model_object->instances.end());
-                int instance_idx = it - model_object->instances.begin();
                 for (size_t istep = 0; istep < sla_steps.size(); ++ istep)
                     if (sla_steps[istep] == slaposDrillHoles) {
                     	// Hollowing is a special case, where the mesh from the backend is being loaded into the 1st volume of an instance,
@@ -2803,7 +2803,7 @@ void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_re
     for (size_t i = 0; i < m_volumes.volumes.size(); ++i) {
         const GLVolume* v = m_volumes.volumes[i];
         assert(v->mesh_raycaster != nullptr);
-        std::shared_ptr<SceneRaycasterItem> raycaster = add_raycaster_for_picking(SceneRaycaster::EType::Volume, i, *v->mesh_raycaster, v->world_matrix());
+        std::shared_ptr<SceneRaycasterItem> raycaster = add_raycaster_for_picking(SceneRaycaster::EType::Volume, static_cast<int>(i), *v->mesh_raycaster, v->world_matrix());
         raycaster->set_active(v->is_active);
     }
 
@@ -5390,7 +5390,7 @@ void GLCanvas3D::update_sequential_clearance()
             break;
     }*/
 
-    int bounding_box_count = convex_and_bounding_boxes.size();
+    int bounding_box_count = static_cast<int>(convex_and_bounding_boxes.size());
     double printable_height = fff_print()->config().printable_height;
     double hc1 = fff_print()->config().extruder_clearance_height_to_lid;
     double hc2 = fff_print()->config().extruder_clearance_height_to_rod;
@@ -5964,7 +5964,7 @@ void GLCanvas3D::render_thumbnail_internal(ThumbnailData& thumbnail_data, const 
             // we reserve color = (0,0,0) for occluders (as the printbed)
             // so we shift volumes' id by 1 to get the proper color
             //BBS: remove the bed picking logic
-            unsigned int id = vol->model_object_ID;
+            unsigned int id = static_cast<unsigned int>(vol->model_object_ID);
             //unsigned int id = 1 + volume.second.first;
             unsigned int r = (id & (0x000000FF << 0)) >> 0;
             unsigned int g = (id & (0x000000FF << 8)) >> 8;
@@ -6983,21 +6983,21 @@ void GLCanvas3D::_rectangular_selection_picking_pass()
             }
             glsafe(::glGenTextures(1, &render_tex));
             glsafe(::glBindTexture(GL_TEXTURE_2D, render_tex));
-            glsafe(::glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr));
+            glsafe(::glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, static_cast<GLsizei>(width), static_cast<GLsizei>(height), 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr));
             glsafe(::glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
             glsafe(::glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
             if (framebuffers_type == OpenGLManager::EFramebufferType::Arb) {
                 glsafe(::glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, render_tex, 0));
                 glsafe(::glGenRenderbuffers(1, &render_depth));
                 glsafe(::glBindRenderbuffer(GL_RENDERBUFFER, render_depth));
-                glsafe(::glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width, height));
+                glsafe(::glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, static_cast<GLsizei>(width), static_cast<GLsizei>(height)));
                 glsafe(::glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, render_depth));
             }
             else {
                 glsafe(::glFramebufferTexture2D(GL_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0_EXT, GL_TEXTURE_2D, render_tex, 0));
                 glsafe(::glGenRenderbuffersEXT(1, &render_depth));
                 glsafe(::glBindRenderbufferEXT(GL_RENDERBUFFER_EXT, render_depth));
-                glsafe(::glRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT, width, height));
+                glsafe(::glRenderbufferStorageEXT(GL_RENDERBUFFER_EXT, GL_DEPTH_COMPONENT, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
                 glsafe(::glFramebufferRenderbufferEXT(GL_FRAMEBUFFER_EXT, GL_DEPTH_ATTACHMENT_EXT, GL_RENDERBUFFER_EXT, render_depth));
             }
             const GLenum drawBufs[] = { GL_COLOR_ATTACHMENT0 };
@@ -7047,7 +7047,7 @@ void GLCanvas3D::_rectangular_selection_picking_pass()
 
             framebuffer_camera.look_at(camera->get_position(), camera->get_target(), camera->get_dir_up());
             framebuffer_camera.apply_projection(rect_near_left, rect_near_right, rect_near_bottom, rect_near_top, camera->get_near_z(), camera->get_far_z());
-            framebuffer_camera.set_viewport(0, 0, width, height);
+            framebuffer_camera.set_viewport(0, 0, static_cast<unsigned int>(width), static_cast<unsigned int>(height));
             framebuffer_camera.apply_viewport();
             camera = &framebuffer_camera;
         }
@@ -7079,7 +7079,7 @@ void GLCanvas3D::_rectangular_selection_picking_pass()
             };
 
             std::vector<Pixel> frame(px_count);
-            glsafe(::glReadPixels(left, top, width, height, GL_RGBA, GL_UNSIGNED_BYTE, (void*)frame.data()));
+            glsafe(::glReadPixels(static_cast<GLint>(left), static_cast<GLint>(top), static_cast<GLsizei>(width), static_cast<GLsizei>(height), GL_RGBA, GL_UNSIGNED_BYTE, (void*)frame.data()));
 
             tbb::spin_mutex mutex;
             tbb::parallel_for(tbb::blocked_range<size_t>(0, frame.size(), (size_t)width),
@@ -7903,7 +7903,7 @@ void GLCanvas3D::_render_imgui_select_plate_toolbar()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 8.0f) * f_scale);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,   ImVec2(4.0f, 4.0f) * f_scale);
 
-    int item_count           = m_sel_plate_toolbar.m_items.size() + (m_sel_plate_toolbar.show_stats_item ? 1 : 0);
+    int item_count           = static_cast<int>(m_sel_plate_toolbar.m_items.size()) + (m_sel_plate_toolbar.show_stats_item ? 1 : 0);
     float window_height_calc = (item_count * (button_height + (margin_size + button_margin) * 2.0f) + (item_count - 1) * ImGui::GetStyle().ItemSpacing.y + ImGui::GetStyle().WindowPadding.y * 2.0f);
     bool  show_scroll        = m_sel_plate_toolbar.is_display_scrollbar && (window_height_calc > window_height_max);
     float scrollbar_size     = 10.0f * f_scale ;
@@ -8005,7 +8005,7 @@ void GLCanvas3D::_render_imgui_select_plate_toolbar()
         ImVec2 bar_size         = ImVec2(size.x - margin.x * 2, 5.0f * f_scale);
         ImVec2 bar_bg_bgn       = start_pos + ImVec2(margin.x, size.y - bar_size.y - margin.y);
         ImVec2 bar_bg_end       = bar_bg_bgn + bar_size;
-        int    total_plates_cnt = plate_list.get_nonempty_plate_list().size();
+        int    total_plates_cnt = static_cast<int>(plate_list.get_nonempty_plate_list().size());
         ImGui::GetWindowDrawList()->AddRectFilled(start_pos, start_pos + size, plate_bg, button_radius); // Button background
 
         if (all_plates_stats_item->slice_state == IMToolbarItem::SliceState::UNSLICED || all_plates_stats_item->slice_state == IMToolbarItem::SliceState::SLICING) {
@@ -8299,7 +8299,7 @@ void GLCanvas3D::_render_paint_toolbar() const
     int em_unit = wxGetApp().em_unit() / 10;
 
     std::vector<std::string> colors = wxGetApp().plater()->get_extruder_colors_from_plater_config();
-    int extruder_num = colors.size();
+    int extruder_num = static_cast<int>(colors.size());
     std::vector<std::string> filament_text_first_line;
     std::vector<std::string> filament_text_second_line;
     {
@@ -8387,18 +8387,18 @@ void GLCanvas3D::_render_paint_toolbar() const
         ImVec2 number_label_size = ImGui::CalcTextSize(std::to_string(i + 1).c_str());
         ImGui::SetCursorPosY(cursor_y + text_offset_y);
         ImGui::SetCursorPosX(spacing + i * (spacing + button_size.x) + (button_size.x - number_label_size.x) / 2);
-        ImGui::TextColored(text_color, std::to_string(i + 1).c_str());
+        ImGui::TextColored(text_color, "%s", std::to_string(i + 1).c_str());
         imgui.pop_bold_font();
 
         ImVec2 filament_first_line_label_size = ImGui::CalcTextSize(filament_text_first_line[i].c_str());
         ImGui::SetCursorPosY(cursor_y + text_offset_y + number_label_size.y);
         ImGui::SetCursorPosX(spacing + i * (spacing + button_size.x) + (button_size.x - filament_first_line_label_size.x) / 2);
-        ImGui::TextColored(text_color, filament_text_first_line[i].c_str());
+        ImGui::TextColored(text_color, "%s", filament_text_first_line[i].c_str());
 
         ImVec2 filament_second_line_label_size = ImGui::CalcTextSize(filament_text_second_line[i].c_str());
         ImGui::SetCursorPosY(cursor_y + text_offset_y + number_label_size.y + filament_first_line_label_size.y);
         ImGui::SetCursorPosX(spacing + i * (spacing + button_size.x) + (button_size.x - filament_second_line_label_size.x) / 2);
-        ImGui::TextColored(text_color, filament_text_second_line[i].c_str());
+        ImGui::TextColored(text_color, "%s", filament_text_second_line[i].c_str());
     }
 
     if (ImGui::GetWindowWidth() == constraint_window_width) {
@@ -8639,9 +8639,9 @@ void GLCanvas3D::_render_assemble_info() const
     double size1 = m_selection.get_bounding_box().size()(1);
     double size2 = m_selection.get_bounding_box().size()(2);
     if (!m_selection.is_empty()) {
-        ImGui::Text(_L("Volume:").ToUTF8()); ImGui::SameLine(caption_max);
+        ImGui::Text("%s", _L("Volume:").ToUTF8()); ImGui::SameLine(caption_max);
         ImGui::Text("%.2f", size0 * size1 * size2);
-        ImGui::Text(_L("Size:").ToUTF8()); ImGui::SameLine(caption_max);
+        ImGui::Text("%s", _L("Size:").ToUTF8()); ImGui::SameLine(caption_max);
         ImGui::Text("%.2f x %.2f x %.2f", size0, size1, size2);
     }
     imgui->end();
@@ -9219,7 +9219,7 @@ void GLCanvas3D::_load_print_object_toolpaths(const PrintObject& print_object, c
             return geometries[ctxt.color_by_color_print() ?
                 ctxt.color_print_color_idx_by_layer_idx_and_extruder(layer_idx, extruder) :
                 ctxt.color_by_tool() ?
-                std::min<int>(ctxt.number_tools() - 1, std::max<int>(extruder - 1, 0)) :
+                std::min<int>(static_cast<int>(ctxt.number_tools() - 1), std::max<int>(extruder - 1, 0)) :
                 feature
             ];
         };
@@ -9364,7 +9364,7 @@ void GLCanvas3D::_load_wipe_tower_toolpaths(const BuildVolume& build_volume, con
         size_t                       number_tools() const { return this->color_by_tool() ? tool_colors->size() : 0; }
         const ColorRGBA&             color_tool(size_t tool) const { return (*tool_colors)[tool]; }
         int                          volume_idx(int tool, int feature) const {
-            return this->color_by_tool() ? std::min<int>(this->number_tools() - 1, std::max<int>(tool, 0)) : feature;
+            return this->color_by_tool() ? std::min<int>(static_cast<int>(this->number_tools() - 1), std::max<int>(tool, 0)) : feature;
         }
 
         const std::vector<WipeTower::ToolChangeResult>& tool_change(size_t idx) {
