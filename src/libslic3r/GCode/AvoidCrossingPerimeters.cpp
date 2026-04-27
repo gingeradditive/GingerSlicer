@@ -641,13 +641,13 @@ static size_t avoid_perimeters_inner(
                      line_idx     = line_idx + 1 < int(boundaries[intersection_first.border_idx].size()) ? line_idx + 1 : 0)
                     result.push_back(
                         {get_polygon_vertex_offset(boundaries[intersection_first.border_idx],
-                                                   (line_idx + 1 == int(boundaries[intersection_first.border_idx].points.size())) ? 0 : (line_idx + 1), coord_t(SCALED_EPSILON)),
+                                                   (line_idx + 1 == int(boundaries[intersection_first.border_idx].points.size())) ? 0 : (line_idx + 1), static_cast<int>(coord_t(SCALED_EPSILON))),
                              int(intersection_first.border_idx)});
             else
                 for (int line_idx = int(intersection_first.line_idx); line_idx != int(intersection_second.line_idx);
                      line_idx     = line_idx - 1 >= 0 ? line_idx - 1 : int(boundaries[intersection_first.border_idx].size()) - 1)
                     result.push_back(
-                        {get_polygon_vertex_offset(boundaries[intersection_second.border_idx], line_idx + 0, coord_t(SCALED_EPSILON)), int(intersection_first.border_idx)});
+                        {get_polygon_vertex_offset(boundaries[intersection_second.border_idx], line_idx + 0, static_cast<int>(coord_t(SCALED_EPSILON))), int(intersection_first.border_idx)});
 
             // Append the farthest intersection into the path
             left_idx  = intersection_second.line_idx;
