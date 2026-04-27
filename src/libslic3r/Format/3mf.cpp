@@ -938,7 +938,7 @@ ModelVolumeType type_from_string(const std::string &s)
         }
 
         //BBS: copy object isteadof instance
-        int object_size = model.objects.size();
+        int object_size = static_cast<int>(model.objects.size());
         for (int obj_index = 0; obj_index < object_size; obj_index ++) {
             ModelObject* object = model.objects[obj_index];
             while (object->instances.size() > 1) {
@@ -2157,23 +2157,23 @@ ModelVolumeType type_from_string(const std::string &s)
                 volume->source.transform = Slic3r::Geometry::Transformation(volume_matrix_to_object);
 
             // recreate custom supports, seam, mm segmentation and fuzzy skin from previously loaded attribute
-            volume->supported_facets.reserve(triangles_count);
-            volume->seam_facets.reserve(triangles_count);
-            volume->mmu_segmentation_facets.reserve(triangles_count);
-            volume->fuzzy_skin_facets.reserve(triangles_count);
+            volume->supported_facets.reserve(static_cast<int>(triangles_count));
+            volume->seam_facets.reserve(static_cast<int>(triangles_count));
+            volume->mmu_segmentation_facets.reserve(static_cast<int>(triangles_count));
+            volume->fuzzy_skin_facets.reserve(static_cast<int>(triangles_count));
             for (size_t i=0; i<triangles_count; ++i) {
                 size_t index = volume_data.first_triangle_id + i;
                 assert(index < geometry.custom_supports.size());
                 assert(index < geometry.custom_seam.size());
                 assert(index < geometry.mmu_segmentation.size());
                 if (! geometry.custom_supports[index].empty())
-                    volume->supported_facets.set_triangle_from_string(i, geometry.custom_supports[index]);
+                    volume->supported_facets.set_triangle_from_string(static_cast<int>(i), geometry.custom_supports[index]);
                 if (! geometry.custom_seam[index].empty())
-                    volume->seam_facets.set_triangle_from_string(i, geometry.custom_seam[index]);
+                    volume->seam_facets.set_triangle_from_string(static_cast<int>(i), geometry.custom_seam[index]);
                 if (! geometry.mmu_segmentation[index].empty())
-                    volume->mmu_segmentation_facets.set_triangle_from_string(i, geometry.mmu_segmentation[index]);
+                    volume->mmu_segmentation_facets.set_triangle_from_string(static_cast<int>(i), geometry.mmu_segmentation[index]);
                 if (! geometry.fuzzy_skin[index].empty())
-                	volume->fuzzy_skin_facets.set_triangle_from_string(i, geometry.fuzzy_skin[index]);
+                	volume->fuzzy_skin_facets.set_triangle_from_string(static_cast<int>(i), geometry.fuzzy_skin[index]);
             }
             volume->supported_facets.shrink_to_fit();
             volume->seam_facets.shrink_to_fit();
