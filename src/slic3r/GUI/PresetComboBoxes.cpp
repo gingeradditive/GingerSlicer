@@ -395,12 +395,12 @@ void PresetComboBox::fill_width_height()
     */
     const float scale_f = (float)m_em_unit * 0.1f;
 
-    thin_icon_width = lroundf(8 * scale_f);          // analogue to 8px;
+    thin_icon_width = static_cast<int>(lroundf(8 * scale_f));          // analogue to 8px;
     wide_icon_width = norm_icon_width + thin_icon_width;
 
-    space_icon_width      = lroundf(2 * scale_f);
-    thin_space_icon_width = lroundf(4 * scale_f);
-    wide_space_icon_width = lroundf(6 * scale_f);
+    space_icon_width      = static_cast<int>(lroundf(2 * scale_f));
+    thin_space_icon_width = static_cast<int>(lroundf(4 * scale_f));
+    wide_space_icon_width = static_cast<int>(lroundf(6 * scale_f));
 }
 
 wxString PresetComboBox::separator(const std::string& label)
@@ -1289,7 +1289,7 @@ GUI::CalibrateFilamentComboBox::CalibrateFilamentComboBox(wxWindow *parent)
     clr_picker->SetBackgroundColour(*wxWHITE);
     clr_picker->SetBitmap(*get_extruder_color_icon("#FFFFFFFF", "", FromDIP(20), FromDIP(20)));
     clr_picker->SetToolTip("");
-    clr_picker->Bind(wxEVT_BUTTON, [this](wxCommandEvent& e) {});
+    clr_picker->Bind(wxEVT_BUTTON, [](wxCommandEvent& e) {});
 }
 
 GUI::CalibrateFilamentComboBox::~CalibrateFilamentComboBox()
