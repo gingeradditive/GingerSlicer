@@ -182,7 +182,7 @@ public:
     {
         int count_apperance = 0;
         {
-            int face_count = mesh->facets_count();
+            int face_count = static_cast<int>(mesh->facets_count());
             auto its = mesh->its;
             face_normals = its_face_normals(its);
             areas = Eigen::VectorXf::Zero(face_count);
@@ -191,11 +191,11 @@ public:
             normals_quantize = Eigen::MatrixXf::Zero(face_count, 3);
             for (size_t i = 0; i < face_count; i++)
             {
-                float area = its.facet_area(i);
+                float area = its.facet_area(static_cast<int>(i));
                 normals.row(i) = face_normals[i];
                 normals_quantize.row(i) = quantize_vec3f(face_normals[i]);
                 areas(i) = area;
-                is_apperance(i) = (its.get_property(i).type == EnumFaceTypes::eExteriorAppearance);
+                is_apperance(static_cast<int>(i)) = (its.get_property(static_cast<int>(i)).type == EnumFaceTypes::eExteriorAppearance);
                 count_apperance += (is_apperance(i)==1);
             }
         }
@@ -208,20 +208,20 @@ public:
             mesh_convex_hull = mesh->convex_hull_3d();
             //mesh_convex_hull.write_binary("convex_hull_debug.stl");
 
-            int face_count = mesh_convex_hull.facets_count();
+            int face_count = static_cast<int>(mesh_convex_hull.facets_count());
             auto its = mesh_convex_hull.its;
-            face_count_hull = mesh_convex_hull.facets_count();
+            face_count_hull = static_cast<int>(mesh_convex_hull.facets_count());
             face_normals_hull = its_face_normals(its);
             areas_hull = Eigen::VectorXf::Zero(face_count);
             normals_hull = Eigen::MatrixXf::Zero(face_count_hull, 3);
             normals_hull_quantize = Eigen::MatrixXf::Zero(face_count_hull, 3);
             for (size_t i = 0; i < face_count; i++)
             {
-                float area = its.facet_area(i);
+                float area = its.facet_area(static_cast<int>(i));
                 //We cannot use quantized vector here, the accumulated error will result in bad orientations.
-                normals_hull.row(i) = face_normals_hull[i];
-                normals_hull_quantize.row(i) = quantize_vec3f(face_normals_hull[i]);
-                areas_hull(i) = area;
+                normals_hull.row(static_cast<int>(i)) = face_normals_hull[static_cast<int>(i)];
+                normals_hull_quantize.row(static_cast<int>(i)) = quantize_vec3f(face_normals_hull[static_cast<int>(i)]);
+                areas_hull(static_cast<int>(i)) = area;
             }
         }
     }
@@ -242,7 +242,7 @@ public:
         std::vector<PAIR> align_counts(alignments.begin(), alignments.end());
         sort(align_counts.begin(), align_counts.end(), [](const PAIR& p1, const PAIR& p2) {return p1.second > p2.second; });
 
-        num_directions = std::min((size_t)num_directions, align_counts.size());
+        num_directions = std::min(static_cast<int>(num_directions), static_cast<int>(align_counts.size()));
         for (size_t i = 0; i < num_directions; i++)
         {
             orientations.push_back(align_counts[i].first);
@@ -274,7 +274,7 @@ public:
         std::vector<PAIR> align_counts(alignments_.begin(), alignments_.end());
         sort(align_counts.begin(), align_counts.end(), [](const PAIR& p1, const PAIR& p2) {return p1.second.first[1] > p2.second.first[1]; });
 
-        num_directions = std::min((size_t)num_directions, align_counts.size());
+        num_directions = std::min(static_cast<int>(num_directions), static_cast<int>(align_counts.size()));
         for (size_t i = 0; i < num_directions; i++)
         {
             orientations.push_back(align_counts[i].second.second);
@@ -318,7 +318,7 @@ public:
 
     void project_vertices(Vec3f orientation)
     {
-        int face_count = mesh->facets_count();
+        int face_count = static_cast<int>(mesh->facets_count());
         auto its = mesh->its;
         z_projected.resize(face_count, 3);
         z_max.resize(face_count, 1);
@@ -326,31 +326,31 @@ public:
         z_mean.resize(face_count, 1);
         for (size_t i = 0; i < face_count; i++)
         {
-            float z0 = its.get_vertex(i,0).dot(orientation);
-            float z1 = its.get_vertex(i,1).dot(orientation);
-            float z2 = its.get_vertex(i,2).dot(orientation);
-            z_projected(i, 0) = z0;
-            z_projected(i, 1) = z1;
-            z_projected(i, 2) = z2;
-            z_max(i) = MAX3(z0,z1,z2);
-            z_median(i) = MEDIAN3(z0,z1,z2);
-            z_mean(i) = (z0 + z1 + z2) / 3;
+            float z0 = its.get_vertex(static_cast<int>(i),0).dot(orientation);
+            float z1 = its.get_vertex(static_cast<int>(i),1).dot(orientation);
+            float z2 = its.get_vertex(static_cast<int>(i),2).dot(orientation);
+            z_projected(static_cast<int>(i), 0) = z0;
+            z_projected(static_cast<int>(i), 1) = z1;
+            z_projected(static_cast<int>(i), 2) = z2;
+            z_max(static_cast<int>(i)) = MAX3(z0, z1, z2);
+            z_median(static_cast<int>(i)) = MEDIAN3(z0,z1,z2);
+            z_mean(static_cast<int>(i)) = (z0 + z1 + z2) / 3.0f;
         }
 
         z_max_hull.resize(mesh_convex_hull.facets_count(), 1);
         its = mesh_convex_hull.its;
         for (size_t i = 0; i < z_max_hull.rows(); i++)
         {
-            float z0 = its.get_vertex(i,0).dot(orientation);
-            float z1 = its.get_vertex(i,1).dot(orientation);
-            float z2 = its.get_vertex(i,2).dot(orientation);
-            z_max_hull(i) = MAX3(z0, z1, z2);
+            float z0 = its.get_vertex(static_cast<int>(i),0).dot(orientation);
+            float z1 = its.get_vertex(static_cast<int>(i),1).dot(orientation);
+            float z2 = its.get_vertex(static_cast<int>(i),2).dot(orientation);
+            z_max_hull(static_cast<int>(i)) = MAX3(z0, z1, z2);
         }
     }
 
     static Eigen::VectorXi argsort(const Eigen::VectorXf& vec, std::string order="ascend")
     {
-        Eigen::VectorXi ind = Eigen::VectorXi::LinSpaced(vec.size(), 0, vec.size() - 1);//[0 1 2 3 ... N-1]
+        Eigen::VectorXi ind = Eigen::VectorXi::LinSpaced(static_cast<int>(vec.size()), 0, static_cast<int>(vec.size()) - 1);//[0 1 2 3 ... N-1]
         std::function<bool(int, int)> rule;
         if (order == "ascend") {
             rule = [vec](int i, int j)->bool {
@@ -417,7 +417,7 @@ public:
             costs.contour = 4 * sqrt(costs.bottom);
 #else
             float contour = 0;
-            int face_count = mesh->facets_count();
+            int face_count = static_cast<int>(mesh->facets_count());
             auto its = mesh->its;
             int contour_amout = 0;
             for (size_t i = 0; i < face_count; i++)
@@ -479,7 +479,7 @@ void _orient(OrientMeshs& meshs_,
     {
         for (size_t i = 0; i != meshs_.size(); ++i) {
             auto& mesh_ = meshs_[i];
-            progressfn(i, mesh_.name);
+            progressfn(static_cast<unsigned int>(i), mesh_.name);
             //auto progressfn_i = [&](unsigned cnt) {progressfn(cnt, "Orienting " + mesh_.name); };
             AutoOrienter orienter(&mesh_, params, /*progressfn_i*/{}, stopfn);
             mesh_.orientation = orienter.process();
@@ -492,7 +492,7 @@ void _orient(OrientMeshs& meshs_,
         tbb::parallel_for(tbb::blocked_range<size_t>(0, meshs_.size()), [&meshs_, &params, progressfn, stopfn](const tbb::blocked_range<size_t>& range) {
             for (size_t i = range.begin(); i != range.end(); ++i) {
                 auto& mesh_ = meshs_[i];
-                progressfn(i, mesh_.name);
+                progressfn(static_cast<unsigned int>(i), mesh_.name);
                 AutoOrienter orienter(&mesh_, params, {}, stopfn);
                 mesh_.orientation = orienter.process();
                 Geometry::rotation_from_two_vectors(mesh_.orientation, { 0,0,1 }, mesh_.axis, mesh_.angle, &mesh_.rotation_matrix);
