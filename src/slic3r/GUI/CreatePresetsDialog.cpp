@@ -1247,7 +1247,7 @@ wxBoxSizer *CreateFilamentPresetDialog::create_radio_item(wxString title, wxWind
     horizontal_sizer->Add(radiobox, 0, wxEXPAND | wxALL, 0);
     horizontal_sizer->Add(0, 0, 0, wxEXPAND | wxLEFT, FromDIP(5));
     radiobox_list.push_back(std::make_pair(radiobox, title));
-    int btn_idx = radiobox_list.size() - 1;
+    int btn_idx = static_cast<int>(radiobox_list.size() - 1);
     radiobox->Bind(wxEVT_LEFT_DOWN, [this, &radiobox_list, btn_idx](wxMouseEvent &e) { select_curr_radiobox(radiobox_list, btn_idx); });
 
     wxStaticText *text = new wxStaticText(parent, wxID_ANY, title, wxDefaultPosition, wxDefaultSize);
@@ -1261,7 +1261,7 @@ wxBoxSizer *CreateFilamentPresetDialog::create_radio_item(wxString title, wxWind
 
 void CreateFilamentPresetDialog::select_curr_radiobox(std::vector<std::pair<RadioBox *, wxString>> &radiobox_list, int btn_idx)
 {
-    int len = radiobox_list.size();
+    int len = static_cast<int>(radiobox_list.size());
     for (int i = 0; i < len; ++i) {
         if (i == btn_idx) {
             radiobox_list[i].first->SetValue(true);
@@ -2076,7 +2076,7 @@ bool CreatePrinterPresetDialog::load_system_and_user_presets_with_curr_model(Pre
     }
 
     std::string curr_selected_model = into_u8(m_printer_model->GetStringSelection());
-    int         nozzle_index        = curr_selected_model.find_first_of("@");
+    int         nozzle_index        = static_cast<int>(curr_selected_model.find_first_of("@"));
     std::string select_model        = curr_selected_model.substr(0, nozzle_index - 1);
     for (const Slic3r::VendorProfile::PrinterModel &model : m_printer_preset_vendor_selected.models) {
         if (model.name == select_model) {
@@ -2305,7 +2305,7 @@ wxBoxSizer *CreatePrinterPresetDialog::create_radio_item(wxString title, wxWindo
     horizontal_sizer->Add(radiobox, 0, wxEXPAND | wxALL, 0);
     horizontal_sizer->Add(0, 0, 0, wxEXPAND | wxLEFT, FromDIP(5));
     radiobox_list.push_back(std::make_pair(radiobox,title));
-    int btn_idx = radiobox_list.size() - 1;
+    int btn_idx = static_cast<int>(radiobox_list.size() - 1);
     radiobox->Bind(wxEVT_LEFT_DOWN, [this, &radiobox_list, btn_idx](wxMouseEvent &e) {
         select_curr_radiobox(radiobox_list, btn_idx);
     });
@@ -2324,7 +2324,7 @@ wxBoxSizer *CreatePrinterPresetDialog::create_radio_item(wxString title, wxWindo
 
 void CreatePrinterPresetDialog::select_curr_radiobox(std::vector<std::pair<RadioBox *, wxString>> &radiobox_list, int btn_idx)
 {
-    int len = radiobox_list.size();
+    int len = static_cast<int>(radiobox_list.size());
     for (int i = 0; i < len; ++i) {
         if (i == btn_idx) {
             radiobox_list[i].first->SetValue(true);
@@ -3509,7 +3509,7 @@ wxBoxSizer *ExportConfigsDialog::create_radio_item(wxString title, wxWindow *par
     horizontal_sizer->Add(radiobox, 0, wxEXPAND | wxALL, 0);
     horizontal_sizer->Add(0, 0, 0, wxEXPAND | wxLEFT, FromDIP(5));
     radiobox_list.push_back(std::make_pair(radiobox, title));
-    int btn_idx = radiobox_list.size() - 1;
+    int btn_idx = static_cast<int>(radiobox_list.size() - 1);
     radiobox->Bind(wxEVT_LEFT_DOWN, [this, &radiobox_list, btn_idx](wxMouseEvent &e) {
         select_curr_radiobox(radiobox_list, btn_idx);
         });
@@ -3581,7 +3581,7 @@ ExportConfigsDialog::ExportCase ExportConfigsDialog::save_presets_to_zip(const s
 
 void ExportConfigsDialog::select_curr_radiobox(std::vector<std::pair<RadioBox *, wxString>> &radiobox_list, int btn_idx)
 {
-    int len = radiobox_list.size();
+    int len = static_cast<int>(radiobox_list.size());
     for (int i = 0; i < len; ++i) {
         if (i == btn_idx) {
             radiobox_list[i].first->SetValue(true);
@@ -4349,7 +4349,7 @@ void EditFilamentPresetDialog::delete_preset()
     }
 
     // remove preset shared_ptr from m_printer_compatible_presets
-    int                     last_index         = filament_presets.size() - 1;
+    int                     last_index         = static_cast<int>(filament_presets.size() - 1);
     if (m_need_delete_preset_index != last_index) {
         std::swap(filament_presets[m_need_delete_preset_index], filament_presets[last_index]);
     }
@@ -4723,7 +4723,7 @@ wxPanel *PresetTree::get_preset_tree(std::pair<std::string, std::vector<std::sha
     panel->SetBackgroundColour(backgroundColor);
     const std::string &printer_name = printer_and_presets.first;
     sizer->Add(get_root_item(panel, printer_name), 0, wxEXPAND, 0);
-    int child_count = printer_and_presets.second.size();
+    int child_count = static_cast<int>(printer_and_presets.second.size());
     for (int i = 0; i < child_count; i++) {
         if (i == child_count - 1) {
             sizer->Add(get_child_item(panel, printer_and_presets.second[i], printer_name, i, true), 0, wxEXPAND, 0);
