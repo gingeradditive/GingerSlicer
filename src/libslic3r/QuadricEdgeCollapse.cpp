@@ -45,7 +45,7 @@ namespace QuadricEdgeCollapse {
     
         const SymMat &operator+=(const SymMat &n)
         {
-            for (size_t i = 0; i < N; ++i) m[i] += n[i];
+            for (int i = 0; i < (int)N; ++i) m[i] += n[i];
             return *this;
         }    
     };
@@ -203,7 +203,7 @@ void Slic3r::its_quadric_edge_collapse(
     std::vector<uint32_t> changed_triangle_indices;
     changed_triangle_indices.reserve(2 * max_triangle_count_for_one_vertex);
 
-    uint32_t actual_triangle_count = its.indices.size();
+    uint32_t actual_triangle_count = static_cast<uint32_t>(its.indices.size());
     uint32_t count_triangle_to_reduce = actual_triangle_count - triangle_count;
     auto increase_status = [&]() { 
         double reduced = (actual_triangle_count - triangle_count) /
@@ -456,7 +456,7 @@ QuadricEdgeCollapse::init(const indexed_triangle_set &its, ThrowOnCancel& throw_
                 triangle_quadrics[i] = create_quadric(t, normal, its.vertices);
                 if (i % 1000000 == 0) {
                     throw_on_cancel();
-                    status_fn(status_offset + (i * status_normal_size) / its.indices.size());
+                    status_fn(status_offset + (static_cast<int>(i) * status_normal_size) / static_cast<int>(its.indices.size()));
                 }
             }
         }); // END parallel for
@@ -473,7 +473,7 @@ QuadricEdgeCollapse::init(const indexed_triangle_set &its, ThrowOnCancel& throw_
             }
             if (i % 1000000 == 0) {
                 throw_on_cancel();
-                status_fn(status_offset + (i * status_sum_quadric) / its.indices.size());
+                status_fn(status_offset + (static_cast<int>(i) * status_sum_quadric) / static_cast<int>(its.indices.size()));
             }
         }
         status_offset += status_sum_quadric;
@@ -500,10 +500,10 @@ QuadricEdgeCollapse::init(const indexed_triangle_set &its, ThrowOnCancel& throw_
         for (size_t i = range.begin(); i < range.end(); ++i) {
             const Triangle &t      = its.indices[i];
             TriangleInfo &  t_info = t_infos[i];
-            errors[i] = calculate_error(i, t, its.vertices, v_infos, t_info.min_index);
+            errors[i] = calculate_error(static_cast<uint32_t>(i), t, its.vertices, v_infos, t_info.min_index);
             if (i % 1000000 == 0) {
                 throw_on_cancel();
-                status_fn(status_offset + (i * status_calc_errors) / its.indices.size());
+                status_fn(status_offset + (static_cast<int>(i) * status_calc_errors) / static_cast<int>(its.indices.size()));
             }
             if (i % 1000000 == 0) throw_on_cancel();
         }
@@ -520,13 +520,13 @@ QuadricEdgeCollapse::init(const indexed_triangle_set &its, ThrowOnCancel& throw_
             size_t ei = v_info.start + v_info.count;
             assert(ei < e_infos.size());
             EdgeInfo &e_info = e_infos[ei];
-            e_info.t_index  = i;
+            e_info.t_index  = static_cast<uint32_t>(i);
             e_info.edge      = j;
             ++v_info.count;
         }
         if (i % 1000000 == 0) {
             throw_on_cancel();
-            status_fn(status_offset + (i * status_create_refs) / its.indices.size());
+            status_fn(status_offset + (static_cast<int>(i) * status_create_refs) / static_cast<int>(its.indices.size()));
         }
     }
 
@@ -807,11 +807,11 @@ void QuadricEdgeCollapse::change_neighbors(EdgeInfos &     e_infos,
             act_v_info = &v_infos[act_vi];
             act_start  = act_v_info->start;
         } else
-            act_start = e_infos.size(); // fix for edge between last two triangles
+            act_start = static_cast<uint32_t>(e_infos.size()); // fix for edge between last two triangles
     }
 
     // copy by c_infos
-    for (uint32_t i = infos.size(); i > 0; --i) {
+    for (uint32_t i = static_cast<uint32_t>(infos.size()); i > 0; --i) {
         const CopyEdgeInfo &c_info = infos[i - 1];
         for (uint32_t ei = c_info.start + c_info.count - 1; ei >= c_info.start; --ei)
             e_infos[ei + c_info.move] = e_infos[ei]; // copy
