@@ -1035,7 +1035,7 @@ std::tuple<std::vector<ExtrusionPaths>, Polygons> generate_extra_perimeters_over
                                 overhang_region.front().polyline.end());
                 }
                 auto first_unanchored          = std::stable_partition(overhang_region.begin(), overhang_region.end(), is_anchored);
-                int  index_of_first_unanchored = first_unanchored - overhang_region.begin();
+                int  index_of_first_unanchored = static_cast<int>(first_unanchored - overhang_region.begin());
                 overhang_region = sort_extra_perimeters(overhang_region, index_of_first_unanchored, overhang_flow.scaled_spacing());
             }
         }
@@ -1485,7 +1485,7 @@ void PerimeterGenerator::process_classic()
                     // perimeters left.
                     while (position < reordered_extrusions.size()) {
                         outer = first_internal = second_internal = current_perimeter = -1; // initialise all index values to -1
-                        max_internal = reordered_extrusions.size()-1; // initialise the maximum internal perimeter to the last perimeter on the extrusion list
+                        max_internal = static_cast<int>(reordered_extrusions.size())-1; // initialise the maximum internal perimeter to the last perimeter on the extrusion list
                         // run through the walls to get the index values that need re-ordering until the first one for each
                         // is found. Start at "position" index to enable the for loop to iterate for multiple external
                         // perimeters in a single island
@@ -1929,7 +1929,7 @@ std::vector<int> findAllTouchingPerimeters(const std::vector<PerimeterGeneratorA
         Points referencePoints = Arachne::to_points(*referenceEntity.extrusion);
         for (size_t i = 0; i < entities.size(); ++i) {
             // Skip already considered references and the reference entity
-            if (referenceIndices.count(i) > 0) continue;
+            if (referenceIndices.count(static_cast<int>(i)) > 0) continue;
             const auto& entity = entities[i];
             if (entity.extrusion->inset_idx == 0) continue; // Ignore inset index 0 (external) perimeters from the re-ordering even if they are touching
 
@@ -1946,7 +1946,7 @@ std::vector<int> findAllTouchingPerimeters(const std::vector<PerimeterGeneratorA
             else
                 threshold = threshold_internal;
             if (distance <= threshold) {
-                touchingIndices.insert(i);
+                touchingIndices.insert(static_cast<int>(i));
             }
         }
     }
@@ -2037,14 +2037,14 @@ std::vector<PerimeterGeneratorArachneExtrusion> reorderPerimetersByProximity(std
 
     // Loop through all perimeters and reorder starting from each inset index 0 perimeter
     for (size_t refIdx = 0; refIdx < entities.size(); ++refIdx) {
-        if (entities[refIdx].extrusion->inset_idx == 0 && includedIndices.count(refIdx) == 0) {
-            reorderFromReference(refIdx);
+        if (entities[refIdx].extrusion->inset_idx == 0 && includedIndices.count(static_cast<int>(refIdx)) == 0) {
+            reorderFromReference(static_cast<int>(refIdx));
         }
     }
 
     // Append any remaining entities that were not included
     for (size_t i = 0; i < entities.size(); ++i) {
-        if (includedIndices.count(i) == 0) {
+        if (includedIndices.count(static_cast<int>(i)) == 0) {
             reordered.push_back(entities[i]);
         }
     }
