@@ -121,8 +121,8 @@ wxBitmap ModelNode::get_bitmap(const wxString& color)
      * and scale them in respect to em_unit value
      */
     const double em = em_unit(m_parent_win);
-    const int icon_width    = lround(6.4 * em);
-    const int icon_height   = lround(1.6 * em);
+    const int icon_width    = static_cast<int>(lround(6.4 * em));
+    const int icon_height   = static_cast<int>(lround(1.6 * em));
 
     BitmapCache bmp_cache;
     ColorRGB rgb;
@@ -486,7 +486,7 @@ unsigned int DiffModel::GetChildren(const wxDataViewItem& parent, wxDataViewItem
     for (const std::unique_ptr<ModelNode>& child : children)
         array.Add(wxDataViewItem((void*)child.get()));
 
-    return array.Count();
+    return static_cast<unsigned int>(array.Count());
 }
 
 
@@ -572,9 +572,9 @@ void DiffModel::Clear()
 
 static std::string get_pure_opt_key(std::string opt_key)
 {
-    const int pos = opt_key.find("#");
+    const int pos = static_cast<int>(opt_key.find("#"));
     if (pos > 0)
-        boost::erase_tail(opt_key, opt_key.size() - pos);
+        boost::erase_tail(opt_key, static_cast<int>(opt_key.size() - pos));
     return opt_key;
 }
 
@@ -703,8 +703,8 @@ void DiffViewCtrl::context_menu(wxDataViewEvent& event)
         return;
 
     size_t column_cnt = this->GetColumnCount();
-    const wxString old_value_header = this->GetColumn(column_cnt - 2)->GetTitle();
-    const wxString new_value_header = this->GetColumn(column_cnt - 1)->GetTitle();
+    const wxString old_value_header = this->GetColumn(static_cast<unsigned int>(column_cnt - 2))->GetTitle();
+    const wxString new_value_header = this->GetColumn(static_cast<unsigned int>(column_cnt - 1))->GetTitle();
     FullCompareDialog(it->second.opt_name, it->second.old_val, it->second.new_val,
                       old_value_header, new_value_header).ShowModal();
 
@@ -1200,11 +1200,11 @@ static wxString get_string_value(std::string opt_key, const DynamicPrintConfig& 
 {
     int orig_opt_idx = -1;
     int opt_idx = -1;
-    int pos = opt_key.find("#");
+    int pos = static_cast<int>(opt_key.find("#"));
     std::string temp_str = opt_key;
     if (pos > 0) {
         boost::erase_head(temp_str, pos + 1);
-        orig_opt_idx = static_cast<size_t>(atoi(temp_str.c_str()));
+        orig_opt_idx = atoi(temp_str.c_str());
     }
     opt_idx = orig_opt_idx >= 0 ? orig_opt_idx : 0;
     opt_key = get_pure_opt_key(opt_key);
