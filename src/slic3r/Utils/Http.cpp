@@ -253,7 +253,7 @@ int Http::priv::xfercb(void *userp, curl_off_t dltotal, curl_off_t dlnow, curl_o
 		double speed;
         curl_easy_getinfo(self->curl, CURLINFO_SPEED_UPLOAD, &speed);
 		if (speed > 0.01)
-			speed = speed;
+			// speed = speed;
 		Progress progress(dltotal, dlnow, ultotal, ulnow, self->buffer, speed);
 		self->progressfn(progress, cb_cancel);
 	}
@@ -490,7 +490,7 @@ void Http::priv::http_perform()
 
 		//BBS check success http status code
 		if (http_status >= 200 && http_status < 300) {
-			if (completefn) { completefn(std::move(buffer), http_status); }
+			if (completefn) { completefn(std::move(buffer), static_cast<unsigned int>(http_status)); }
 			if (ipresolvefn) {
 				char* ct;
 				res = curl_easy_getinfo(curl, CURLINFO_PRIMARY_IP, &ct);
@@ -501,7 +501,7 @@ void Http::priv::http_perform()
 		}
 		//BBS check error http status code
 		else if (http_status >= 400) {
-			if (errorfn) { errorfn(std::move(buffer), std::string(), http_status); }
+			if (errorfn) { errorfn(std::move(buffer), std::string(), static_cast<unsigned int>(http_status)); }
 		}
 	}
 }
@@ -843,7 +843,7 @@ std::string Http::url_encode(const std::string &str)
 	if (curl == nullptr) {
 		return str;
 	}
-	char *ce = ::curl_easy_escape(curl, str.c_str(), str.length());
+	char *ce = ::curl_easy_escape(curl, str.c_str(), static_cast<int>(str.length()));
 	std::string encoded = std::string(ce);
 
 	::curl_free(ce);
@@ -857,8 +857,8 @@ std::string Http::url_decode(const std::string &str)
     ::CURL *curl = ::curl_easy_init();
     if (curl == nullptr) { return str; }
     int outlen = 0;
-    char *ce = ::curl_easy_unescape(curl, str.c_str(), str.length(), &outlen);
-    std::string dencoded = std::string(ce, outlen);
+    char *ce = ::curl_easy_unescape(curl, str.c_str(), static_cast<int>(str.length()), &outlen);
+    std::string dencoded(ce, outlen); // Fix self-assign warning
 
     ::curl_free(ce);
     ::curl_easy_cleanup(curl);
@@ -868,10 +868,10 @@ std::string Http::url_decode(const std::string &str)
 
 std::string Http::get_filename_from_url(const std::string &url)
 {
-    int end_pos = url.find_first_of('?');
+    int end_pos = static_cast<int>(url.find_first_of('?'));
 	if (end_pos <= 0) return "";
 	std::string path_url = url.substr(0, end_pos);
-	int start_pos = path_url.find_last_of("/");
+	int start_pos = static_cast<int>(path_url.find_last_of("/"));
 	if (start_pos < 0) return "";
 	return path_url.substr(start_pos + 1, path_url.length() - start_pos - 1);
 }
