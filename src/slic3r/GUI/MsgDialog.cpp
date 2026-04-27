@@ -222,8 +222,8 @@ static void add_msg_content(wxWindow* parent, wxBoxSizer* content_sizer, wxStrin
         int start_line = 0;
         for (auto i = msg.begin(); i != msg.end(); ++i) {
             if (*i == '\n') {
-                int cur_line_len = i - msg.begin() - start_line;
-                start_line = i - msg.begin();
+                int cur_line_len = static_cast<int>(i - msg.begin() - start_line);
+                start_line = static_cast<int>(i - msg.begin());
                 if (cur_line_len == 0 || line_len > cur_line_len)
                     msg_lines++;
                 else
@@ -258,7 +258,7 @@ static void add_msg_content(wxWindow* parent, wxBoxSizer* content_sizer, wxStrin
         em = std::max<size_t>(10, parent->GetTextExtent("m").x - 1);
 #else
         double scale_factor = (double)get_dpi_for_window(parent) / (double)DPI_DEFAULT;
-        em = std::max<size_t>(10, 10.0f * scale_factor);
+        em = static_cast<int>(std::max<size_t>(10, 10.0f * scale_factor));
 #endif // __WXGTK__
     }
 
@@ -267,7 +267,7 @@ static void add_msg_content(wxWindow* parent, wxBoxSizer* content_sizer, wxStrin
         int lines = msg.Freq('\n') + 1;
         int pos = 0;
         while (pos < (int)msg.Len() && pos != wxNOT_FOUND) {
-            pos = msg.find("<tr>", pos + 1);
+            pos = static_cast<int>(msg.find("<tr>", pos + 1));
             lines += 2;
         }
         int page_height = std::min(int(font.GetPixelSize().y+2) * lines, 68 * em);
@@ -619,7 +619,7 @@ NetworkErrorDialog::NetworkErrorDialog(wxWindow* parent)
 
     m_link_server_state = new wxHyperlinkCtrl(this, wxID_ANY, _L("Check the status of current system services"), "");
     m_link_server_state->SetFont(::Label::Body_13);
-    m_link_server_state->Bind(wxEVT_LEFT_DOWN, [this](auto& e) {wxGetApp().link_to_network_check(); });
+    m_link_server_state->Bind(wxEVT_LEFT_DOWN, [](auto& e) {wxGetApp().link_to_network_check(); });
     m_link_server_state->Bind(wxEVT_ENTER_WINDOW, [this](auto& e) {SetCursor(wxCURSOR_HAND); });
     m_link_server_state->Bind(wxEVT_LEAVE_WINDOW, [this](auto& e) {SetCursor(wxCURSOR_ARROW); });
 
@@ -637,7 +637,7 @@ NetworkErrorDialog::NetworkErrorDialog(wxWindow* parent)
 
     m_text_wiki = new wxHyperlinkCtrl(this, wxID_ANY, _L("How to use LAN only mode"), "");
     m_text_wiki->SetFont(::Label::Body_13);
-    m_text_wiki->Bind(wxEVT_LEFT_DOWN, [this](auto& e) {wxGetApp().link_to_lan_only_wiki(); });
+    m_text_wiki->Bind(wxEVT_LEFT_DOWN, [](auto& e) {wxGetApp().link_to_lan_only_wiki(); });
     m_text_wiki->Bind(wxEVT_ENTER_WINDOW, [this](auto& e) {SetCursor(wxCURSOR_HAND); });
     m_text_wiki->Bind(wxEVT_LEAVE_WINDOW, [this](auto& e) {SetCursor(wxCURSOR_ARROW); });
 
