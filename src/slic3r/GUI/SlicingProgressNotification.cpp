@@ -351,7 +351,7 @@ void Slic3r::GUI::NotificationManager::SlicingProgressNotification::render_text(
         for (auto i = 0; i < m_lines_count; i++) {
             ImGui::SetCursorScreenPos(pos + ImVec2(0, i * m_line_height));
             imgui.text(m_text1.substr(last_end, m_endlines[i] - last_end).c_str());
-            last_end = m_endlines[i];
+            last_end = static_cast<int>(m_endlines[i]);
         }
 	}
 }
