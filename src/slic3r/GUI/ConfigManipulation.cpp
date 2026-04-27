@@ -358,7 +358,7 @@ void ConfigManipulation::update_print_fff_config(DynamicPrintConfig* config, con
     }
 
     // BBS
-    int filament_cnt = wxGetApp().preset_bundle->filament_presets.size();
+    int filament_cnt = static_cast<int>(wxGetApp().preset_bundle->filament_presets.size());
 #if 0
     bool has_wipe_tower = filament_cnt > 1 && config->opt_bool("enable_prime_tower");
     if (has_wipe_tower && (config->opt_bool("adaptive_layer_height") || config->opt_bool("independent_support_layer_height"))) {
