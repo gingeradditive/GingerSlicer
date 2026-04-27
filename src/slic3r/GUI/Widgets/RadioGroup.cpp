@@ -29,7 +29,7 @@ void RadioGroup::Create(
 )
 {
     m_labels = labels;
-    m_item_count = m_labels.size();
+    m_item_count = static_cast<int>(m_labels.size());
 
     auto bg = parent->GetBackgroundColour();
     this->SetBackgroundColour(bg);
@@ -119,7 +119,7 @@ void RadioGroup::SetSelection(int index, bool focus)
         if(focus)
             m_labelButtons[index]->SetFocus();
         m_selectedIndex = index;
-        for (size_t i = 0; i < m_item_count; ++i)
+        for (int i = 0; i < m_item_count; ++i)
             SetRadioIcon(i, m_labelButtons[index]->HasFocus() && i == m_selectedIndex);
 
         wxCommandEvent evt(wxEVT_COMMAND_RADIOBOX_SELECTED, GetId());
@@ -141,7 +141,7 @@ void RadioGroup::SelectNext(bool focus)
 
 void RadioGroup::SelectPrevious(bool focus)
 {
-    SetSelection(m_selectedIndex - 1 < 0 ? (m_radioButtons.size() - 1) : m_selectedIndex - 1, focus);
+    SetSelection(m_selectedIndex - 1 < 0 ? static_cast<int>(m_radioButtons.size() - 1) : m_selectedIndex - 1, focus);
 }
 
 void RadioGroup::SetRadioIcon(int i, bool hover)
@@ -156,7 +156,7 @@ bool RadioGroup::Enable(bool enable)
     bool result = wxPanel::Enable(enable);
 
     if (result) {
-        for (size_t i = 0; i < m_item_count; ++i){
+        for (int i = 0; i < m_item_count; ++i){
             SetRadioIcon(i, false);
             m_labelButtons[i]->Enable(enable); // normally disabling parent should do this but not
         }
