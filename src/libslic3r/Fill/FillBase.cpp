@@ -1869,7 +1869,7 @@ static inline void base_support_extend_infill_lines(Polylines &infill, BoundaryI
                 if (dist_y > dist_min_y) {
                     arc_len_next    = closed_contour_distance_ccw(contour_param[cp.point_idx], contour_param[i], contour_param.back());
                     if (arc_len_next < cp.contour_not_taken_length_next) {
-                        extend_next_idx = i;
+                        extend_next_idx = static_cast<int>(i);
                         dist_y_next     = dist_y;
                     }
                 }
@@ -1895,7 +1895,7 @@ static inline void base_support_extend_infill_lines(Polylines &infill, BoundaryI
                 if (dist_y > dist_min_y) {
                     arc_len_prev = closed_contour_distance_ccw(contour_param[i], contour_param[cp.point_idx], contour_param.back());
                     if (arc_len_prev < cp.contour_not_taken_length_prev) {
-                        extend_prev_idx = i;
+                        extend_prev_idx = static_cast<int>(i);
                         dist_y_prev     = dist_y;
                     }
                 }
