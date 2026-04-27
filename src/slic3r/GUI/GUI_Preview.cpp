@@ -451,7 +451,7 @@ void Preview::check_layers_slider_values(std::vector<CustomGCode::Item>& ticks_f
     // All ticks that would end up outside the slider range should be erased.
     // TODO: this should be placed into more appropriate part of code,
     // this function is e.g. not called when the last object is deleted
-    unsigned int old_size = ticks_from_model.size();
+    unsigned int old_size = static_cast<unsigned int>(ticks_from_model.size());
     ticks_from_model.erase(std::remove_if(ticks_from_model.begin(), ticks_from_model.end(),
                      [layers_z](CustomGCode::Item val)
         {
@@ -587,7 +587,7 @@ void Preview::update_layers_slider(const std::vector<double>& layers_z, bool kee
     m_layers_slider->SetExtruderColors(plater->get_extruder_colors_from_plater_config(wxGetApp().is_editor() ? nullptr : m_gcode_result));
     m_layers_slider->SetSliderValues(layers_z);
     assert(m_layers_slider->GetMinValue() == 0);
-    m_layers_slider->SetMaxValue(layers_z.empty() ? 0 : layers_z.size() - 1);
+    m_layers_slider->SetMaxValue(layers_z.empty() ? 0 : static_cast<int>(layers_z.size() - 1));
 
     int idx_low  = 0;
     int idx_high = m_layers_slider->GetMaxValue();
@@ -759,7 +759,7 @@ void Preview::load_print_as_fff(bool keep_z_range, bool only_gcode)
         if (!zs.empty() && !m_keep_current_preview_type) {
             unsigned int number_extruders = wxGetApp().is_editor() ?
                 (unsigned int)print->extruders().size() :
-                m_canvas->get_gcode_extruders_count();
+                static_cast<unsigned int>(m_canvas->get_gcode_extruders_count());
             std::vector<CustomGCode::Item> gcodes = wxGetApp().is_editor() ?
                 //BBS
                 wxGetApp().plater()->model().get_curr_plate_custom_gcodes().gcodes :
