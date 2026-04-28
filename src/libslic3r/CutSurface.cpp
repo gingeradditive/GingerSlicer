@@ -933,7 +933,7 @@ priv::CutMesh priv::to_cgal(const indexed_triangle_set &its,
     assert(faces_count <= indices.size());
 
     CutMesh result;
-    result.reserve(static_cast<size_type>(vertices_count), static_cast<size_type>(edges_count), static_cast<size_type>(faces_count));
+    result.reserve(static_cast<size_t>(vertices_count), static_cast<size_t>(edges_count), static_cast<size_t>(faces_count));
 
     std::vector<VI> to_filtrated_vertices_index(vertices.size());
     size_t filtrated_vertices_index = 0;
@@ -1046,9 +1046,9 @@ priv::CutMesh priv::to_cgal(const ExPolygons  &shapes,
     };
 
     size_t count_point = count_points(shapes);
-    result.reserve(static_cast<size_type>(result.number_of_vertices() + 2 * count_point),
-                   static_cast<size_type>(result.number_of_edges() + 4 * count_point),
-                   static_cast<size_type>(result.number_of_faces() + 2 * count_point));
+    result.reserve(static_cast<size_t>(result.number_of_vertices() + 2 * count_point),
+                   static_cast<size_t>(result.number_of_edges() + 4 * count_point),
+                   static_cast<size_t>(result.number_of_faces() + 2 * count_point));
 
     // Identify polygon
     for (const ExPolygon &shape : shapes) {
@@ -1731,7 +1731,7 @@ float priv::calc_distance(const P3 &p,
     }
 
     float from_start    = p[static_cast<int>(max_i)] - start[static_cast<int>(max_i)];
-    float best_distance = projection_ratio * (end[static_cast<int>(max_i)] - start[static_cast<int>(max_i));
+    float best_distance = projection_ratio * (end[static_cast<int>(max_i)] - start[static_cast<int>(max_i)]);
     return from_start - best_distance;
 }
 
@@ -2675,7 +2675,7 @@ priv::SurfacePatch priv::create_surface_patch(const std::vector<FI> &fis,
             for (VI vi : mesh.vertices_around_face(mesh.halfedge(fi))) {
                 VI &vi_cvt = mesh2result[vi];
                 if (!vi_cvt.is_valid()) {
-                    vi_cvt = VI(static_cast<size_type>(cm.vertices().size()));
+                    vi_cvt = VI(static_cast<size_t>(cm.vertices().size()));
                     cm.add_vertex(mesh.point(vi));
                 }
                 t[index++] = vi_cvt;
@@ -2695,7 +2695,7 @@ priv::SurfacePatch priv::create_surface_patch(const std::vector<FI> &fis,
                 }
                 VI &vi_cvt = mesh2result[vi];
                 if (!vi_cvt.is_valid()) {
-                    vi_cvt = VI(static_cast<size_type>(cm.vertices().size()));
+                    vi_cvt = VI(static_cast<size_t>(cm.vertices().size()));
                     cm.add_vertex(mesh.point(vi));
                 }
                 t[index++] = vi_cvt;
@@ -3542,7 +3542,7 @@ SurfaceCut priv::patch2cut(SurfacePatch &patch)
         // assert(vi.idx() == sc.vertices.size());
         // vi is not continous
         // assert(vi.idx() < vertices_size);
-        convert_map[vi] = static_cast<value_type>(sc.vertices.size());
+        convert_map[vi] = static_cast<SurfaceCut::Index>(sc.vertices.size());
         const P3 &p = mesh.point(vi);
         sc.vertices.emplace_back(p.x(), p.y(), p.z());
     }
