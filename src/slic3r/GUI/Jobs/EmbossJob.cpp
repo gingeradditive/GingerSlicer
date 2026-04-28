@@ -858,7 +858,7 @@ template<typename Fnc> TriangleMesh create_mesh_per_glyph(DataBase &input, Fnc w
         const BoundingBoxes &line_bbs = bbs[text_line_index];
         const TextLine      &line     = input.text_lines[text_line_index];
         PolygonPoints        samples  = sample_slice(line, line_bbs, shape.scale);
-        std::vector<double>  angles   = calculate_angles(em_2_polygon, samples, line.polygon.cast<int32_t>());
+        std::vector<double>  angles   = calculate_angles(em_2_polygon, samples, line.polygon);
 
         for (size_t i = 0; i < line_bbs.size(); ++i) {
             const BoundingBox &letter_bb = line_bbs[i];

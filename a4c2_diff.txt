@@ -1,0 +1,302 @@
+﻿commit a4c2ea08af5bd1a542a41a0ce8c3e6c3f274e285
+Author: Jack_up <36533859+GiacomoGuaresi@users.noreply.github.com>
+Date:   Mon Apr 27 13:42:30 2026 +0200
+
+    Fix implicit conversion and unused lambda capture warnings in GCodeViewer.cpp
+
+diff --git a/src/slic3r/GUI/GCodeViewer.cpp b/src/slic3r/GUI/GCodeViewer.cpp
+index 00b8d71d6..e5bcdd195 100644
+--- a/src/slic3r/GUI/GCodeViewer.cpp
++++ b/src/slic3r/GUI/GCodeViewer.cpp
+@@ -1356,20 +1356,20 @@ void GCodeViewer::_render_calibration_thumbnail_internal(ThumbnailData& thumbnai
+             bool intersects(const Range& other) const { return (other.last < first || other.first > last) ? false : true; }
+         };
+         Range buffer_range = { 0, 0 };
+-        size_t indices_per_instance = buffer.model.data.indices_count();
++        unsigned int indices_per_instance = static_cast<unsigned int>(buffer.model.data.indices_count());
+ 
+         for (size_t j = 0; j < buffer.indices.size(); ++j) {
+             const IBuffer& i_buffer = buffer.indices[j];
+             buffer_range.last = buffer_range.first + i_buffer.count / indices_per_instance;
+             glsafe(::glBindBuffer(GL_ARRAY_BUFFER, i_buffer.vbo));
+             if (position_id != -1) {
+-                glsafe(::glVertexAttribPointer(position_id, buffer.vertices.position_size_floats(), GL_FLOAT, GL_FALSE, buffer.vertices.vertex_size_bytes(), (const void*)buffer.vertices.position_offset_bytes()));
++                glsafe(::glVertexAttribPointer(position_id, static_cast<GLsizei>(buffer.vertices.position_size_floats()), GL_FLOAT, GL_FALSE, static_cast<GLsizei>(buffer.vertices.vertex_size_bytes()), (const void*)buffer.vertices.position_offset_bytes()));
+                 glsafe(::glEnableVertexAttribArray(position_id));
+             }
+             bool has_normals = buffer.vertices.normal_size_floats() > 0;
+             if (has_normals) {
+                 if (normal_id != -1) {
+-                    glsafe(::glVertexAttribPointer(normal_id, buffer.vertices.normal_size_floats(), GL_FLOAT, GL_FALSE, buffer.vertices.vertex_size_bytes(), (const void*)buffer.vertices.normal_offset_bytes()));
++                    glsafe(::glVertexAttribPointer(normal_id, static_cast<GLsizei>(buffer.vertices.normal_size_floats()), GL_FLOAT, GL_FALSE, static_cast<GLsizei>(buffer.vertices.vertex_size_bytes()), (const void*)buffer.vertices.normal_offset_bytes()));
+                     glsafe(::glEnableVertexAttribArray(normal_id));
+                 }
+             }
+@@ -1446,13 +1446,13 @@ void GCodeViewer::_render_calibration_thumbnail_internal(ThumbnailData& thumbnai
+ 
+                     glsafe(::glBindBuffer(GL_ARRAY_BUFFER, i_buffer.vbo));
+                     if (position_id != -1) {
+-                        glsafe(::glVertexAttribPointer(position_id, buffer.vertices.position_size_floats(), GL_FLOAT, GL_FALSE, buffer.vertices.vertex_size_bytes(), (const void*)buffer.vertices.position_offset_bytes()));
++                        glsafe(::glVertexAttribPointer(position_id, static_cast<GLsizei>(buffer.vertices.position_size_floats()), GL_FLOAT, GL_FALSE, static_cast<GLsizei>(buffer.vertices.vertex_size_bytes()), (const void*)buffer.vertices.position_offset_bytes()));
+                         glsafe(::glEnableVertexAttribArray(position_id));
+                     }
+                     bool has_normals = false;// buffer.vertices.normal_size_floats() > 0;
+                     if (has_normals) {
+                         if (normal_id != -1) {
+-                            glsafe(::glVertexAttribPointer(normal_id, buffer.vertices.normal_size_floats(), GL_FLOAT, GL_FALSE, buffer.vertices.vertex_size_bytes(), (const void*)buffer.vertices.normal_offset_bytes()));
++                            glsafe(::glVertexAttribPointer(normal_id, static_cast<GLsizei>(buffer.vertices.normal_size_floats()), GL_FLOAT, GL_FALSE, static_cast<GLsizei>(buffer.vertices.vertex_size_bytes()), (const void*)buffer.vertices.normal_offset_bytes()));
+                             glsafe(::glEnableVertexAttribArray(normal_id));
+                         }
+                     }
+@@ -1707,8 +1707,8 @@ void GCodeViewer::update_moves_slider(bool set_to_max)
+     // this should not be needed, but it is here to try to prevent rambling crashes on Mac Asan
+     if (view.endpoints.last < view.endpoints.first) return;
+ 
+-    std::vector<double> values(view.endpoints.last - view.endpoints.first + 1);
+-    std::vector<double> alternate_values(view.endpoints.last - view.endpoints.first + 1);
++    std::vector<double> values(static_cast<int>(view.endpoints.last - view.endpoints.first + 1));
++    std::vector<double> alternate_values(static_cast<int>(view.endpoints.last - view.endpoints.first + 1));
+     unsigned int        count = 0;
+     for (unsigned int i = view.endpoints.first; i <= view.endpoints.last; ++i) {
+         values[count] = static_cast<double>(i + 1);
+@@ -2642,7 +2642,7 @@ void GCodeViewer::load_toolpaths(const GCodeProcessorResult& gcode_result, const
+                 size_t curr_s_id = path.sub_paths.front().first.s_id + j;
+                 size_t move_id = m_ssid_to_moveid_map[curr_s_id];
+                 int interpolation_points_num = gcode_result.moves[move_id].is_arc_move_with_interpolation_points()?
+-                                                    gcode_result.moves[move_id].interpolation_points.size() : 0;
++                                                    static_cast<int>(gcode_result.moves[move_id].interpolation_points.size()) : 0;
+                 int loop_num = interpolation_points_num;
+                 //BBS: select the subpaths which contains the previous/next segments
+                 if (!path.sub_paths[prev_sub_path_id].contains(curr_s_id))
+@@ -3168,7 +3168,7 @@ void GCodeViewer::load_shells(const Print& print, bool initialized, bool force_p
+     }
+ 
+     //BBS: always load shell when preview
+-    m_shells.print_id = print.id().id;
++    m_shells.print_id = static_cast<unsigned int>(print.id().id);
+     m_shells.print_modify_count = print.get_modified_count();
+     m_shells.previewing = true;
+     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(": shell loaded, id change to %1%, modify_count %2%, object count %3%, glvolume count %4%")
+@@ -3224,7 +3224,7 @@ void GCodeViewer::refresh_render_paths(bool keep_sequential_current_first, bool
+     };
+ 
+     auto is_in_layers_range = [this](const Path& path, size_t min_id, size_t max_id) {
+-        auto in_layers_range = [this, min_id, max_id](size_t id) {
++        auto in_layers_range = [min_id, max_id](size_t id) {
+             return m_layers.get_endpoints_at(min_id).first <= id && id <= m_layers.get_endpoints_at(max_id).last;
+         };
+ 
+@@ -3232,7 +3232,7 @@ void GCodeViewer::refresh_render_paths(bool keep_sequential_current_first, bool
+     };
+ 
+     //BBS
+-    auto is_extruder_in_layer_range = [this](const Path& path, size_t extruder_id) {
++    auto is_extruder_in_layer_range = [](const Path& path, size_t extruder_id) {
+         return path.extruder_id == extruder_id;
+     };
+ 
+@@ -3494,7 +3494,7 @@ m_no_render_path = false;
+             // BBS: modify to support moves which has internal point
+             size_t max_s_id = std::min(m_sequential_view.current.last, sub_path.last.s_id);
+             size_t min_s_id = std::max(m_sequential_view.current.first, sub_path.first.s_id);
+-            unsigned int segments_count = max_s_id - min_s_id;
++            unsigned int segments_count = static_cast<unsigned int>(max_s_id - min_s_id);
+             for (size_t i = min_s_id + 1; i < max_s_id + 1; i++) {
+                 size_t move_id = m_ssid_to_moveid_map[i];
+                 const GCodeProcessorResult::MoveVertex& curr = m_gcode_result->moves[move_id];
+@@ -3625,7 +3625,7 @@ m_no_render_path = false;
+                 cap.vbo = i_buffer.vbo;
+ 
+                 // calculate offset into the index buffer
+-                unsigned int offset = sub_path.first.i_id;
++                unsigned int offset = static_cast<unsigned int>(sub_path.first.i_id);
+                 offset += 6; // add 2 triangles for corner cap
+                 offset += static_cast<unsigned int>(m_sequential_view.current.first - sub_path.first.s_id) * buffer.indices_per_segment();
+                 if (sub_path_id == 0)
+@@ -3670,7 +3670,7 @@ m_no_render_path = false;
+                 cap.vbo = i_buffer.vbo;
+ 
+                 // calculate offset into the index buffer
+-                unsigned int offset = sub_path.first.i_id;
++                unsigned int offset = static_cast<unsigned int>(sub_path.first.i_id);
+                 offset += 6; // add 2 triangles for corner cap
+                 offset += static_cast<unsigned int>(m_sequential_view.current.last - 1 - sub_path.first.s_id) * buffer.indices_per_segment();
+                 if (sub_path_id == 0)
+@@ -3815,13 +3815,13 @@ void GCodeViewer::render_toolpaths()
+             buffer_range.last = buffer_range.first + i_buffer.count / indices_per_instance;
+             glsafe(::glBindBuffer(GL_ARRAY_BUFFER, i_buffer.vbo));
+             if (position_id != -1) {
+-                glsafe(::glVertexAttribPointer(position_id, buffer.vertices.position_size_floats(), GL_FLOAT, GL_FALSE, buffer.vertices.vertex_size_bytes(), (const void*)buffer.vertices.position_offset_bytes()));
++                glsafe(::glVertexAttribPointer(position_id, static_cast<GLsizei>(buffer.vertices.position_size_floats()), GL_FLOAT, GL_FALSE, static_cast<GLsizei>(buffer.vertices.vertex_size_bytes()), (const void*)buffer.vertices.position_offset_bytes()));
+                 glsafe(::glEnableVertexAttribArray(position_id));
+             }
+             const bool has_normals = buffer.vertices.normal_size_floats() > 0;
+             if (has_normals) {
+                 if (normal_id != -1) {
+-                    glsafe(::glVertexAttribPointer(normal_id, buffer.vertices.normal_size_floats(), GL_FLOAT, GL_FALSE, buffer.vertices.vertex_size_bytes(), (const void*)buffer.vertices.normal_offset_bytes()));
++                    glsafe(::glVertexAttribPointer(normal_id, static_cast<GLsizei>(buffer.vertices.normal_size_floats()), GL_FLOAT, GL_FALSE, static_cast<GLsizei>(buffer.vertices.vertex_size_bytes()), (const void*)buffer.vertices.normal_offset_bytes()));
+                     glsafe(::glEnableVertexAttribArray(normal_id));
+                 }
+             }
+@@ -3907,13 +3907,13 @@ void GCodeViewer::render_toolpaths()
+ 
+                 glsafe(::glBindBuffer(GL_ARRAY_BUFFER, i_buffer.vbo));
+                 if (position_id != -1) {
+-                    glsafe(::glVertexAttribPointer(position_id, buffer.vertices.position_size_floats(), GL_FLOAT, GL_FALSE, buffer.vertices.vertex_size_bytes(), (const void*)buffer.vertices.position_offset_bytes()));
++                    glsafe(::glVertexAttribPointer(position_id, static_cast<GLsizei>(buffer.vertices.position_size_floats()), GL_FLOAT, GL_FALSE, static_cast<GLsizei>(buffer.vertices.vertex_size_bytes()), (const void*)buffer.vertices.position_offset_bytes()));
+                     glsafe(::glEnableVertexAttribArray(position_id));
+                 }
+                 const bool has_normals = buffer.vertices.normal_size_floats() > 0;
+                 if (has_normals) {
+                     if (normal_id != -1) {
+-                        glsafe(::glVertexAttribPointer(normal_id, buffer.vertices.normal_size_floats(), GL_FLOAT, GL_FALSE, buffer.vertices.vertex_size_bytes(), (const void*)buffer.vertices.normal_offset_bytes()));
++                        glsafe(::glVertexAttribPointer(normal_id, static_cast<GLsizei>(buffer.vertices.normal_size_floats()), GL_FLOAT, GL_FALSE, static_cast<GLsizei>(buffer.vertices.vertex_size_bytes()), (const void*)buffer.vertices.normal_offset_bytes()));
+                         glsafe(::glEnableVertexAttribArray(normal_id));
+                     }
+                 }
+@@ -3970,13 +3970,13 @@ void GCodeViewer::render_toolpaths()
+ 
+         glsafe(::glBindBuffer(GL_ARRAY_BUFFER, cap.vbo));
+         if (position_id != -1) {
+-            glsafe(::glVertexAttribPointer(position_id, buffer->vertices.position_size_floats(), GL_FLOAT, GL_FALSE, buffer->vertices.vertex_size_bytes(), (const void*)buffer->vertices.position_offset_bytes()));
++            glsafe(::glVertexAttribPointer(position_id, static_cast<GLsizei>(buffer->vertices.position_size_floats()), GL_FLOAT, GL_FALSE, static_cast<GLsizei>(buffer->vertices.vertex_size_bytes()), (const void*)buffer->vertices.position_offset_bytes()));
+             glsafe(::glEnableVertexAttribArray(position_id));
+         }
+         const bool has_normals = buffer->vertices.normal_size_floats() > 0;
+         if (has_normals) {
+             if (normal_id != -1) {
+-                glsafe(::glVertexAttribPointer(normal_id, buffer->vertices.normal_size_floats(), GL_FLOAT, GL_FALSE, buffer->vertices.vertex_size_bytes(), (const void*)buffer->vertices.normal_offset_bytes()));
++                glsafe(::glVertexAttribPointer(normal_id, static_cast<GLsizei>(buffer->vertices.normal_size_floats()), GL_FLOAT, GL_FALSE, static_cast<GLsizei>(buffer->vertices.vertex_size_bytes()), (const void*)buffer->vertices.normal_offset_bytes()));
+                 glsafe(::glEnableVertexAttribArray(normal_id));
+             }
+         }
+@@ -4118,7 +4118,7 @@ void GCodeViewer::render_all_plates_stats(const std::vector<const GCodeProcessor
+ 
+         return ret;
+     };
+-    auto append_item = [icon_size, &imgui, imperial_units, &window_padding, &draw_list, this](const ColorRGBA& color, const std::vector<std::pair<std::string, float>>& columns_offsets)
++    auto append_item = [icon_size, &imgui, &window_padding, &draw_list, this](const ColorRGBA& color, const std::vector<std::pair<std::string, float>>& columns_offsets)
+     {
+         // render icon
+         ImVec2 pos = ImVec2(ImGui::GetCursorScreenPos().x + window_padding * 3, ImGui::GetCursorScreenPos().y);
+@@ -4153,7 +4153,7 @@ void GCodeViewer::render_all_plates_stats(const std::vector<const GCodeProcessor
+         }
+         ImGui::Separator();
+     };
+-    auto get_used_filament_from_volume = [this, imperial_units, &filament_diameters, &filament_densities](double volume, int extruder_id) {
++    auto get_used_filament_from_volume = [imperial_units, &filament_diameters, &filament_densities](double volume, int extruder_id) {
+         double koef = imperial_units ? 1.0 / GizmoObjectManipulation::in_to_mm : 0.001;
+         std::pair<double, double> ret = { koef * volume / (PI * sqr(0.5 * filament_diameters[extruder_id])),
+                                             volume * filament_densities[extruder_id] * 0.001 };
+@@ -4172,28 +4172,28 @@ void GCodeViewer::render_all_plates_stats(const std::vector<const GCodeProcessor
+             for (size_t extruder_id : plate_extruders) {
+                 extruder_id -= 1;
+                 if (plate_print_statistics.model_volumes_per_extruder.find(extruder_id) == plate_print_statistics.model_volumes_per_extruder.end())
+-                    model_volume_of_extruders_all_plates[extruder_id] += 0;
++                    model_volume_of_extruders_all_plates[static_cast<int>(extruder_id)] += 0;
+                 else {
+                     double model_volume = plate_print_statistics.model_volumes_per_extruder.at(extruder_id);
+-                    model_volume_of_extruders_all_plates[extruder_id] += model_volume;
++                    model_volume_of_extruders_all_plates[static_cast<int>(extruder_id)] += model_volume;
+                 }
+                 if (plate_print_statistics.flush_per_filament.find(extruder_id) == plate_print_statistics.flush_per_filament.end())
+-                    flushed_volume_of_extruders_all_plates[extruder_id] += 0;
++                    flushed_volume_of_extruders_all_plates[static_cast<int>(extruder_id)] += 0;
+                 else {
+                     double flushed_volume = plate_print_statistics.flush_per_filament.at(extruder_id);
+-                    flushed_volume_of_extruders_all_plates[extruder_id] += flushed_volume;
++                    flushed_volume_of_extruders_all_plates[static_cast<int>(extruder_id)] += flushed_volume;
+                 }
+                 if (plate_print_statistics.wipe_tower_volumes_per_extruder.find(extruder_id) == plate_print_statistics.wipe_tower_volumes_per_extruder.end())
+-                    wipe_tower_volume_of_extruders_all_plates[extruder_id] += 0;
++                    wipe_tower_volume_of_extruders_all_plates[static_cast<int>(extruder_id)] += 0;
+                 else {
+                     double wipe_tower_volume = plate_print_statistics.wipe_tower_volumes_per_extruder.at(extruder_id);
+-                    wipe_tower_volume_of_extruders_all_plates[extruder_id] += wipe_tower_volume;
++                    wipe_tower_volume_of_extruders_all_plates[static_cast<int>(extruder_id)] += wipe_tower_volume;
+                 }
+                 if (plate_print_statistics.support_volumes_per_extruder.find(extruder_id) == plate_print_statistics.support_volumes_per_extruder.end())
+-                    support_volume_of_extruders_all_plates[extruder_id] += 0;
++                    support_volume_of_extruders_all_plates[static_cast<int>(extruder_id)] += 0;
+                 else {
+                     double support_volume = plate_print_statistics.support_volumes_per_extruder.at(extruder_id);
+-                    support_volume_of_extruders_all_plates[extruder_id] += support_volume;
++                    support_volume_of_extruders_all_plates[static_cast<int>(extruder_id)] += support_volume;
+                 }
+             }
+             const PrintEstimatedStatistics::Mode& plate_time_mode = plate_print_statistics.modes[static_cast<size_t>(m_time_estimate_mode)];
+@@ -4397,12 +4397,12 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
+     //ImVec2(pos_rect.x + ImGui::GetWindowWidth() + ImGui::GetFrameHeight(),pos_rect.y + ImGui::GetFrameHeight() + window_padding * 2.5),
+     //ImGui::GetColorU32(ImVec4(0,0,0,0.3)));
+ 
+-    auto append_item = [icon_size, &imgui, imperial_units, &window_padding, &draw_list, this](
++    auto append_item = [icon_size, &imgui, &window_padding, &draw_list, this](
+         EItemType type,
+         const ColorRGBA& color,
+         const std::vector<std::pair<std::string, float>>& columns_offsets,
+         bool checkbox = true,
+-        float checkbox_pos = 0.f, // ORCA use calculated value for eye icon. Aligned to "Display" header or end of combo box 
++        float checkbox_pos = 0.f,
+         bool visible = true,
+         std::function<void()> callback = nullptr)
+     {
+@@ -4532,7 +4532,7 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
+         return ret;
+     };
+ 
+-    auto calculate_offsets = [&imgui, max_width, window_padding, this](const std::vector<std::pair<std::string, std::vector<::string>>>& title_columns, float extra_size = 0.0f) {
++    auto calculate_offsets = [&imgui, max_width, this](const std::vector<std::pair<std::string, std::vector<::string>>>& title_columns, float extra_size = 0.0f) {
+             const ImGuiStyle& style = ImGui::GetStyle();
+             std::vector<float> offsets;
+             // ORCA increase spacing for more readable format. Using direct number requires much less code change in here. GetTextLineHeight for additional spacing for icon_size
+@@ -4749,7 +4749,7 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
+         }
+         else {
+             double volume = m_print_statistics.model_volumes_per_extruder.at(extruder_id);
+-            auto [model_used_filament_m, model_used_filament_g] = get_used_filament_from_volume(volume, extruder_id);
++            auto [model_used_filament_m, model_used_filament_g] = get_used_filament_from_volume(volume, static_cast<int>(extruder_id));
+             model_used_filaments_m.push_back(model_used_filament_m);
+             model_used_filaments_g.push_back(model_used_filament_g);
+             total_model_used_filament_m += model_used_filament_m;
+@@ -4874,7 +4874,7 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
+                 continue;
+             double volume = m_print_statistics.model_volumes_per_extruder.at(extruder_id);
+ 
+-            auto [model_used_filament_m, model_used_filament_g] = get_used_filament_from_volume(volume, extruder_id);
++            auto [model_used_filament_m, model_used_filament_g] = get_used_filament_from_volume(volume, static_cast<int>(extruder_id));
+             model_used_filaments_m.push_back(model_used_filament_m);
+             model_used_filaments_g.push_back(model_used_filament_g);
+         }
+@@ -4924,12 +4924,13 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
+ 
+     auto append_option_item = [this, append_item](EMoveType type, std::vector<float> offsets) {
+         auto append_option_item_with_type = [this, offsets, append_item](EMoveType type, const ColorRGBA& color, const std::string& label, bool visible) {
+-            append_item(EItemType::Rect, color, {{ label , offsets[0] }}, true, offsets.back()/*ORCA checkbox_pos*/, visible, [this, type, visible]() {
++            append_item(EItemType::Rect, color, {{ label , offsets[0] }}, true, offsets.back()/*ORCA checkbox_pos*/, visible, [this, type]() {
+                 m_buffers[buffer_id(type)].visible = !m_buffers[buffer_id(type)].visible;
+                 // update buffers' render paths
+                 refresh_render_paths(false, false);
+                 update_moves_slider();
+                 wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
++            });
+                 });
+         };
+         const bool visible = m_buffers[buffer_id(type)].visible;
+@@ -4985,7 +4986,7 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
+                 columns_offsets.push_back({ _u8L("Travel"), offsets[0] });
+                 columns_offsets.push_back({ travel_time, offsets[1] });
+                 columns_offsets.push_back({ travel_percent, offsets[2] });
+-                append_item(EItemType::Rect, Travel_Colors[0], columns_offsets, true, offsets.back()/*ORCA checkbox_pos*/, visible, [this, item, visible]() {
++                append_item(EItemType::Rect, Travel_Colors[0], columns_offsets, true, offsets.back()/*ORCA checkbox_pos*/, visible, [this, item]() {
+                         m_buffers[buffer_id(item)].visible = !m_buffers[buffer_id(item)].visible;
+                         // update buffers' render paths
+                         refresh_render_paths(false, false);
+@@ -5007,7 +5008,7 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
+         append_headers({ {_u8L("Options"), offsets[0] }, { _u8L("Display"), offsets[1]} });
+         const bool travel_visible = m_buffers[buffer_id(EMoveType::Travel)].visible;
+         ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 3.0f));
+-        append_item(EItemType::None, Travel_Colors[0], { {_u8L("travel"), offsets[0] }}, true, predictable_icon_pos/*ORCA checkbox_pos*/, travel_visible, [this, travel_visible]() {
++        append_item(EItemType::None, Travel_Colors[0], { {_u8L("travel"), offsets[0] }}, true, predictable_icon_pos/*ORCA checkbox_pos*/, travel_visible, [this]() {
+             m_buffers[buffer_id(EMoveType::Travel)].visible = !m_buffers[buffer_id(EMoveType::Travel)].visible;
+             // update buffers' render paths, and update m_tools.m_tool_colors and m_extrusions.ranges
+             refresh(*m_gcode_result, wxGetApp().plater()->get_extruder_colors_from_plater_config(m_gcode_result));

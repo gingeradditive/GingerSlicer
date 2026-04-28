@@ -1145,7 +1145,7 @@ void SpinCtrl::BUILD() {
         bEnterPressed = true;
     }), temp->GetId());
 
-	temp->GetTextCtrl()->Bind(wxEVT_TEXT, ([this](wxCommandEvent e)
+	temp->GetTextCtrl()->Bind(wxEVT_TEXT, ([this, temp](wxCommandEvent e)
 	{
 // 		# On OSX / Cocoa, SpinInput::GetValue() doesn't return the new value
 // 		# when it was changed from the text control, so the on_change callback
@@ -1796,7 +1796,7 @@ void ColourPicker::BUILD()
 	// 	// recast as a wxWindow to fit the calling convention
 	window = dynamic_cast<wxWindow*>(temp);
 
-	temp->Bind(wxEVT_COLOURPICKER_CHANGED, ([this](wxCommandEvent e) {
+	temp->Bind(wxEVT_COLOURPICKER_CHANGED, ([this, temp](wxCommandEvent e) {
         #ifdef __WXMSW__
             draw_bmp_btn(temp, temp->GetColour());
         #endif

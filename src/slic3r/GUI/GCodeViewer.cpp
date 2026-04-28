@@ -3224,7 +3224,7 @@ void GCodeViewer::refresh_render_paths(bool keep_sequential_current_first, bool 
     };
 
     auto is_in_layers_range = [this](const Path& path, size_t min_id, size_t max_id) {
-        auto in_layers_range = [min_id, max_id](size_t id) {
+        auto in_layers_range = [this, min_id, max_id](size_t id) {
             return m_layers.get_endpoints_at(min_id).first <= id && id <= m_layers.get_endpoints_at(max_id).last;
         };
 
@@ -4931,7 +4931,6 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
                 update_moves_slider();
                 wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
             });
-                });
         };
         const bool visible = m_buffers[buffer_id(type)].visible;
         if (type == EMoveType::Travel) {
