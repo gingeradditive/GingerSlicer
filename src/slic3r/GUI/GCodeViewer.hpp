@@ -636,6 +636,7 @@ public:
 
             void render(int canvas_width, int canvas_height, const EViewType& view_type);
 
+            const GCodeProcessorResult::MoveVertex& get_curr_move() const { return m_curr_move; }
             void update_curr_move(const GCodeProcessorResult::MoveVertex move);
         };
 

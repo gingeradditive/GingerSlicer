@@ -236,6 +236,12 @@ struct PerExtruderAdjustments
     
     bool                        dont_slow_down_outer_wall = false;
 
+    // Cross-section based cooling
+    bool                        volume_based_cooling = false;
+    float                       cooling_time_per_cross_section = 0.f;
+    float                       filament_cross_section = 0.f;
+    float                       volume_extruded = 0.f;
+    float                       path_length_extruded = 0.f;
 
     // Parsed lines.
     std::vector<CoolingLine>    lines;
@@ -346,6 +352,15 @@ std::vector<PerExtruderAdjustments> CoolingBuffer::parse_layer_gcode(const std::
         adj.slow_down_min_speed           = float(m_config.slow_down_min_speed.get_at(extruder_id));
         // ORCA: To enable dont slow down external perimeters feature per filament (extruder)
         adj.dont_slow_down_outer_wall   = m_config.dont_slow_down_outer_wall.get_at(extruder_id);
+        // Cross-section based cooling
+        adj.volume_based_cooling    = m_config.volume_based_cooling.get_at(extruder_id);
+        adj.cooling_time_per_cross_section = float(m_config.cooling_time_per_cross_section.get_at(extruder_id));
+        {
+            float r = float(m_config.filament_diameter.get_at(extruder_id)) * 0.5f;
+            adj.filament_cross_section = float(M_PI) * r * r;
+        }
+        adj.volume_extruded = 0.f;
+        adj.path_length_extruded = 0.f;
         map_extruder_to_per_extruder_adjustment[extruder_id] = i;
     }
 
@@ -459,6 +474,12 @@ std::vector<PerExtruderAdjustments> CoolingBuffer::parse_layer_gcode(const std::
                     dxy2 = dif[0] * dif[0] + dif[1] * dif[1];
                 }
                 float dxyz2 = dxy2 + dif[2] * dif[2];
+                // Accumulate extruded volume and path length for cross-section based cooling
+                if (dif[3] > 0.f) {
+                    adjustment->volume_extruded += dif[3] * adjustment->filament_cross_section;
+                    if (dxy2 > 0.f)
+                        adjustment->path_length_extruded += std::sqrt(dxy2);
+                }
                 if (dxyz2 > 0.f) {
                     // Movement in xyz, calculate time from the xyz Euclidian distance.
                     line.length = sqrt(dxyz2);
@@ -648,6 +669,11 @@ float CoolingBuffer::calculate_layer_slowdown(std::vector<PerExtruderAdjustments
     // Collect total print time of non-adjustable extruders.
     float elapsed_time_total0 = 0.f;
     for (PerExtruderAdjustments &adj : per_extruder_adjustments) {
+        // Cross-section based cooling: t_required = avg_bead_cross_section × τ
+        if (adj.volume_based_cooling && adj.path_length_extruded > 0.f) {
+            float avg_cross_section = adj.volume_extruded / adj.path_length_extruded;
+            adj.slow_down_layer_time = avg_cross_section * adj.cooling_time_per_cross_section;
+        }
         // Curren total time for this extruder.
         adj.time_total  = adj.elapsed_time_total();
         // Maximum time for this extruder, when all extrusion moves are slowed down to min_extrusion_speed.

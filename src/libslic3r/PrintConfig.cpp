@@ -4836,6 +4836,27 @@ void PrintConfigDef::init_fff_params()
     def->mode = comSimple;
     def->set_default_value(new ConfigOptionFloats { 5.0f });
 
+    def = this->add("volume_based_cooling", coBools);
+    def->label = L("Volume-based cooling (Beta)");
+    def->tooltip = L("BETA: When enabled, the minimum layer time is computed from the average bead cross-section "
+                     "instead of using a fixed time threshold. "
+                     "Required time = avg bead cross-section (mm²) × cooling time per cross-section (s/mm²). "
+                     "This replaces the fixed 'Layer time' slowdown setting.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBools { false });
+
+    def = this->add("cooling_time_per_cross_section", coFloats);
+    def->label = L("Cooling time per cross-section");
+    def->tooltip = L("Time in seconds required per mm² of average bead cross-section for the layer to become "
+                     "mechanically stable. The minimum layer time is computed as: "
+                     "avg_bead_cross_section (mm²) × this value (s/mm²). "
+                     "Larger beads need more time to cool. Material-dependent: PLA needs less, PETG/ABS need more.");
+    def->sidetext = L("s/mm²");
+    def->min = 0.01;
+    def->max = 100.0;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloats { 1.0f });
+
     def = this->add("minimum_sparse_infill_area", coFloat);
     def->label = L("Minimum sparse infill threshold");
     def->category = L("Strength");
