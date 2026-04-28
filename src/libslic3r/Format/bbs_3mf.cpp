@@ -8111,7 +8111,7 @@ public:
     }
 
     void remove_object_mesh(ModelObject& object) {
-        push_task({ RemoveObject, object.id().id, object.get_model()->get_backup_path() });
+        push_task({ RemoveObject, object.id().id, object.get_model()->get_backup_path(), nullptr, 0 });
     }
 
     void backup_soon() {
