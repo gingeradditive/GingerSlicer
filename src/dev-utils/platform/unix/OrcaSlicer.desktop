@@ -2,7 +2,7 @@
 Name=GingerSlicer
 GenericName=3D Printing Software
 Icon=GingerSlicer
-Exec=Ginger-Slicer %U
+Exec=ginger-slicer %U
 Terminal=false
 Type=Application
 MimeType=model/stl;model/3mf;application/vnd.ms-3mfdocument;application/prs.wavefront-obj;application/x-amf;x-scheme-handler/gingerslicer;

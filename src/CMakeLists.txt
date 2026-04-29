@@ -253,6 +253,10 @@ else ()
         COMMAND ln -sfn "${SLIC3R_RESOURCES_DIR}" "${BIN_RESOURCES_DIR}"
         COMMENT "Symlinking the resources directory into the build tree"
         VERBATIM)
+    add_custom_command(TARGET GingerSlicer POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/resources/Icon.icns" "${BIN_RESOURCES_DIR}/Icon.icns"
+        COMMENT "Copying application icon to bundle"
+        VERBATIM)
 endif ()
 
 # Slic3r binary install target. Default build type is release in case no CMAKE_BUILD_TYPE is provided.
