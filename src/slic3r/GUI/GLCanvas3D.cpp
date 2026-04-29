@@ -223,7 +223,8 @@ void GLCanvas3D::LayersEditing::render_variable_layer_height_dialog(const GLCanv
     const Size& cnv_size = canvas.get_canvas_size();
     float left_pos = canvas.m_main_toolbar.get_item("layersediting")->render_left_pos;
     const float x = (1 + left_pos) * cnv_size.get_width() / 2;
-    imgui.set_next_window_pos(x, canvas.m_main_toolbar.get_height(), ImGuiCond_Always, 0.0f, 0.0f);
+    // Offset popup by 24px to clear the lowered main toolbar and leave a gap.
+    imgui.set_next_window_pos(x, canvas.m_main_toolbar.get_height() + 24.0f, ImGuiCond_Always, 0.0f, 0.0f);
 
     imgui.push_toolbar_style(canvas.get_scale());
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6.0f * canvas.get_scale(), 4.0f * canvas.get_scale()));
@@ -5483,7 +5484,8 @@ bool GLCanvas3D::_render_orient_menu(float left, float right, float bottom, floa
 #if BBS_TOOLBAR_ON_TOP
     const float x = (1 + left) * canvas_w / 2;
     ImGuiWrapper::push_toolbar_style(get_scale());
-    imgui->set_next_window_pos(x, m_main_toolbar.get_height(), ImGuiCond_Always, 0.5f, 0.0f);
+    // Offset popup by 24px to clear the lowered main toolbar and leave a gap.
+    imgui->set_next_window_pos(x, m_main_toolbar.get_height() + 24.0f, ImGuiCond_Always, 0.5f, 0.0f);
 #else
     const float x = canvas_w - m_main_toolbar.get_width();
     const float y = 0.5f * canvas_h - top * float(wxGetApp().plater()->get_camera().get_zoom());
@@ -5568,7 +5570,8 @@ bool GLCanvas3D::_render_arrange_menu(float left, float right, float bottom, flo
 #if BBS_TOOLBAR_ON_TOP
     float left_pos = m_main_toolbar.get_item("arrange")->render_left_pos;
     const float x = (1 + left_pos) * canvas_w / 2;
-    imgui->set_next_window_pos(x, m_main_toolbar.get_height(), ImGuiCond_Always, 0.0f, 0.0f);
+    // Offset popup by 24px to clear the lowered main toolbar and leave a gap.
+    imgui->set_next_window_pos(x, m_main_toolbar.get_height() + 24.0f, ImGuiCond_Always, 0.0f, 0.0f);
 
 #else
     const float x = canvas_w - m_main_toolbar.get_width();

@@ -1211,7 +1211,9 @@ void GLGizmosManager::do_render_overlay() const
             //render_input_window uses a different coordination(imgui)
             //1. no need to scale by camera zoom, set {0,0} at left-up corner for imgui
             //gizmo->render_input_window(width, 0.5f * cnv_h - zoomed_top_y * zoom, toolbar_top);
-            m_gizmos[m_current]->render_input_window(0.5 * cnv_w + 0.5f * top_x * cnv_w, get_scaled_total_height(), cnv_h);
+            // Offset the popup 24px down from the toolbar so it doesn't
+            // overlap the lowered toolbar and leaves a small visible gap.
+            m_gizmos[m_current]->render_input_window(0.5 * cnv_w + 0.5f * top_x * cnv_w, get_scaled_total_height() + 24.0f, cnv_h);
 
             is_render_current = true;
         }

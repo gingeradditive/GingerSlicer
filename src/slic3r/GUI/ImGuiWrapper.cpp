@@ -2374,7 +2374,9 @@ void ImGuiWrapper::push_toolbar_style(const float scale)
 {
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f * scale);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(20.0f, 10.0f) * scale);
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 3.0f * scale);
+    // Rounded corners on toolbar-style popups to visually match the rounded
+    // caps of the horizontal toolbar chain.
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 12.0f * scale);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 2.0f * scale);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10.0f, 10.0f) * scale);
