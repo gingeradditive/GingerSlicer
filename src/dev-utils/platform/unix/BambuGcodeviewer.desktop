@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=Bambu GCode viewer
-Exec=Ginger-Slicer --gcodeviewer %F
+Exec=ginger-slicer --gcodeviewer %F
 Icon=GingerSlicer-gcodeviewer
 Terminal=false
 Type=Application
