@@ -1161,7 +1161,10 @@ void GLGizmosManager::do_render_overlay() const
         top_x = main_toolbar_left + main_toolbar_width * 2 + separator_width;
         top_x = top_x * inv_cnv_w;
     }
-    float top_y = 1.0f;
+    // Apply the same 16px top offset used by the horizontal GLToolbars
+    // (main/separator/assemble-view/collapse) so the gizmo bar aligns with
+    // the rest of the horizontal toolbar chain.
+    float top_y = 1.0f - 2.0f * 16.0f * inv_cnv_h;
 
     render_background(top_x, top_y, top_x + width, top_y - height, border_w, border_h);
 

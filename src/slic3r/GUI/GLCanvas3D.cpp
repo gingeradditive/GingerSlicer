@@ -6294,7 +6294,9 @@ void GLCanvas3D::_switch_toolbars_icon_filename()
     m_main_toolbar.init(background_data);
     m_assemble_view_toolbar.init(background_data);
     m_separator_toolbar.init(background_data);
-    wxGetApp().plater()->get_collapse_toolbar().init(background_data);
+    // The collapse toolbar uses its own rounded SVG background configured in
+    // Plater::priv::init_collapse_toolbar(); don't overwrite it with the
+    // shared 9-patch PNG metadata.
 
     // main toolbar
     {
@@ -7783,7 +7785,9 @@ void GLCanvas3D::_render_main_toolbar()
         return;
 
     const Size cnv_size = get_canvas_size();
-    const float top = 0.5f * (float)cnv_size.get_height();
+    // Align the horizontal toolbar chain vertically with the collapse button
+    // (which uses a 16px top margin in _render_collapse_toolbar).
+    const float top = 0.5f * (float)cnv_size.get_height() - 16.0f;
 
     const float left = -0.5f * cnv_size.get_width() + get_main_toolbar_offset();
     m_main_toolbar.set_position(top, left);
@@ -8167,7 +8171,8 @@ void GLCanvas3D::_render_assemble_view_toolbar() const
     const Size cnv_size = get_canvas_size();
     const float gizmo_width = m_gizmos.get_scaled_total_width();
     const float separator_width = m_separator_toolbar.get_width();
-    const float top = 0.5f * (float)cnv_size.get_height();
+    // Match the vertical offset of the main toolbar / collapse button.
+    const float top = 0.5f * (float)cnv_size.get_height() - 16.0f;
     const float main_toolbar_left = -0.5f * cnv_size.get_width() + get_main_toolbar_offset();
     const float left = main_toolbar_left + (m_main_toolbar.get_width() + gizmo_width + separator_width);
 
@@ -8243,7 +8248,8 @@ void GLCanvas3D::_render_separator_toolbar_right() const
     const Size cnv_size = get_canvas_size();
     const float gizmo_width = m_gizmos.get_scaled_total_width();
     const float separator_width = m_separator_toolbar.get_width();
-    const float top = 0.5f * (float)cnv_size.get_height();
+    // Match the vertical offset of the main toolbar / collapse button.
+    const float top = 0.5f * (float)cnv_size.get_height() - 16.0f;
     const float main_toolbar_left = -0.5f * cnv_size.get_width() + get_main_toolbar_offset();
     const float left = main_toolbar_left + (m_main_toolbar.get_width() + gizmo_width + separator_width / 2);
 
@@ -8257,7 +8263,8 @@ void GLCanvas3D::_render_separator_toolbar_left() const
         return;
 
     const Size cnv_size = get_canvas_size();
-    const float top = 0.5f * (float)cnv_size.get_height();
+    // Match the vertical offset of the main toolbar / collapse button.
+    const float top = 0.5f * (float)cnv_size.get_height() - 16.0f;
     const float main_toolbar_left = -0.5f * cnv_size.get_width() + get_main_toolbar_offset();
     const float left = main_toolbar_left + (m_main_toolbar.get_width());
 

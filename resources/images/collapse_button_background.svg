@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Placeholder rounded background for the collapse button. The button is
+     square so a single 1:1 SVG can simply be stretched to the button area
+     and the rounded corners stay round. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" preserveAspectRatio="none">
+  <rect x="0" y="0" width="64" height="64" rx="16" ry="16" fill="#FFFFFF"/>
+</svg>

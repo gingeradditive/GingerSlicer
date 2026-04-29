@@ -7633,23 +7633,29 @@ bool Plater::priv::init_collapse_toolbar()
         // already initialized
         return true;
 
+    // Use a stretchable SVG with rounded corners as background so the single
+    // collapse button is rendered as a rounded square. Edge metadata is left
+    // at 0 so GLToolbar::render_background() draws the texture as a single
+    // stretched quad (no 9-patch slicing).
     BackgroundTexture::Metadata background_data;
-    background_data.filename = "toolbar_background.png";
-    background_data.left = 16;
-    background_data.top = 16;
-    background_data.right = 16;
-    background_data.bottom = 16;
+    background_data.filename = "collapse_button_background.svg";
+    background_data.left = 0;
+    background_data.top = 0;
+    background_data.right = 0;
+    background_data.bottom = 0;
 
     if (!collapse_toolbar.init(background_data))
         return false;
 
+    // Shrink the collapse button by ~30% compared to the previous size.
+    constexpr float collapse_scale = 0.7f;
     collapse_toolbar.set_layout_type(GLToolbar::Layout::Vertical);
     collapse_toolbar.set_horizontal_orientation(GLToolbar::Layout::HO_Right);
     collapse_toolbar.set_vertical_orientation(GLToolbar::Layout::VO_Top);
-    collapse_toolbar.set_border(16.0f);
+    collapse_toolbar.set_border(16.0f * collapse_scale);
     collapse_toolbar.set_separator_size(4);
     collapse_toolbar.set_gap_size(2);
-    collapse_toolbar.set_icons_size(32.0f);
+    collapse_toolbar.set_icons_size(32.0f * collapse_scale);
 
     collapse_toolbar.del_all_item();
 
