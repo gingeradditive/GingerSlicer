@@ -329,6 +329,8 @@ private:
     BackgroundTexture m_background_texture;
     GLTexture m_background_begin_texture;
     GLTexture m_background_end_texture;
+    bool m_render_left_cap{ false };
+    bool m_render_right_cap{ false };
     GLTexture m_arrow_texture;
     Layout m_layout;
 
@@ -376,6 +378,13 @@ public:
 
     bool is_enabled() const { return m_enabled; }
     void set_enabled(bool enable) { m_enabled = enable; }
+
+    // Enable/disable the rounded cap textures rendered just outside the
+    // toolbar's left/right edges. Disabled by default; set to true only on the
+    // left-most and right-most horizontal toolbars to obtain a single visually
+    // continuous bar with rounded outer corners.
+    void enable_left_cap(bool enable)  { m_render_left_cap  = enable; }
+    void enable_right_cap(bool enable) { m_render_right_cap = enable; }
 
     //BBS: GUI refactor: GLToolbar
     bool add_item(const GLToolbarItem::Data& data, GLToolbarItem::EType type = GLToolbarItem::Action);

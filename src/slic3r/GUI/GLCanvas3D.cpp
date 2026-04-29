@@ -6379,6 +6379,10 @@ bool GLCanvas3D::_init_main_toolbar()
         m_main_toolbar.set_enabled(false);
         return true;
     }
+    // The main toolbar is the left-most of the horizontal toolbar chain
+    // (main -> separator -> gizmos -> separator -> assemble_view), so it's
+    // the only one that should render the rounded left cap.
+    m_main_toolbar.enable_left_cap(true);
     // init arrow
     if (!m_main_toolbar.init_arrow("toolbar_arrow.svg"))
         BOOST_LOG_TRIVIAL(error) << "Main toolbar failed to load arrow texture.";
@@ -6578,6 +6582,9 @@ bool GLCanvas3D::_init_assemble_view_toolbar()
         m_assemble_view_toolbar.set_enabled(false);
         return true;
     }
+    // The assemble-view toolbar is the right-most of the horizontal toolbar
+    // chain, so it's the only one that should render the rounded right cap.
+    m_assemble_view_toolbar.enable_right_cap(true);
 
     m_assemble_view_toolbar.set_layout_type(GLToolbar::Layout::Horizontal);
     //BBS: assemble toolbar is at the top and right, we don't need the rounded-corner effect at the left side and the top side
