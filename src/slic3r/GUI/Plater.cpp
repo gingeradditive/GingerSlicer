@@ -717,13 +717,6 @@ Sidebar::Sidebar(Plater *parent)
 
         // add printer title
         scrolled_sizer->Add(p->m_panel_printer_title, 0, wxEXPAND | wxALL, 0);
-        p->m_panel_printer_title->Bind(wxEVT_LEFT_UP, [this] (auto & e) {
-            if (p->m_panel_printer_content->GetMaxHeight() == 0)
-                p->m_panel_printer_content->SetMaxSize({-1, -1});
-            else
-                p->m_panel_printer_content->SetMaxSize({-1, 0});
-            m_scrolled_sizer->Layout();
-        });
 
         // add spliter 2
         auto spliter_2 = new StaticLine(p->scrolled);
@@ -893,16 +886,6 @@ Sidebar::Sidebar(Plater *parent)
     // add filament title
     p->m_panel_filament_title = new StaticBox(p->scrolled, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL | wxBORDER_NONE);
     p->m_panel_filament_title->SetBackgroundColor(title_bg);
-    p->m_panel_filament_title->Bind(wxEVT_LEFT_UP, [this](wxMouseEvent &e) {
-        if (e.GetPosition().x > (p->m_flushing_volume_btn->IsShown()
-                ? p->m_flushing_volume_btn->GetPosition().x : 0))
-            return;
-        if (p->m_panel_filament_content->GetMaxHeight() == 0)
-            p->m_panel_filament_content->SetMaxSize({-1, -1});
-        else
-            p->m_panel_filament_content->SetMaxSize({-1, 0});
-        m_scrolled_sizer->Layout();
-    });
 
     wxBoxSizer* bSizer39;
     bSizer39 = new wxBoxSizer( wxHORIZONTAL );
@@ -1367,13 +1350,8 @@ void Sidebar::update_all_preset_comboboxes()
     p_mainframe->load_printer_url(url, apikey);
     p_mainframe->set_print_button_to_default(print_btn_type);
 
-    if (cfg.opt_bool("pellet_modded_printer")) {
-		p->m_staticText_filament_settings->SetLabel(_L("Pellets"));
-        p->m_filament_icon->SetBitmap_("pellets");
-    } else {
-		p->m_staticText_filament_settings->SetLabel(_L("Filament"));
-        p->m_filament_icon->SetBitmap_("filament");
-    }
+    p->m_staticText_filament_settings->SetLabel(_L("Pellets"));
+    p->m_filament_icon->SetBitmap_("pellets");
 
     show_SEMM_buttons(cfg.opt_bool("single_extruder_multi_material"));
 

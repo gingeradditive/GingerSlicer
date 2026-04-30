@@ -21,7 +21,7 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, wxBoxSizer* side_tools) :
     SetDoubleBuffered(true);
 #endif //__WINDOWS__
 
-    wxColour default_btn_bg = wxColour("#FFFFFF"); // White background
+    wxColour default_btn_bg = wxColour("#e7e7e7"); // Gray background
 
     SetBackgroundColour(default_btn_bg);
 
@@ -35,20 +35,35 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, wxBoxSizer* side_tools) :
     m_buttons_sizer = new wxFlexGridSizer(1, m_btn_margin, m_btn_margin);
 
     if (side_tools != NULL) {
+        auto* left_tools_sizer = new wxBoxSizer(wxHORIZONTAL);
+        auto* right_tools_sizer = new wxBoxSizer(wxHORIZONTAL);
+
         for (size_t idx = 0; idx < side_tools->GetItemCount(); idx++) {
             wxSizerItem* item = side_tools->GetItem(idx);
             wxWindow* item_win = item->GetWindow();
-            if (item_win) {
-                item_win->Reparent(this);
-            }
+            if (!item_win)
+                continue;
+
+            item_win->Reparent(this);
+
+            if (idx < 2)
+                left_tools_sizer->Add(item_win, item->GetProportion(), item->GetFlag(), item->GetBorder());
+            else
+                right_tools_sizer->Add(item_win, item->GetProportion(), item->GetFlag(), item->GetBorder());
         }
-        // Balanced left/right sections keep tab buttons at absolute center
-        m_sizer->Add(0, 0, 1, wxEXPAND);
+
+        auto* left_container = new wxBoxSizer(wxHORIZONTAL);
+        left_container->Add(left_tools_sizer, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, m_btn_margin);
+        left_container->AddStretchSpacer(1);
+
+        auto* right_container = new wxBoxSizer(wxHORIZONTAL);
+        right_container->AddStretchSpacer(1);
+        right_container->Add(right_tools_sizer, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, m_btn_margin);
+
+        // Balanced left/right sections keep tab buttons at absolute center.
+        m_sizer->Add(left_container, 1, wxEXPAND);
         m_sizer->Add(m_buttons_sizer, 0, wxALIGN_CENTER | wxTOP | wxBOTTOM, m_btn_margin);
-        auto* right_sizer = new wxBoxSizer(wxHORIZONTAL);
-        right_sizer->AddStretchSpacer(1);
-        right_sizer->Add(side_tools, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, m_btn_margin);
-        m_sizer->Add(right_sizer, 1, wxEXPAND);
+        m_sizer->Add(right_container, 1, wxEXPAND);
     } else {
         m_sizer->AddStretchSpacer(1);
         m_sizer->Add(m_buttons_sizer, 0, wxALIGN_CENTER | wxLEFT | wxTOP | wxBOTTOM, m_btn_margin);
