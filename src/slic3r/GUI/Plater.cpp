@@ -1172,10 +1172,6 @@ Sidebar::Sidebar(Plater *parent)
     }
     scrolled_sizer->Add(bottom_bar_top, 0, wxEXPAND);
 
-    wxWindow* bottom_bar_middle = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
-    bottom_bar_middle->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
-    scrolled_sizer->Add(bottom_bar_middle, 0, wxEXPAND);
-
     wxPanel* left_border = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(16), -1));
     left_border->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
 

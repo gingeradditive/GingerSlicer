@@ -6,6 +6,7 @@
 #include <wx/bookctrl.h>
 #include <wx/sizer.h>
 
+class wxPanel;
 class ModeSizer;
 class ScalableButton;
 class Button;
@@ -33,6 +34,7 @@ public:
 private:
     wxFlexGridSizer*                m_buttons_sizer;
     wxBoxSizer*                     m_sizer;
+    wxPanel*                        m_tabs_panel { nullptr };
     // BBS: use Button
     std::vector<Button*>            m_pageButtons;
     int                             m_selection {-1};

@@ -10,9 +10,58 @@
 #include "Widgets/Label.hpp"
 
 #include <wx/button.h>
+#include <wx/dcbuffer.h>
+#include <wx/graphics.h>
+#include <wx/panel.h>
 #include <wx/sizer.h>
 
 wxDEFINE_EVENT(wxCUSTOMEVT_NOTEBOOK_SEL_CHANGED, wxCommandEvent);
+
+namespace {
+// A simple wxPanel subclass that paints a rounded-rectangle background.
+class RoundedBgPanel : public wxPanel
+{
+public:
+    RoundedBgPanel(wxWindow* parent, const wxColour& bg, int radius)
+        : wxPanel(parent, wxID_ANY), m_bg(bg), m_radius(radius)
+    {
+        SetBackgroundStyle(wxBG_STYLE_PAINT);
+        // Make sure child widgets that inherit our background colour
+        // (e.g. StaticBox-based Buttons) see the card colour, not the
+        // platform default which can leak through rounded corners.
+        SetBackgroundColour(bg);
+        Bind(wxEVT_ERASE_BACKGROUND, [](wxEraseEvent&) {});
+        Bind(wxEVT_PAINT, &RoundedBgPanel::OnPaint, this);
+    }
+
+private:
+    wxColour m_bg;
+    int      m_radius;
+
+    void OnPaint(wxPaintEvent&)
+    {
+        wxAutoBufferedPaintDC dc(this);
+        const wxSize sz = GetClientSize();
+        // Fill with parent background first so the rounded corners blend in.
+        wxColour parent_bg = GetParent() ? GetParent()->GetBackgroundColour() : *wxWHITE;
+        dc.SetBrush(parent_bg);
+        dc.SetPen(parent_bg);
+        dc.DrawRectangle(0, 0, sz.x, sz.y);
+
+        if (wxGraphicsContext* gc = wxGraphicsContext::Create(dc)) {
+            gc->SetAntialiasMode(wxANTIALIAS_DEFAULT);
+            gc->SetBrush(wxBrush(m_bg));
+            gc->SetPen(*wxTRANSPARENT_PEN);
+            gc->DrawRoundedRectangle(0, 0, sz.x, sz.y, m_radius);
+            delete gc;
+        } else {
+            dc.SetBrush(m_bg);
+            dc.SetPen(m_bg);
+            dc.DrawRoundedRectangle(0, 0, sz.x, sz.y, m_radius);
+        }
+    }
+};
+} // namespace
 
 ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, wxBoxSizer* side_tools) :
     wxControl(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_NONE | wxTAB_TRAVERSAL)
@@ -30,13 +79,40 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, wxBoxSizer* side_tools) :
     m_line_margin = std::lround(0.1 * em);
 
     m_sizer = new wxBoxSizer(wxHORIZONTAL);
-    this->SetSizer(m_sizer);
+    auto* outer_sizer = new wxBoxSizer(wxVERTICAL);
+    const int outer_padding = FromDIP(16);
+    outer_sizer->Add(m_sizer, 1, wxEXPAND | wxALL, outer_padding);
+    this->SetSizer(outer_sizer);
 
     m_buttons_sizer = new wxFlexGridSizer(1, m_btn_margin, m_btn_margin);
 
+    const wxColour group_bg = *wxWHITE;
+    const int      group_radius = 16;
+    const int      tab_btn_height = static_cast<int>(36 * em / 10 * 1.5);
+    const int      group_height = tab_btn_height + 2 * m_btn_margin;
+    const int      group_pad = std::max(m_btn_margin, group_radius / 2);
+
+    auto make_tabs_panel = [&]() {
+        m_tabs_panel = new RoundedBgPanel(this, group_bg, group_radius);
+        m_tabs_panel->SetMinSize(wxSize(-1, group_height));
+        auto* tabs_sizer = new wxBoxSizer(wxHORIZONTAL);
+        tabs_sizer->AddSpacer(group_pad);
+        tabs_sizer->Add(m_buttons_sizer, 0, wxALIGN_CENTER_VERTICAL);
+        tabs_sizer->AddSpacer(group_pad);
+        m_tabs_panel->SetSizer(tabs_sizer);
+    };
+
     if (side_tools != NULL) {
-        auto* left_tools_sizer = new wxBoxSizer(wxHORIZONTAL);
-        auto* right_tools_sizer = new wxBoxSizer(wxHORIZONTAL);
+        auto* left_panel  = new RoundedBgPanel(this, group_bg, group_radius);
+        auto* right_panel = new RoundedBgPanel(this, group_bg, group_radius);
+        left_panel->SetMinSize(wxSize(-1, group_height));
+        right_panel->SetMinSize(wxSize(-1, group_height));
+
+        const int side_left_pad = FromDIP(20);
+        auto* left_inner  = new wxBoxSizer(wxHORIZONTAL);
+        auto* right_inner = new wxBoxSizer(wxHORIZONTAL);
+        left_inner->AddSpacer(side_left_pad);
+        right_inner->AddSpacer(side_left_pad);
 
         for (size_t idx = 0; idx < side_tools->GetItemCount(); idx++) {
             wxSizerItem* item = side_tools->GetItem(idx);
@@ -44,29 +120,63 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, wxBoxSizer* side_tools) :
             if (!item_win)
                 continue;
 
-            item_win->Reparent(this);
+            wxPanel* host = (idx < 2) ? left_panel : right_panel;
+            item_win->Reparent(host);
 
-            if (idx < 2)
-                left_tools_sizer->Add(item_win, item->GetProportion(), item->GetFlag(), item->GetBorder());
-            else
-                right_tools_sizer->Add(item_win, item->GetProportion(), item->GetFlag(), item->GetBorder());
+            wxSizer* target = (idx < 2) ? left_inner : right_inner;
+            target->Add(item_win, item->GetProportion(),
+                        (item->GetFlag() & ~(wxALIGN_MASK)) | wxALIGN_CENTER_VERTICAL,
+                        item->GetBorder());
         }
 
+        left_inner->AddSpacer(group_pad);
+        right_inner->AddSpacer(group_pad);
+        left_panel->SetSizer(left_inner);
+        right_panel->SetSizer(right_inner);
+
+        make_tabs_panel();
+
         auto* left_container = new wxBoxSizer(wxHORIZONTAL);
-        left_container->Add(left_tools_sizer, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, m_btn_margin);
+        left_container->Add(left_panel, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, m_btn_margin);
         left_container->AddStretchSpacer(1);
 
         auto* right_container = new wxBoxSizer(wxHORIZONTAL);
         right_container->AddStretchSpacer(1);
-        right_container->Add(right_tools_sizer, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, m_btn_margin);
+        right_container->Add(right_panel, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, m_btn_margin);
 
         // Balanced left/right sections keep tab buttons at absolute center.
         m_sizer->Add(left_container, 1, wxEXPAND);
-        m_sizer->Add(m_buttons_sizer, 0, wxALIGN_CENTER | wxTOP | wxBOTTOM, m_btn_margin);
+        m_sizer->Add(m_tabs_panel, 0, wxALIGN_CENTER_VERTICAL);
         m_sizer->Add(right_container, 1, wxEXPAND);
+
+        // Hide a side card when all its widgets are hidden (e.g. on the
+        // Home tab the slice/print buttons are not shown, so the empty
+        // white card should disappear instead of leaving a stub artefact).
+        auto bind_auto_hide = [this](wxPanel* panel) {
+            auto recompute = [this, panel]() {
+                bool any_visible = false;
+                for (wxWindow* c : panel->GetChildren()) {
+                    if (c->IsShown()) { any_visible = true; break; }
+                }
+                if (panel->IsShown() != any_visible) {
+                    panel->Show(any_visible);
+                    this->Layout();
+                }
+            };
+            for (wxWindow* c : panel->GetChildren()) {
+                c->Bind(wxEVT_SHOW, [this, recompute](wxShowEvent& e) {
+                    e.Skip();
+                    this->CallAfter(recompute);
+                });
+            }
+            recompute();
+        };
+        bind_auto_hide(left_panel);
+        bind_auto_hide(right_panel);
     } else {
+        make_tabs_panel();
         m_sizer->AddStretchSpacer(1);
-        m_sizer->Add(m_buttons_sizer, 0, wxALIGN_CENTER | wxLEFT | wxTOP | wxBOTTOM, m_btn_margin);
+        m_sizer->Add(m_tabs_panel, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, m_btn_margin);
         m_sizer->AddStretchSpacer(1);
     }
 
@@ -172,7 +282,8 @@ void ButtonsListCtrl::SetSelection(int sel)
         );
         m_pageButtons[m_selection]->SetSelected(false);
         m_pageButtons[m_selection]->SetTextColor(text_color);
-        m_pageButtons[m_selection]->SetBorderColor(wxColour(240, 240, 240));
+        m_pageButtons[m_selection]->SetBorderColor(*wxWHITE);
+        m_pageButtons[m_selection]->SetBorderColorNormal(*wxWHITE);
         m_pageButtons[m_selection]->SetBorderWidth(1);
         m_pageButtons[m_selection]->SetCornerRadius(16);
     }
@@ -197,7 +308,8 @@ void ButtonsListCtrl::SetSelection(int sel)
 
 bool ButtonsListCtrl::InsertPage(size_t n, const wxString &text, bool bSelect /* = false*/, const std::string &bmp_name /* = ""*/, const std::string &inactive_bmp_name)
 {
-    Button * btn = new Button(this, text.empty() ? text : " " + text, bmp_name, wxNO_BORDER);
+    wxWindow* btn_parent = m_tabs_panel ? static_cast<wxWindow*>(m_tabs_panel) : static_cast<wxWindow*>(this);
+    Button * btn = new Button(btn_parent, text.empty() ? text : " " + text, bmp_name, wxNO_BORDER);
     btn->SetCornerRadius(0);
 
     int em = em_unit(this);
@@ -214,7 +326,8 @@ bool ButtonsListCtrl::InsertPage(size_t n, const wxString &text, bool bSelect /*
     btn->SetTextColor(text_color);
     btn->SetInactiveIcon(inactive_bmp_name);
     btn->SetSelected(false);
-    btn->SetBorderColor(wxColour(240, 240, 240));
+    btn->SetBorderColor(*wxWHITE);
+    btn->SetBorderColorNormal(*wxWHITE);
     btn->SetBorderWidth(1);
     btn->SetCornerRadius(16);
     btn->Bind(wxEVT_BUTTON, [this, btn](wxCommandEvent& event) {
