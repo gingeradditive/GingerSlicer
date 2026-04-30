@@ -89,8 +89,12 @@ ButtonsListCtrl::ButtonsListCtrl(wxWindow *parent, wxBoxSizer* side_tools) :
     const wxColour group_bg = *wxWHITE;
     const int      group_radius = 16;
     const int      tab_btn_height = static_cast<int>(36 * em / 10 * 1.5);
-    const int      group_height = tab_btn_height + 2 * m_btn_margin;
+    // Padding used both vertically and horizontally inside each card. It
+    // must be at least ~radius*(1 - 1/sqrt(2)) so that a child rectangle
+    // never overlaps the panel's rounded corner area (otherwise the child's
+    // square background would poke out past the rounded edge).
     const int      group_pad = std::max(m_btn_margin, group_radius / 2);
+    const int      group_height = tab_btn_height + 2 * group_pad;
 
     auto make_tabs_panel = [&]() {
         m_tabs_panel = new RoundedBgPanel(this, group_bg, group_radius);

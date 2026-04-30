@@ -1659,6 +1659,14 @@ void PresetBundle::load_selections(AppConfig &config, const PresetPreferences& p
     const Preset *initial_printer = printers.find_preset(initial_printer_profile_name);
     // If executed due to a Config Wizard update, preferred_printer contains the first newly installed printer, otherwise nullptr.
     const Preset *preferred_printer = printers.find_system_preset_by_model_and_variant(preferred_selection.printer_model_id, preferred_selection.printer_variant);
+    // GingerSlicer: when there is no previous selection (fresh install) and the
+    // Config Wizard didn't suggest a printer either, default to the 3.0 mm
+    // standard machine instead of the generic "Default Printer".
+    if (!preferred_printer && (initial_printer_profile_name.empty() || initial_printer == nullptr)) {
+        static const std::string ginger_default_machine = "Ginger G1 3.0 nozzle";
+        if (printers.find_preset(ginger_default_machine, false) != nullptr)
+            initial_printer_profile_name = ginger_default_machine;
+    }
     printers.select_preset_by_name(preferred_printer ? preferred_printer->name : initial_printer_profile_name, true);
     CNumericLocalesSetter locales_setter;
 
