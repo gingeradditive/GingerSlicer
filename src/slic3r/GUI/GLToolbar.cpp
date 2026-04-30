@@ -8,6 +8,8 @@
 #include "slic3r/GUI/Camera.hpp"
 #include "slic3r/GUI/Plater.hpp"
 
+#include <boost/algorithm/string/predicate.hpp>
+
 #include <wx/event.h>
 #include <wx/bitmap.h>
 #include <wx/dcmemory.h>
@@ -272,11 +274,28 @@ bool GLToolbar::init(const BackgroundTexture::Metadata& background_texture)
     std::string path = resources_dir() + "/images/";
     bool res = false;
 
-    if (!background_texture.filename.empty())
-        res = m_background_texture.texture.load_from_file(path + background_texture.filename, false, GLTexture::SingleThreaded, false);
+    if (!background_texture.filename.empty()) {
+        // Allow the background texture to be supplied as either a 9-patch PNG
+        // (legacy behavior) or a stretchable SVG: callers signal the SVG case
+        // by giving a .svg filename together with all-zero edge metadata, so
+        // render_background() can render it as a single stretched quad.
+        const std::string full_path = path + background_texture.filename;
+        if (boost::algorithm::iends_with(background_texture.filename, ".svg"))
+            res = m_background_texture.texture.load_from_svg_file(full_path, false, false, false, 1000);
+        else
+            res = m_background_texture.texture.load_from_file(full_path, false, GLTexture::SingleThreaded, false);
+    }
 
     if (res)
         m_background_texture.metadata = background_texture;
+
+    // Load rounded cap textures for the toolbar background (rendered just
+    // outside the toolbar's left/right edges). Prefer SVG for crisp scaling;
+    // fall back to PNG so existing assets keep working.
+    if (!m_background_begin_texture.load_from_svg_file(path + "toolbar_background_begin.svg", false, false, false, 1000))
+        m_background_begin_texture.load_from_file(path + "toolbar_background_begin.png", false, GLTexture::SingleThreaded, false);
+    if (!m_background_end_texture.load_from_svg_file(path + "toolbar_background_end.svg", false, false, false, 1000))
+        m_background_end_texture.load_from_file(path + "toolbar_background_end.png", false, GLTexture::SingleThreaded, false);
 
     return res;
 }
@@ -1218,6 +1237,15 @@ void GLToolbar::render_background(float left, float top, float right, float bott
     const float tex_width = (float)m_background_texture.texture.get_width();
     const float tex_height = (float)m_background_texture.texture.get_height();
     if (tex_id != 0 && tex_width > 0.0f && tex_height > 0.0f) {
+        // If the background metadata declares no 9-patch edges, the texture is
+        // treated as a single stretchable image (e.g. a rounded-corner SVG)
+        // and rendered as one quad covering the whole toolbar area.
+        if (m_background_texture.metadata.left == 0 && m_background_texture.metadata.right == 0 &&
+            m_background_texture.metadata.top == 0  && m_background_texture.metadata.bottom == 0) {
+            GLTexture::render_texture(tex_id, left, right, bottom, top);
+            return;
+        }
+
         const float inv_tex_width  = 1.0f / tex_width;
         const float inv_tex_height = 1.0f / tex_height;
 
@@ -1382,6 +1410,22 @@ void GLToolbar::render_horizontal(const GLCanvas3D& parent,GLToolbarItem::EType 
     if (type == GLToolbarItem::SeparatorLine)
         right = left + width * 0.5;
     const float bottom = top - height;
+
+    // Draw the rounded cap textures only on the left-most / right-most
+    // toolbars so that the chain of horizontal toolbars looks like a single
+    // bar with rounded outer corners. The cap width is derived from the bar
+    // height (width = height/2) which matches the textures' 1:2 aspect ratio,
+    // keeping the rounded corners perfectly circular regardless of DPI/scale.
+    const float bar_height_px = (type == GLToolbarItem::SeparatorLine) ? 0.0f : get_height();
+    const float cap_width = 2.0f * (bar_height_px * 0.5f) * inv_cnv_w;
+    const unsigned int begin_tex_id = m_background_begin_texture.get_id();
+    const unsigned int end_tex_id   = m_background_end_texture.get_id();
+
+    if (m_render_left_cap && begin_tex_id != 0 && cap_width > 0.0f)
+        GLTexture::render_texture(begin_tex_id, left - cap_width, left, bottom, top);
+
+    if (m_render_right_cap && end_tex_id != 0 && cap_width > 0.0f)
+        GLTexture::render_texture(end_tex_id, right, right + cap_width, bottom, top);
 
     render_background(left, top, right, bottom, border_w, border_h);
 

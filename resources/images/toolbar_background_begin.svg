@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Placeholder cap (left/begin) for the toolbar background.
+     ViewBox aspect 1:2 so that, when rendered with width = height/2,
+     the rounded corners stay perfectly circular. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="32" viewBox="0 0 16 32" preserveAspectRatio="none">
+  <path d="M16,0 L8,0 A8,8 0 0,0 0,8 L0,24 A8,8 0 0,0 8,32 L16,32 Z" fill="#FFFFFF"/>
+</svg>

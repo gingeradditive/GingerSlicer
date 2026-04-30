@@ -631,7 +631,7 @@ static DynamicFilamentList dynamic_filament_list;
 static DynamicFilamentList1Based dynamic_filament_list_1_based;
 
 Sidebar::Sidebar(Plater *parent)
-    : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxSize(48 * wxGetApp().em_unit(), -1)), p(new priv(parent))
+    : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxSize(44 * wxGetApp().em_unit(), -1)), p(new priv(parent))
 {
     Choice::register_dynamic_list("support_filament", &dynamic_filament_list);
     Choice::register_dynamic_list("support_interface_filament", &dynamic_filament_list);
@@ -1527,7 +1527,7 @@ void Sidebar::change_top_border_for_mode_sizer(bool increase_border)
 
 void Sidebar::msw_rescale()
 {
-    SetMinSize(wxSize(48 * wxGetApp().em_unit(), -1));
+    SetMinSize(wxSize(44 * wxGetApp().em_unit(), -1));
     p->m_panel_printer_title->GetSizer()->SetMinSize(-1, 3 * wxGetApp().em_unit());
     p->m_panel_filament_title->GetSizer()
         ->SetMinSize(-1, 3 * wxGetApp().em_unit());
@@ -2724,7 +2724,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
                                    .CaptionVisible(false)
                                    .PaneBorder(false)
                                    .Gripper(false)
-                                   .BestSize(wxSize(48 * wxGetApp().em_unit(), 90 * wxGetApp().em_unit())));
+                                   .BestSize(wxSize(44 * wxGetApp().em_unit(), 90 * wxGetApp().em_unit())));
 
     auto* panel_sizer = new wxBoxSizer(wxHORIZONTAL);
     panel_sizer->Add(view3D, 1, wxEXPAND | wxALL, 0);
@@ -2747,6 +2747,9 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         }
         // Always enforce no caption/border on sidebar after loading perspective
         sidebar.CaptionVisible(false).PaneBorder(false).Gripper(false);
+        
+        // Force sidebar width after loading perspective
+        sidebar.BestSize(wxSize(44 * wxGetApp().em_unit(), sidebar.best_size.GetHeight()));
         
         // Re-apply sash color after loading perspective
         m_aui_mgr.GetArtProvider()->SetColor(wxAUI_DOCKART_SASH_COLOUR, wxColour(0xE7, 0xE7, 0xE7));
@@ -7630,23 +7633,29 @@ bool Plater::priv::init_collapse_toolbar()
         // already initialized
         return true;
 
+    // Use a stretchable SVG with rounded corners as background so the single
+    // collapse button is rendered as a rounded square. Edge metadata is left
+    // at 0 so GLToolbar::render_background() draws the texture as a single
+    // stretched quad (no 9-patch slicing).
     BackgroundTexture::Metadata background_data;
-    background_data.filename = "toolbar_background.png";
-    background_data.left = 16;
-    background_data.top = 16;
-    background_data.right = 16;
-    background_data.bottom = 16;
+    background_data.filename = "collapse_button_background.svg";
+    background_data.left = 0;
+    background_data.top = 0;
+    background_data.right = 0;
+    background_data.bottom = 0;
 
     if (!collapse_toolbar.init(background_data))
         return false;
 
+    // Shrink the collapse button by ~30% compared to the previous size.
+    constexpr float collapse_scale = 0.7f;
     collapse_toolbar.set_layout_type(GLToolbar::Layout::Vertical);
     collapse_toolbar.set_horizontal_orientation(GLToolbar::Layout::HO_Right);
     collapse_toolbar.set_vertical_orientation(GLToolbar::Layout::VO_Top);
-    collapse_toolbar.set_border(16.0f);
+    collapse_toolbar.set_border(16.0f * collapse_scale);
     collapse_toolbar.set_separator_size(4);
     collapse_toolbar.set_gap_size(2);
-    collapse_toolbar.set_icons_size(32.0f);
+    collapse_toolbar.set_icons_size(32.0f * collapse_scale);
 
     collapse_toolbar.del_all_item();
 

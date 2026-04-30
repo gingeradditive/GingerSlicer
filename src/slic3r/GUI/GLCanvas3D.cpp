@@ -223,7 +223,8 @@ void GLCanvas3D::LayersEditing::render_variable_layer_height_dialog(const GLCanv
     const Size& cnv_size = canvas.get_canvas_size();
     float left_pos = canvas.m_main_toolbar.get_item("layersediting")->render_left_pos;
     const float x = (1 + left_pos) * cnv_size.get_width() / 2;
-    imgui.set_next_window_pos(x, canvas.m_main_toolbar.get_height(), ImGuiCond_Always, 0.0f, 0.0f);
+    // Offset popup by 24px to clear the lowered main toolbar and leave a gap.
+    imgui.set_next_window_pos(x, canvas.m_main_toolbar.get_height() + 24.0f, ImGuiCond_Always, 0.0f, 0.0f);
 
     imgui.push_toolbar_style(canvas.get_scale());
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6.0f * canvas.get_scale(), 4.0f * canvas.get_scale()));
@@ -5483,7 +5484,8 @@ bool GLCanvas3D::_render_orient_menu(float left, float right, float bottom, floa
 #if BBS_TOOLBAR_ON_TOP
     const float x = (1 + left) * canvas_w / 2;
     ImGuiWrapper::push_toolbar_style(get_scale());
-    imgui->set_next_window_pos(x, m_main_toolbar.get_height(), ImGuiCond_Always, 0.5f, 0.0f);
+    // Offset popup by 24px to clear the lowered main toolbar and leave a gap.
+    imgui->set_next_window_pos(x, m_main_toolbar.get_height() + 24.0f, ImGuiCond_Always, 0.5f, 0.0f);
 #else
     const float x = canvas_w - m_main_toolbar.get_width();
     const float y = 0.5f * canvas_h - top * float(wxGetApp().plater()->get_camera().get_zoom());
@@ -5568,7 +5570,8 @@ bool GLCanvas3D::_render_arrange_menu(float left, float right, float bottom, flo
 #if BBS_TOOLBAR_ON_TOP
     float left_pos = m_main_toolbar.get_item("arrange")->render_left_pos;
     const float x = (1 + left_pos) * canvas_w / 2;
-    imgui->set_next_window_pos(x, m_main_toolbar.get_height(), ImGuiCond_Always, 0.0f, 0.0f);
+    // Offset popup by 24px to clear the lowered main toolbar and leave a gap.
+    imgui->set_next_window_pos(x, m_main_toolbar.get_height() + 24.0f, ImGuiCond_Always, 0.0f, 0.0f);
 
 #else
     const float x = canvas_w - m_main_toolbar.get_width();
@@ -6294,7 +6297,9 @@ void GLCanvas3D::_switch_toolbars_icon_filename()
     m_main_toolbar.init(background_data);
     m_assemble_view_toolbar.init(background_data);
     m_separator_toolbar.init(background_data);
-    wxGetApp().plater()->get_collapse_toolbar().init(background_data);
+    // The collapse toolbar uses its own rounded SVG background configured in
+    // Plater::priv::init_collapse_toolbar(); don't overwrite it with the
+    // shared 9-patch PNG metadata.
 
     // main toolbar
     {
@@ -6379,6 +6384,10 @@ bool GLCanvas3D::_init_main_toolbar()
         m_main_toolbar.set_enabled(false);
         return true;
     }
+    // The main toolbar is the left-most of the horizontal toolbar chain
+    // (main -> separator -> gizmos -> separator -> assemble_view), so it's
+    // the only one that should render the rounded left cap.
+    m_main_toolbar.enable_left_cap(true);
     // init arrow
     if (!m_main_toolbar.init_arrow("toolbar_arrow.svg"))
         BOOST_LOG_TRIVIAL(error) << "Main toolbar failed to load arrow texture.";
@@ -6578,6 +6587,9 @@ bool GLCanvas3D::_init_assemble_view_toolbar()
         m_assemble_view_toolbar.set_enabled(false);
         return true;
     }
+    // The assemble-view toolbar is the right-most of the horizontal toolbar
+    // chain, so it's the only one that should render the rounded right cap.
+    m_assemble_view_toolbar.enable_right_cap(true);
 
     m_assemble_view_toolbar.set_layout_type(GLToolbar::Layout::Horizontal);
     //BBS: assemble toolbar is at the top and right, we don't need the rounded-corner effect at the left side and the top side
@@ -7776,7 +7788,9 @@ void GLCanvas3D::_render_main_toolbar()
         return;
 
     const Size cnv_size = get_canvas_size();
-    const float top = 0.5f * (float)cnv_size.get_height();
+    // Align the horizontal toolbar chain vertically with the collapse button
+    // (which uses a 16px top margin in _render_collapse_toolbar).
+    const float top = 0.5f * (float)cnv_size.get_height() - 16.0f;
 
     const float left = -0.5f * cnv_size.get_width() + get_main_toolbar_offset();
     m_main_toolbar.set_position(top, left);
@@ -8160,7 +8174,8 @@ void GLCanvas3D::_render_assemble_view_toolbar() const
     const Size cnv_size = get_canvas_size();
     const float gizmo_width = m_gizmos.get_scaled_total_width();
     const float separator_width = m_separator_toolbar.get_width();
-    const float top = 0.5f * (float)cnv_size.get_height();
+    // Match the vertical offset of the main toolbar / collapse button.
+    const float top = 0.5f * (float)cnv_size.get_height() - 16.0f;
     const float main_toolbar_left = -0.5f * cnv_size.get_width() + get_main_toolbar_offset();
     const float left = main_toolbar_left + (m_main_toolbar.get_width() + gizmo_width + separator_width);
 
@@ -8236,7 +8251,8 @@ void GLCanvas3D::_render_separator_toolbar_right() const
     const Size cnv_size = get_canvas_size();
     const float gizmo_width = m_gizmos.get_scaled_total_width();
     const float separator_width = m_separator_toolbar.get_width();
-    const float top = 0.5f * (float)cnv_size.get_height();
+    // Match the vertical offset of the main toolbar / collapse button.
+    const float top = 0.5f * (float)cnv_size.get_height() - 16.0f;
     const float main_toolbar_left = -0.5f * cnv_size.get_width() + get_main_toolbar_offset();
     const float left = main_toolbar_left + (m_main_toolbar.get_width() + gizmo_width + separator_width / 2);
 
@@ -8250,7 +8266,8 @@ void GLCanvas3D::_render_separator_toolbar_left() const
         return;
 
     const Size cnv_size = get_canvas_size();
-    const float top = 0.5f * (float)cnv_size.get_height();
+    // Match the vertical offset of the main toolbar / collapse button.
+    const float top = 0.5f * (float)cnv_size.get_height() - 16.0f;
     const float main_toolbar_left = -0.5f * cnv_size.get_width() + get_main_toolbar_offset();
     const float left = main_toolbar_left + (m_main_toolbar.get_width());
 
