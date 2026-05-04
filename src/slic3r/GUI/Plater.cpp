@@ -7838,7 +7838,7 @@ void Plater::priv::set_bed_shape(const Pointfs& shape, const Pointfs& exclude_ar
 
     //BBS: add shape position
     Vec2d shape_position = partplate_list.get_current_shape_position();
-    bool new_shape = bed.set_shape(shape, printable_height, custom_model, force_as_custom, shape_position);
+    bool new_shape = bed.set_shape(shape, printable_height, custom_texture, custom_model, force_as_custom, shape_position);
 
     float prev_height_lid, prev_height_rod;
     partplate_list.get_height_limits(prev_height_lid, prev_height_rod);
@@ -7866,7 +7866,7 @@ void Plater::priv::set_bed_shape(const Pointfs& shape, const Pointfs& exclude_ar
 
         Vec2d new_shape_position = partplate_list.get_current_shape_position();
         if (shape_position != new_shape_position)
-            bed.set_shape(shape, printable_height, custom_model, force_as_custom, new_shape_position);
+            bed.set_shape(shape, printable_height, custom_texture, custom_model, force_as_custom, new_shape_position);
     }
 }
 
@@ -12691,24 +12691,13 @@ void Plater::on_config_change(const DynamicPrintConfig &config)
 
 void Plater::set_bed_shape() const
 {
-    std::string texture_filename;
-    auto bundle = wxGetApp().preset_bundle;
-    if (bundle != nullptr) {
-        const Preset* curr = &bundle->printers.get_selected_preset();
-        if (curr->is_system)
-            texture_filename = PresetUtils::system_printer_bed_texture(*curr);
-        else {
-            auto *printer_model = curr->config.opt<ConfigOptionString>("printer_model");
-            if (printer_model != nullptr && ! printer_model->value.empty()) {
-                texture_filename = bundle->get_texture_for_printer_model(printer_model->value);
-            }
-        }
-    }
+    // Always use the fixed bed texture path, bypassing bed_custom_texture parameter
+    std::string texture_filename = "/home/jack--/Sources/GingerRepos/GingerSlicer/resources/images/bed_texture.png";
     set_bed_shape(p->config->option<ConfigOptionPoints>("printable_area")->values,
         //BBS: add bed exclude areas
         p->config->option<ConfigOptionPoints>("bed_exclude_area")->values,
         p->config->option<ConfigOptionFloat>("printable_height")->value,
-        p->config->option<ConfigOptionString>("bed_custom_texture")->value.empty() ? texture_filename : p->config->option<ConfigOptionString>("bed_custom_texture")->value,
+        texture_filename,
         p->config->option<ConfigOptionString>("bed_custom_model")->value);
 }
 
