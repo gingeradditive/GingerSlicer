@@ -174,19 +174,25 @@ void StaticBox::doRender(wxDC& dc)
         if ((border_width && border_color.count() > 0) || background_color.count() > 0) {
             wxRect rc(0, 0, size.x, size.y);
             if (border_width && border_color.count() > 0) {
+                // GingerAdditive: restore upstream OrcaSlicer inset formula. The previous
+                // change (commit 2821e0160) inset the border by 1px, leaving a 1-pixel
+                // unpainted strip around StaticBox-derived widgets (SpinInput/TextInput/
+                // ComboBox). Since those controls use wxBG_STYLE_PAINT, that strip kept
+                // stale pixels after every native ScrollWindow blit -> ghost artifacts
+                // (dashed lines) around value boxes when scrolling the Process/Object panels.
                 if (dc.GetContentScaleFactor() == 1.0) {
-                    int d  = border_width;
-                    int d2 = border_width * 2;
+                    int d  = floor(border_width / 2.0);
+                    int d2 = floor(border_width - 1);
                     rc.x += d;
                     rc.width -= d2;
                     rc.y += d;
                     rc.height -= d2;
                 } else {
-                    int d  = border_width;
+                    int d  = 1;
                     rc.x += d;
-                    rc.width -= d * 2;
+                    rc.width -= d;
                     rc.y += d;
-                    rc.height -= d * 2;
+                    rc.height -= d;
                 }
                 dc.SetPen(wxPen(border_color.colorForStates(states), border_width));
             } else {
