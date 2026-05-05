@@ -12691,8 +12691,8 @@ void Plater::on_config_change(const DynamicPrintConfig &config)
 
 void Plater::set_bed_shape() const
 {
-    // Always use the fixed bed texture path, bypassing bed_custom_texture parameter
-    std::string texture_filename = "/home/jack--/Sources/GingerRepos/GingerSlicer/resources/images/bed_texture.png";
+    // Always use the fixed bed texture path from resources, bypassing bed_custom_texture parameter.
+    const std::string texture_filename = Slic3r::resources_dir() + "/images/bed_texture.png";
     set_bed_shape(p->config->option<ConfigOptionPoints>("printable_area")->values,
         //BBS: add bed exclude areas
         p->config->option<ConfigOptionPoints>("bed_exclude_area")->values,
@@ -12704,7 +12704,9 @@ void Plater::set_bed_shape() const
 //BBS: add bed exclude area
 void Plater::set_bed_shape(const Pointfs& shape, const Pointfs& exclude_area, const double printable_height, const std::string& custom_texture, const std::string& custom_model, bool force_as_custom) const
 {
-    p->set_bed_shape(make_counter_clockwise(shape), exclude_area, printable_height, custom_texture, custom_model, force_as_custom);
+    (void)custom_texture;
+    const std::string texture_filename = Slic3r::resources_dir() + "/images/bed_texture.png";
+    p->set_bed_shape(make_counter_clockwise(shape), exclude_area, printable_height, texture_filename, custom_model, force_as_custom);
 }
 
 void Plater::force_filament_colors_update()
