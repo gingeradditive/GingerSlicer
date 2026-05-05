@@ -885,9 +885,9 @@ bool ImGuiWrapper::bbl_checkbox(const wxString &label, bool &value)
     bool result;
     bool b_value = value;
     if (b_value) {
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.00f, 0.59f, 0.53f, 1.00f));
-        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.00f, 0.59f, 0.53f, 1.00f));
-        ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.00f, 0.59f, 0.53f, 1.00f));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, COL_GINGER);
+        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, COL_GINGER);
+        ImGui::PushStyleColor(ImGuiCol_FrameBgActive, COL_GINGER);
     }
     auto label_utf8 = into_u8(label);
     result          = ImGui::BBLCheckbox(label_utf8.c_str(), &value);
@@ -901,9 +901,9 @@ bool ImGuiWrapper::bbl_radio_button(const char *label, bool active)
     bool result;
     bool b_value = active;
     if (b_value) {
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.00f, 0.59f, 0.53f, 1.00f));
-        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.00f, 0.59f, 0.53f, 1.00f));
-        ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.00f, 0.59f, 0.53f, 1.00f));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, COL_GINGER);
+        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, COL_GINGER);
+        ImGui::PushStyleColor(ImGuiCol_FrameBgActive, COL_GINGER);
     }
     result = ImGui::BBLRadioButton(label,active);
     if (b_value) { ImGui::PopStyleColor(3); }
@@ -2783,7 +2783,7 @@ void ImGuiWrapper::init_style()
     set_color(ImGuiCol_ButtonActive, COL_ACTIVE);
 
     // Checkbox
-    set_color(ImGuiCol_CheckMark, COL_BLUE_LIGHT);
+    set_color(ImGuiCol_CheckMark, COL_GINGER);
 
     // ComboBox items
     set_color(ImGuiCol_Header, COL_ORANGE_LIGHT);
