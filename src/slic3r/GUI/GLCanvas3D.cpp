@@ -7904,7 +7904,7 @@ void GLCanvas3D::_render_imgui_select_plate_toolbar()
     float margin_size = 4.0f * f_scale;
     float button_margin = frame_padding;
 
-    const float y_offset = is_collapse_toolbar_on_left() ? (get_collapse_toolbar_height() + 5) : 0;
+    const float y_offset = is_collapse_toolbar_on_left() ? (get_collapse_toolbar_height() + 30) : 0;
     // Make sure the window does not overlap the 3d navigator
     auto window_height_max = canvas_h - y_offset;
     if (wxGetApp().show_3d_navigator()) {

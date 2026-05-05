@@ -39,7 +39,7 @@ public:
 class ObjectTableSettings : public OTG_Settings
 {
     // sizer for extra Object/Part's settings
-    wxBoxSizer* m_settings_list_sizer{ nullptr };  
+    wxBoxSizer* m_settings_list_sizer{ nullptr };
     // option groups for settings
     std::vector <std::shared_ptr<ConfigOptionsGroup>> m_og_settings;
 
@@ -61,6 +61,8 @@ public:
     {
         m_different_map.clear();
     }
+
+    using OTG_Settings::UpdateAndShow;
 
     bool        update_settings_list(bool is_object, bool is_multiple_selection, ModelObject* object, ModelConfig* config, const std::string& category);
     /* Additional check for override options: Add options, if its needed.

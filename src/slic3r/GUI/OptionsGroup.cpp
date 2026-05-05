@@ -605,15 +605,18 @@ void OptionsGroup::on_change_OG(const t_config_option_key& opt_id, const boost::
 
 Option ConfigOptionsGroup::get_option(const std::string& opt_key, int opt_index /*= -1*/)
 {
-	if (!m_config->has(opt_key)) {
+	bool has_option_in_config = m_config != nullptr && m_config->has(opt_key);
+	if (!has_option_in_config) {
 		std::cerr << "No " << opt_key << " in ConfigOptionsGroup config.\n";
 	}
 
 	std::string opt_id = opt_index == -1 ? opt_key : opt_key + "#" + std::to_string(opt_index);
-	std::pair<std::string, int> pair(opt_key, opt_index);
-	m_opt_map.emplace(opt_id, pair);
+	if (has_option_in_config) {
+		std::pair<std::string, int> pair(opt_key, opt_index);
+		m_opt_map.emplace(opt_id, pair);
+	}
 
-	if (m_use_custom_ctrl) // fill group and category values just for options from Settings Tab
+	if (m_use_custom_ctrl && has_option_in_config) // fill group and category values just for options from Settings Tab
 	    wxGetApp().sidebar().get_searcher().add_key(opt_id, static_cast<Preset::Type>(this->config_type()), title, this->config_category());
 
 	return Option(*m_config->def()->get(opt_key), opt_id);
@@ -726,6 +729,9 @@ void ConfigOptionsGroup::on_kill_focus(const std::string& opt_key)
 
 void ConfigOptionsGroup::reload_config()
 {
+	if (m_config == nullptr)
+		return;
+
 	for (auto &kvp : m_opt_map) {
 		// Name of the option field (name of the configuration key, possibly suffixed with '#' and the index of a scalar inside a vector.
 		const std::string &opt_id    = kvp.first;
@@ -733,7 +739,15 @@ void ConfigOptionsGroup::reload_config()
 		const std::string &opt_key   = kvp.second.first;
 		// index in the vector option, zero for scalars
 		int 			   opt_index = kvp.second.second;
-		const ConfigOptionDef &option = m_options.at(opt_id).opt;
+
+		auto option_it = m_options.find(opt_id);
+		if (option_it == m_options.end())
+			continue;
+
+		if (!m_config->has(opt_key))
+			continue;
+
+		const ConfigOptionDef &option = option_it->second.opt;
 		this->set_value(opt_id, config_value(opt_key, opt_index, option.gui_flags == "serialized"));
 	}
 }

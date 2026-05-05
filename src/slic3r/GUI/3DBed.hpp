@@ -95,7 +95,7 @@ public:
 private:
     BuildVolume m_build_volume;
     Type m_type{ Type::System };
-    //std::string m_texture_filename;
+    std::string m_texture_filename;
     std::string m_model_filename;
     // Print volume bounding box exteded with axes and model.
     BoundingBoxf3 m_extended_bounding_box;
@@ -103,9 +103,9 @@ private:
     //Polygon m_polygon;
     GLModel m_triangles;
     //GLModel m_gridlines;
-    // GLTexture m_texture;
+    GLTexture m_texture;
     // temporary texture shown until the main texture has still no levels compressed
-    //GLTexture m_temp_texture;
+    GLTexture m_temp_texture;
     GLModel m_model;
     Vec3d m_model_offset{ Vec3d::Zero() };
     Axes m_axes;
@@ -124,7 +124,7 @@ public:
     //FIXME if the build volume max print height is updated, this function still returns zero
     // as this class does not use it, thus there is no need to update the UI.
     // BBS
-    bool set_shape(const Pointfs& printable_area, const double printable_height, const std::string& custom_model, bool force_as_custom = false,
+    bool set_shape(const Pointfs& printable_area, const double printable_height, const std::string& custom_texture, const std::string& custom_model, bool force_as_custom = false,
         const Vec2d& position = Vec2d::Zero(), bool with_reset = true);
 
     void set_position(Vec2d& position);
@@ -164,7 +164,7 @@ private:
         bool show_axes);
     void render_axes();
     void render_system(GLCanvas3D& canvas, const Transform3d& view_matrix, const Transform3d& projection_matrix, bool bottom);
-    //void render_texture(bool bottom, GLCanvas3D& canvas);
+    void render_texture(bool bottom, GLCanvas3D& canvas);
     void render_model(const Transform3d& view_matrix, const Transform3d& projection_matrix);
     void render_custom(GLCanvas3D& canvas, const Transform3d& view_matrix, const Transform3d& projection_matrix, bool bottom);
     void render_default(bool bottom, const Transform3d& view_matrix, const Transform3d& projection_matrix);

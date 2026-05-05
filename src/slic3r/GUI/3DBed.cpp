@@ -247,13 +247,13 @@ void Bed3D::Axes::render()
 }
 
 //BBS: add part plate logic
-bool Bed3D::set_shape(const Pointfs& printable_area, const double printable_height, const std::string& custom_model, bool force_as_custom,
+bool Bed3D::set_shape(const Pointfs& printable_area, const double printable_height, const std::string& custom_texture, const std::string& custom_model, bool force_as_custom,
     const Vec2d& position, bool with_reset)
 {
-    /*auto check_texture = [](const std::string& texture) {
+    auto check_texture = [](const std::string& texture) {
         boost::system::error_code ec; // so the exists call does not throw (e.g. after a permission problem)
         return !texture.empty() && (boost::algorithm::iends_with(texture, ".png") || boost::algorithm::iends_with(texture, ".svg")) && boost::filesystem::exists(texture, ec);
-    };*/
+    };
 
     auto check_model = [](const std::string& model) {
         boost::system::error_code ec;
@@ -272,11 +272,11 @@ bool Bed3D::set_shape(const Pointfs& printable_area, const double printable_heig
         texture = system_texture;
     }
 
-    /*std::string texture_filename = custom_texture.empty() ? texture : custom_texture;
+    std::string texture_filename = custom_texture.empty() ? texture : custom_texture;
     if (! texture_filename.empty() && ! check_texture(texture_filename)) {
         BOOST_LOG_TRIVIAL(error) << "Unable to load bed texture: " << texture_filename;
         texture_filename.clear();
-    }*/
+    }
 
     std::string model_filename = custom_model.empty() ? model : custom_model;
     if (! model_filename.empty() && ! check_model(model_filename)) {
@@ -285,7 +285,7 @@ bool Bed3D::set_shape(const Pointfs& printable_area, const double printable_heig
     }
 
     //BBS: add position related logic
-    if (m_bed_shape == printable_area && m_build_volume.printable_height() == printable_height && m_type == type && m_model_filename == model_filename && position == m_position)
+    if (m_bed_shape == printable_area && m_build_volume.printable_height() == printable_height && m_type == type && m_texture_filename == texture_filename && m_model_filename == model_filename && position == m_position)
         // No change, no need to update the UI.
         return false;
 
@@ -304,7 +304,7 @@ bool Bed3D::set_shape(const Pointfs& printable_area, const double printable_heig
     else
         m_build_volume = BuildVolume { printable_area, printable_height };
     m_type = type;
-    //m_texture_filename = texture_filename;
+    m_texture_filename = texture_filename;
     m_model_filename = model_filename;
     //BBS: add part plate logic
     m_extended_bounding_box = this->calc_extended_bounding_box(false);
@@ -315,7 +315,7 @@ bool Bed3D::set_shape(const Pointfs& printable_area, const double printable_heig
     m_triangles.reset();
 
     if (with_reset) {
-        //m_texture.reset();
+        m_texture.reset();
         m_model.reset();
     }
     //BBS: add part plate logic, always update model offset
@@ -338,7 +338,7 @@ bool Bed3D::set_shape(const Pointfs& printable_area, const double printable_heig
 //BBS: add api to set position for partplate related bed
 void Bed3D::set_position(Vec2d& position)
 {
-    set_shape(m_bed_shape, m_build_volume.printable_height(), m_model_filename, false, position, false);
+    set_shape(m_bed_shape, m_build_volume.printable_height(), m_texture_filename, m_model_filename, false, position, false);
 }
 
 void Bed3D::set_axes_mode(bool origin)
@@ -463,18 +463,19 @@ void Bed3D::render_system(GLCanvas3D& canvas, const Transform3d& view_matrix, co
     if (!bottom)
         render_model(view_matrix, projection_matrix);
 
-    /*if (show_texture)
-        render_texture(bottom, canvas);*/
+    if (!m_texture_filename.empty())
+        render_texture(bottom, canvas);
 }
 
-/*void Bed3D::render_texture(bool bottom, GLCanvas3D& canvas)
+void Bed3D::render_texture(bool bottom, GLCanvas3D& canvas)
 {
     GLTexture* texture = const_cast<GLTexture*>(&m_texture);
     GLTexture* temp_texture = const_cast<GLTexture*>(&m_temp_texture);
 
     if (m_texture_filename.empty()) {
         texture->reset();
-        render_default(bottom, false);
+        const Camera& camera = wxGetApp().plater()->get_camera();
+        render_default(bottom, camera.get_view_matrix(), camera.get_projection_matrix());
         return;
     }
 
@@ -487,7 +488,8 @@ void Bed3D::render_system(GLCanvas3D& canvas, const Transform3d& view_matrix, co
             if (temp_texture->get_id() == 0 || temp_texture->get_source() != m_texture_filename) {
                 // generate a temporary lower resolution texture to show while no main texture levels have been compressed
                 if (!temp_texture->load_from_svg_file(m_texture_filename, false, false, false, max_tex_size / 8)) {
-                    render_default(bottom, false);
+                    const Camera& camera = wxGetApp().plater()->get_camera();
+                    render_default(bottom, camera.get_view_matrix(), camera.get_projection_matrix());
                     return;
                 }
                 canvas.request_extra_frame();
@@ -495,7 +497,8 @@ void Bed3D::render_system(GLCanvas3D& canvas, const Transform3d& view_matrix, co
 
             // starts generating the main texture, compression will run asynchronously
             if (!texture->load_from_svg_file(m_texture_filename, true, true, true, max_tex_size)) {
-                render_default(bottom, false);
+                const Camera& camera = wxGetApp().plater()->get_camera();
+                render_default(bottom, camera.get_view_matrix(), camera.get_projection_matrix());
                 return;
             }
         }
@@ -503,7 +506,8 @@ void Bed3D::render_system(GLCanvas3D& canvas, const Transform3d& view_matrix, co
             // generate a temporary lower resolution texture to show while no main texture levels have been compressed
             if (temp_texture->get_id() == 0 || temp_texture->get_source() != m_texture_filename) {
                 if (!temp_texture->load_from_file(m_texture_filename, false, GLTexture::None, false)) {
-                    render_default(bottom, false);
+                    const Camera& camera = wxGetApp().plater()->get_camera();
+                    render_default(bottom, camera.get_view_matrix(), camera.get_projection_matrix());
                     return;
                 }
                 canvas.request_extra_frame();
@@ -511,12 +515,14 @@ void Bed3D::render_system(GLCanvas3D& canvas, const Transform3d& view_matrix, co
 
             // starts generating the main texture, compression will run asynchronously
             if (!texture->load_from_file(m_texture_filename, true, GLTexture::MultiThreaded, true)) {
-                render_default(bottom, false);
+                const Camera& camera = wxGetApp().plater()->get_camera();
+                render_default(bottom, camera.get_view_matrix(), camera.get_projection_matrix());
                 return;
             }
         }
         else {
-            render_default(bottom, false);
+            const Camera& camera = wxGetApp().plater()->get_camera();
+            render_default(bottom, camera.get_view_matrix(), camera.get_projection_matrix());
             return;
         }
     }
@@ -531,7 +537,7 @@ void Bed3D::render_system(GLCanvas3D& canvas, const Transform3d& view_matrix, co
         canvas.request_extra_frame();
     }
 
-    if (m_triangles.get_vertices_count() > 0) {
+    if (m_triangles.vertices_count() > 0) {
         GLShaderProgram* shader = wxGetApp().get_shader("printbed");
         if (shader != nullptr) {
             shader->start_using();
@@ -540,15 +546,6 @@ void Bed3D::render_system(GLCanvas3D& canvas, const Transform3d& view_matrix, co
             shader->set_uniform("projection_matrix", camera.get_projection_matrix());
             shader->set_uniform("transparent_background", bottom);
             shader->set_uniform("svg_source", boost::algorithm::iends_with(m_texture.get_source(), ".svg"));
-
-            unsigned int* vbo_id = const_cast<unsigned int*>(&m_vbo_id);
-
-            if (*vbo_id == 0) {
-                glsafe(::glGenBuffers(1, vbo_id));
-                glsafe(::glBindBuffer(GL_ARRAY_BUFFER, *vbo_id));
-                glsafe(::glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)m_triangles.get_vertices_data_size(), (const GLvoid*)m_triangles.get_vertices_data(), GL_STATIC_DRAW));
-                glsafe(::glBindBuffer(GL_ARRAY_BUFFER, 0));
-            }
 
             glsafe(::glEnable(GL_DEPTH_TEST));
             if (bottom)
@@ -560,37 +557,16 @@ void Bed3D::render_system(GLCanvas3D& canvas, const Transform3d& view_matrix, co
             if (bottom)
                 glsafe(::glFrontFace(GL_CW));
 
-            unsigned int stride = m_triangles.get_vertex_data_size();
-
-            GLint position_id = shader->get_attrib_location("v_position");
-            GLint tex_coords_id = shader->get_attrib_location("v_tex_coords");
-
             // show the temporary texture while no compressed data is available
             GLuint tex_id = (GLuint)temp_texture->get_id();
             if (tex_id == 0)
                 tex_id = (GLuint)texture->get_id();
 
             glsafe(::glBindTexture(GL_TEXTURE_2D, tex_id));
-            glsafe(::glBindBuffer(GL_ARRAY_BUFFER, *vbo_id));
 
-            if (position_id != -1) {
-                glsafe(::glEnableVertexAttribArray(position_id));
-                glsafe(::glVertexAttribPointer(position_id, 3, GL_FLOAT, GL_FALSE, stride, (GLvoid*)(intptr_t)m_triangles.get_position_offset()));
-            }
-            if (tex_coords_id != -1) {
-                glsafe(::glEnableVertexAttribArray(tex_coords_id));
-                glsafe(::glVertexAttribPointer(tex_coords_id, 2, GL_FLOAT, GL_FALSE, stride, (GLvoid*)(intptr_t)m_triangles.get_tex_coords_offset()));
-            }
+            m_triangles.set_color(DEFAULT_MODEL_COLOR);
+            m_triangles.render();
 
-            glsafe(::glDrawArrays(GL_TRIANGLES, 0, (GLsizei)m_triangles.get_vertices_count()));
-
-            if (tex_coords_id != -1)
-                glsafe(::glDisableVertexAttribArray(tex_coords_id));
-
-            if (position_id != -1)
-                glsafe(::glDisableVertexAttribArray(position_id));
-
-            glsafe(::glBindBuffer(GL_ARRAY_BUFFER, 0));
             glsafe(::glBindTexture(GL_TEXTURE_2D, 0));
 
             if (bottom)
@@ -603,7 +579,7 @@ void Bed3D::render_system(GLCanvas3D& canvas, const Transform3d& view_matrix, co
             shader->stop_using();
         }
     }
-}*/
+}
 
 //BBS: add part plate related logic
 void Bed3D::update_model_offset()
@@ -696,8 +672,8 @@ void Bed3D::render_custom(GLCanvas3D& canvas, const Transform3d& view_matrix, co
     if (!bottom)
         render_model(view_matrix, projection_matrix);
 
-    /*if (show_texture)
-        render_texture(bottom, canvas);*/
+    if (!m_texture_filename.empty())
+        render_texture(bottom, canvas);
 }
 
 void Bed3D::render_default(bool bottom, const Transform3d& view_matrix, const Transform3d& projection_matrix)

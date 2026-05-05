@@ -3201,12 +3201,6 @@ void PrintConfigDef::init_fff_params()
     def->readonly = false;
     def->set_default_value(new ConfigOptionEnum<GCodeFlavor>(gcfMarlinLegacy));
 
-    def          = this->add("pellet_modded_printer", coBool);
-    def->label   = L("Pellet Modded Printer");
-    def->tooltip = L("Enable this option if your printer uses pellets instead of filaments.");
-    def->mode    = comAdvanced;
-    def->set_default_value(new ConfigOptionBool(false));
-
     def          = this->add("multi_zone", coBool);
     def->label   = L("Multi heating zone");
     def->tooltip = L("Enable this option if your printer uses multi heating zone");

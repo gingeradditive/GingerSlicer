@@ -47,7 +47,7 @@ static std::vector<std::string> s_project_options {
 const char *PresetBundle::ORCA_DEFAULT_BUNDLE = "Ginger Additive";
 const char *PresetBundle::ORCA_DEFAULT_PRINTER_MODEL = "Ginger G1 3.0 nozzle";
 const char *PresetBundle::ORCA_DEFAULT_PRINTER_VARIANT = "3.0";
-const char *PresetBundle::ORCA_DEFAULT_FILAMENT = "Ginger Generic PLA";
+const char *PresetBundle::ORCA_DEFAULT_FILAMENT = "Generic PLA";
 const char *PresetBundle::ORCA_FILAMENT_LIBRARY = "Ginger Additive";
 
 PresetBundle::PresetBundle()
@@ -1659,6 +1659,18 @@ void PresetBundle::load_selections(AppConfig &config, const PresetPreferences& p
     const Preset *initial_printer = printers.find_preset(initial_printer_profile_name);
     // If executed due to a Config Wizard update, preferred_printer contains the first newly installed printer, otherwise nullptr.
     const Preset *preferred_printer = printers.find_system_preset_by_model_and_variant(preferred_selection.printer_model_id, preferred_selection.printer_variant);
+    // Treat empty name, missing preset, or the built-in "Default Printer" as "no prior selection".
+    const bool no_prior_printer_selection = initial_printer_profile_name.empty() ||
+                                            initial_printer == nullptr ||
+                                            initial_printer->is_default;
+    // GingerSlicer: when there is no previous selection (fresh install) and the
+    // Config Wizard didn't suggest a printer either, default to the 3.0 mm
+    // standard machine instead of the generic "Default Printer".
+    if (!preferred_printer && no_prior_printer_selection) {
+        static const std::string ginger_default_machine = "Ginger G1 3.0 nozzle";
+        if (printers.find_preset(ginger_default_machine, false) != nullptr)
+            initial_printer_profile_name = ginger_default_machine;
+    }
     printers.select_preset_by_name(preferred_printer ? preferred_printer->name : initial_printer_profile_name, true);
     CNumericLocalesSetter locales_setter;
 
@@ -1677,6 +1689,26 @@ void PresetBundle::load_selections(AppConfig &config, const PresetPreferences& p
         const std::vector<std::string>& prefered_filament_profiles = preferred_printer->config.option<ConfigOptionStrings>("default_filament_profile")->values;
         if ((!initial_filament_profile_name.compare("Default Filament")) && (prefered_filament_profiles.size() > 0))
             initial_filament_profile_name = prefered_filament_profiles[0];
+    }
+
+    // GingerSlicer: on fresh install, also apply Ginger default print/filament.
+    // Check against the *intended* printer name (initial_printer_profile_name) rather
+    // than the actually-selected one, because on the first load_presets call the
+    // printer might not be visible yet and select_preset_by_name falls back to "Default Printer".
+    const bool use_ginger_first_run_defaults =
+        no_prior_printer_selection &&
+        preferred_printer == nullptr &&
+        initial_printer_profile_name == ORCA_DEFAULT_PRINTER_MODEL;
+
+    if (use_ginger_first_run_defaults) {
+        static const std::string ginger_default_print = "1.30mm Standard";
+        const bool unset_print = initial_print_profile_name.empty() || initial_print_profile_name == "Default Setting";
+        const bool unset_filament = initial_filament_profile_name.empty() || initial_filament_profile_name == "Default Filament";
+
+        if (unset_print && prints.find_preset(ginger_default_print, false) != nullptr)
+            initial_print_profile_name = ginger_default_print;
+        if (unset_filament && filaments.find_preset(ORCA_DEFAULT_FILAMENT, false) != nullptr)
+            initial_filament_profile_name = ORCA_DEFAULT_FILAMENT;
     }
 
     // Selects the profile, leaves it to -1 if the initial profile name is empty or if it was not found.

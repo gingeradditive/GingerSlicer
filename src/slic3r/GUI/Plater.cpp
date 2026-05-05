@@ -717,13 +717,6 @@ Sidebar::Sidebar(Plater *parent)
 
         // add printer title
         scrolled_sizer->Add(p->m_panel_printer_title, 0, wxEXPAND | wxALL, 0);
-        p->m_panel_printer_title->Bind(wxEVT_LEFT_UP, [this] (auto & e) {
-            if (p->m_panel_printer_content->GetMaxHeight() == 0)
-                p->m_panel_printer_content->SetMaxSize({-1, -1});
-            else
-                p->m_panel_printer_content->SetMaxSize({-1, 0});
-            m_scrolled_sizer->Layout();
-        });
 
         // add spliter 2
         auto spliter_2 = new StaticLine(p->scrolled);
@@ -893,16 +886,6 @@ Sidebar::Sidebar(Plater *parent)
     // add filament title
     p->m_panel_filament_title = new StaticBox(p->scrolled, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL | wxBORDER_NONE);
     p->m_panel_filament_title->SetBackgroundColor(title_bg);
-    p->m_panel_filament_title->Bind(wxEVT_LEFT_UP, [this](wxMouseEvent &e) {
-        if (e.GetPosition().x > (p->m_flushing_volume_btn->IsShown()
-                ? p->m_flushing_volume_btn->GetPosition().x : 0))
-            return;
-        if (p->m_panel_filament_content->GetMaxHeight() == 0)
-            p->m_panel_filament_content->SetMaxSize({-1, -1});
-        else
-            p->m_panel_filament_content->SetMaxSize({-1, 0});
-        m_scrolled_sizer->Layout();
-    });
 
     wxBoxSizer* bSizer39;
     bSizer39 = new wxBoxSizer( wxHORIZONTAL );
@@ -1189,10 +1172,6 @@ Sidebar::Sidebar(Plater *parent)
     }
     scrolled_sizer->Add(bottom_bar_top, 0, wxEXPAND);
 
-    wxWindow* bottom_bar_middle = new wxWindow(p->scrolled, wxID_ANY, wxDefaultPosition, wxSize(-1, FromDIP(16)));
-    bottom_bar_middle->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
-    scrolled_sizer->Add(bottom_bar_middle, 0, wxEXPAND);
-
     wxPanel* left_border = new wxPanel(this, wxID_ANY, wxDefaultPosition, wxSize(FromDIP(16), -1));
     left_border->SetBackgroundColour(wxColour(0xE7, 0xE7, 0xE7));
 
@@ -1367,13 +1346,8 @@ void Sidebar::update_all_preset_comboboxes()
     p_mainframe->load_printer_url(url, apikey);
     p_mainframe->set_print_button_to_default(print_btn_type);
 
-    if (cfg.opt_bool("pellet_modded_printer")) {
-		p->m_staticText_filament_settings->SetLabel(_L("Pellets"));
-        p->m_filament_icon->SetBitmap_("pellets");
-    } else {
-		p->m_staticText_filament_settings->SetLabel(_L("Filament"));
-        p->m_filament_icon->SetBitmap_("filament");
-    }
+    p->m_staticText_filament_settings->SetLabel(_L("Pellets"));
+    p->m_filament_icon->SetBitmap_("pellets");
 
     show_SEMM_buttons(cfg.opt_bool("single_extruder_multi_material"));
 
@@ -7864,7 +7838,7 @@ void Plater::priv::set_bed_shape(const Pointfs& shape, const Pointfs& exclude_ar
 
     //BBS: add shape position
     Vec2d shape_position = partplate_list.get_current_shape_position();
-    bool new_shape = bed.set_shape(shape, printable_height, custom_model, force_as_custom, shape_position);
+    bool new_shape = bed.set_shape(shape, printable_height, custom_texture, custom_model, force_as_custom, shape_position);
 
     float prev_height_lid, prev_height_rod;
     partplate_list.get_height_limits(prev_height_lid, prev_height_rod);
@@ -7892,7 +7866,7 @@ void Plater::priv::set_bed_shape(const Pointfs& shape, const Pointfs& exclude_ar
 
         Vec2d new_shape_position = partplate_list.get_current_shape_position();
         if (shape_position != new_shape_position)
-            bed.set_shape(shape, printable_height, custom_model, force_as_custom, new_shape_position);
+            bed.set_shape(shape, printable_height, custom_texture, custom_model, force_as_custom, new_shape_position);
     }
 }
 
@@ -12717,31 +12691,22 @@ void Plater::on_config_change(const DynamicPrintConfig &config)
 
 void Plater::set_bed_shape() const
 {
-    std::string texture_filename;
-    auto bundle = wxGetApp().preset_bundle;
-    if (bundle != nullptr) {
-        const Preset* curr = &bundle->printers.get_selected_preset();
-        if (curr->is_system)
-            texture_filename = PresetUtils::system_printer_bed_texture(*curr);
-        else {
-            auto *printer_model = curr->config.opt<ConfigOptionString>("printer_model");
-            if (printer_model != nullptr && ! printer_model->value.empty()) {
-                texture_filename = bundle->get_texture_for_printer_model(printer_model->value);
-            }
-        }
-    }
+    // Always use the fixed bed texture path from resources, bypassing bed_custom_texture parameter.
+    const std::string texture_filename = Slic3r::resources_dir() + "/images/bed_texture.png";
     set_bed_shape(p->config->option<ConfigOptionPoints>("printable_area")->values,
         //BBS: add bed exclude areas
         p->config->option<ConfigOptionPoints>("bed_exclude_area")->values,
         p->config->option<ConfigOptionFloat>("printable_height")->value,
-        p->config->option<ConfigOptionString>("bed_custom_texture")->value.empty() ? texture_filename : p->config->option<ConfigOptionString>("bed_custom_texture")->value,
+        texture_filename,
         p->config->option<ConfigOptionString>("bed_custom_model")->value);
 }
 
 //BBS: add bed exclude area
 void Plater::set_bed_shape(const Pointfs& shape, const Pointfs& exclude_area, const double printable_height, const std::string& custom_texture, const std::string& custom_model, bool force_as_custom) const
 {
-    p->set_bed_shape(make_counter_clockwise(shape), exclude_area, printable_height, custom_texture, custom_model, force_as_custom);
+    (void)custom_texture;
+    const std::string texture_filename = Slic3r::resources_dir() + "/images/bed_texture.png";
+    p->set_bed_shape(make_counter_clockwise(shape), exclude_area, printable_height, texture_filename, custom_model, force_as_custom);
 }
 
 void Plater::force_filament_colors_update()

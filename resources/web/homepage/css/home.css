@@ -14,7 +14,8 @@ html, body {
     margin: 0px;
     padding: 0px;
 	line-height: 20px;
-    font-size: 16px;	
+    font-size: 16px;
+	background-color: #E7E7E7;
 }
 
 .ZScrol::-webkit-scrollbar {/*滚动条整体样式*/
@@ -274,6 +275,7 @@ body
 	align-items: center;
 	margin-right: 16px;
 	cursor: pointer;
+	background-color: #fff;
 }
 
 .MenuItem:hover
@@ -360,11 +362,13 @@ body
 	margin-left: 20px;
 	cursor: pointer;
 	display: none;
+	background-color: #fff;
 }
 
 #RecentClearAllBtn:hover
 {
-	background-color:#CDCECE;
+	border-color: #d72828;		/*ORCA color*/
+	background-color: #E5F0EE; /*ORCA color with %25 opacity*/
 }
 
 #RecentTitle
@@ -391,6 +395,11 @@ body
 	position: relative;
 	cursor: pointer;
 	margin: 8px;
+	border-width: 1px;
+	border-style: solid;
+	border-radius: 12px;
+	background-color: #fff;
+	padding: 12px;
 }
 
 .FileTip
@@ -426,6 +435,7 @@ body
     text-overflow: ellipsis;
     overflow: hidden;
     word-break: break-all;	
+	padding-top: 8px;
 }
 
 .FileDate
