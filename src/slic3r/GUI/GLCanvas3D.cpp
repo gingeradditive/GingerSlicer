@@ -288,9 +288,9 @@ void GLCanvas3D::LayersEditing::render_variable_layer_height_dialog(const GLCanv
     input_align = std::max(input_align, ImGui::GetCursorPosX());
     ImGui::SetCursorPosX(input_align);
     ImGui::PushItemWidth(input_box_width);
-    ImGui::PushStyleColor(ImGuiCol_BorderActive, ImVec4(0.00f, 0.59f, 0.53f, 1.00f));
-    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.00f, 0.59f, 0.53f, 0.00f));
-    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.00f, 0.59f, 0.53f, 0.00f));
+    ImGui::PushStyleColor(ImGuiCol_BorderActive, ImGuiWrapper::COL_GINGER);
+    ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImGuiWrapper::COL_GINGER);
+    ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImGuiWrapper::COL_GINGER);
     ImGui::BBLDragScalar("##radius_input", ImGuiDataType_S32, &radius, 1, &v_min, &v_max);
     ImGui::PopStyleColor(3);
 
@@ -7925,7 +7925,7 @@ void GLCanvas3D::_render_imgui_select_plate_toolbar()
     float window_width       = button_width + (margin_size + button_margin + ImGui::GetStyle().WindowPadding.x) * 2 + (show_scroll ? scrollbar_size : 0);
 
     ImVec4 window_bg     = ImVec4(1.f, 1.f, 1.f, .7f);
-    ImVec4 button_active = ImGuiWrapper::COL_ORCA;
+    ImVec4 button_active = ImGuiWrapper::COL_GINGER;
     ImVec4 button_hover  = ImVec4(0.67f, 0.67f, 0.67, 1.0f);
     ImVec4 scroll_col    = ImVec4(0.77f, 0.77f, 0.77f, 1.0f);
     ImU32  plate_bg      = IM_COL32(0, 0, 0, 10);

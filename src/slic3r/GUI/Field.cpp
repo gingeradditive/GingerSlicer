@@ -761,8 +761,10 @@ void TextCtrl::BUILD() {
     if (m_opt.is_code)
         temp->SetFont(Slic3r::GUI::wxGetApp().normal_font());
 
-
     temp->SetForegroundColour(*wxBLACK);
+    temp->SetBackgroundColour(*wxWHITE);
+    text_ctrl->SetForegroundColour(*wxBLACK);
+    text_ctrl->SetBackgroundColour(*wxWHITE);
 
     if (! m_opt.multiline && !wxOSX)
 		// Only disable background refresh for single line input fields, as they are completely painted over by the edit control.

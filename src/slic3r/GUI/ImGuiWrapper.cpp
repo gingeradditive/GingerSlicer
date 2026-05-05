@@ -145,7 +145,7 @@ const ImVec4 ImGuiWrapper::COL_SEPARATOR         = { 0.93f, 0.93f, 0.93f, 1.0f }
 const ImVec4 ImGuiWrapper::COL_TITLE_BG          = { 0.745f, 0.745f, 0.745f, 1.0f };
 const ImVec4 ImGuiWrapper::COL_WINDOW_BG         = { 1.000f, 1.000f, 1.000f, 1.0f };
 const ImVec4 ImGuiWrapper::COL_TOOLBAR_BG        = { 250 / 255.f, 250 / 255.f, 250 / 255.f, 1.f }; // ORCA color matches with toolbar_background.png
-const ImVec4 ImGuiWrapper::COL_ORCA              = to_ImVec4(ColorRGBA::ORCA());
+const ImVec4 ImGuiWrapper::COL_GINGER              = to_ImVec4(ColorRGBA::GINGER());
 
 int ImGuiWrapper::TOOLBAR_WINDOW_FLAGS = ImGuiWindowFlags_AlwaysAutoResize
                                  | ImGuiWindowFlags_NoMove
@@ -885,9 +885,9 @@ bool ImGuiWrapper::bbl_checkbox(const wxString &label, bool &value)
     bool result;
     bool b_value = value;
     if (b_value) {
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.00f, 0.59f, 0.53f, 1.00f));
-        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.00f, 0.59f, 0.53f, 1.00f));
-        ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.00f, 0.59f, 0.53f, 1.00f));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, COL_GINGER);
+        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, COL_GINGER);
+        ImGui::PushStyleColor(ImGuiCol_FrameBgActive, COL_GINGER);
     }
     auto label_utf8 = into_u8(label);
     result          = ImGui::BBLCheckbox(label_utf8.c_str(), &value);
@@ -901,9 +901,9 @@ bool ImGuiWrapper::bbl_radio_button(const char *label, bool active)
     bool result;
     bool b_value = active;
     if (b_value) {
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.00f, 0.59f, 0.53f, 1.00f));
-        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.00f, 0.59f, 0.53f, 1.00f));
-        ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.00f, 0.59f, 0.53f, 1.00f));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, COL_GINGER);
+        ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, COL_GINGER);
+        ImGui::PushStyleColor(ImGuiCol_FrameBgActive, COL_GINGER);
     }
     result = ImGui::BBLRadioButton(label,active);
     if (b_value) { ImGui::PopStyleColor(3); }
@@ -2493,7 +2493,7 @@ void ImGuiWrapper::push_combo_style(const float scale)
     ImGui::PushStyleColor(ImGuiCol_PopupBg, ImGuiWrapper::COL_WINDOW_BG);
     ImGui::PushStyleColor(ImGuiCol_BorderActive, ImVec4(0.f, 150.f / 255.f, 136.f / 255.f, 0.6f));  // ORCA hovered item border color
     ImGui::PushStyleColor(ImGuiCol_HeaderHovered, {0.f, 0.f, 0.f, 0.f});                            // ORCA hovered item background color
-    ImGui::PushStyleColor(ImGuiCol_HeaderActive, COL_ORCA);
+    ImGui::PushStyleColor(ImGuiCol_HeaderActive, COL_GINGER);
     ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.f, 150.f / 255.f, 136.f / 255.f, 0.25f));       // ORCA active item background color
     ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImGuiWrapper::COL_WINDOW_BG);
     ImGui::PushStyleColor(ImGuiCol_Button, {1.00f, 1.00f, 1.00f, 0.0f});
@@ -2783,16 +2783,16 @@ void ImGuiWrapper::init_style()
     set_color(ImGuiCol_ButtonActive, COL_ACTIVE);
 
     // Checkbox
-    set_color(ImGuiCol_CheckMark, COL_BLUE_LIGHT);
+    set_color(ImGuiCol_CheckMark, COL_GINGER);
 
     // ComboBox items
     set_color(ImGuiCol_Header, COL_ORANGE_LIGHT);
-    set_color(ImGuiCol_HeaderHovered,	to_ImVec4(to_rgba(ColorRGB::ORCA(), 0.50f))); // ORCA Use orca color for headers
-    set_color(ImGuiCol_HeaderActive,	to_ImVec4(to_rgba(ColorRGB::ORCA(), 0.75f)));  // ORCA Use orca color for headers
+    set_color(ImGuiCol_HeaderHovered,	to_ImVec4(to_rgba(ColorRGB::GINGER(), 0.50f))); // ORCA Use orca color for headers
+    set_color(ImGuiCol_HeaderActive,	to_ImVec4(to_rgba(ColorRGB::GINGER(), 0.75f)));  // ORCA Use orca color for headers
 
     // Slider
-    set_color(ImGuiCol_SliderGrab,			to_ImVec4(to_rgba(ColorRGB::ORCA(), 0.50f))); // ORCA Use orca color for slider thumbs 
-    set_color(ImGuiCol_SliderGrabActive,	to_ImVec4(to_rgba(ColorRGB::ORCA(), 0.75f))); // ORCA Use orca color for slider thumbs 
+    set_color(ImGuiCol_SliderGrab,			to_ImVec4(to_rgba(ColorRGB::GINGER(), 0.50f))); // ORCA Use orca color for slider thumbs 
+    set_color(ImGuiCol_SliderGrabActive,	to_ImVec4(to_rgba(ColorRGB::GINGER(), 0.75f))); // ORCA Use orca color for slider thumbs 
 
     // Separator
     set_color(ImGuiCol_Separator, COL_BLUE_LIGHT);

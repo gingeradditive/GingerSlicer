@@ -335,7 +335,7 @@ public:
     static const ImVec4 COL_WINDOW_BG;
     static const ImVec4 COL_TOOLBAR_BG;
     static const ImVec4 COL_SEPARATOR;
-    static const ImVec4 COL_ORCA;
+    static const ImVec4 COL_GINGER;
 
     //BBS
     static void push_toolbar_style(const float scale);
