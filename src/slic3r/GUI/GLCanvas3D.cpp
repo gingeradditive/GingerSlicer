@@ -813,7 +813,7 @@ void GLCanvas3D::Labels::render(const std::vector<const ModelInstance*>& sorted_
 
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, owner.selected ? 3.0f : 1.5f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
-        ImGui::PushStyleColor(ImGuiCol_Border, owner.selected ? ImVec4(0.843f, 0.157f, 0.157f, 1.0f) : ImVec4(0.75f, 0.75f, 0.75f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_Border, owner.selected ? ImVec4(0.757f, 0.404f, 0.216f, 1.0f) : ImVec4(0.75f, 0.75f, 0.75f, 1.0f));
         imgui.set_next_window_pos(x, y, ImGuiCond_Always, 0.5f, 0.5f);
         imgui.begin(owner.title, ImGuiWindowFlags_NoMouseInputs | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove);
         ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
@@ -7925,7 +7925,7 @@ void GLCanvas3D::_render_imgui_select_plate_toolbar()
     float window_width       = button_width + (margin_size + button_margin + ImGui::GetStyle().WindowPadding.x) * 2 + (show_scroll ? scrollbar_size : 0);
 
     ImVec4 window_bg     = ImVec4(1.f, 1.f, 1.f, .7f);
-    ImVec4 button_active = ImGuiWrapper::COL_ORCA;
+    ImVec4 button_active = ImGuiWrapper::COL_GINGER;
     ImVec4 button_hover  = ImVec4(0.67f, 0.67f, 0.67, 1.0f);
     ImVec4 scroll_col    = ImVec4(0.77f, 0.77f, 0.77f, 1.0f);
     ImU32  plate_bg      = IM_COL32(0, 0, 0, 10);
