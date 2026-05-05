@@ -1659,7 +1659,10 @@ void PresetBundle::load_selections(AppConfig &config, const PresetPreferences& p
     const Preset *initial_printer = printers.find_preset(initial_printer_profile_name);
     // If executed due to a Config Wizard update, preferred_printer contains the first newly installed printer, otherwise nullptr.
     const Preset *preferred_printer = printers.find_system_preset_by_model_and_variant(preferred_selection.printer_model_id, preferred_selection.printer_variant);
-    const bool no_prior_printer_selection = initial_printer_profile_name.empty() || initial_printer == nullptr;
+    // Treat empty name, missing preset, or the built-in "Default Printer" as "no prior selection".
+    const bool no_prior_printer_selection = initial_printer_profile_name.empty() ||
+                                            initial_printer == nullptr ||
+                                            initial_printer->is_default;
     // GingerSlicer: when there is no previous selection (fresh install) and the
     // Config Wizard didn't suggest a printer either, default to the 3.0 mm
     // standard machine instead of the generic "Default Printer".
@@ -1688,10 +1691,14 @@ void PresetBundle::load_selections(AppConfig &config, const PresetPreferences& p
             initial_filament_profile_name = prefered_filament_profiles[0];
     }
 
+    // GingerSlicer: on fresh install, also apply Ginger default print/filament.
+    // Check against the *intended* printer name (initial_printer_profile_name) rather
+    // than the actually-selected one, because on the first load_presets call the
+    // printer might not be visible yet and select_preset_by_name falls back to "Default Printer".
     const bool use_ginger_first_run_defaults =
         no_prior_printer_selection &&
         preferred_printer == nullptr &&
-        printers.get_selected_preset_name() == ORCA_DEFAULT_PRINTER_MODEL;
+        initial_printer_profile_name == ORCA_DEFAULT_PRINTER_MODEL;
 
     if (use_ginger_first_run_defaults) {
         static const std::string ginger_default_print = "1.30mm Standard";
