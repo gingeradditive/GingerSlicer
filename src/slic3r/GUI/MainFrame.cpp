@@ -1447,7 +1447,7 @@ wxBoxSizer* MainFrame::create_side_tools()
     m_print_select = ePrintPlate;
 
     // Advanced toggle
-    m_advanced_title = new Label(this, Label::Body_12, _L("Advance"));
+    m_advanced_title = new Label(this, Label::Body_12, _L("Advanced"));
     m_advanced_title->SetBackgroundColour(*wxWHITE);
     m_advanced_view = new SwitchButton(this, wxID_ABOUT);
     m_advanced_view->SetBackgroundColour(*wxWHITE);
