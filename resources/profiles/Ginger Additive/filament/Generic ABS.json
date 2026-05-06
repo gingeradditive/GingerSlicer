@@ -47,10 +47,10 @@
    "filament_type": [
       "ABS"
    ],
-   "hot_plate_temp": [
+   "cool_plate_temp": [
       "80"
    ],
-   "hot_plate_temp_initial_layer": [
+   "cool_plate_temp_initial_layer": [
       "80"
    ],
    "is_custom_defined": "0",

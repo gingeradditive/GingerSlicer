@@ -45,10 +45,10 @@
       "8"
    ],
    "from": "system",
-   "hot_plate_temp": [
+   "cool_plate_temp": [
       "55"
    ],
-   "hot_plate_temp_initial_layer": [
+   "cool_plate_temp_initial_layer": [
       "55"
    ],
    "inherits": "Generic PLA",

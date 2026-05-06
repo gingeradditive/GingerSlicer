@@ -48,7 +48,7 @@
    "full_fan_speed_layer": [
       "8"
    ],
-   "hot_plate_temp_initial_layer": [
+   "cool_plate_temp_initial_layer": [
       "80"
    ],
    "inherits": "Generic PETG",

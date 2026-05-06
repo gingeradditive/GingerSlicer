@@ -107,10 +107,10 @@
   "full_fan_speed_layer": [
     "0"
   ],
-  "hot_plate_temp": [
+  "cool_plate_temp": [
     "100"
   ],
-  "hot_plate_temp_initial_layer": [
+  "cool_plate_temp_initial_layer": [
     "100"
   ],
   "nozzle_temperature": [
