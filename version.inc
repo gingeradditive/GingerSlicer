@@ -10,7 +10,7 @@ endif()
 if(NOT DEFINED BBL_INTERNAL_TESTING)
 set(BBL_INTERNAL_TESTING "0")
 endif()
-set(GingerSlicer_VERSION "2.3.8")
+set(GingerSlicer_VERSION "3.0.0")
 string(REGEX MATCH "^([0-9]+)\\.([0-9]+)\\.([0-9]+)"
        GingerSlicer_VERSION_MATCH ${GingerSlicer_VERSION})
 set(ORCA_VERSION_MAJOR ${CMAKE_MATCH_1})
