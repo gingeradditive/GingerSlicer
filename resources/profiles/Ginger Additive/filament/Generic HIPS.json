@@ -60,6 +60,12 @@
    "filament_start_gcode": [
       "SET_PRESSURE_ADVANCE EXTRUDER=extruder SMOOTH_TIME=0.5"
    ],
+   "hot_plate_temp": [
+      "80"
+   ],
+   "hot_plate_temp_initial_layer": [
+      "80"
+   ],
    "cool_plate_temp": [
       "80"
    ],

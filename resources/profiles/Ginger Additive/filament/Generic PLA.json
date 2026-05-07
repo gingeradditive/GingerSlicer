@@ -96,6 +96,12 @@
    "filament_type": [
       "PLA"
    ],
+   "hot_plate_temp": [
+      "50"
+   ],
+   "hot_plate_temp_initial_layer": [
+      "50"
+   ],
    "cool_plate_temp": [
       "50"
    ],

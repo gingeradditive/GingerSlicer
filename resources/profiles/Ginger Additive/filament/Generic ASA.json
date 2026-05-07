@@ -47,6 +47,12 @@
    "filament_type": [
       "ASA"
    ],
+   "hot_plate_temp": [
+      "80"
+   ],
+   "hot_plate_temp_initial_layer": [
+      "80"
+   ],
    "cool_plate_temp": [
       "80"
    ],

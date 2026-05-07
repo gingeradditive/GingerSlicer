@@ -17,12 +17,6 @@
   "complete_print_exhaust_fan_speed": [
     "70"
   ],
-  "cool_plate_temp": [
-    "70"
-  ],
-  "cool_plate_temp_initial_layer": [
-    "70"
-  ],
   "during_print_exhaust_fan_speed": [
     "70"
   ],
@@ -110,8 +104,14 @@
   "full_fan_speed_layer": [
     "0"
   ],
+  "hot_plate_temp": [
+    "57"
+  ],
+  "hot_plate_temp_initial_layer": [
+    "70"
+  ],
   "cool_plate_temp": [
-    "5705"
+    "57"
   ],
   "cool_plate_temp_initial_layer": [
     "70"

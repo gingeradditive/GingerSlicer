@@ -42,6 +42,12 @@
       "colorFabb"
    ],
    "from": "system",
+   "hot_plate_temp": [
+      "70"
+   ],
+   "hot_plate_temp_initial_layer": [
+      "70"
+   ],
    "cool_plate_temp": [
       "70"
    ],

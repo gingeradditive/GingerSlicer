@@ -54,6 +54,9 @@
       "7"
    ],
    "from": "system",
+   "hot_plate_temp_initial_layer": [
+      "80"
+   ],
    "cool_plate_temp_initial_layer": [
       "80"
    ],
