@@ -48,6 +48,12 @@
    "hot_plate_temp_initial_layer": [
       "70"
    ],
+   "cool_plate_temp": [
+      "70"
+   ],
+   "cool_plate_temp_initial_layer": [
+      "70"
+   ],
    "inherits": "Generic PLA",
    "is_custom_defined": "0",
    "mixing_stepper_rotation_volume": [
@@ -75,7 +81,7 @@
    "slow_down_layer_time": [
       "30"
    ],
-   "version": "2.3.4.3",
+   "version": "3.0.0.0",
    "compatible_printers": [
       "Ginger G1 1.0 nozzle",
       "Ginger G1 1.8 nozzle",

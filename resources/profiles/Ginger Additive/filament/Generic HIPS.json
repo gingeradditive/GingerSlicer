@@ -15,7 +15,7 @@
    "multi_zone_2_temperature": "230",
    "multi_zone_3_initial_layer": "230",
    "multi_zone_3_temperature": "230",
-   "version": "2.3.4.3",
+   "version": "3.0.0.0",
    "instantiation": "true",
    "filament_vendor": [
       "Generic"
@@ -64,6 +64,12 @@
       "80"
    ],
    "hot_plate_temp_initial_layer": [
+      "80"
+   ],
+   "cool_plate_temp": [
+      "80"
+   ],
+   "cool_plate_temp_initial_layer": [
       "80"
    ],
    "mixing_stepper_rotation_volume": "8000",

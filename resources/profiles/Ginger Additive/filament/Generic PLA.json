@@ -80,7 +80,7 @@
    "full_fan_speed_layer": [
       "8"
    ],
-   "version": "2.3.4.3",
+   "version": "3.0.0.0",
    "instantiation": "true",
    "name": "Generic PLA",
    "extruder_rotation_volume": "456",
@@ -100,6 +100,12 @@
       "50"
    ],
    "hot_plate_temp_initial_layer": [
+      "50"
+   ],
+   "cool_plate_temp": [
+      "50"
+   ],
+   "cool_plate_temp_initial_layer": [
       "50"
    ],
    "is_custom_defined": "0",

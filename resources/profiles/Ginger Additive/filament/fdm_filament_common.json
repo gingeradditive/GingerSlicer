@@ -28,12 +28,6 @@
    "complete_print_exhaust_fan_speed": [
       "70"
    ],
-   "cool_plate_temp": [
-      "35"
-   ],
-   "cool_plate_temp_initial_layer": [
-      "35"
-   ],
    "default_filament_colour": [
       ""
    ],
@@ -192,6 +186,12 @@
    "hot_plate_temp_initial_layer": [
       "60"
    ],
+   "cool_plate_temp": [
+      "1"
+   ],
+   "cool_plate_temp_initial_layer": [
+      "60"
+   ],
    "is_custom_defined": "0",
    "name": "fdm_filament_common",
    "nozzle_temperature": [
@@ -242,7 +242,7 @@
    "textured_plate_temp_initial_layer": [
       "55"
    ],
-   "version": "2.3.4.3",
+   "version": "3.0.0.0",
    "pellet_flow_coefficient": [
       "1"
    ],

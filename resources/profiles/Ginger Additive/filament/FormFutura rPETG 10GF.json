@@ -57,6 +57,9 @@
    "hot_plate_temp_initial_layer": [
       "80"
    ],
+   "cool_plate_temp_initial_layer": [
+      "80"
+   ],
    "inherits": "Generic PETG GF",
    "is_custom_defined": "0",
    "multi_zone_1_initial_layer": [
@@ -84,7 +87,7 @@
    "slow_down_layer_time": [
       "40"
    ],
-   "version": "2.3.4.3",
+   "version": "3.0.0.0",
    "compatible_printers": [
       "Ginger G1 1.0 nozzle",
       "Ginger G1 1.8 nozzle",

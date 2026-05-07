@@ -21,6 +21,12 @@
    "hot_plate_temp_initial_layer": [
       "60"
    ],
+   "cool_plate_temp": [
+      "60"
+   ],
+   "cool_plate_temp_initial_layer": [
+      "60"
+   ],
    "inherits": "Generic PLA",
    "is_custom_defined": "0",
    "mixing_stepper_rotation_volume": [
@@ -45,7 +51,7 @@
       "210"
    ],
    "name": "Azure PLA",
-   "version": "2.3.4.3",
+   "version": "3.0.0.0",
    "compatible_printers": [
       "Ginger G1 1.0 nozzle",
       "Ginger G1 1.8 nozzle",
