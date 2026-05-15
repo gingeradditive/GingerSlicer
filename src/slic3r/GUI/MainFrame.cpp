@@ -142,7 +142,18 @@ static wxIcon main_frame_icon(GUI_App::EAppMode app_mode)
                 }
         }*/
     }
-    return wxIcon(path, wxBITMAP_TYPE_ICO);
+    wxIcon icon(path, wxBITMAP_TYPE_ICO);
+    if (!icon.IsOk()) {
+        // Fallback: load the icon directly from the resources directory in
+        // case the icon resource embedded in the executable could not be
+        // resolved (e.g. when launched through a wrapper that strips it).
+        const wxString ico_path = Slic3r::var("GingerSlicer.ico");
+        if (wxFileExists(ico_path))
+            icon.LoadFile(ico_path, wxBITMAP_TYPE_ICO);
+        if (!icon.IsOk())
+            icon.LoadFile(Slic3r::var("GingerSlicer_128px.png"), wxBITMAP_TYPE_PNG);
+    }
+    return icon;
 #else // _WIN32
     return wxIcon(Slic3r::var("GingerSlicer_128px.png"), wxBITMAP_TYPE_PNG);
 #endif // _WIN32
@@ -245,7 +256,10 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
     default:
     case GUI_App::EAppMode::Editor:
         m_taskbar_icon = std::make_unique<GingerSlicerTaskBarIcon>(wxTBI_DOCK);
-        m_taskbar_icon->SetIcon(wxIcon(Slic3r::var("GingerSlicer-mac_256px.ico"), wxBITMAP_TYPE_ICO), "GingerSlicer");
+        // macOS prefers PNG/icns sources for NSImage; .ico decoding through
+        // wxWidgets on macOS is unreliable and can leave the Dock with a
+        // generic icon.
+        m_taskbar_icon->SetIcon(wxIcon(Slic3r::var("GingerSlicer_192px.png"), wxBITMAP_TYPE_PNG), "GingerSlicer");
         break;
     case GUI_App::EAppMode::GCodeViewer:
         break;

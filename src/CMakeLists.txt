@@ -248,6 +248,13 @@ else ()
         set(MACOSX_BUNDLE_BUNDLE_NAME "GingerSlicer")
         set(MACOSX_BUNDLE_SHORT_VERSION_STRING ${GingerSlicer_VERSION})
         set(MACOSX_BUNDLE_COPYRIGHT "Copyright(C) 2022-2024 Li Jiang All Rights Reserved")
+        # Use our own configured Info.plist instead of CMake's default template
+        # so that CFBundleIdentifier, URL schemes, document types and icon path
+        # are correctly applied to the bundle. Without this wiring, the
+        # configure_file output above is generated but never installed in the
+        # app bundle.
+        set_target_properties(GingerSlicer PROPERTIES
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_BINARY_DIR}/Info.plist")
     endif()
     add_custom_command(TARGET GingerSlicer POST_BUILD
         COMMAND ln -sfn "${SLIC3R_RESOURCES_DIR}" "${BIN_RESOURCES_DIR}"

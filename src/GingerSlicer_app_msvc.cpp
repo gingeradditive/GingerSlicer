@@ -5,7 +5,17 @@
 #define NOMINMAX
 #include <Windows.h>
 #include <shellapi.h>
+#include <shobjidl.h>
 #include <wchar.h>
+
+// Set an explicit AppUserModelID so Windows correctly associates the
+// taskbar button (and its icon) with this application across launches,
+// pinned shortcuts and child processes. Without this, Windows derives
+// the id heuristically and may show a generic / missing icon.
+// The id must be stable across versions and installations.
+#ifndef GINGERSLICER_APP_USER_MODEL_ID
+#define GINGERSLICER_APP_USER_MODEL_ID L"GingerAdditive.GingerSlicer"
+#endif
 
 
 
@@ -221,6 +231,24 @@ int wmain(int argc, wchar_t **argv)
     // Without this call, the seemingly same message box is being opened by the abort() function, but that is too late and
     // the application will be killed even if "Ignore" button is pressed.
     _set_error_mode(_OUT_TO_MSGBOX);
+
+    // Explicitly set the AppUserModelID before any windows are created. This
+    // must happen as early as possible so that the first HWND created inherits
+    // it and the taskbar can resolve the icon correctly. We resolve the API
+    // dynamically to keep compatibility with the current _WIN32_WINNT value.
+    {
+        typedef HRESULT (WINAPI *PFN_SetCurrentProcessExplicitAppUserModelID)(PCWSTR);
+        HMODULE hShell32 = ::GetModuleHandleW(L"shell32.dll");
+        if (hShell32 == nullptr)
+            hShell32 = ::LoadLibraryW(L"shell32.dll");
+        if (hShell32 != nullptr) {
+            PFN_SetCurrentProcessExplicitAppUserModelID pfn =
+                (PFN_SetCurrentProcessExplicitAppUserModelID)::GetProcAddress(
+                    hShell32, "SetCurrentProcessExplicitAppUserModelID");
+            if (pfn != nullptr)
+                pfn(GINGERSLICER_APP_USER_MODEL_ID);
+        }
+    }
 
     std::vector<wchar_t*> argv_extended;
     argv_extended.emplace_back(argv[0]);
