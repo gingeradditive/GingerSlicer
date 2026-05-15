@@ -9,6 +9,7 @@
         "Generic PLA"
     ],
     "default_print_profile": "1.50mm Standard @Ginger G1",
+    "default_bed_type": "3",
     "deretraction_speed": [
         "200"
     ],

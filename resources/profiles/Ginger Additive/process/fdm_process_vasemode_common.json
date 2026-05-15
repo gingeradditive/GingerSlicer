@@ -22,7 +22,7 @@
    "spiral_finishing_flow_ratio": "0.2",
    "top_shell_layers": "0",
    "type": "process",
-   "version": "3.0.0.0",
+   "version": "3.0.0.1",
    "wall_generator": "arachne",
    "wall_loops": "1",
    "wipe_on_loops": "1",
