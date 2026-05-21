@@ -1909,33 +1909,46 @@ std::pair<Preset*, bool> PresetCollection::load_external_preset(
         it = this->find_preset_renamed(original_name);
         found = it != m_presets.end();
     }
-    if (!inherits.empty() && (different_settings_list.size() > 0)) {
-        auto iter = this->find_preset_internal(inherits);
-        if (iter != m_presets.end() && iter->name == inherits) {
-            //std::vector<std::string> dirty_options = cfg.diff(iter->config);
-            for (auto &opt : keys) {
-                if (different_settings_list.find(opt) != different_settings_list.end())
-                    continue;
-                ConfigOption *opt_src = iter->config.option(opt);
-                ConfigOption *opt_dst = cfg.option(opt);
-                if (opt_src && opt_dst && (*opt_src != *opt_dst)) {
-                    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(" change key %1% from old_value %2% to inherit's value %3%, preset_name %4%, inherits_name %5%")
-                            %opt %(opt_dst->serialize()) %(opt_src->serialize()) %original_name %inherits;
-                    opt_dst->set(opt_src);
+    // GingerSlicer: when loading an embedded config from a project file (.3mf),
+    // trust the values saved in the project verbatim. The override logic below
+    // was designed to propagate updated system-preset defaults onto previously
+    // saved configurations, but it silently resets any user modification that
+    // is not explicitly tracked in `different_settings_to_system`. Combined
+    // with profile version bumps, this caused user edits in a saved 3mf to
+    // appear "reset" after reopening the file. For project loads we keep the
+    // saved cfg untouched; for non-project sources (e.g. external .ini/.gcode)
+    // we preserve the historical behavior.
+    const bool is_project_load = boost::algorithm::iends_with(path, ".3mf") ||
+                                 boost::algorithm::iends_with(name, ".3mf");
+    if (!is_project_load) {
+        if (!inherits.empty() && (different_settings_list.size() > 0)) {
+            auto iter = this->find_preset_internal(inherits);
+            if (iter != m_presets.end() && iter->name == inherits) {
+                //std::vector<std::string> dirty_options = cfg.diff(iter->config);
+                for (auto &opt : keys) {
+                    if (different_settings_list.find(opt) != different_settings_list.end())
+                        continue;
+                    ConfigOption *opt_src = iter->config.option(opt);
+                    ConfigOption *opt_dst = cfg.option(opt);
+                    if (opt_src && opt_dst && (*opt_src != *opt_dst)) {
+                        BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(" change key %1% from old_value %2% to inherit's value %3%, preset_name %4%, inherits_name %5%")
+                                %opt %(opt_dst->serialize()) %(opt_src->serialize()) %original_name %inherits;
+                        opt_dst->set(opt_src);
+                    }
                 }
             }
         }
-    }
-    else if (found && it->is_system && (different_settings_list.size() > 0)) {
-        for (auto &opt : keys) {
-            if (different_settings_list.find(opt) != different_settings_list.end())
-                continue;
-            ConfigOption *opt_src = it->config.option(opt);
-            ConfigOption *opt_dst = cfg.option(opt);
-            if (opt_src && opt_dst && (*opt_src != *opt_dst)) {
-                BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(" change key %1% from old_value %2% to new_value %3%, preset_name %4%")
-                        %opt %(opt_dst->serialize()) %(opt_src->serialize()) %original_name;
-                opt_dst->set(opt_src);
+        else if (found && it->is_system && (different_settings_list.size() > 0)) {
+            for (auto &opt : keys) {
+                if (different_settings_list.find(opt) != different_settings_list.end())
+                    continue;
+                ConfigOption *opt_src = it->config.option(opt);
+                ConfigOption *opt_dst = cfg.option(opt);
+                if (opt_src && opt_dst && (*opt_src != *opt_dst)) {
+                    BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(" change key %1% from old_value %2% to new_value %3%, preset_name %4%")
+                            %opt %(opt_dst->serialize()) %(opt_src->serialize()) %original_name;
+                    opt_dst->set(opt_src);
+                }
             }
         }
     }
