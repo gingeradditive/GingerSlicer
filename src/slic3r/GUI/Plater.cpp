@@ -3049,8 +3049,22 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
                     boost::filesystem::remove_all(last);
             }
             catch (...) {}
-            int skip_confirm = e.GetInt();
-            this->q->new_project(skip_confirm, true);
+            
+            // BBS: Preserve unsaved preset changes - check if any preset has modifications before calling new_project()
+            bool has_unsaved_preset_changes = false;
+            for (Tab* tab : wxGetApp().tabs_list) {
+                if (tab->current_preset_is_dirty()) {
+                    has_unsaved_preset_changes = true;
+                    BOOST_LOG_TRIVIAL(info) << "Skipping new_project() in restore - preset has unsaved changes";
+                    break;
+                }
+            }
+            
+            // Only call new_project if there are no unsaved preset changes
+            if (!has_unsaved_preset_changes) {
+                int skip_confirm = e.GetInt();
+                this->q->new_project(skip_confirm, true);
+            }
             });
         //wxPostEvent(this->q, wxCommandEvent{EVT_RESTORE_PROJECT});
     }
