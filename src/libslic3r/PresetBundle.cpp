@@ -2088,10 +2088,12 @@ DynamicPrintConfig PresetBundle::full_fff_config() const
     const Preset* print_parent_preset =  this->prints.get_selected_preset_parent();
     if (print_parent_preset) {
         std::vector<std::string> dirty_options = this->prints.dirty_options_without_option_list(&(this->prints.get_edited_preset()), print_parent_preset, ignore_settings_list, false);
+        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(" print dirty_options count=%1%, options=%2%") %dirty_options.size() %boost::algorithm::join(dirty_options, ",");
         if (!dirty_options.empty()) {
             different_print_settings = Slic3r::escape_strings_cstyle(dirty_options);
         }
     }
+    BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(" different_print_settings=%1%") %different_print_settings;
     different_settings.emplace_back(different_print_settings);
 
     if (num_filaments <= 1) {
