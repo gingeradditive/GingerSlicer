@@ -1920,6 +1920,8 @@ std::pair<Preset*, bool> PresetCollection::load_external_preset(
     // we preserve the historical behavior.
     const bool is_project_load = boost::algorithm::iends_with(path, ".3mf") ||
                                  boost::algorithm::iends_with(name, ".3mf");
+    BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(" is_project_load=%1%, path=%2%, name=%3%, original_name=%4%")
+        %is_project_load %path %name %original_name;
     if (!is_project_load) {
         if (!inherits.empty() && (different_settings_list.size() > 0)) {
             auto iter = this->find_preset_internal(inherits);
