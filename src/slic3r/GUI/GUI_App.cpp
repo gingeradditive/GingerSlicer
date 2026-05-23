@@ -3719,6 +3719,19 @@ bool GUI_App::checked_tab(Tab* tab)
 //BBS: add preset combo box re-activate logic
 void GUI_App::load_current_presets(bool active_preset_combox/*= false*/, bool check_printer_presets_ /*= true*/)
 {
+    // BBS: Preserve unsaved changes - check if any preset has modifications before reloading
+    // Skip reload if there are unsaved changes to prevent overwriting user modifications
+    bool has_unsaved_changes = false;
+    for (Tab *tab : tabs_list) {
+        if (tab->current_preset_is_dirty()) {
+            BOOST_LOG_TRIVIAL(info) << "Skipping load_current_presets() - preset has unsaved changes";
+            has_unsaved_changes = true;
+            break;
+        }
+    }
+    if (has_unsaved_changes)
+        return;
+
     // check printer_presets for the containing information about "Print Host upload"
     // and create physical printer from it, if any exists
     if (check_printer_presets_)
