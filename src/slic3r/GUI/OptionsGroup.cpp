@@ -748,6 +748,23 @@ void ConfigOptionsGroup::reload_config()
 			continue;
 
 		const ConfigOptionDef &option = option_it->second.opt;
+		
+		// BBS: Preserve unsaved changes - check if the current preset has unsaved modifications
+		// Only reload values if the preset is not dirty (no unsaved changes)
+		// This prevents overwriting user modifications during startup/reload
+		static bool g_presets_dirty_checked = false;
+		if (!g_presets_dirty_checked) {
+			// Check once per reload cycle if any preset is dirty
+			for (Tab* tab : wxGetApp().tabs_list) {
+				if (tab->current_preset_is_dirty()) {
+					BOOST_LOG_TRIVIAL(info) << "Skipping reload_config() - preset has unsaved changes";
+					g_presets_dirty_checked = true;
+					return; // Skip entire reload if any preset is dirty
+				}
+			}
+			g_presets_dirty_checked = true;
+		}
+		
 		this->set_value(opt_id, config_value(opt_key, opt_index, option.gui_flags == "serialized"));
 	}
 }
