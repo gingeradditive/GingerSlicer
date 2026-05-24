@@ -1144,6 +1144,7 @@ static bool reload_configs_update_gui()
 	// System profiles should not trigger any substitutions, user profiles may trigger substitutions, but these substitutions
 	// were already presented to the user on application start up. Just do substitutions now and keep quiet about it.
 	// However throw on substitutions in system profiles, those shall never happen with system profiles installed over the air.
+	BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] CALLER=PresetUpdater::on_update_notification_confirm going to call load_presets";
 	GUI::wxGetApp().preset_bundle->load_presets(*app_config, ForwardCompatibilitySubstitutionRule::EnableSilentDisableSystem);
 	GUI::wxGetApp().load_current_presets();
 	GUI::wxGetApp().plater()->set_bed_shape();
