@@ -1065,9 +1065,6 @@ PresetCollection& PresetCollection::operator=(const PresetCollection &rhs)
 
 void PresetCollection::reset(bool delete_files)
 {
-    BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] PresetCollection::reset CALLED: type=" << Preset::get_type_string(m_type)
-        << ", delete_files=" << delete_files << ", m_presets.size=" << m_presets.size()
-        << ", m_num_default_presets=" << m_num_default_presets << ", m_idx_selected=" << m_idx_selected;
     //BBS: add lock logic for sync preset in background
     lock();
     if (m_presets.size() > m_num_default_presets) {
@@ -1923,9 +1920,6 @@ std::pair<Preset*, bool> PresetCollection::load_external_preset(
     // we preserve the historical behavior.
     const bool is_project_load = boost::algorithm::iends_with(path, ".3mf") ||
                                  boost::algorithm::iends_with(name, ".3mf");
-    BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] load_external_preset: is_project_load=" << is_project_load
-        << ", path=" << path << ", name=" << name << ", original_name=" << original_name
-        << ", found=" << found << ", inherits=" << inherits;
     if (!is_project_load) {
         if (!inherits.empty() && (different_settings_list.size() > 0)) {
             auto iter = this->find_preset_internal(inherits);
@@ -2028,12 +2022,7 @@ std::pair<Preset*, bool> PresetCollection::load_external_preset(
             //this->get_edited_preset().config.apply_only(combined_config, keys, true);
             this->get_edited_preset().config.apply_only(cfg, keys, true);
             this->update_dirty();
-            BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] load_external_preset BEFORE update_saved: is_dirty="
-                << this->get_edited_preset().is_dirty << ", current_is_dirty=" << this->current_is_dirty()
-                << ", preset_name=" << it->name;
             update_saved_preset_from_current_preset();
-            BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] load_external_preset AFTER update_saved: is_dirty="
-                << this->get_edited_preset().is_dirty << ", current_is_dirty=" << this->current_is_dirty();
             assert(this->get_edited_preset().is_dirty);
             //BBS: set the preset to visible
             if ( !it->is_visible ) {
@@ -2839,19 +2828,6 @@ Preset& PresetCollection::select_preset(size_t idx)
 {
     //BBS: add config related logs
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(": %1% try to select preset %2%")%Preset::get_type_string(m_type) %idx;
-    {
-        std::string new_name = (idx < m_presets.size()) ? m_presets[idx].name : std::string("OOB");
-        std::string was_dirty_str;
-        if (m_idx_selected < m_presets.size())
-            was_dirty_str = current_is_dirty() ? "true" : "false";
-        else
-            was_dirty_str = "N/A(idx_invalid)";
-        BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] select_preset CALLED: type=" << Preset::get_type_string(m_type)
-            << ", idx=" << idx << ", new_name=" << new_name
-            << ", was_dirty=" << was_dirty_str
-            << ", current_edited_name=" << m_edited_preset.name
-            << ", m_idx_selected=" << m_idx_selected;
-    }
     for (Preset &preset : m_presets)
         preset.is_dirty = false;
     if (idx >= m_presets.size())
