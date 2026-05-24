@@ -4369,6 +4369,10 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
             if (msg.ShowModal() == wxID_YES) {}
         }
     }
+    for (Tab* t : wxGetApp().tabs_list) {
+        BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] priv::load_files RETURN - tab type=" << t->type()
+            << ", dirty=" << t->current_preset_is_dirty();
+    }
     return obj_idxs;
 }
 

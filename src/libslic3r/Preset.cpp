@@ -1065,6 +1065,9 @@ PresetCollection& PresetCollection::operator=(const PresetCollection &rhs)
 
 void PresetCollection::reset(bool delete_files)
 {
+    BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] PresetCollection::reset CALLED: type=" << Preset::get_type_string(m_type)
+        << ", delete_files=" << delete_files << ", m_presets.size=" << m_presets.size()
+        << ", m_num_default_presets=" << m_num_default_presets << ", m_idx_selected=" << m_idx_selected;
     //BBS: add lock logic for sync preset in background
     lock();
     if (m_presets.size() > m_num_default_presets) {
@@ -2836,6 +2839,19 @@ Preset& PresetCollection::select_preset(size_t idx)
 {
     //BBS: add config related logs
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(": %1% try to select preset %2%")%Preset::get_type_string(m_type) %idx;
+    {
+        std::string new_name = (idx < m_presets.size()) ? m_presets[idx].name : std::string("OOB");
+        std::string was_dirty_str;
+        if (m_idx_selected < m_presets.size())
+            was_dirty_str = current_is_dirty() ? "true" : "false";
+        else
+            was_dirty_str = "N/A(idx_invalid)";
+        BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] select_preset CALLED: type=" << Preset::get_type_string(m_type)
+            << ", idx=" << idx << ", new_name=" << new_name
+            << ", was_dirty=" << was_dirty_str
+            << ", current_edited_name=" << m_edited_preset.name
+            << ", m_idx_selected=" << m_idx_selected;
+    }
     for (Preset &preset : m_presets)
         preset.is_dirty = false;
     if (idx >= m_presets.size())
