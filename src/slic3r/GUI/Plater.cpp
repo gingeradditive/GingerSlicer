@@ -3919,12 +3919,12 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                             // currently found only needs re-active here
                             // [GINGER_DEBUG] log dirty state before and after load_current_presets
                             for (Tab* t : wxGetApp().tabs_list) {
-                                BOOST_LOG_TRIVIAL(warning) << "[GINGER_DEBUG] BEFORE load_current_presets - tab type=" << t->type()
+                                BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] BEFORE load_current_presets - tab type=" << t->type()
                                     << ", dirty=" << t->current_preset_is_dirty();
                             }
                             wxGetApp().load_current_presets(false, false);
                             for (Tab* t : wxGetApp().tabs_list) {
-                                BOOST_LOG_TRIVIAL(warning) << "[GINGER_DEBUG] AFTER load_current_presets - tab type=" << t->type()
+                                BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] AFTER load_current_presets - tab type=" << t->type()
                                     << ", dirty=" << t->current_preset_is_dirty();
                             }
                             // Update filament colors for the MM-printer profile in the full config
@@ -8635,13 +8635,13 @@ void Plater::load_project(wxString const& filename2,
     std::vector<size_t> res = load_files(input_paths, strategy);
 
     for (Tab* t : wxGetApp().tabs_list) {
-        BOOST_LOG_TRIVIAL(warning) << "[GINGER_DEBUG] load_project AFTER load_files - tab type=" << t->type()
+        BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] load_project AFTER load_files - tab type=" << t->type()
             << ", dirty=" << t->current_preset_is_dirty();
     }
     reset_project_dirty_initial_presets();
     update_project_dirty_from_presets();
     for (Tab* t : wxGetApp().tabs_list) {
-        BOOST_LOG_TRIVIAL(warning) << "[GINGER_DEBUG] load_project AFTER reset_initial/update_dirty - tab type=" << t->type()
+        BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] load_project AFTER reset_initial/update_dirty - tab type=" << t->type()
             << ", dirty=" << t->current_preset_is_dirty();
     }
     wxGetApp().preset_bundle->export_selections(*wxGetApp().app_config);
