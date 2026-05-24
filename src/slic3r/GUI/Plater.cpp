@@ -3034,6 +3034,11 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     if (wxGetApp().is_editor()) {
         auto last_backup = wxGetApp().app_config->get_last_backup_dir();
         this->q->Bind(EVT_RESTORE_PROJECT, [this, last = last_backup](wxCommandEvent& e) {
+            BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] EVT_RESTORE_PROJECT handler ENTERED";
+            for (Tab* t : wxGetApp().tabs_list) {
+                BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] EVT_RESTORE_PROJECT entry - tab type=" << t->type()
+                    << ", dirty=" << t->current_preset_is_dirty();
+            }
             std::string last_backup = last;
             std::string originfile;
             if (Slic3r::has_restore_data(last_backup, originfile)) {
@@ -3050,7 +3055,12 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
             }
             catch (...) {}
             int skip_confirm = e.GetInt();
+            BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] EVT_RESTORE_PROJECT calling new_project(skip_confirm=" << skip_confirm << ")";
             this->q->new_project(skip_confirm, true);
+            for (Tab* t : wxGetApp().tabs_list) {
+                BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] EVT_RESTORE_PROJECT after new_project - tab type=" << t->type()
+                    << ", dirty=" << t->current_preset_is_dirty();
+            }
             });
         //wxPostEvent(this->q, wxCommandEvent{EVT_RESTORE_PROJECT});
     }
