@@ -3051,19 +3051,28 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
             catch (...) {}
             
             // BBS: Preserve unsaved preset changes - check if any preset has modifications before calling new_project()
+            BOOST_LOG_TRIVIAL(info) << "EVT_RESTORE_PROJECT: Checking for unsaved preset changes...";
             bool has_unsaved_preset_changes = false;
+            int tab_count = 0;
             for (Tab* tab : wxGetApp().tabs_list) {
-                if (tab->current_preset_is_dirty()) {
+                tab_count++;
+                bool is_dirty = tab->current_preset_is_dirty();
+                BOOST_LOG_TRIVIAL(info) << "Tab " << tab_count << " dirty state: " << (is_dirty ? "DIRTY" : "CLEAN");
+                if (is_dirty) {
                     has_unsaved_preset_changes = true;
                     BOOST_LOG_TRIVIAL(info) << "Skipping new_project() in restore - preset has unsaved changes";
                     break;
                 }
             }
+            BOOST_LOG_TRIVIAL(info) << "Total tabs checked: " << tab_count;
             
             // Only call new_project if there are no unsaved preset changes
             if (!has_unsaved_preset_changes) {
+                BOOST_LOG_TRIVIAL(info) << "No unsaved changes found, calling new_project()";
                 int skip_confirm = e.GetInt();
                 this->q->new_project(skip_confirm, true);
+            } else {
+                BOOST_LOG_TRIVIAL(info) << "Unsaved changes detected, skipping new_project()";
             }
             });
         //wxPostEvent(this->q, wxCommandEvent{EVT_RESTORE_PROJECT});
