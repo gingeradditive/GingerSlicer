@@ -3049,31 +3049,8 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
                     boost::filesystem::remove_all(last);
             }
             catch (...) {}
-            
-            // BBS: Preserve unsaved preset changes - check if any preset has modifications before calling new_project()
-            BOOST_LOG_TRIVIAL(info) << "EVT_RESTORE_PROJECT: Checking for unsaved preset changes...";
-            bool has_unsaved_preset_changes = false;
-            int tab_count = 0;
-            for (Tab* tab : wxGetApp().tabs_list) {
-                tab_count++;
-                bool is_dirty = tab->current_preset_is_dirty();
-                BOOST_LOG_TRIVIAL(info) << "Tab " << tab_count << " dirty state: " << (is_dirty ? "DIRTY" : "CLEAN");
-                if (is_dirty) {
-                    has_unsaved_preset_changes = true;
-                    BOOST_LOG_TRIVIAL(info) << "Skipping new_project() in restore - preset has unsaved changes";
-                    break;
-                }
-            }
-            BOOST_LOG_TRIVIAL(info) << "Total tabs checked: " << tab_count;
-            
-            // Only call new_project if there are no unsaved preset changes
-            if (!has_unsaved_preset_changes) {
-                BOOST_LOG_TRIVIAL(info) << "No unsaved changes found, calling new_project()";
-                int skip_confirm = e.GetInt();
-                this->q->new_project(skip_confirm, true);
-            } else {
-                BOOST_LOG_TRIVIAL(info) << "Unsaved changes detected, skipping new_project()";
-            }
+            int skip_confirm = e.GetInt();
+            this->q->new_project(skip_confirm, true);
             });
         //wxPostEvent(this->q, wxCommandEvent{EVT_RESTORE_PROJECT});
     }
@@ -3940,7 +3917,16 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                             // For exporting from the amf/3mf we shouldn't check printer_presets for the containing information about "Print Host upload"
                             // BBS: add preset combo box re-active logic
                             // currently found only needs re-active here
+                            // [GINGER_DEBUG] log dirty state before and after load_current_presets
+                            for (Tab* t : wxGetApp().tabs_list) {
+                                BOOST_LOG_TRIVIAL(warning) << "[GINGER_DEBUG] BEFORE load_current_presets - tab type=" << t->type()
+                                    << ", dirty=" << t->current_preset_is_dirty();
+                            }
                             wxGetApp().load_current_presets(false, false);
+                            for (Tab* t : wxGetApp().tabs_list) {
+                                BOOST_LOG_TRIVIAL(warning) << "[GINGER_DEBUG] AFTER load_current_presets - tab type=" << t->type()
+                                    << ", dirty=" << t->current_preset_is_dirty();
+                            }
                             // Update filament colors for the MM-printer profile in the full config
                             // to avoid black (default) colors for Extruders in the ObjectList,
                             // when for extruder colors are used filament colors
@@ -8648,8 +8634,16 @@ void Plater::load_project(wxString const& filename2,
 
     std::vector<size_t> res = load_files(input_paths, strategy);
 
+    for (Tab* t : wxGetApp().tabs_list) {
+        BOOST_LOG_TRIVIAL(warning) << "[GINGER_DEBUG] load_project AFTER load_files - tab type=" << t->type()
+            << ", dirty=" << t->current_preset_is_dirty();
+    }
     reset_project_dirty_initial_presets();
     update_project_dirty_from_presets();
+    for (Tab* t : wxGetApp().tabs_list) {
+        BOOST_LOG_TRIVIAL(warning) << "[GINGER_DEBUG] load_project AFTER reset_initial/update_dirty - tab type=" << t->type()
+            << ", dirty=" << t->current_preset_is_dirty();
+    }
     wxGetApp().preset_bundle->export_selections(*wxGetApp().app_config);
 
     // if res is empty no data has been loaded

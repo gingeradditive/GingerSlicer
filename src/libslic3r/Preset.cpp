@@ -1920,8 +1920,9 @@ std::pair<Preset*, bool> PresetCollection::load_external_preset(
     // we preserve the historical behavior.
     const bool is_project_load = boost::algorithm::iends_with(path, ".3mf") ||
                                  boost::algorithm::iends_with(name, ".3mf");
-    BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(" is_project_load=%1%, path=%2%, name=%3%, original_name=%4%")
-        %is_project_load %path %name %original_name;
+    BOOST_LOG_TRIVIAL(warning) << "[GINGER_DEBUG] load_external_preset: is_project_load=" << is_project_load
+        << ", path=" << path << ", name=" << name << ", original_name=" << original_name
+        << ", found=" << found << ", inherits=" << inherits;
     if (!is_project_load) {
         if (!inherits.empty() && (different_settings_list.size() > 0)) {
             auto iter = this->find_preset_internal(inherits);
@@ -2024,7 +2025,12 @@ std::pair<Preset*, bool> PresetCollection::load_external_preset(
             //this->get_edited_preset().config.apply_only(combined_config, keys, true);
             this->get_edited_preset().config.apply_only(cfg, keys, true);
             this->update_dirty();
+            BOOST_LOG_TRIVIAL(warning) << "[GINGER_DEBUG] load_external_preset BEFORE update_saved: is_dirty="
+                << this->get_edited_preset().is_dirty << ", current_is_dirty=" << this->current_is_dirty()
+                << ", preset_name=" << it->name;
             update_saved_preset_from_current_preset();
+            BOOST_LOG_TRIVIAL(warning) << "[GINGER_DEBUG] load_external_preset AFTER update_saved: is_dirty="
+                << this->get_edited_preset().is_dirty << ", current_is_dirty=" << this->current_is_dirty();
             assert(this->get_edited_preset().is_dirty);
             //BBS: set the preset to visible
             if ( !it->is_visible ) {
