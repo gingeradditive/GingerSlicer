@@ -1630,6 +1630,7 @@ bool GUI_App::on_init_inner()
             // Enable all substitutions (in both user and system profiles), but log the substitutions in user profiles only.
             // If there are substitutions in system profiles, then a "reconfigure" event shall be triggered, which will force
             // installation of a compatible system preset, thus nullifying the system preset substitutions.
+            BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] CALLER=OnInit (initial app startup) going to call load_presets";
             init_params->preset_substitutions = preset_bundle->load_presets(*app_config, ForwardCompatibilitySubstitutionRule::EnableSystemSilent);
         }
         catch (const std::exception& ex) {
@@ -4151,6 +4152,7 @@ bool GUI_App::run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage
     app_config->save();
 
     // Reload presets with the new selections
+    BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] CALLER=run_wizard going to call load_presets";
     preset_bundle->load_presets(*app_config, ForwardCompatibilitySubstitutionRule::EnableSystemSilent);
     load_current_presets();
     update_publish_status();
@@ -4306,7 +4308,54 @@ void GUI_App::window_pos_center(wxTopLevelWindow *window)
 
 bool GUI_App::config_wizard_startup()
 {
-    // Always auto-select all printers/nozzles/filaments on every startup
+    // GingerSlicer: auto-select all printers/nozzles/filaments, but only when something is
+    // actually missing. Running the wizard unconditionally calls preset_bundle->load_presets(),
+    // which resets edited_preset to the on-disk system values and silently discards any
+    // modifications loaded from a project (e.g. when opening a .3mf via double-click).
+    const auto vendor_dir = (boost::filesystem::path(Slic3r::data_dir()) / PRESET_SYSTEM_DIR).make_preferred();
+    bool needs_wizard = false;
+
+    // 1) Any vendor bundle missing on disk?
+    for (const auto &vendor_pair : preset_bundle->vendors) {
+        const VendorProfile &vendor = vendor_pair.second;
+        if (!boost::filesystem::exists(vendor_dir / (vendor.id + ".json"))) {
+            needs_wizard = true;
+            break;
+        }
+        // 2) Any vendor/model/variant not yet enabled in app_config?
+        for (const auto &model : vendor.models) {
+            for (const auto &variant : model.variants) {
+                if (!app_config->get_variant(vendor.id, model.id, variant.name)) {
+                    needs_wizard = true;
+                    break;
+                }
+            }
+            if (needs_wizard) break;
+        }
+        if (needs_wizard) break;
+    }
+
+    // 3) Any system filament preset not yet enabled?
+    if (!needs_wizard) {
+        std::map<std::string, std::string> filament_section;
+        if (app_config->has_section(AppConfig::SECTION_FILAMENTS))
+            filament_section = app_config->get_section(AppConfig::SECTION_FILAMENTS);
+        for (const auto &preset : preset_bundle->filaments) {
+            if (preset.is_system && !preset.name.empty()) {
+                auto it = filament_section.find(preset.name);
+                if (it == filament_section.end() || it->second != "true") {
+                    needs_wizard = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!needs_wizard) {
+        BOOST_LOG_TRIVIAL(info) << "config_wizard_startup: nothing to do, skipping (preserves project modifications)";
+        return false;
+    }
+
     BOOST_LOG_TRIVIAL(info) << "config_wizard_startup: auto-selecting all profiles...";
     run_wizard(m_app_conf_exists ? ConfigWizard::RR_USER : ConfigWizard::RR_DATA_EMPTY);
     BOOST_LOG_TRIVIAL(info) << "config_wizard_startup: finished";
