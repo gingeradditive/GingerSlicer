@@ -80,7 +80,7 @@
    "full_fan_speed_layer": [
       "8"
    ],
-   "version": "3.0.0.1",
+   "version": "3.0.0.2",
    "instantiation": "true",
    "name": "Generic PLA",
    "extruder_rotation_volume": "456",
