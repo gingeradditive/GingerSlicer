@@ -1630,7 +1630,6 @@ bool GUI_App::on_init_inner()
             // Enable all substitutions (in both user and system profiles), but log the substitutions in user profiles only.
             // If there are substitutions in system profiles, then a "reconfigure" event shall be triggered, which will force
             // installation of a compatible system preset, thus nullifying the system preset substitutions.
-            BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] CALLER=OnInit (initial app startup) going to call load_presets";
             init_params->preset_substitutions = preset_bundle->load_presets(*app_config, ForwardCompatibilitySubstitutionRule::EnableSystemSilent);
         }
         catch (const std::exception& ex) {
@@ -4152,7 +4151,6 @@ bool GUI_App::run_wizard(ConfigWizard::RunReason reason, ConfigWizard::StartPage
     app_config->save();
 
     // Reload presets with the new selections
-    BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] CALLER=run_wizard going to call load_presets";
     preset_bundle->load_presets(*app_config, ForwardCompatibilitySubstitutionRule::EnableSystemSilent);
     load_current_presets();
     update_publish_status();

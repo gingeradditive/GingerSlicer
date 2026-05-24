@@ -3034,11 +3034,6 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     if (wxGetApp().is_editor()) {
         auto last_backup = wxGetApp().app_config->get_last_backup_dir();
         this->q->Bind(EVT_RESTORE_PROJECT, [this, last = last_backup](wxCommandEvent& e) {
-            BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] EVT_RESTORE_PROJECT handler ENTERED";
-            for (Tab* t : wxGetApp().tabs_list) {
-                BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] EVT_RESTORE_PROJECT entry - tab type=" << t->type()
-                    << ", dirty=" << t->current_preset_is_dirty();
-            }
             std::string last_backup = last;
             std::string originfile;
             if (Slic3r::has_restore_data(last_backup, originfile)) {
@@ -3055,12 +3050,7 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
             }
             catch (...) {}
             int skip_confirm = e.GetInt();
-            BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] EVT_RESTORE_PROJECT calling new_project(skip_confirm=" << skip_confirm << ")";
             this->q->new_project(skip_confirm, true);
-            for (Tab* t : wxGetApp().tabs_list) {
-                BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] EVT_RESTORE_PROJECT after new_project - tab type=" << t->type()
-                    << ", dirty=" << t->current_preset_is_dirty();
-            }
             });
         //wxPostEvent(this->q, wxCommandEvent{EVT_RESTORE_PROJECT});
     }
@@ -3927,16 +3917,7 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
                             // For exporting from the amf/3mf we shouldn't check printer_presets for the containing information about "Print Host upload"
                             // BBS: add preset combo box re-active logic
                             // currently found only needs re-active here
-                            // [GINGER_DEBUG] log dirty state before and after load_current_presets
-                            for (Tab* t : wxGetApp().tabs_list) {
-                                BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] BEFORE load_current_presets - tab type=" << t->type()
-                                    << ", dirty=" << t->current_preset_is_dirty();
-                            }
                             wxGetApp().load_current_presets(false, false);
-                            for (Tab* t : wxGetApp().tabs_list) {
-                                BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] AFTER load_current_presets - tab type=" << t->type()
-                                    << ", dirty=" << t->current_preset_is_dirty();
-                            }
                             // Update filament colors for the MM-printer profile in the full config
                             // to avoid black (default) colors for Extruders in the ObjectList,
                             // when for extruder colors are used filament colors
@@ -4368,10 +4349,6 @@ std::vector<size_t> Plater::priv::load_files(const std::vector<fs::path>& input_
             MessageDialog msg(wxGetApp().mainframe, _L("The file does not contain any geometry data."), _L("Warning"), wxYES | wxICON_WARNING);
             if (msg.ShowModal() == wxID_YES) {}
         }
-    }
-    for (Tab* t : wxGetApp().tabs_list) {
-        BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] priv::load_files RETURN - tab type=" << t->type()
-            << ", dirty=" << t->current_preset_is_dirty();
     }
     return obj_idxs;
 }
@@ -8293,7 +8270,6 @@ void Plater::priv::undo_redo_to(std::vector<UndoRedo::Snapshot>::const_iterator 
             app_config->set("presets", PRESET_PRINTER_NAME, (new_printer_technology == ptFFF) ? m_last_fff_printer_profile_name : m_last_sla_printer_profile_name);
             //FIXME Why are we reloading the whole preset bundle here? Please document. This is fishy and it is unnecessarily expensive.
             // Anyways, don't report any config value substitutions, they have been already reported to the user at application start up.
-            BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] CALLER=Plater undo/redo printer_technology_changed going to call load_presets";
             wxGetApp().preset_bundle->load_presets(*app_config, ForwardCompatibilitySubstitutionRule::EnableSilent);
             // load_current_presets() calls Tab::load_current_preset() -> TabPrint::update() -> Object_list::update_and_show_object_settings_item(),
             // but the Object list still keeps pointer to the old Model. Avoid a crash by removing selection first.
@@ -8649,16 +8625,8 @@ void Plater::load_project(wxString const& filename2,
 
     std::vector<size_t> res = load_files(input_paths, strategy);
 
-    for (Tab* t : wxGetApp().tabs_list) {
-        BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] load_project AFTER load_files - tab type=" << t->type()
-            << ", dirty=" << t->current_preset_is_dirty();
-    }
     reset_project_dirty_initial_presets();
     update_project_dirty_from_presets();
-    for (Tab* t : wxGetApp().tabs_list) {
-        BOOST_LOG_TRIVIAL(error) << "[GINGER_DEBUG] load_project AFTER reset_initial/update_dirty - tab type=" << t->type()
-            << ", dirty=" << t->current_preset_is_dirty();
-    }
     wxGetApp().preset_bundle->export_selections(*wxGetApp().app_config);
 
     // if res is empty no data has been loaded
