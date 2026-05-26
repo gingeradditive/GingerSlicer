@@ -5,10 +5,10 @@ OrcaSlicer’s C++17 sources live in `src/`, split by feature modules and platfo
 
 ## Build, Test, and Development Commands
 Use out-of-source builds:
-- `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release` configures dependencies and generates build files.
-- `cmake --build build --target OrcaSlicer --config Release` compiles the app; add `--parallel` to speed up.
+- `cmake -S . -B build -DCMAKE_BUILD_TYPE=Release` configures dependencies and generates build files (Visual Studio generator on Windows).
+- `cmake --build build --target GingerSlicer --config Release --parallel 16` is the canonical Windows build command. Output: `build/src/Release/GingerSlicer.dll` (loaded by `GingerSlicer_app_gui.exe`). Resources are symlinked into the build tree automatically.
 - `cmake --build build --target tests` then `ctest --test-dir build --output-on-failure` runs automated suites.
-Platform helpers such as `build_linux.sh`, `build_release_macos.sh`, and `build_release_vs2022.bat` wrap the same flow with toolchain flags. Use `build_release_macos.sh -sx` when reproducing macOS build issues, and `scripts/DockerBuild.sh` for reproducible container builds.
+Platform helpers such as `build_linux.sh`, `build_release_macos.sh`, and `build_release_vs2022.bat` wrap the same flow with toolchain flags. Use `build_release_macos.sh -sx` when reproducing macOS build issues, and `scripts/DockerBuild.sh` for reproducible container builds. Dependencies are pre-built in `deps/build/OrcaSlicer_dep/` (do not regenerate unless `deps_src/` changed).
 
 ## Coding Style & Naming Conventions
 `.clang-format` enforces 4-space indents, a 140-column limit, aligned initializers, and brace wrapping for classes and functions. Run `clang-format -i <file>` before committing; the CMake `clang-format` target is available when LLVM tools are on your PATH. Prefer `CamelCase` for classes, `snake_case` for functions and locals, and `SCREAMING_CASE` for constants, matching conventions in `src/`. Keep headers self-contained and align include order with the IWYU pragmas.
