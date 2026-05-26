@@ -106,11 +106,13 @@ GingerSlicer. Each entry points to the primary source file when applicable.
   inherit from system ones via the `inherits` key. See
   `PresetCollection::get_preset_parent` in `Preset.cpp`.
 
-- **Preset bundle version** — The `version` field present in every profile
-  JSON. CI (`scripts/check_profile_version_bump.py`) requires it to be
-  strictly greater than the version on `origin/main` for **every** file
-  under `resources/profiles/Ginger Additive/`. A single profile change forces
-  a bump of all 42 files.
+- **Preset bundle version** — The `version` field present in every
+  versioned profile JSON. CI (`scripts/check_profile_version_bump.py`)
+  requires it to be strictly greater than the version on `origin/main` for
+  **every** versioned file under `resources/profiles/Ginger Additive/`. A
+  single profile change forces a bump of **all 41 versioned files**
+  (the 2 machine `_common.json` files are unversioned by design).
+  Use `scripts/bump_profile_version.ps1` and `scripts/check_profile_versions.ps1`.
 
 - **OTA bundle** — ZIP packaged by `scripts/pack_profiles.sh` and uploaded
   to the `nightly-builds` GitHub release. Consumed by `PresetUpdater` in
@@ -129,8 +131,8 @@ GingerSlicer. Each entry points to the primary source file when applicable.
   wide nozzles better). File: `src/libslic3r/PerimeterGenerator.cpp`.
 
 - **CoolingBuffer** — Computes per-layer time estimates and applies
-  speed/fan slowdowns to meet `min_layer_time`. Relevant for layer-time
-  warping analysis on large pellet parts. File:
+  speed/fan slowdowns to meet `min_layer_time`. Owns the **volume-based
+  cooling** branch (see dedicated section below). File:
   `src/libslic3r/GCode/CoolingBuffer.cpp`.
 
 - **PressureEqualizer** — Final post-process pass over the G-code line
@@ -157,6 +159,61 @@ GingerSlicer. Each entry points to the primary source file when applicable.
 - **Decompression / oozing** — Without retraction, pellet machines ooze
   during travels. Mitigated by: (a) brief screw reverse, (b) higher travel
   speeds, (c) wiping with `coast_at_end_speed`.
+
+---
+
+## Volume-based cooling (h² × k model)
+
+- **Volume-based cooling** (`volume_based_cooling`) — Optional cooling
+  model that replaces the legacy fixed `slow_down_layer_time` threshold
+  with a physics-derived per-layer minimum time. When enabled, the
+  CoolingBuffer computes `min_time = h² × k` for every layer using the
+  thickest bead observed (`max_layer_height`) and the per-material
+  coefficient `cooling_time_per_cross_section`. Width-independent: the
+  dominant heat-conduction path is vertical, so `line_width`/nozzle
+  changes do not shift the cooling time. Adaptive/variable layer heights
+  are supported automatically because each `;HEIGHT:` tag in the G-code
+  is parsed individually.
+  File: `src/libslic3r/GCode/CoolingBuffer.cpp` (`calculate_layer_slowdown`).
+
+- **Cooling time per cross-section** (`cooling_time_per_cross_section`)
+  — Material coefficient `k`, in s/mm². Despite the legacy name, the new
+  formula multiplies it by `h²` (mm²), not by bead cross-section.
+  Derivation:
+  `k = -ln((T_target - T_amb) / (T_extrusion - T_amb)) × 0.405 / α_eff`
+  where `0.405 ≈ 4/π²` is the leading Fourier coefficient for a 1D slab
+  cooling and `α_eff` is the **effective** thermal diffusivity —
+  empirically ~3× lower than the textbook α because of natural
+  convection limits and ongoing contact with the hot underlying layer.
+
+- **Empirical calibration points** — The default `k` values were
+  recalibrated against direct measurements on a Ginger printer:
+  - PLA: `h = 1.5 mm` reaches 50 °C in ~60 s → `k_PLA = 60/1.5² ≈ 26.7`
+  - PETG: `h = 1.5 mm` reaches 80 °C in ~30 s → `k_PETG = 30/1.5² ≈ 13.3`
+  Other amorphous polymers (ABS, ASA, HIPS) are scaled from PETG using
+  `f = α_eff/α_nom ≈ 0.366`. Semi-crystalline PP uses crystallization
+  temperature (~110 °C) as `T_target`, not Tg. See
+  `src/libslic3r/PrintConfig.cpp` tooltip for the full derivation.
+
+- **`max_layer_height`** — Member of `PerExtruderAdjustments` in
+  `CoolingBuffer.cpp`. Tracks the **maximum** `h` observed in the layer's
+  G-code (not the average) because the thickest bead dominates the
+  cooling time required before the next layer can be safely supported.
+  Reset to `0.f` per layer per extruder.
+
+- **`;HEIGHT:` tag** — Inline comment emitted by the G-code writer for
+  every extrusion segment carrying its layer height in mm. Parsed by
+  `CoolingBuffer::parse_layer_gcode` to feed `max_layer_height`. Required
+  for adaptive layer height support. If no tag is found in a layer (e.g.
+  custom G-code only), the cooling formula falls back to the user-defined
+  `slow_down_layer_time` as a conservative floor.
+
+- **Future width correction** — The current model assumes `width ≥ height`
+  so the slab approximation holds. For very wide beads a correction
+  `min_time = h² × k × max(1, w/(2h))` is documented in the tooltip but
+  intentionally not enabled. The config name was kept generic
+  (`cooling_time_per_cross_section`) precisely to allow this evolution
+  without a breaking schema change.
 
 ---
 
