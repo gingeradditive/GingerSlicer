@@ -112,6 +112,7 @@ GingerSlicer. Each entry points to the primary source file when applicable.
   **every** versioned file under `resources/profiles/Ginger Additive/`. A
   single profile change forces a bump of **all 41 versioned files**
   (the 2 machine `_common.json` files are unversioned by design).
+  Use `scripts/bump_profile_version.ps1` and `scripts/check_profile_versions.ps1`.
 
 - **OTA bundle** — ZIP packaged by `scripts/pack_profiles.sh` and uploaded
   to the `nightly-builds` GitHub release. Consumed by `PresetUpdater` in
