@@ -1,4 +1,6 @@
 $ErrorActionPreference = 'Stop'
+# UTF-8 without BOM. The OrcaSlicer profile validator rejects BOMs.
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
 $base = 'resources\profiles\Ginger Additive\filament'
 
 $updates = @{
@@ -40,6 +42,6 @@ foreach ($f in $updates.Keys) {
         Write-Host "NO MATCH ($oldVal): $f"
         continue
     }
-    [System.IO.File]::WriteAllText($path, $head + $tailNew)
+    [System.IO.File]::WriteAllText($path, $head + $tailNew, $utf8NoBom)
     Write-Host "OK: $f  ($oldVal -> $newVal)"
 }

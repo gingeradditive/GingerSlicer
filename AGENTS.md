@@ -53,6 +53,7 @@ Use this as a routing table before searching. Localize first, then read narrowly
 - `scripts/bump_profile_version.ps1`: helper to bump `version` across every profile JSON. Usage: `pwsh scripts/bump_profile_version.ps1 -Old 3.0.0.3 -New 3.0.0.4`.
 - `scripts/check_profile_versions.ps1`: verifies every versioned JSON matches an expected value; reports outliers (no version field, off-by-one bumps, etc.). Usage: `pwsh scripts/check_profile_versions.ps1 -Expected 3.0.0.4`.
 - `scripts/update_cooling_k.ps1`: one-shot used during the empirical recalibration of `cooling_time_per_cross_section`. Kept as reference for future per-material value migrations.
+- `scripts/strip_bom.ps1`: scans every profile JSON (including the top-level `Ginger Additive.json` index) for a UTF-8 BOM and removes it with `-Fix`. The OrcaSlicer profile validator (`OrcaSlicer_profile_validator`) rejects BOMs with `Unexpected UTF-8 BOM`, so any script that rewrites JSONs **must** pass an explicit `[System.Text.UTF8Encoding]::new($false)` to `WriteAllText` (this is already done in `bump_profile_version.ps1` and `update_cooling_k.ps1`). Run `strip_bom.ps1` (no flags) before pushing as a sanity check.
 - `scripts/pack_profiles.sh`: packages OTA bundles uploaded to the `nightly-builds` GitHub release.
 - `src/slic3r/Utils/PresetUpdater.cpp`: client-side OTA fetch and install of bundles.
 
