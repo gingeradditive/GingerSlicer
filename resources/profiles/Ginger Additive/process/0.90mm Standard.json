@@ -1,4 +1,4 @@
-{
+﻿{
    "bottom_shell_layers": "2",
    "bottom_solid_infill_flow_ratio": "1",
    "bottom_surface_density": "100%",
@@ -117,7 +117,7 @@
    "tree_support_tip_diameter": "9",
    "tree_support_top_rate": "30%",
    "type": "process",
-   "version": "3.0.0.2",
+   "version": "3.0.0.3",
    "wipe_on_loops": "1",
    "wipe_speed": "8",
    "wipe_tower_cone_angle": "30",

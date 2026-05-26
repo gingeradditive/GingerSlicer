@@ -1,4 +1,4 @@
-{
+﻿{
     "type": "machine",
     "instantiation": "false",
     "adaptive_bed_mesh_margin": "0",
@@ -229,5 +229,5 @@
     "active_feeder_motor_name": [
         "mixing_stepper"
     ],
-    "version": "3.0.0.2"
+    "version": "3.0.0.3"
 }

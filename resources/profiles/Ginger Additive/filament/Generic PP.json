@@ -1,4 +1,4 @@
-{
+﻿{
    "type": "filament",
    "filament_vendor": [
       "Generic"
@@ -89,7 +89,7 @@
    "full_fan_speed_layer": [
       "8"
    ],
-   "version": "3.0.0.2",
+   "version": "3.0.0.3",
    "instantiation": "true",
    "extruder_rotation_volume": [
       "650"
@@ -151,5 +151,8 @@
    ],
    "slow_down_layer_time": [
       "30"
+   ],
+   "cooling_time_per_cross_section": [
+      "8.0"
    ]
 }

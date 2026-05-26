@@ -1,4 +1,4 @@
-{
+﻿{
   "bed_custom_model": "",
   "enable_long_retraction_when_cut": "0",
   "from": "system",
@@ -40,7 +40,7 @@
   "travel_slope": [
     "3"
   ],
-  "version": "3.0.0.2",
+  "version": "3.0.0.3",
   "z_hop": [
     "1"
   ],

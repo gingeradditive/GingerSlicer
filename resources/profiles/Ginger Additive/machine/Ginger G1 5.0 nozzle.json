@@ -1,4 +1,4 @@
-{
+﻿{
     "type": "machine",
     "name": "Ginger G1 5.0 nozzle",
     "printer_settings_id": "Ginger G1 5.0 nozzle",
@@ -12,5 +12,5 @@
     ],
     "printer_variant": "5.0",
     "printer_model": "Ginger G1",
-    "version": "3.0.0.2"
+    "version": "3.0.0.3"
 }

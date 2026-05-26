@@ -1,4 +1,4 @@
-{
+﻿{
    "accel_to_decel_enable": "0",
    "compatible_printers": [],
    "enable_overhang_speed": "0",
@@ -22,7 +22,7 @@
    "spiral_finishing_flow_ratio": "0.2",
    "top_shell_layers": "0",
    "type": "process",
-   "version": "3.0.0.2",
+   "version": "3.0.0.3",
    "wall_generator": "arachne",
    "wall_loops": "1",
    "wipe_on_loops": "1",
