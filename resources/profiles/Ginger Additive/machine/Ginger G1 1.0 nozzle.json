@@ -1,4 +1,4 @@
-﻿{
+{
     "type": "machine",
     "name": "Ginger G1 1.0 nozzle",
     "printer_settings_id": "Ginger G1 1.0 nozzle",
@@ -34,5 +34,5 @@
     "retract_restart_extra": [
         "25"
     ],
-    "version": "3.0.0.3"
+    "version": "3.0.0.4"
 }

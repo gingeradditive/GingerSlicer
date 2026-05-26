@@ -1,4 +1,4 @@
-﻿{
+{
    "type": "filament",
    "filament_vendor": [
       "Generic"
@@ -141,7 +141,7 @@
    "full_fan_speed_layer": [
       "8"
    ],
-   "version": "3.0.0.3",
+   "version": "3.0.0.4",
    "compatible_printers": [
       "Ginger G1 1.0 nozzle",
       "Ginger G1 1.8 nozzle",
@@ -151,6 +151,6 @@
    ],
    "instantiation": "true",
    "cooling_time_per_cross_section": [
-      "4.9"
+      "13.3"
    ]
 }

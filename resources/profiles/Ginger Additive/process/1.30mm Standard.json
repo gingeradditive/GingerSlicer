@@ -1,4 +1,4 @@
-﻿{
+{
    "bottom_shell_layers": "2",
    "compatible_printers": [
       "Ginger G1 3.0 nozzle"
@@ -26,5 +26,5 @@
    "tree_support_branch_diameter_organic": "10",
    "tree_support_tip_diameter": "9",
    "type": "process",
-   "version": "3.0.0.3"
+   "version": "3.0.0.4"
 }

@@ -4851,11 +4851,14 @@ void PrintConfigDef::init_fff_params()
                      "Variable/adaptive layer heights are supported automatically: each layer is computed "
                      "with its own height extracted from the G-code.\n\n"
                      "Material-dependent. The coefficient k is derived from heat-conduction physics:\n"
-                     "  k = -ln((Tg - T_amb) / (T_extrusion - T_amb)) × 0.405 / α\n"
-                     "where α is the thermal diffusivity (mm²/s) and 0.405 ≈ 4/π². "
-                     "Suggested values (assuming T_amb = 25 °C, no heated chamber):\n"
-                     "  PLA ~5, PETG ~5, ABS ~3, PC ~2, Nylon ~7 s/mm². "
-                     "For heated chambers, recompute k with chamber temperature as T_amb (the value increases).\n\n"
+                     "  k = -ln((T_target - T_amb) / (T_extrusion - T_amb)) × 0.405 / α_eff\n"
+                     "where α_eff is the effective thermal diffusivity (mm²/s) and 0.405 ≈ 4/π². "
+                     "α_eff is ~3× lower than nominal α due to natural convection limits and contact "
+                     "with the hot underlying layer.\n\n"
+                     "Default values empirically calibrated (T_amb = 25 °C, no heated chamber, T_target ≈ Tg):\n"
+                     "  PLA ~27, PETG ~13, ABS ~7, ASA ~8, HIPS ~8, PP ~22 s/mm².\n"
+                     "Calibration data points: PLA h=1.5 mm reaches 50 °C in ~60 s; PETG h=1.5 mm reaches 80 °C in ~30 s.\n"
+                     "For heated chambers, recompute k with chamber temperature as T_amb (the value decreases).\n\n"
                      "Note: a future refinement may add a width-correction factor for very wide beads "
                      "(min_time = h² × k × max(1, w/(2h))). Currently disabled — the simple h² model is "
                      "accurate for typical FDM/pellet geometries where width >= height.");
@@ -4863,7 +4866,7 @@ void PrintConfigDef::init_fff_params()
     def->min = 0.01;
     def->max = 100.0;
     def->mode = comAdvanced;
-    def->set_default_value(new ConfigOptionFloats { 5.2f });
+    def->set_default_value(new ConfigOptionFloats { 26.7f });
 
     def = this->add("minimum_sparse_infill_area", coFloat);
     def->label = L("Minimum sparse infill threshold");

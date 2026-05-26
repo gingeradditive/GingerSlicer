@@ -1,4 +1,4 @@
-﻿{
+{
    "extruder_rotation_volume": [
       "650"
    ],
@@ -63,7 +63,7 @@
    "slow_down_layer_time": [
       "30"
    ],
-   "version": "3.0.0.3",
+   "version": "3.0.0.4",
    "compatible_printers": [
       "Ginger G1 1.0 nozzle",
       "Ginger G1 1.8 nozzle",
@@ -73,6 +73,6 @@
    ],
    "instantiation": "true",
    "cooling_time_per_cross_section": [
-      "8.0"
+      "21.6"
    ]
 }

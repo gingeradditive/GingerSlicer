@@ -1,4 +1,4 @@
-﻿{
+{
    "accel_to_decel_enable": "0",
    "accel_to_decel_factor": "50%",
    "alternate_extra_wall": "0",
@@ -246,7 +246,7 @@
    "tree_support_top_rate": "30%",
    "tree_support_wall_count": "0",
    "type": "process",
-   "version": "3.0.0.3",
+   "version": "3.0.0.4",
    "wall_direction": "auto",
    "wall_distribution_count": "1",
    "wall_filament": "1",
