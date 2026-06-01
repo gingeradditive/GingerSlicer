@@ -7,6 +7,12 @@ basata su Clipper2 introdotta in OrcaSlicer
 [#11017](https://github.com/OrcaSlicer/OrcaSlicer/pull/11017),
 [#11415](https://github.com/OrcaSlicer/OrcaSlicer/pull/11415)).
 
+Follow-up incluso:
+[PR #11765](https://github.com/OrcaSlicer/OrcaSlicer/pull/11765) —
+fix in `connect_infill()` che salta le connessioni troppo corte quando
+`multiline > 1`. **Non richiede Clipper2** (usa solo `params.multiline`),
+quindi è applicabile in modo indipendente come quick win.
+
 > Status: **NOT STARTED**. Documento di scope. L'implementazione è
 > sospesa in attesa di prioritizzazione.
 
@@ -90,6 +96,24 @@ OrcaSlicer.
 | `src/libslic3r/PrintConfig.cpp` | `def->max = 5 → 10` per `fill_multiline` |
 | `src/slic3r/GUI/ConfigManipulation.cpp` | Aggiunge `ipConcentric, ipTriangles, ipQuarterCubic, ipArchimedeanChords, ipHilbertCurve, ipOctagramSpiral` alla lista `have_multiline_infill_pattern` |
 
+### Follow-up PR #11765 (indipendente da Clipper2)
+
+| File | Cambio | Riga indicativa (Ginger) |
+|------|--------|--------------------------|
+| `src/libslic3r/Fill/FillBase.cpp` | In `connect_infill()`, salta le connessioni con `arc.arc_length < scale_(spacing) * params.multiline` quando `multiline > 1` | inserimento tra 1709 e 1710 |
+
+Patch upstream:
+
+```cpp
+// Orca: If multiline infill is requested, skip connections that are too short.
+if (params.multiline > 1 && arc.arc_length < scale_(spacing) * params.multiline) {
+    continue;
+}
+```
+
+Il contesto (righe 1707-1710 di `FillBase.cpp`) combacia esattamente
+con l'HEAD attuale di Ginger.
+
 ---
 
 ## Roadmap proposta
@@ -168,6 +192,14 @@ scaling):
 6. `FillQuarterCubic::fill_surface()` (2 righe in
    `FillRectilinear.cpp`)
 
+### Fase 5b — Follow-up #11765 (inline, 5 righe)
+
+Inserire in `Fill/FillBase.cpp` `connect_infill()` (tra le righe
+1709-1710 nell'HEAD attuale) il filtro che salta le connessioni troppo
+corte con multiline. **Indipendente da Clipper2** — può essere applicato
+in qualsiasi momento, anche subito. Va testato insieme alla Fase 5
+(quando i pattern producono effettivamente multiline > 1).
+
 ### Fase 6 — `fill_surface_trapezoidal()` (1–2 sessioni)
 
 Aggiungere il nuovo metodo a `FillRectilinear` per generare pattern
@@ -216,10 +248,13 @@ Test obbligatori, da documentare nella PR:
 ## Riferimenti
 
 - PR principale: <https://github.com/OrcaSlicer/OrcaSlicer/pull/11435>
+- PR follow-up: <https://github.com/OrcaSlicer/OrcaSlicer/pull/11765>
 - PR base Clipper2 (prereq): <https://github.com/OrcaSlicer/OrcaSlicer/pull/11017>
 - PR intermedia (prereq): <https://github.com/OrcaSlicer/OrcaSlicer/pull/11415>
-- Diff plain text:
+- Diff plain text #11435:
   <https://patch-diff.githubusercontent.com/raw/OrcaSlicer/OrcaSlicer/pull/11435.diff>
+- Diff plain text #11765:
+  <https://patch-diff.githubusercontent.com/raw/OrcaSlicer/OrcaSlicer/pull/11765.diff>
 - Clipper2 upstream: <https://github.com/AngusJohnson/Clipper2>
 
 ---

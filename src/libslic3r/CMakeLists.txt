@@ -565,6 +565,7 @@ target_link_libraries(libslic3r
         boost_libs
         cereal::cereal
         clipper
+        Clipper2
         eigen
         glu-libtess
         JPEG::JPEG
