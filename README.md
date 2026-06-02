@@ -14,6 +14,29 @@ While inheriting all of OrcaSlicer's powerful features and active development, t
 
 We deeply thank the creators and maintainers of OrcaSlicer for making this project possible.
 
+# Quick start (developers)
+
+Prerequisites: **Visual Studio 2022** with the *Desktop development with C++* workload, **CMake**, and **Git**.
+
+```bat
+:: 1. Build the vendored dependencies once (skip if deps/build already exists)
+build_release_vs2022.bat -d
+
+:: 2. Configure + build the slicer
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target GingerSlicer --config Release --parallel 16
+```
+
+Output: `build/src/Release/GingerSlicer.dll` (loaded by `GingerSlicer_app_gui.exe`). For a fast inner loop while editing `src/libslic3r/`, build the `libslic3r` target instead.
+
+Code navigation works out of the box in **Visual Studio**. If you use **VS Code / Cursor / Neovim** or an **AI agent** (Claude Code, Serena MCP), generate a compilation database for clangd:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/gen_compile_commands.ps1
+```
+
+Full onboarding (clangd `--query-driver` setup, gotchas, troubleshooting): **[`docs/ginger/DEV_SETUP.md`](docs/ginger/DEV_SETUP.md)**. Repository conventions and module map: **[`AGENTS.md`](AGENTS.md)**.
+
 # Main features
 
 - **[Advanced Calibration Tools](https://github.com/SoftFever/OrcaSlicer/wiki/Calibration)**  

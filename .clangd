@@ -1,0 +1,29 @@
+# clangd project configuration for GingerSlicer.
+#
+# clangd is OPTIONAL. It powers code navigation / autocompletion / inline
+# diagnostics for editors and AI agents that use the Language Server Protocol:
+#   - VS Code / Cursor (clangd extension), Neovim, etc.
+#   - AI tooling: Claude Code, Serena MCP.
+# Visual Studio uses its OWN IntelliSense (from the .vcxproj under build/) and
+# IGNORES this file -- VS users need nothing.
+#
+# clangd needs a compilation database. Generate it once with:
+#   powershell -ExecutionPolicy Bypass -File scripts/gen_compile_commands.ps1
+# That writes build-cdb/compile_commands.json (and a copy at the repo root).
+# Both are git-ignored because they contain machine-specific absolute paths.
+#
+# MSVC note: the database is produced with the cl.exe driver. For clangd to
+# locate the MSVC/Windows SDK system headers it must be launched with
+#   --query-driver=**/cl.exe
+# That is an editor/agent launch flag, NOT a .clangd setting. See
+# docs/ginger/DEV_SETUP.md and docs/ginger/vscode-settings.sample.json.
+
+CompileFlags:
+  # Produced by scripts/gen_compile_commands.ps1. clangd also auto-detects the
+  # root copy; this entry makes it work even if the root copy is missing/stale.
+  CompilationDatabase: build-cdb
+
+Diagnostics:
+  # Header-inclusion analysis is noisy on this codebase (PCH + heavy templates).
+  UnusedIncludes: None
+  MissingIncludes: None

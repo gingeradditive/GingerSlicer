@@ -13,7 +13,8 @@ fix in `connect_infill()` che salta le connessioni troppo corte quando
 `multiline > 1`. **Non richiede Clipper2** (usa solo `params.multiline`),
 quindi è applicabile in modo indipendente come quick win.
 
-> Status: **IN PROGRESS**.
+> Status: **COMPLETO** (allineamento PR #11435 fatto, testato OK in slicing).
+> Resta solo Fase 7 (testing pellet su stampe reali).
 > - Fase 1 (Clipper2 dep) — **FATTO**: vendored `deps_src/clipper2`
 >   (v1.5.2, mirror esatto di OrcaSlicer incluso `clipper2_z`),
 >   registrato in `deps_src/CMakeLists.txt`, linkato come `Clipper2`
@@ -44,13 +45,23 @@ quindi è applicabile in modo indipendente come quick win.
 >   - `ConfigManipulation.cpp`: lista UI estesa con `ipConcentric`,
 >     `ipTriangles`, `ipQuarterCubic`, `ipArchimedeanChords`,
 >     `ipHilbertCurve`, `ipOctagramSpiral`.
->   - Triangles/Grid usano la `fill_surface_by_multilines` esistente di
->     Ginger (path manuale già funzionante), NON la `fill_surface_trapezoidal`.
+> - Fase 6 (`fill_surface_trapezoidal` + rewrite `fill_surface_by_multilines`)
+>   — **FATTO** (mirror PR #11435):
+>   - `FillRectilinear.hpp`: dichiarata
+>     `fill_surface_trapezoidal(..., int Pattern_type)`.
+>   - `FillRectilinear.cpp` `fill_surface_by_multilines()` RISCRITTA:
+>     offset perimetrale `overlap + 0.5*multiline*spacing`, rimosso loop
+>     per-`i`, singola `make_fill_lines` + `multiline_fill` +
+>     `offset_ex(-0.5*spacing)` contract + `intersection_pl` +
+>     `connect_infill` su `intersection_surface`.
+>   - `fill_surface_trapezoidal()` aggiunta (~250 righe): `Pattern_type 0`
+>     = grid trapezoidale (45°), `1` = triangular (90°). Pattern
+>     non-crossing anti-overextrusion.
+>   - `FillGrid::fill_surface` / `FillTriangles::fill_surface`: branch
+>     `if (multiline>1) fill_surface_trapezoidal(...)` else path classico.
 > - Build di verifica: `libslic3r` → OK (exit 0); `GingerSlicer.dll`
->   rilinkato OK dopo Fase 5.
-> - Prossimo: Fase 6 (`fill_surface_trapezoidal` Grid/Triangles +
->   rewrite `fill_surface_by_multilines` — **alto rischio**, rinviata),
->   Fase 7 (testing pellet).
+>   rilinkato OK. **Slicing testato dall'utente: funziona.**
+> - Prossimo: Fase 7 (testing pellet su stampe reali).
 >
 > Nota build: i lint clangd su `Clipper2Utils.cpp`/`FillBase.cpp`
 > (`clipper2/clipper.h file not found`, `Clipper2Lib undeclared`) sono

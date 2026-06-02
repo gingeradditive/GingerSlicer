@@ -145,6 +145,62 @@ GingerSlicer. Each entry points to the primary source file when applicable.
 
 ---
 
+## Multiline infill (Clipper2)
+
+Aligned to OrcaSlicer PR **#11435** (Clipper2 multiline), **#11765**
+(short-connection skip) and **#10967** (density adjustment + crash fix).
+Migration log: `docs/ginger/CLIPPER2_MIGRATION.md`.
+
+- **Multiline infill** (`fill_multiline`, max `10`) — Prints each infill
+  line as N parallel passes instead of one. On pellet (1.0–8.0 mm nozzles)
+  a single bead is often too wide → over-extrusion/blobbing; splitting into
+  N lines distributes flow and improves adhesion. `1` = disabled.
+  Definition: `src/libslic3r/PrintConfig.cpp`.
+
+- **`multiline_fill()`** — Core routine in `src/libslic3r/Fill/FillBase.cpp`
+  (decl in `FillBase.hpp`). Offsets each base polyline by
+  `Clipper2Lib::ClipperOffset(JoinType::Round, EndType::Round)` to produce
+  the N parallel lines. **Output is closed rings** — every caller MUST run
+  `intersection_pl(...)` against the surface before
+  `chain_or_connect_infill`, otherwise the unclipped rings crash the
+  boundary-graph builder (`create_boundary_infill_graph`).
+
+- **Clipper2** — Vendored polygon-clipping lib v1.5.2 in
+  `deps_src/clipper2/` (mirror of OrcaSlicer, incl. `clipper2_z`). Linked as
+  target `Clipper2`. Slic3r↔Clipper2 conversion helpers live in
+  `src/libslic3r/Clipper2Utils.{hpp,cpp}`. Distinct from Clipper1
+  (`ClipperUtils.hpp`), still used elsewhere.
+
+- **`fill_surface_trapezoidal()`** — Non-crossing pattern in
+  `src/libslic3r/Fill/FillRectilinear.cpp` used for **Grid** (`Pattern_type
+  0`, 45°) and **Triangles** (`Pattern_type 1`, 90°) when `multiline > 1`.
+  Replaces the crossing grid/triangle lines (which would double-extrude at
+  every intersection) with offset trapezoids. Selected by the branch in
+  `FillGrid::fill_surface` / `FillTriangles::fill_surface`.
+
+- **Density adjustment (`n_multiline`)** — For Adaptive Cubic / Support
+  Cubic (`FillAdaptive.cpp`, `adaptive_fill_line_spacing`) and Lightning
+  (`Fill/Lightning/Generator.cpp`, `m_supporting_radius`), the base line
+  spacing / supporting radius is multiplied by `fill_multiline`. Without
+  this, adding N parallel lines without widening the base grid makes the
+  infill N× too dense → over-extrusion. Applied **only** to the infill
+  `Generator(const PrintObject&...)` ctor, not the BBS support ctor (which
+  divides by an explicit `density`).
+
+- **Short-connection skip (#11765)** — In `connect_infill()`
+  (`FillBase.cpp`), when `multiline > 1` the connector skips links shorter
+  than the line spacing, preventing the N adjacent lines from being stitched
+  into a zig-zag blob.
+
+- **`[multiline_fill]` debug logs** — `BOOST_LOG_TRIVIAL(debug/trace)`
+  tags inside `multiline_fill()` reporting pattern / multiline count /
+  spacing / density / input+output polyline counts. Enable via
+  **Preferences → Debug → Log Level** (`debug` or `trace`; non-public
+  builds only, `#if !BBL_RELEASE_TO_PUBLIC`). Output:
+  `%APPDATA%\GingerSlicer\log\debug_*.log`.
+
+---
+
 ## Geometry & quality concepts (Ginger usage)
 
 - **Feature size vs nozzle** — On pellet (≥1 mm nozzles) geometric features

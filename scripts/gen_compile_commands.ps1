@@ -28,10 +28,12 @@
     default Visual Studio generator.
 
 .EXAMPLE
-    pwsh -File scripts/gen_compile_commands.ps1
+    powershell -ExecutionPolicy Bypass -File scripts/gen_compile_commands.ps1
+    # (or `pwsh -File ...` if PowerShell 7 is installed; many Windows boxes
+    #  only have Windows PowerShell 5.1, where the command is `powershell`.)
 
 .EXAMPLE
-    pwsh -File scripts/gen_compile_commands.ps1 -BuildDir build-clangd -Config Debug
+    powershell -ExecutionPolicy Bypass -File scripts/gen_compile_commands.ps1 -BuildDir build-clangd -Config Debug
 
 .NOTES
     Requires the OrcaSlicer/GingerSlicer dependencies to be already built
