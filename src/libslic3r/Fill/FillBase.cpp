@@ -2,6 +2,7 @@
 #include <numeric>
 
 #include <cmath>
+#include <boost/log/trivial.hpp>
 #include "../ClipperUtils.hpp"
 #include "../Clipper2Utils.hpp"
 #include "../EdgeGrid.hpp"
@@ -2718,13 +2719,21 @@ void multiline_fill(Polylines& polylines, const FillParams& params, float spacin
     Polylines all_polylines;
     all_polylines.reserve(n_lines * n_polylines);
 
+    BOOST_LOG_TRIVIAL(debug) << "[multiline_fill] pattern=" << int(params.pattern)
+                             << " multiline=" << n_lines
+                             << " spacing=" << spacing
+                             << " density=" << params.density
+                             << " input_polylines=" << n_polylines;
+
     // Remove invalid polylines
     polylines.erase(std::remove_if(polylines.begin(), polylines.end(),
                               [](const Polyline& p) { return p.size() < 2; }),
                polylines.end());
 
-    if (polylines.empty())
+    if (polylines.empty()) {
+        BOOST_LOG_TRIVIAL(debug) << "[multiline_fill] no valid input polylines, skipping";
         return;
+    }
     // Convert source polylines to Clipper2 paths
     Clipper2Lib::Paths64 subject_paths = Slic3rPolylines_to_Paths64(polylines);
 
@@ -2762,6 +2771,8 @@ void multiline_fill(Polylines& polylines, const FillParams& params, float spacin
         // ClipperOffset with current offset distance (union is not needed here)
         Clipper2Lib::Paths64 offset_paths;
         offsetter.Execute(scale_(t), offset_paths);
+        BOOST_LOG_TRIVIAL(trace) << "[multiline_fill]   offset=" << t
+                                 << " -> offset_paths=" << offset_paths.size();
         if (offset_paths.empty())
             continue;
 
@@ -2776,6 +2787,8 @@ void multiline_fill(Polylines& polylines, const FillParams& params, float spacin
             all_polylines.emplace_back(std::move(pl));
         }
     }
+
+    BOOST_LOG_TRIVIAL(debug) << "[multiline_fill] output_polylines=" << all_polylines.size();
 
     polylines = std::move(all_polylines);
 }

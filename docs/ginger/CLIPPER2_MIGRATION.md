@@ -30,12 +30,27 @@ quindi è applicabile in modo indipendente come quick win.
 > - Fase 5b (#11765) — **FATTO**: filtro skip-connessioni-corte in
 >   `connect_infill()` (`Fill/FillBase.cpp`, ~riga 1712) quando
 >   `params.multiline > 1`.
-> - Build di verifica: `cmake --build build --target libslic3r --config
->   Release` → **OK** (exit 0) dopo Fase 1-3 e dopo Fase 4+5b.
-> - Prossimo: Fase 5 (estensione pattern: Concentric, Triangles,
->   QuarterCubic, ArchimedeanChords, HilbertCurve, OctagramSpiral, ecc.
->   + estensione lista UI), Fase 6 (`fill_surface_trapezoidal` Grid/
->   Triangles), Fase 7 (testing pellet).
+> - Fase 5 (estensione pattern) — **FATTO** (mirror PR #11435):
+>   - `FillConcentric.cpp`: `min_spacing *= multiline` + contrazione
+>     superficie `offset_ex(-0.5*(multiline-1)*spacing)` + `multiline_fill`.
+>   - `FillPlanePath.cpp`: bb expand + `distance_between_lines *= multiline`
+>     + `multiline_fill` (abilita Archimedean / Hilbert / Octagram).
+>   - `Fill3DHoneycomb.cpp`: bb expand `5*scale_(spacing)`.
+>   - `FillHoneycomb.cpp`: spacing `1.1*spacing → spacing`.
+>   - `FillRectilinear.cpp` `FillQuarterCubic::fill_surface()`:
+>     `line_width`/`period` scalati per `multiline`.
+>   - `FillAdaptive.cpp`: branch `if (multiline==1)` (erase-collinear +
+>     hooks) `else` connessione diretta.
+>   - `ConfigManipulation.cpp`: lista UI estesa con `ipConcentric`,
+>     `ipTriangles`, `ipQuarterCubic`, `ipArchimedeanChords`,
+>     `ipHilbertCurve`, `ipOctagramSpiral`.
+>   - Triangles/Grid usano la `fill_surface_by_multilines` esistente di
+>     Ginger (path manuale già funzionante), NON la `fill_surface_trapezoidal`.
+> - Build di verifica: `libslic3r` → OK (exit 0); `GingerSlicer.dll`
+>   rilinkato OK dopo Fase 5.
+> - Prossimo: Fase 6 (`fill_surface_trapezoidal` Grid/Triangles +
+>   rewrite `fill_surface_by_multilines` — **alto rischio**, rinviata),
+>   Fase 7 (testing pellet).
 >
 > Nota build: i lint clangd su `Clipper2Utils.cpp`/`FillBase.cpp`
 > (`clipper2/clipper.h file not found`, `Clipper2Lib undeclared`) sono
