@@ -13,8 +13,35 @@ fix in `connect_infill()` che salta le connessioni troppo corte quando
 `multiline > 1`. **Non richiede Clipper2** (usa solo `params.multiline`),
 quindi è applicabile in modo indipendente come quick win.
 
-> Status: **NOT STARTED**. Documento di scope. L'implementazione è
-> sospesa in attesa di prioritizzazione.
+> Status: **IN PROGRESS**.
+> - Fase 1 (Clipper2 dep) — **FATTO**: vendored `deps_src/clipper2`
+>   (v1.5.2, mirror esatto di OrcaSlicer incluso `clipper2_z`),
+>   registrato in `deps_src/CMakeLists.txt`, linkato come `Clipper2`
+>   in `src/libslic3r/CMakeLists.txt`. `/WX` e `-Werror` rimossi.
+>   Build target `Clipper2` OK.
+> - Fase 2 (Clipper2Utils) — **FATTO**: `src/libslic3r/Clipper2Utils.{hpp,cpp}`
+>   creati (mirror OrcaSlicer) e aggiunti alle sources.
+> - Fase 3 (multiline_fill Clipper2) — **FATTO**: riscritta in
+>   `Fill/FillBase.cpp` con `ClipperOffset(JoinType::Round, EndType::Round)`.
+> - Fase 4 (bump max) — **FATTO**: `fill_multiline` `def->max = 5 → 10`
+>   in `PrintConfig.cpp`. L'estensione lista UI `have_multiline_infill_pattern`
+>   è **rinviata alla Fase 5** (insieme al wiring per evitare opzioni UI
+>   incoerenti con pattern non ancora supportati).
+> - Fase 5b (#11765) — **FATTO**: filtro skip-connessioni-corte in
+>   `connect_infill()` (`Fill/FillBase.cpp`, ~riga 1712) quando
+>   `params.multiline > 1`.
+> - Build di verifica: `cmake --build build --target libslic3r --config
+>   Release` → **OK** (exit 0) dopo Fase 1-3 e dopo Fase 4+5b.
+> - Prossimo: Fase 5 (estensione pattern: Concentric, Triangles,
+>   QuarterCubic, ArchimedeanChords, HilbertCurve, OctagramSpiral, ecc.
+>   + estensione lista UI), Fase 6 (`fill_surface_trapezoidal` Grid/
+>   Triangles), Fase 7 (testing pellet).
+>
+> Nota build: i lint clangd su `Clipper2Utils.cpp`/`FillBase.cpp`
+> (`clipper2/clipper.h file not found`, `Clipper2Lib undeclared`) sono
+> **falsi positivi da indice stale** — il build MSVC compila e linka.
+> Rigenerare `compile_commands.json` (`scripts/gen_compile_commands.ps1`)
+> per allineare clangd.
 
 ## Perché è rilevante per Ginger
 

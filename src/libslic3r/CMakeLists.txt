@@ -93,6 +93,8 @@ set(lisbslic3r_sources
     ClipperUtils.cpp
     ClipperUtils.hpp
     ClipperZUtils.hpp
+    Clipper2Utils.cpp
+    Clipper2Utils.hpp
     Color.cpp
     Color.hpp
     Config.cpp
