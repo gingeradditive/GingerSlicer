@@ -50,18 +50,14 @@ Use this as a routing table before searching. Localize first, then read narrowly
 ### Profiles distribution & CI
 - `.github/workflows/check_profiles.yml`: validates profiles on PR; runs `OrcaSlicer_profile_validator` + `scripts/orca_extra_profile_check.py` + `scripts/check_profile_version_bump.py`.
 - `scripts/check_profile_version_bump.py`: requires **every** versioned profile JSON to have `version` strictly greater than `origin/main`. Modifying one file means bumping **all 41 versioned files** (the 2 machine `_common.json` files have no `version` and are intentionally excluded).
-- `scripts/bump_profile_version.ps1`: helper to bump `version` across every profile JSON. Usage: `pwsh scripts/bump_profile_version.ps1 -Old 3.0.0.3 -New 3.0.0.4`.
-- `scripts/check_profile_versions.ps1`: verifies every versioned JSON matches an expected value; reports outliers (no version field, off-by-one bumps, etc.). Usage: `pwsh scripts/check_profile_versions.ps1 -Expected 3.0.0.4`.
-- `scripts/update_cooling_k.ps1`: one-shot used during the empirical recalibration of `cooling_time_per_cross_section`. Kept as reference for future per-material value migrations.
-- `scripts/strip_bom.ps1`: scans every profile JSON (including the top-level `Ginger Additive.json` index) for a UTF-8 BOM and removes it with `-Fix`. The OrcaSlicer profile validator (`OrcaSlicer_profile_validator`) rejects BOMs with `Unexpected UTF-8 BOM`, so any script that rewrites JSONs **must** pass an explicit `[System.Text.UTF8Encoding]::new($false)` to `WriteAllText` (this is already done in `bump_profile_version.ps1` and `update_cooling_k.ps1`). Run `strip_bom.ps1` (no flags) before pushing as a sanity check.
 - `scripts/pack_profiles.sh`: packages OTA bundles uploaded to the `nightly-builds` GitHub release.
 - `src/slic3r/Utils/PresetUpdater.cpp`: client-side OTA fetch and install of bundles.
 
 ## Agent Workflow Tips
 - **Localize before reading.** Use `code_search`/`grep_search` to find the 1–3 relevant files; never read large files (`Tab.cpp` 316k, `Plater.cpp` 631k, `GCode.cpp` 375k) end-to-end.
 - **Prefer `.hpp` first** for orientation, then jump to `.cpp` definitions with `grep_search` on the symbol.
-- **Bumping profile versions:** when changing any file under `resources/profiles/Ginger Additive/`, bump `version` in all 41 versioned JSON files together (see `scripts/check_profile_version_bump.py`). Use `scripts/bump_profile_version.ps1 -Old <X> -New <Y>` then `scripts/check_profile_versions.ps1 -Expected <Y>` to verify.
+- **Bumping profile versions:** when changing any file under `resources/profiles/Ginger Additive/`, bump `version` in all 41 versioned JSON files together (see `scripts/check_profile_version_bump.py`).
 - **Adding a parameter end-to-end** touches: `PrintConfig.hpp` (declaration) → `PrintConfig.cpp` (`def` with label/tooltip/range/mode) → `Preset.cpp` (`s_*_options` list for category) → `Tab.cpp` (`append_single_option_line`) → `ConfigManipulation.cpp` (toggle/visibility) → optional `resources/profiles/.../*.json` (defaults).
-- **C++ symbol search:** if `compile_commands.json` exists (run `scripts/gen_compile_commands.ps1`), prefer LSP-driven tools (clangd/Serena) over regex. Without it, fall back to `grep_search` on declarations.
+- **C++ symbol search:** if `compile_commands.json` exists, prefer LSP-driven tools over regex. Without it, fall back to `grep_search` on declarations.
 - **clangd gotcha — config options are macro-generated.** Symbols declared inside `PRINT_CONFIG_CLASS_DEFINE(...)` (e.g. `adaptive_layer_height`, `pellet_ers_mode`, `layer_height`, all `((ConfigOption*, name))` entries in `PrintConfig.hpp`) are produced by Boost.PP-style macros that clangd cannot expand. `Shift+F12` / find-references returns nothing for these. Use `grep_search` directly with the option name as a literal string. This is not a bug in our setup — it is an intrinsic limit of LSP indexing on this macro pattern.
 - **Domain glossary:** see `docs/ginger/GLOSSARY.md` for pellet-specific terms (ERS, ramp profile, deceleration slope, virtual retract, etc.).
