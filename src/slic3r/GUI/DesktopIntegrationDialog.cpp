@@ -340,7 +340,14 @@ void DesktopIntegrationDialog::perform_desktop_integration()
                 "Categories=Graphics;3DGraphics;Engineering;\n"
                 "Keywords=3D;Printing;Slicer;slice;3D;printer;convert;gcode;stl;obj;amf;SLA\n"
                 "StartupNotify=false\n"
-                "StartupWMClass=Ginger-Slicer\n", name_suffix, version_suffix, excutable_path);
+                // StartupWMClass must match the WM_CLASS that wxWidgets sets
+                // for the main window. wxApp::SetAppName(SLIC3R_APP_KEY) is
+                // called with "GingerSlicer", so the resulting WM_CLASS is
+                // "GingerSlicer", not "Ginger-Slicer". A mismatch here causes
+                // GNOME/KDE to fail associating the window with this .desktop
+                // file, which can result in a generic taskbar/dock icon or a
+                // duplicated launcher.
+                "StartupWMClass=GingerSlicer\n", name_suffix, version_suffix, excutable_path);
 
             std::string path = GUI::format("%1%/applications/GingerSlicer%2%.desktop", target_dir_desktop, version_suffix);
             if (create_desktop_file(path, desktop_file)){
