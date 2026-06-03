@@ -4,190 +4,77 @@
   <img alt="OrcaSlicer logo" src="resources/images/OrcaSlicer.png" width="15%" height="15%">
 </picture>
 
-Ginger Slicer is an open source Next-Gen Slicing Software for Precision 3D Prints.  
-This fork focuses on **pellet-based 3D printing**, enabling advanced workflows for FGF (Fused Granulate Fabrication) and recycled materials.
+# GingerSlicer
 
-## About this Fork
+**GingerSlicer** is an open-source 3D slicer based on OrcaSlicer and tailored for large-format pellet extrusion workflows.
 
-**Ginger Slicer** is a fork of the amazing open-source project [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer) by [SoftFever](https://github.com/SoftFever).  
-While inheriting all of OrcaSlicer's powerful features and active development, this fork is tailored toward experiments and workflows involving **pellet extrusion** and **sustainable materials**.
+It is configured around Ginger Additive hardware, pellet materials, wide nozzles, realistic throughput estimation, and the practical constraints of FGF (Fused Granulate Fabrication).
 
-We deeply thank the creators and maintainers of OrcaSlicer for making this project possible.
+[Download](https://www.gingeradditive.com/pages/downloads) · [Releases](https://github.com/gingeradditive/GingerSlicer/releases) · [Ginger Additive](https://www.gingeradditive.com/) · [OrcaSlicer Wiki](https://github.com/OrcaSlicer/OrcaSlicer/wiki)
 
-# Main features
+</div>
 
-- **[Advanced Calibration Tools](https://github.com/SoftFever/OrcaSlicer/wiki/Calibration)**  
-  Comprehensive suite: temperature towers, flow rate, retraction & more for optimal performance.
-- **[Precise Wall](https://github.com/SoftFever/OrcaSlicer/wiki/quality_settings_precision#precise-wall) and [Seam Control](https://github.com/SoftFever/OrcaSlicer/wiki/quality_settings_seam)**  
-  Adjust outer wall spacing and apply scarf seams to enhance print accuracy.
-- **[Sandwich Mode](https://github.com/SoftFever/OrcaSlicer/wiki/quality_settings_wall_and_surfaces#innerouterinner) and [Polyholes](https://github.com/SoftFever/OrcaSlicer/wiki/quality_settings_precision#polyholes) Support**  
-  Use varied infill [patterns](https://github.com/SoftFever/OrcaSlicer/wiki/strength_settings_patterns) and accurate hole shapes for improved clarity.
-- **[Overhang](https://github.com/SoftFever/OrcaSlicer/wiki/quality_settings_overhangs) and [Support Optimization](https://github.com/SoftFever/OrcaSlicer/wiki#support-settings)**  
-  Modify geometry for printable overhangs with precise support placement.
-- **[Granular Controls](https://github.com/SoftFever/OrcaSlicer/wiki#process-settings) and Customization**  
-  Fine-tune print speed, layer height, pressure, and temperature with precision.
-- **Network Printer Support**  
-  Seamless integration with Klipper, PrusaLink, and OctoPrint for remote control.
-- **[Mouse Ear Brims](https://github.com/SoftFever/OrcaSlicer/wiki/others_settings_brim) & Adaptive Bed Mesh**  
-  Automatic brims and adaptive mesh calibration ensure consistent adhesion.
-- **User-Friendly Interface**  
-  Intuitive drag-and-drop design with pre-made profiles for popular printers.
-- **[Open-Source](https://github.com/SoftFever/OrcaSlicer) & [Community Driven](https://discord.gg/P4VE9UY9gJ)**  
-  Regular updates fueled by continuous community contributions.
-- **Wide Printer Compatibility**  
-  Supports a broad range of printers: Bambu Lab, Prusa, Creality, Voron, and more.
-- Additional features can be found in the [change notes](https://github.com/SoftFever/OrcaSlicer/releases/).
+## What this project is
 
-# Wiki
+GingerSlicer keeps the foundation of OrcaSlicer, a powerful open-source slicer for FFF/FDM 3D printers, and extends it for pellet-based additive manufacturing.
 
-The wiki below aims to provide a detailed explanation of the slicer settings, including how to maximize their use and how to calibrate and set up your printer.
+The project focuses on predictable material flow, large nozzle behavior, pellet-specific machine profiles, and workflows where extrusion is driven by volume rather than filament length.
 
-Please note that the wiki is a work in progress. We appreciate your patience as we continue to develop and improve it!
+## Why GingerSlicer exists
 
-- **[Access the wiki here](https://github.com/SoftFever/OrcaSlicer/wiki)**
-- **[Contribute to the wiki](https://github.com/SoftFever/OrcaSlicer/wiki/How-to-wiki)**
+Pellet printers behave differently from filament printers:
 
-# Download
+- **Screw-based extrusion**  
+  Material flow depends on screw rotation volume, melt behavior, pressure buildup, and material viscosity.
 
-## Stable Release
+- **Large nozzles**  
+  Ginger profiles cover large-format nozzle workflows, including 1.0 mm to 8.0 mm nozzle classes.
 
-📥 **[Download the Latest Stable Release](https://github.com/SoftFever/OrcaSlicer/releases/latest)**  
-Visit our GitHub Releases page for the latest stable version of Ginger Slicer, recommended for most users.
+- **Slow pressure response**  
+  Pellet extruders cannot rely on classic filament retraction alone; flow ramps and decompression behavior matter.
 
-## Nightly Builds
-🌙 **[Download the Latest Nightly Build](https://github.com/SoftFever/OrcaSlicer/releases/tag/nightly-builds)**  
-Explore the latest developments in Ginger Slicer with our nightly builds. Feedback on these versions is highly appreciated.
+- **Material variability**  
+  Pellets and recycled materials can require stronger per-material tuning than standard filament spools.
 
-🌙 **[Download the Latest Nightly Build](https://github.com/SoftFever/OrcaSlicer/releases/tag/nightly-builds)**  
-Explore the latest developments in OrcaSlicer with our nightly builds. Feedback on these versions is highly appreciated.
+GingerSlicer brings these assumptions directly into slicer profiles, settings, and G-code post-processing logic.
 
-# How to install
+## Key features
 
-## Windows
+- **Pellet-focused profiles**  
+  Includes Ginger Additive vendor profiles for machine, process, material, and nozzle combinations.
 
-Download the **Windows Installer exe**  for your preferred version from the [releases page](https://github.com/SoftFever/OrcaSlicer/releases).
+- **Rotation volume workflow**  
+  Uses pellet-oriented extrusion calibration concepts, where material output is expressed as volume per screw revolution.
 
- - *For convenience there is also a portable build available.*
-    <details>
-    <summary>Troubleshooting</summary>
+- **Extrusion Rate Smoothing**  
+  Extends flow smoothing for pellet extruders so volumetric changes can be ramped more gradually across extrusion paths and travel boundaries.
 
-    - *If you have troubles to run the build, you might need to install following runtimes:*
-    - [MicrosoftEdgeWebView2RuntimeInstallerX64](https://github.com/SoftFever/OrcaSlicer/releases/download/v1.0.10-sf2/MicrosoftEdgeWebView2RuntimeInstallerX64.exe)
-        - [Details of this runtime](https://aka.ms/webview2)
-        - [Alternative Download Link Hosted by Microsoft](https://go.microsoft.com/fwlink/p/?LinkId=2124703)
-    - [vcredist2019_x64](https://github.com/SoftFever/OrcaSlicer/releases/download/v1.0.10-sf2/vcredist2019_x64.exe)
-        -  [Alternative Download Link Hosted by Microsoft](https://aka.ms/vs/17/release/vc_redist.x64.exe)
-        -  This file may already be available on your computer if you've installed visual studio.  Check the following location: `%VCINSTALLDIR%Redist\MSVC\v142`
-    </details>
+- **Volume-based cooling**  
+  Supports a cooling model based on layer height and material-specific coefficients for more realistic layer-time control on thick pellet layers.
 
-Windows Package Manager
+- **Multiline infill**  
+  Supports splitting infill into multiple parallel lines, useful for large nozzles where a single oversized bead can over-extrude or blob.
 
-```shell
-winget install --id=SoftFever.OrcaSlicer -e
-```
+- **Large-format print preparation**  
+  Provides slicing tools, layer previews, material estimates, and print-time estimates suitable for understanding pellet printing behavior before and during production.
 
-## Mac
+- **OrcaSlicer feature base**  
+  Inherits OrcaSlicer’s calibration tools, process settings, supports, adaptive slicing features, network-printer integrations, and broad FFF/FDM slicing capabilities.
 
-1. Download the DMG for your computer: `arm64` version for Apple Silicon and `x86_64` for Intel CPU.
-2. Drag OrcaSlicer.app to Application folder.
-3. *If you want to run a build from a PR, you also need to follow the instructions below:*
+## Downloads
 
-    <details>
-    <summary>Quarantine</summary>
+Stable builds are distributed through Ginger Additive and GitHub releases.
 
-    - Option 1 (You only need to do this once. After that the app can be opened normally.):
-      - Step 1: Hold _cmd_ and right click the app, from the context menu choose **Open**.
-      - Step 2: A warning window will pop up, click _Open_
+- **Ginger Additive downloads**  
+  [https://www.gingeradditive.com/pages/downloads](https://www.gingeradditive.com/pages/downloads)
 
-    - Option 2:
-      Execute this command in terminal:
+- **GitHub releases**  
+  [https://github.com/gingeradditive/GingerSlicer/releases](https://github.com/gingeradditive/GingerSlicer/releases)
 
-      ```shell
-      xattr -dr com.apple.quarantine /Applications/OrcaSlicer.app
-      ```
+Version `3.0.0` provides installers/packages for Windows, macOS, and Ubuntu 24.04 according to the public Ginger Additive download page.
 
-    - Option 3:
-        - Step 1: open the app, a warning window will pop up  
-            ![mac_cant_open](./SoftFever_doc/mac_cant_open.png)
-        - Step 2: in `System Settings` -> `Privacy & Security`, click `Open Anyway`:  
-            ![mac_security_setting](./SoftFever_doc/mac_security_setting.png)
-    </details>
+## License
 
-## Linux (Ubuntu)
+GingerSlicer is distributed under the GNU Affero General Public License v3.0. See [`LICENSE.txt`](LICENSE.txt).
 
- 1. If you run into trouble executing it, try this command in the terminal:
-    `chmod +x /path_to_appimage/OrcaSlicer_Linux.AppImage`
-
-# How to Compile
-
-All updated build instructions for Windows, macOS, and Linux are now available on the official [OrcaSlicer Wiki - How to build](https://github.com/SoftFever/OrcaSlicer/wiki/How-to-build) page.
-
-Please refer to the wiki to ensure you're following the latest and most accurate steps for your platform.
-
-# Klipper Note
-
-If you're running Klipper, it's recommended to add the following configuration to your `printer.cfg` file.
-
-```gcode
-# Enable object exclusion
-[exclude_object]
-
-# Enable arcs support
-[gcode_arcs]
-resolution: 0.1
-```
-
-# Supports
-**Ginger Slicer** is an open-source project and I'm deeply grateful to all my sponsors and backers.  
-Their generous support enables me to purchase filaments and other essential 3D printing materials for the project.  
-Thank you! :)
-
-## Sponsors:
-
-<table>
-<tr>
-<td>
-<a href="https://qidi3d.com/" style="display:inline-block; border-radius:8px; background:#fff;">
-  <img src="SoftFever_doc\sponsor_logos\QIDI.png" alt="QIDI" width="100" height="100">
-</a>
-</td>
-<td>
-<a href="https://bigtree-tech.com/" style="display:inline-block; border-radius:8px; background:#222;">
-    <img src="SoftFever_doc\sponsor_logos\BigTreeTech.png" alt="BIGTREE TECH" width="100" height="100">
-</a>
-</td>
-</tr>
-</table>
-
-## Backers:
-
-**Ko-fi supporters** ☕: [Backers list](https://github.com/user-attachments/files/16147016/Supporters_638561417699952499.csv)
-
-## Support me
-
-<a href="https://github.com/sponsors/SoftFever"><img src="https://img.shields.io/badge/GitHub%20Sponsors-30363D?style=flat&logo=GitHub-Sponsors&logoColor=EA4AAA" height="50"></a>
-<a href="https://ko-fi.com/G2G5IP3CP"><img src="https://img.shields.io/badge/Support_me_on_Ko--fi-FF5E5B?style=flat&logo=ko-fi&logoColor=white" height="50"></a>
-<a href="https://paypal.me/softfever3d"><img src="https://img.shields.io/badge/PayPal-003087?style=flat&logo=paypal&logoColor=fff" height="50"></a>
-
-## Some background
-
-OrcaSlicer was originally forked from Bambu Studio, it was previously known as BambuStudio-SoftFever.
-
-[Bambu Studio](https://github.com/bambulab/BambuStudio) is forked from [PrusaSlicer](https://github.com/prusa3d/PrusaSlicer) by Prusa Research, which is from [Slic3r](https://github.com/Slic3r/Slic3r) by Alessandro Ranellucci and the RepRap community.
-Ginger Slicer incorporates a lot of features from [SuperSlicer](https://github.com/supermerill/SuperSlicer) by @supermerill
-Ginger Slicer's logo is designed by community member Justin Levine(@freejstnalxndr).
-
-# License
-**Ginger Slicer** is licensed under the GNU Affero General Public License, version 3. Ginger Slicer is based on Bambu Studio by BambuLab.
-
-**Bambu Studio** is licensed under the GNU Affero General Public License, version 3. Bambu Studio is based on PrusaSlicer by PrusaResearch.
-
-**PrusaSlicer** is licensed under the GNU Affero General Public License, version 3. PrusaSlicer is owned by Prusa Research. PrusaSlicer is originally based on Slic3r by Alessandro Ranellucci.
-
-**Slic3r** is licensed under the GNU Affero General Public License, version 3. Slic3r was created by Alessandro Ranellucci with the help of many other contributors.
-
-The GNU Affero General Public License, version 3 ensures that if you use any part of this software in any way (even behind a web server), your software must be released under the same license.
-
-Ginger Slicer includes a pressure advance calibration pattern test adapted from Andrew Ellis' generator, which is licensed under GNU General Public License, version 3. Ellis' generator is itself adapted from a generator developed by Sineos for Marlin, which is licensed under GNU General Public License, version 3.
-
-The Bambu networking plugin is based on non-free libraries from BambuLab. It is optional to the Ginger Slicer and provides extended functionalities for Bambulab printer users.
+Some optional components and inherited integrations may have additional licensing considerations, including the optional Bambu networking plugin referenced by the upstream project.
