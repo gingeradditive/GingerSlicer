@@ -987,8 +987,10 @@ Updates PresetUpdater::priv::get_config_updates(const Semver &old_slic3r_version
                     ifs.close();
                 }
 
-                bool version_match = ((vendor_ver.maj() == cache_ver.maj()) && (vendor_ver.min() == cache_ver.min()));
-                if (version_match && (vendor_ver < cache_ver)) {
+                // GingerSlicer: always apply the latest OTA profile, even across
+                // major/minor bumps. Releases are accepted as potentially
+                // breaking for older versions on purpose.
+                if (vendor_ver < cache_ver) {
                     BOOST_LOG_TRIVIAL(info) << "[Orca Updater]:need to update settings from " << vendor_ver.to_string()
                                             << " to newer version " << cache_ver.to_string() << ", app version " << SLIC3R_VERSION;
                     Version version;
@@ -1196,10 +1198,42 @@ PresetUpdater::UpdateResult PresetUpdater::config_update(const Semver& old_slic3
             return R_UPDATE_INSTALLED;
         }
 
-        // regular update
+        // GingerSlicer: silent auto-install on background updater check.
+        // Profile OTA updates must be applied transparently at startup so that
+        // the user always gets the latest profiles without having to interact
+        // with any notification or wizard. This mirrors the force_update path.
         if (params == UpdateParams::SHOW_NOTIFICATION) {
-            p->set_waiting_updates(updates);
-            GUI::wxGetApp().plater()->get_notification_manager()->push_notification(GUI::NotificationType::PresetUpdateAvailable);
+            BOOST_LOG_TRIVIAL(info) << format("[Orca Updater]:Auto-installing configuration package, size %1% ", updates.updates.size());
+
+            std::vector<std::string> bundles;
+            for (const auto& update : updates.updates) {
+                if (update.is_directory)
+                    continue;
+                bundles.push_back(update.vendor);
+            }
+
+            bool ret = p->perform_updates(std::move(updates));
+            if (!ret) {
+                BOOST_LOG_TRIVIAL(warning) << format("[Orca Updater]:perform_updates failed");
+                return R_INCOMPAT_EXIT;
+            }
+
+            ret = reload_configs_update_gui();
+            if (!ret) {
+                BOOST_LOG_TRIVIAL(warning) << format("[Orca Updater]:reload_configs_update_gui failed");
+                return R_INCOMPAT_EXIT;
+            }
+
+            for (auto b : bundles) {
+                Semver cur_ver = GUI::wxGetApp().preset_bundle->get_vendor_profile_version(b);
+                GUI::wxGetApp()
+                    .plater()
+                    ->get_notification_manager()
+                    ->push_notification(GUI::NotificationType::PresetUpdateFinished,
+                                        GUI::NotificationManager::NotificationLevel::ImportantNotificationLevel,
+                                        _u8L("Configuration package: ") + b + _u8L(" updated to ") + cur_ver.to_string());
+            }
+            return R_UPDATE_INSTALLED;
         }
         else {
             BOOST_LOG_TRIVIAL(info) << format("[Orca Updater]:Configuration package available. size %1%, need to confirm...", p->waiting_updates.updates.size());
