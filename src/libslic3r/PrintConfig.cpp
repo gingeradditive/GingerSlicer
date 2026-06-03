@@ -4832,24 +4832,41 @@ void PrintConfigDef::init_fff_params()
 
     def = this->add("volume_based_cooling", coBools);
     def->label = L("Volume-based cooling (Beta)");
-    def->tooltip = L("BETA: When enabled, the minimum layer time is computed from the average bead cross-section "
+    def->tooltip = L("BETA: When enabled, the minimum layer time is computed from the layer height squared "
                      "instead of using a fixed time threshold. "
-                     "Required time = avg bead cross-section (mm²) × cooling time per cross-section (s/mm²). "
-                     "This replaces the fixed 'Layer time' slowdown setting.");
+                     "Required time = layer_height² (mm²) × cooling time per cross-section (s/mm²). "
+                     "This replaces the fixed 'Layer time' slowdown setting and scales automatically "
+                     "across different process and printer profiles.");
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBools { false });
 
     def = this->add("cooling_time_per_cross_section", coFloats);
     def->label = L("Cooling time per cross-section");
-    def->tooltip = L("Time in seconds required per mm² of average bead cross-section for the layer to become "
-                     "mechanically stable. The minimum layer time is computed as: "
-                     "avg_bead_cross_section (mm²) × this value (s/mm²). "
-                     "Larger beads need more time to cool. Material-dependent: PLA needs less, PETG/ABS need more.");
+    def->tooltip = L("Time in seconds required per mm² of layer_height² for the deposited bead to cool below "
+                     "the glass transition temperature (Tg) so the next layer can be supported safely. "
+                     "Minimum layer time is computed per-layer as: "
+                     "min_time = layer_height² (mm²) × this value (s/mm²). "
+                     "Width-independent by design: changing line_width or nozzle does not affect cooling time, "
+                     "since the dominant heat-conduction path is vertical (through layer height). "
+                     "Variable/adaptive layer heights are supported automatically: each layer is computed "
+                     "with its own height extracted from the G-code.\n\n"
+                     "Material-dependent. The coefficient k is derived from heat-conduction physics:\n"
+                     "  k = -ln((T_target - T_amb) / (T_extrusion - T_amb)) × 0.405 / α_eff\n"
+                     "where α_eff is the effective thermal diffusivity (mm²/s) and 0.405 ≈ 4/π². "
+                     "α_eff is ~3× lower than nominal α due to natural convection limits and contact "
+                     "with the hot underlying layer.\n\n"
+                     "Default values empirically calibrated (T_amb = 25 °C, no heated chamber, T_target ≈ Tg):\n"
+                     "  PLA ~27, PETG ~13, ABS ~7, ASA ~8, HIPS ~8, PP ~22 s/mm².\n"
+                     "Calibration data points: PLA h=1.5 mm reaches 50 °C in ~60 s; PETG h=1.5 mm reaches 80 °C in ~30 s.\n"
+                     "For heated chambers, recompute k with chamber temperature as T_amb (the value decreases).\n\n"
+                     "Note: a future refinement may add a width-correction factor for very wide beads "
+                     "(min_time = h² × k × max(1, w/(2h))). Currently disabled — the simple h² model is "
+                     "accurate for typical FDM/pellet geometries where width >= height.");
     def->sidetext = L("s/mm²");
     def->min = 0.01;
     def->max = 100.0;
     def->mode = comAdvanced;
-    def->set_default_value(new ConfigOptionFloats { 1.0f });
+    def->set_default_value(new ConfigOptionFloats { 26.7f });
 
     def = this->add("minimum_sparse_infill_area", coFloat);
     def->label = L("Minimum sparse infill threshold");

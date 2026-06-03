@@ -51,7 +51,7 @@
    "slow_down_layer_time": [
       "30"
    ],
-   "version": "3.0.0.2",
+   "version": "3.0.0.4",
    "compatible_printers": [
       "Ginger G1 1.0 nozzle",
       "Ginger G1 1.8 nozzle",
@@ -59,5 +59,8 @@
       "Ginger G1 5.0 nozzle",
       "Ginger G1 8.0 nozzle"
    ],
-   "instantiation": "true"
+   "instantiation": "true",
+   "cooling_time_per_cross_section": [
+      "6.8"
+   ]
 }

@@ -230,6 +230,12 @@
    "slow_down_min_speed": [
       "20"
    ],
+   "volume_based_cooling": [
+      "0"
+   ],
+   "cooling_time_per_cross_section": [
+      "26.7"
+   ],
    "support_material_interface_fan_speed": [
       "-1"
    ],
@@ -242,7 +248,7 @@
    "textured_plate_temp_initial_layer": [
       "55"
    ],
-   "version": "3.0.0.2",
+   "version": "3.0.0.4",
    "pellet_flow_coefficient": [
       "1"
    ],

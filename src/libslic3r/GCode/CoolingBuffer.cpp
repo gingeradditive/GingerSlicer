@@ -242,6 +242,10 @@ struct PerExtruderAdjustments
     float                       filament_cross_section = 0.f;
     float                       volume_extruded = 0.f;
     float                       path_length_extruded = 0.f;
+    // Max layer height observed in this layer's G-code (parsed from ;HEIGHT: tags).
+    // Used by the h^2 * k cooling formula. Max is used (not avg) because the thickest
+    // bead dominates the cooling time required for the next layer to be supported safely.
+    float                       max_layer_height = 0.f;
 
     // Parsed lines.
     std::vector<CoolingLine>    lines;
@@ -361,6 +365,7 @@ std::vector<PerExtruderAdjustments> CoolingBuffer::parse_layer_gcode(const std::
         }
         adj.volume_extruded = 0.f;
         adj.path_length_extruded = 0.f;
+        adj.max_layer_height = 0.f;
         map_extruder_to_per_extruder_adjustment[extruder_id] = i;
     }
 
@@ -386,6 +391,17 @@ std::vector<PerExtruderAdjustments> CoolingBuffer::parse_layer_gcode(const std::
         if (*line_end == '\n')
             ++ line_end;
         CoolingLine line(0, line_start - gcode.c_str(), line_end - gcode.c_str());
+        // Parse the ;HEIGHT: tag (emitted by the G-code writer for each extrusion segment).
+        // Track the max layer height for the current extruder, used by the h^2 * k cooling formula.
+        // Supports adaptive/variable layer heights since each segment carries its own height.
+        {
+            size_t height_pos = sline.find(";HEIGHT:");
+            if (height_pos != std::string::npos) {
+                float h = float(atof(sline.c_str() + height_pos + 8));
+                if (h > adjustment->max_layer_height)
+                    adjustment->max_layer_height = h;
+            }
+        }
         if (boost::starts_with(sline, "G0 "))
             line.type = CoolingLine::TYPE_G0;
         else if (boost::starts_with(sline, "G1 "))
@@ -669,10 +685,17 @@ float CoolingBuffer::calculate_layer_slowdown(std::vector<PerExtruderAdjustments
     // Collect total print time of non-adjustable extruders.
     float elapsed_time_total0 = 0.f;
     for (PerExtruderAdjustments &adj : per_extruder_adjustments) {
-        // Cross-section based cooling: t_required = avg_bead_cross_section × τ
-        if (adj.volume_based_cooling && adj.path_length_extruded > 0.f) {
-            float avg_cross_section = adj.volume_extruded / adj.path_length_extruded;
-            adj.slow_down_layer_time = avg_cross_section * adj.cooling_time_per_cross_section;
+        // Volume-based cooling: minimum layer time derived from heat-conduction physics.
+        // t_required = layer_height^2 * k_material   (s)
+        // The h^2 scaling comes from the Fourier solution for a 1D slab cooling to T_g:
+        //   k = -ln((T_g - T_amb)/(T_extr - T_amb)) * 4/pi^2 / alpha
+        // Width-independent because the dominant heat-conduction path is vertical.
+        // Uses max layer height observed in the layer (thickest bead dominates cooling time).
+        // If h is not detected (no ;HEIGHT: tags, e.g. custom G-code only), fall back to the
+        // user-defined slow_down_layer_time as a conservative floor.
+        if (adj.volume_based_cooling && adj.max_layer_height > 0.f) {
+            float h = adj.max_layer_height;
+            adj.slow_down_layer_time = h * h * adj.cooling_time_per_cross_section;
         }
         // Curren total time for this extruder.
         adj.time_total  = adj.elapsed_time_total();

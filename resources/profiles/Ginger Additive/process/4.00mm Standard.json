@@ -47,7 +47,7 @@
    "top_surface_speed": "120",
    "travel_speed": "250",
    "type": "process",
-   "version": "3.0.0.2",
+   "version": "3.0.0.4",
    "wall_generator": "arachne",
    "wall_loops": "1",
    "wipe_on_loops": "1",
