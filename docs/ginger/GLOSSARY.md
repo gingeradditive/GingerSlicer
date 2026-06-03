@@ -112,7 +112,6 @@ GingerSlicer. Each entry points to the primary source file when applicable.
   **every** versioned file under `resources/profiles/Ginger Additive/`. A
   single profile change forces a bump of **all 41 versioned files**
   (the 2 machine `_common.json` files are unversioned by design).
-  Use `scripts/bump_profile_version.ps1` and `scripts/check_profile_versions.ps1`.
 
 - **OTA bundle** — ZIP packaged by `scripts/pack_profiles.sh` and uploaded
   to the `nightly-builds` GitHub release. Consumed by `PresetUpdater` in
@@ -149,7 +148,6 @@ GingerSlicer. Each entry points to the primary source file when applicable.
 
 Aligned to OrcaSlicer PR **#11435** (Clipper2 multiline), **#11765**
 (short-connection skip) and **#10967** (density adjustment + crash fix).
-Migration log: `docs/ginger/CLIPPER2_MIGRATION.md`.
 
 - **Multiline infill** (`fill_multiline`, max `10`) — Prints each infill
   line as N parallel passes instead of one. On pellet (1.0–8.0 mm nozzles)
