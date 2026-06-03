@@ -1,8 +1,6 @@
 Build
 Build.bat
 /build*/
-/compile_commands.json
-/progress.txt
 CMakeLists.txt.user
 **/CMakeLists.txt.autosave
 deps/build*
