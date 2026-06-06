@@ -41,6 +41,12 @@
    "filament_type": [
       "PETG GF"
    ],
+   "hot_plate_temp": [
+      "80"
+   ],
+   "hot_plate_temp_initial_layer": [
+      "80"
+   ],
    "cool_plate_temp": [
       "80"
    ],
@@ -98,7 +104,7 @@
    "full_fan_speed_layer": [
       "8"
    ],
-   "version": "3.0.0.4",
+   "version": "3.0.0.5",
    "instantiation": "true",
    "extruder_rotation_volume": [
       "730"

@@ -15,7 +15,7 @@
    "multi_zone_2_temperature": "230",
    "multi_zone_3_initial_layer": "230",
    "multi_zone_3_temperature": "230",
-   "version": "3.0.0.4",
+   "version": "3.0.0.5",
    "instantiation": "true",
    "filament_vendor": [
       "Generic"
