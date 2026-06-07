@@ -1429,7 +1429,7 @@ static inline void mark_boundary_segments_overlapping_infill(
     }
 }
 
-BoundaryInfillGraph create_boundary_infill_graph(const Polylines &infill_ordered, const std::vector<const Polygon*> &boundary_src, const BoundingBox &bbox, const double spacing)
+BoundaryInfillGraph create_boundary_infill_graph(const Polylines &infill_ordered, const std::vector<const Polygon*> &boundary_src, const BoundingBox &bbox, const double spacing, const bool skip_trimming = false)
 {
     BoundaryInfillGraph out;
     out.boundary.assign(boundary_src.size(), Points());
@@ -1551,7 +1551,10 @@ BoundaryInfillGraph create_boundary_infill_graph(const Polylines &infill_ordered
 #endif
 
         // Mark the points and segments of split out.boundary as consumed if they are very close to some of the infill line.
-        {
+        // When connecting infill into a single path (Cura-style), we must NOT trim boundary segments that are close to
+        // infill lines: tracing the whole inner wall is exactly what we want, so the trimming would create gaps in the
+        // single continuous path (especially with Fill Multiline > 1, where infill lines run very close to the wall).
+        if (! skip_trimming) {
             // @supermerill used 2. * scale_(spacing)
             const double clip_distance      = 1.7 * scale_(spacing);
             // Allow a bit of overlap. This value must be slightly higher than the overlap of FillAdaptive, otherwise
@@ -1591,7 +1594,8 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
     return;
 #endif
 
-    BoundaryInfillGraph graph = create_boundary_infill_graph(infill_ordered, boundary_src, bbox, spacing);
+    // Cura-style single-path infill: skip boundary trimming so the whole inner wall can be traced.
+    BoundaryInfillGraph graph = create_boundary_infill_graph(infill_ordered, boundary_src, bbox, spacing, params.connect_polygons);
 
     std::vector<size_t> merged_with(infill_ordered.size());
     std::iota(merged_with.begin(), merged_with.end(), 0);
@@ -1711,7 +1715,9 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
             const Points             &contour        = graph.boundary[cp1->contour_idx];
 
             // Orca: If multiline infill is requested, skip connections that are too short.
-            if (params.multiline > 1 && arc.arc_length < scale_(spacing) * params.multiline) {
+            // Exception: when connecting infill into a single path (Cura-style), we want every connection
+            // along the inner wall, so do NOT skip short connections.
+            if (! params.connect_polygons && params.multiline > 1 && arc.arc_length < scale_(spacing) * params.multiline) {
                 continue;
             }
 
