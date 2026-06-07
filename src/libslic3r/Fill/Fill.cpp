@@ -237,6 +237,8 @@ struct SurfaceFillParams
     float       	density = 0.f;
     // Infill line multiplier count.
     int   multiline = 1;
+    // Connect infill lines along the inner wall into a single continuous path (Cura-style).
+    bool  connect_polygons = false;
     // Don't adjust spacing to fill the space evenly.
 //    bool        	dont_adjust = false;
     // Length of the infill anchor along the perimeter line.
@@ -286,6 +288,7 @@ struct SurfaceFillParams
 		RETURN_COMPARE_NON_EQUAL(is_using_template_angle);
 		RETURN_COMPARE_NON_EQUAL(density);
 		RETURN_COMPARE_NON_EQUAL(multiline);
+		RETURN_COMPARE_NON_EQUAL_TYPED(unsigned, connect_polygons);
 //		RETURN_COMPARE_NON_EQUAL_TYPED(unsigned, dont_adjust);
 		RETURN_COMPARE_NON_EQUAL(anchor_length);
 		RETURN_COMPARE_NON_EQUAL(anchor_length_max);
@@ -317,6 +320,7 @@ struct SurfaceFillParams
 				this->bridge_angle 		== rhs.bridge_angle		&&
 				this->density   		== rhs.density   		&&
 				this->multiline             == rhs.multiline    &&
+				this->connect_polygons      == rhs.connect_polygons &&
 //				this->dont_adjust   	== rhs.dont_adjust 		&&
 				this->anchor_length  	== rhs.anchor_length    &&
 				this->anchor_length_max == rhs.anchor_length_max &&
@@ -897,6 +901,8 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
                 }
                 // Orca: apply fill multiline only for sparse infill
                 params.multiline = params.extrusion_role == erInternalInfill ? int(region_config.fill_multiline) : 1;
+                // Connect infill lines into a single path (Cura-style), only for sparse infill.
+                params.connect_polygons = params.extrusion_role == erInternalInfill ? bool(region_config.connect_infill_polygons) : false;
 
                 if (params.extrusion_role == erInternalInfill) {
                     params.angle = calculate_infill_rotation_angle(layer.object(), layer.id(), region_config.infill_direction.value,

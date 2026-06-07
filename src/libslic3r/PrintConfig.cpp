@@ -2423,6 +2423,17 @@ void PrintConfigDef::init_fff_params()
     def->max = 10; // Maximum number of lines for infill pattern
     def->set_default_value(new ConfigOptionInt(1));
 
+    // Connect infill polygons (Cura-style single-path infill).
+    def             = this->add("connect_infill_polygons", coBool);
+    def->label      = L("Connect infill lines");
+    def->category   = L("Strength");
+    def->tooltip    = L("Connect the endpoints of the infill lines along the inner wall, forming a single continuous path "
+                        "(similar to Cura's \"Connect Infill Lines\"). Combined with Fill Multiline = 2 and 0 walls, this makes "
+                        "the infill trace the whole perimeter so the inner wall and the infill become one continuous extrusion "
+                        "without travel moves. Only supported for line-based infill patterns (Rectilinear, Grid, Triangles, etc.).");
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("sparse_infill_pattern", coEnum);
     def->label = L("Sparse infill pattern");
     def->category = L("Strength");

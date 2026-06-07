@@ -1021,6 +1021,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     // Orca:
     ((ConfigOptionFloatOrPercent,                infill_combination_max_layer_height))
     ((ConfigOptionInt,                  fill_multiline))
+    ((ConfigOptionBool,                 connect_infill_polygons))
     // Ironing options
     ((ConfigOptionEnum<IroningType>, ironing_type))
     ((ConfigOptionEnum<InfillPattern>, ironing_pattern))
