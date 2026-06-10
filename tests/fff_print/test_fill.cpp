@@ -243,6 +243,22 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
         REQUIRE(paths.size() == 1); // single continuous path, no travels
     }
 
+    SECTION("Square 200x200, grid trapezoidal (multiline 2)") {
+        std::unique_ptr<Slic3r::Fill> filler(Slic3r::Fill::new_from_type("grid"));
+        filler->angle    = 0.f;
+        filler->spacing  = 5.0;
+        filler->layer_id = 0;
+        filler->z        = 0.9;
+        FillParams grid_params = fill_params; // multiline = 2 -> fill_surface_trapezoidal
+        Slic3r::Points square { Point::new_scale(0,0), Point::new_scale(200,0), Point::new_scale(200,200), Point::new_scale(0,200) };
+        Slic3r::ExPolygon expolygon(square);
+        filler->bounding_box = get_extents(expolygon.contour);
+        Slic3r::Surface surface(stInternal, expolygon);
+        Slic3r::Polylines paths = filler->fill_surface(&surface, grid_params);
+        CAPTURE(paths.size());
+        REQUIRE(paths.size() == 1); // single continuous path, no travels
+    }
+
     SECTION("L-shape, multiline 2") {
         Slic3r::Points lshape { Point::new_scale(0,0), Point::new_scale(200,0), Point::new_scale(200,100),
                                 Point::new_scale(100,100), Point::new_scale(100,200), Point::new_scale(0,200) };

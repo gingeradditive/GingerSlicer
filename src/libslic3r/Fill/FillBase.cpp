@@ -1611,6 +1611,39 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
     return;
 #endif
 
+    // Cura-style single-path infill: multiline_fill() produces closed rings whose seam vertex can fall
+    // inside the fill surface. intersection_pl() then splits such a ring into two open fragments that meet
+    // at the seam — an interior point which can never be projected onto the boundary graph below, leaving
+    // the fragments unconnectable. Stitch fragments sharing an exact endpoint back together first; this is
+    // always valid (no travel, no extra extrusion) wherever the shared point lies.
+    if (params.connect_polygons && infill_ordered.size() > 1) {
+        for (bool stitched = true; stitched; ) {
+            stitched = false;
+            for (size_t i = 0; i < infill_ordered.size() && ! stitched; ++ i) {
+                Polyline &a = infill_ordered[i];
+                if (a.empty() || a.points.front() == a.points.back())
+                    continue;
+                for (size_t j = i + 1; j < infill_ordered.size(); ++ j) {
+                    Polyline &b = infill_ordered[j];
+                    if (b.empty() || b.points.front() == b.points.back())
+                        continue;
+                    if      (a.points.back()  == b.points.front()) {}
+                    else if (a.points.back()  == b.points.back())  b.reverse();
+                    else if (a.points.front() == b.points.front()) a.reverse();
+                    else if (a.points.front() == b.points.back())  { a.reverse(); b.reverse(); }
+                    else continue;
+                    a.points.insert(a.points.end(), b.points.begin() + 1, b.points.end());
+                    b.points.clear();
+                    stitched = true;
+                    break;
+                }
+            }
+        }
+        infill_ordered.erase(std::remove_if(infill_ordered.begin(), infill_ordered.end(), [](const Polyline &pl) { return pl.empty(); }), infill_ordered.end());
+        if (infill_ordered.empty())
+            return;
+    }
+
     // Cura-style single-path infill: skip boundary trimming so the whole inner wall can be traced.
     BoundaryInfillGraph graph = create_boundary_infill_graph(infill_ordered, boundary_src, bbox, spacing, params.connect_polygons);
 
