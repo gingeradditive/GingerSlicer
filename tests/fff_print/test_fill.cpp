@@ -278,13 +278,7 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
         Slic3r::Surface surface(stInternal, expolygon);
         Slic3r::Polylines paths = filler->fill_surface(&surface, grid_params);
         CAPTURE(paths.size());
-        // KNOWN LIMITATION (do not fail the suite): when the region is much narrower than the trapezoid
-        // wave, each row is chopped into many fragments and the boundary-only matching strands a few
-        // groups (3 paths here). The planned fix is Eulerian-path routing over the endpoint/arc graph.
-        // Flip to REQUIRE once implemented.
-        if (paths.size() != 1)
-            WARN("grid trapezoidal on narrow slanted strip: " << paths.size() << " paths (expected 1, known limitation)");
-        REQUIRE(paths.size() <= 4); // must not regress beyond current state
+        REQUIRE(paths.size() == 1); // single continuous path, no travels
     }
 
     SECTION("L-shape, multiline 2") {

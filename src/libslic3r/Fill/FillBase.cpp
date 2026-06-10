@@ -1590,6 +1590,296 @@ BoundingBox Fill::extended_object_bounding_box() const
     return out.scaled(sqrt(2.));
 }
 
+// Append the boundary points from the vertex at idx_from to the vertex at idx_to (excluding the start
+// point, including the end point), walking the contour forward (increasing indices) or backward.
+static inline void single_path_append_arc(Points &dst, const Points &contour, size_t idx_from, size_t idx_to, bool forward)
+{
+    if (idx_from == idx_to)
+        return;
+    size_t i = idx_from;
+    do {
+        if (forward) {
+            if (++ i == contour.size())
+                i = 0;
+        } else {
+            if (i == 0)
+                i = contour.size();
+            -- i;
+        }
+        dst.emplace_back(contour[i]);
+    } while (i != idx_to);
+}
+
+// Cura-style single-path infill: Eulerian-trail connector.
+// Builds a small multigraph and extracts as few extrusion trails as possible:
+//   - vertices:        infill fragment end points projected onto the boundary contours,
+//   - mandatory edges: the infill fragments themselves (each extruded exactly once),
+//   - optional edges:  boundary "gaps" between consecutive vertices along a contour, each usable at
+//                      most once (a gap is extruded along the inner wall, never twice).
+// Gap selection: (1) greedy in-order matching along each contour (the natural serpentine, CuraEngine's
+// connectLines rule of never joining two ends of the same chain), then (2) a repair pass merging the
+// remaining components with unused gaps - an extrusion along the inner wall, never a travel move.
+// A single gap between two components always exists when they share a contour (the component id has to
+// change somewhere along the contour, and that boundary gap cannot have been selected), so all
+// components sharing a boundary always merge; the repair simply prefers merges that do not increase the
+// number of odd-degree vertices. (3) If a single component remains with exactly two loose ends across
+// one unused gap, the path is closed into a loop: a closed trail is emitted as an ExtrusionLoop
+// downstream, so the G-code generator starts it wherever the previous wall ended -> no wall->infill
+// travel. Finally Hierholzer's algorithm extracts maximal trails; every trail is one travel-free path
+// (components with more than two odd-degree vertices decompose into several trails gracefully).
+static void connect_infill_single_path(Polylines &&infill_ordered, const BoundaryInfillGraph &graph, Polylines &polylines_out)
+{
+    const std::vector<ContourIntersectionPoint> &cps = graph.map_infill_end_point_to_boundary;
+    const size_t n_fragments = infill_ordered.size();
+    const size_t n_vertices  = 2 * n_fragments;
+    assert(cps.size() == n_vertices);
+
+    // Fragments that cannot take part in the graph: degenerate, closed (e.g. a ring lying fully inside
+    // the surface) or with an end point that could not be projected onto the boundary.
+    std::vector<bool> standalone(n_fragments, false);
+    for (size_t i = 0; i < n_fragments; ++ i) {
+        const Polyline &pl = infill_ordered[i];
+        standalone[i] = pl.size() < 2 || pl.points.front() == pl.points.back() ||
+                        cps[2 * i].contour_idx == boundary_idx_unconnected ||
+                        cps[2 * i + 1].contour_idx == boundary_idx_unconnected;
+    }
+
+    struct SinglePathEdge {
+        size_t v1, v2;      // vertex = index into cps; for fragment edges v1 = 2i (front), v2 = 2i + 1 (back)
+        bool   is_gap;
+        size_t contour_idx; // gaps only
+        bool   used;
+    };
+    std::vector<SinglePathEdge>      edges;
+    std::vector<std::vector<size_t>> adjacency(n_vertices);
+    // Union-find over vertices, tracking connected components (gaps are only ever added, never removed).
+    std::vector<size_t> uf_parent(n_vertices);
+    std::iota(uf_parent.begin(), uf_parent.end(), 0);
+    auto uf_find = [&uf_parent](size_t x) -> size_t {
+        while (uf_parent[x] != x) {
+            uf_parent[x] = uf_parent[uf_parent[x]];
+            x = uf_parent[x];
+        }
+        return x;
+    };
+    auto add_edge = [&edges, &adjacency, &uf_parent, &uf_find](size_t v1, size_t v2, bool is_gap, size_t contour_idx) {
+        adjacency[v1].emplace_back(edges.size());
+        adjacency[v2].emplace_back(edges.size());
+        edges.push_back({ v1, v2, is_gap, contour_idx, false });
+        uf_parent[uf_find(v1)] = uf_find(v2);
+    };
+
+    bool has_fragments = false;
+    for (size_t i = 0; i < n_fragments; ++ i)
+        if (! standalone[i]) {
+            add_edge(2 * i, 2 * i + 1, false, 0);
+            has_fragments = true;
+        }
+
+    if (has_fragments) {
+        // Vertices of each contour, sorted along the contour.
+        std::vector<std::vector<size_t>> contour_vertices(graph.boundary.size());
+        for (size_t v = 0; v < n_vertices; ++ v)
+            if (! standalone[v / 2] && cps[v].contour_idx != boundary_idx_unconnected)
+                contour_vertices[cps[v].contour_idx].emplace_back(v);
+        for (std::vector<size_t> &cv : contour_vertices)
+            std::sort(cv.begin(), cv.end(), [&cps](size_t l, size_t r) { return cps[l].param < cps[r].param; });
+
+        // Gap k of a contour joins its k-th and (k+1 modulo m)-th vertex along the contour.
+        std::vector<std::vector<char>> gap_taken(graph.boundary.size());
+        std::vector<unsigned>          gap_degree(n_vertices, 0);
+        for (size_t c = 0; c < contour_vertices.size(); ++ c)
+            gap_taken[c].assign(contour_vertices[c].size(), 0);
+        auto take_gap = [&contour_vertices, &gap_taken, &gap_degree, &add_edge](size_t c, size_t k) {
+            const std::vector<size_t> &cv = contour_vertices[c];
+            size_t v1 = cv[k];
+            size_t v2 = cv[(k + 1) % cv.size()];
+            add_edge(v1, v2, true, c);
+            gap_taken[c][k] = 1;
+            ++ gap_degree[v1];
+            ++ gap_degree[v2];
+        };
+        auto gap_length = [&graph, &cps](size_t c, size_t v_from, size_t v_to) -> double {
+            double d = cps[v_to].param - cps[v_from].param;
+            if (d < 0.)
+                d += graph.boundary_params[c].back();
+            return d;
+        };
+
+        // Pass 1: greedy in-order matching along each contour.
+        for (size_t c = 0; c < contour_vertices.size(); ++ c) {
+            const std::vector<size_t> &cv = contour_vertices[c];
+            if (cv.size() < 2)
+                continue;
+            int prev = -1;
+            // One extra iteration to consider the wrap-around gap (last, first).
+            for (size_t i = 0; i <= cv.size(); ++ i) {
+                size_t pos = i % cv.size();
+                if (gap_degree[cv[pos]] > 0) { // only possible for cv[0] at the wrap-around
+                    prev = -1;
+                    continue;
+                }
+                if (prev >= 0 && size_t(prev) == (pos + cv.size() - 1) % cv.size() && uf_find(cv[prev]) != uf_find(cv[pos])) {
+                    take_gap(c, size_t(prev));
+                    prev = -1;
+                } else
+                    prev = int(pos);
+            }
+        }
+
+        // Pass 2 (repair): merge the remaining components with unused boundary gaps, preferring merges
+        // that do not increase the number of odd-degree vertices (odd vertices split the final Eulerian
+        // traversal into multiple trails):
+        //   priority 0: single free gap between two loose ends                       (2 odd vertices less)
+        //   priority 1: free gap run whose interior vertices are all loose ends      (2 odd vertices less)
+        //   priority 2: single free gap, loose end to matched vertex                 (unchanged)
+        //   priority 3: single free gap between two matched vertices                 (2 odd vertices more)
+        // Within a priority the shortest extrusion detour wins.
+        for (bool progress = true; progress; ) {
+            progress = false;
+            size_t best_c = 0, best_start = 0, best_len = 0;
+            int    best_priority = std::numeric_limits<int>::max();
+            double best_length   = std::numeric_limits<double>::max();
+            for (size_t c = 0; c < contour_vertices.size(); ++ c) {
+                const std::vector<size_t> &cv = contour_vertices[c];
+                if (cv.size() < 2)
+                    continue;
+                for (size_t start = 0; start < cv.size(); ++ start) {
+                    double length = 0.;
+                    for (size_t len = 1; len < cv.size(); ++ len) {
+                        size_t k     = (start + len - 1) % cv.size();
+                        size_t v_to  = cv[(start + len) % cv.size()];
+                        if (gap_taken[c][k])
+                            break;
+                        if (len > 1 && gap_degree[cv[k]] != 0)
+                            // Runs may only pass over loose ends (a matched interior vertex would need
+                            // one of its gaps twice).
+                            break;
+                        length += gap_length(c, cv[k], v_to);
+                        if (uf_find(cv[start]) != uf_find(v_to)) {
+                            int priority;
+                            if (len == 1)
+                                priority = (gap_degree[cv[start]] == 0 && gap_degree[v_to] == 0) ? 0 :
+                                           (gap_degree[cv[start]] == 0 || gap_degree[v_to] == 0) ? 2 : 3;
+                            else
+                                priority = (gap_degree[cv[start]] == 0 && gap_degree[v_to] == 0) ? 1 : 4;
+                            if (priority < 4 &&
+                                (priority < best_priority || (priority == best_priority && length < best_length))) {
+                                best_c        = c;
+                                best_start    = start;
+                                best_len      = len;
+                                best_priority = priority;
+                                best_length   = length;
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+            if (best_priority < std::numeric_limits<int>::max()) {
+                for (size_t l = 0; l < best_len; ++ l)
+                    take_gap(best_c, (best_start + l) % contour_vertices[best_c].size());
+                progress = true;
+            }
+        }
+
+        // Pass 3: close the path into a loop if everything was merged into a single component with
+        // exactly two loose ends sitting across one unused gap.
+        {
+            std::vector<std::pair<size_t, size_t>> loose; // (contour, position)
+            for (size_t c = 0; c < contour_vertices.size(); ++ c)
+                for (size_t pos = 0; pos < contour_vertices[c].size(); ++ pos)
+                    if (gap_degree[contour_vertices[c][pos]] == 0)
+                        loose.emplace_back(c, pos);
+            if (loose.size() == 2 && loose[0].first == loose[1].first) {
+                bool   single_component = true;
+                size_t root             = std::numeric_limits<size_t>::max();
+                for (size_t v = 0; v < n_vertices; ++ v)
+                    if (! standalone[v / 2]) {
+                        if (root == std::numeric_limits<size_t>::max())
+                            root = uf_find(v);
+                        else if (uf_find(v) != root) {
+                            single_component = false;
+                            break;
+                        }
+                    }
+                if (single_component) {
+                    size_t c = loose[0].first;
+                    size_t m = contour_vertices[c].size();
+                    size_t p1 = loose[0].second, p2 = loose[1].second;
+                    if ((p1 + 1) % m == p2 && ! gap_taken[c][p1])
+                        take_gap(c, p1);
+                    else if ((p2 + 1) % m == p1 && ! gap_taken[c][p2])
+                        take_gap(c, p2);
+                }
+            }
+        }
+
+        // Pass 4: extract Eulerian trails (Hierholzer) and materialize them into polylines.
+        std::vector<size_t> cursor(n_vertices, 0);
+        auto next_unused = [&adjacency, &edges, &cursor](size_t v) -> int {
+            const std::vector<size_t> &lst = adjacency[v];
+            size_t                    &cur = cursor[v];
+            while (cur < lst.size() && edges[lst[cur]].used)
+                ++ cur;
+            return cur < lst.size() ? int(lst[cur]) : -1;
+        };
+        auto vertex_point = [&graph, &cps](size_t v) -> const Point& {
+            return graph.boundary[cps[v].contour_idx][cps[v].point_idx];
+        };
+        auto run_trail = [&adjacency, &edges, &cps, &graph, &infill_ordered, &polylines_out, &next_unused, &vertex_point](size_t start) {
+            std::vector<std::pair<size_t, int>> stack, trail; // (vertex, edge used to arrive)
+            stack.emplace_back(start, -1);
+            while (! stack.empty()) {
+                std::pair<size_t, int> top = stack.back();
+                int e = next_unused(top.first);
+                if (e < 0) {
+                    trail.emplace_back(top);
+                    stack.pop_back();
+                } else {
+                    edges[size_t(e)].used = true;
+                    stack.emplace_back(edges[size_t(e)].v1 == top.first ? edges[size_t(e)].v2 : edges[size_t(e)].v1, e);
+                }
+            }
+            if (trail.size() < 2)
+                return;
+            std::reverse(trail.begin(), trail.end());
+            Polyline pl;
+            pl.points.emplace_back(vertex_point(trail.front().first));
+            for (size_t i = 1; i < trail.size(); ++ i) {
+                size_t                v_from = trail[i - 1].first;
+                size_t                v_to   = trail[i].first;
+                const SinglePathEdge &e      = edges[size_t(trail[i].second)];
+                if (e.is_gap)
+                    single_path_append_arc(pl.points, graph.boundary[e.contour_idx],
+                                           cps[v_from].point_idx, cps[v_to].point_idx, /* forward */ v_from == e.v1);
+                else {
+                    const Polyline &frag = infill_ordered[v_from / 2];
+                    if ((v_from & 1) == 0)
+                        pl.points.insert(pl.points.end(), frag.points.begin() + 1, frag.points.end());
+                    else
+                        pl.points.insert(pl.points.end(), frag.points.rbegin() + 1, frag.points.rend());
+                }
+            }
+            if (pl.size() > 1)
+                polylines_out.emplace_back(std::move(pl));
+        };
+        // Open trails must start at an odd-degree vertex (degree = 1 fragment + gap_degree, odd when
+        // gap_degree is even); circuits and leftovers may start anywhere.
+        for (size_t v = 0; v < n_vertices; ++ v)
+            if (! standalone[v / 2] && (gap_degree[v] % 2) == 0 && next_unused(v) >= 0)
+                run_trail(v);
+        for (size_t v = 0; v < n_vertices; ++ v)
+            if (! standalone[v / 2] && next_unused(v) >= 0)
+                run_trail(v);
+    }
+
+    // Emit the fragments that could not take part in the graph.
+    for (size_t i = 0; i < n_fragments; ++ i)
+        if (standalone[i] && infill_ordered[i].size() > 1)
+            polylines_out.emplace_back(std::move(infill_ordered[i]));
+}
+
 void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Polygon*> &boundary_src, const BoundingBox &bbox, Polylines &polylines_out, const double spacing, const FillParams &params)
 {
 	assert(! infill_ordered.empty());
@@ -1598,13 +1888,6 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
     assert(params.anchor_length_max >= params.anchor_length);
     double anchor_length     = scale_(params.anchor_length);
     double anchor_length_max = scale_(params.anchor_length_max);
-    // Cura-style single-path infill: force unlimited anchors so every connection traces the full boundary arc
-    // via take() (instead of short take_limited() stubs), merging the infill lines into one continuous path
-    // that hugs the inner wall. Independent of the user's infill_anchor_max setting.
-    if (params.connect_polygons) {
-        anchor_length     = std::numeric_limits<double>::max();
-        anchor_length_max = std::numeric_limits<double>::max();
-    }
 
 #if 0
     append(polylines_out, infill_ordered);
@@ -1613,7 +1896,7 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
 
     // Cura-style single-path infill: multiline_fill() produces closed rings whose seam vertex can fall
     // inside the fill surface. intersection_pl() then splits such a ring into two open fragments that meet
-    // at the seam — an interior point which can never be projected onto the boundary graph below, leaving
+    // at the seam - an interior point which can never be projected onto the boundary graph below, leaving
     // the fragments unconnectable. Stitch fragments sharing an exact endpoint back together first; this is
     // always valid (no travel, no extra extrusion) wherever the shared point lies.
     if (params.connect_polygons && infill_ordered.size() > 1) {
@@ -1647,6 +1930,13 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
     // Cura-style single-path infill: skip boundary trimming so the whole inner wall can be traced.
     BoundaryInfillGraph graph = create_boundary_infill_graph(infill_ordered, boundary_src, bbox, spacing, params.connect_polygons);
 
+    if (params.connect_polygons) {
+        // Cura-style single-path infill: dedicated Eulerian-trail connector, replaces the greedy
+        // anchor-based machinery below entirely.
+        connect_infill_single_path(std::move(infill_ordered), graph, polylines_out);
+        return;
+    }
+
     std::vector<size_t> merged_with(infill_ordered.size());
     std::iota(merged_with.begin(), merged_with.end(), 0);
 
@@ -1665,68 +1955,6 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
     };
 
     const double line_half_width = 0.5 * scale_(spacing);
-
-    // Number of infill polylines not yet merged into another one. Used to detect when everything
-    // was merged into a single continuous path, so the path may be safely closed into a loop.
-    size_t n_remaining = infill_ordered.size();
-
-    // Cura-style single-path infill: deterministic boundary walk (CuraEngine connectLines()).
-    // Walk every boundary contour in CCW order and greedily connect consecutive pairs of infill end points
-    // that belong to two different (merged) polylines. Connecting only different chains is what prevents
-    // premature loop closure; walking the boundary in order is what guarantees that adjacent lines join
-    // along alternating sides into one serpentine. The generic greedy loop below (sorted by arc length)
-    // cannot guarantee that: with multiline > 1 the short intra-ring arcs all sort first and whether two
-    // neighboring rings can still be joined afterwards depends on the tie-break order, frequently leaving
-    // disconnected groups and therefore travel moves.
-    if (params.connect_polygons) {
-        std::vector<std::vector<ContourIntersectionPoint*>> contour_cps(graph.boundary.size());
-        for (ContourIntersectionPoint &cp : graph.map_infill_end_point_to_boundary)
-            if (cp.contour_idx != boundary_idx_unconnected)
-                contour_cps[cp.contour_idx].emplace_back(&cp);
-        for (size_t contour_idx = 0; contour_idx < contour_cps.size(); ++ contour_idx) {
-            std::vector<ContourIntersectionPoint*> &cps = contour_cps[contour_idx];
-            if (cps.size() < 2)
-                continue;
-            // Sort the intersection points along the contour. Consecutive points in this order are
-            // neighbors on the contour (next_on_contour).
-            std::sort(cps.begin(), cps.end(), [](const auto *l, const auto *r) { return l->param < r->param; });
-            const Points &contour = graph.boundary[contour_idx];
-            ContourIntersectionPoint *prev = nullptr;
-            // One extra iteration to consider the wrap-around pair (last, first).
-            for (size_t i = 0; i <= cps.size(); ++ i) {
-                ContourIntersectionPoint *cp = cps[i % cps.size()];
-                // prev->point_idx != cp->point_idx: two coincident end points share the same boundary vertex;
-                // take() with idx_start == idx_end would walk the whole contour.
-                if (prev != nullptr && prev->next_on_contour == cp && prev->point_idx != cp->point_idx && prev->could_connect_next()) {
-                    size_t idx1 = get_and_update_merged_with(size_t(prev - graph.map_infill_end_point_to_boundary.data()) / 2);
-                    size_t idx2 = get_and_update_merged_with(size_t(cp   - graph.map_infill_end_point_to_boundary.data()) / 2);
-                    if (idx1 != idx2) {
-                        Polyline &polyline1 = infill_ordered[idx1];
-                        Polyline &polyline2 = infill_ordered[idx2];
-                        assert(contour[prev->point_idx] == polyline1.points.front() || contour[prev->point_idx] == polyline1.points.back());
-                        if (contour[prev->point_idx] == polyline1.points.front())
-                            polyline1.reverse();
-                        assert(contour[cp->point_idx] == polyline2.points.front() || contour[cp->point_idx] == polyline2.points.back());
-                        if (contour[cp->point_idx] == polyline2.points.back())
-                            polyline2.reverse();
-                        take(polyline1, polyline2, contour, prev, cp, false);
-                        if (idx2 < idx1) {
-                            polyline2 = std::move(polyline1);
-                            polyline1.points.clear();
-                            merged_with[idx1] = merged_with[idx2];
-                        } else {
-                            polyline2.points.clear();
-                            merged_with[idx2] = merged_with[idx1];
-                        }
-                        -- n_remaining;
-                        prev = nullptr;
-                        continue;
-                    }
-                }
-                prev = cp;
-            }
-        }
-    }
 
 #if 0
     // Connection from end of one infill line to the start of another infill line.
@@ -1827,9 +2055,7 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
             const Points             &contour        = graph.boundary[cp1->contour_idx];
 
             // Orca: If multiline infill is requested, skip connections that are too short.
-            // Exception: when connecting infill into a single path (Cura-style), we want every connection
-            // along the inner wall, so do NOT skip short connections.
-            if (! params.connect_polygons && params.multiline > 1 && arc.arc_length < scale_(spacing) * params.multiline) {
+            if (params.multiline > 1 && arc.arc_length < scale_(spacing) * params.multiline) {
                 continue;
             }
 
@@ -1855,17 +2081,12 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
                         polyline2.points.clear();
                         merged_with[polyline_idx2] = merged_with[polyline_idx1];
                     }
-                    -- n_remaining;
                 } else if (anchor_length > SCALED_EPSILON) {
                     // Move along the perimeter, but don't take the whole arc.
                     take_limited(polyline1, contour, contour_params, cp1, cp2, false, anchor_length, line_half_width);
                     take_limited(polyline2, contour, contour_params, cp2, cp1, true,  anchor_length, line_half_width);
                 }
             }
-            // NOTE: cp1 and cp2 belonging to the same merged polyline must NOT be connected here.
-            // Closing the loop during this greedy pass (premature loop closure) consumes the free ends of a
-            // partial path before all infill lines were merged, isolating it from the rest and re-introducing
-            // travel moves. The loop is only closed as a final post-pass below, once a single path remains.
         }
 
     // Connect the remaining open infill lines to the perimeter lines if possible.
@@ -1915,14 +2136,10 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
                     polyline2 = std::move(polyline);
                     polyline.points.clear();
                 }
-                -- n_remaining;
                 connected = true;
                 break;
             }
-            // Cura-style single-path infill: do not extrude dead-end anchor stubs along the boundary.
-            // With the unlimited anchors used by connect_polygons they could crawl along a large part of the
-            // perimeter, and a dead end only makes the eventual travel move longer.
-            if (! connected && ! params.connect_polygons && anchor_length > SCALED_EPSILON) {
+            if (! connected && anchor_length > SCALED_EPSILON) {
                 // Which to take? One could optimize for:
                 // 1) Shortest path
                 // 2) Hook length
@@ -1937,133 +2154,6 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
                 }
             }
         }
-
-    // Cura-style single-path infill: second-order mop-up for stranded groups. The boundary walk and the
-    // greedy pass only join end points that are direct neighbors on the contour; with crossing patterns
-    // (Grid/Triangles: two or three sweeps in the same call) a few merged groups can remain whose facing
-    // end points were consumed by earlier connections. Here the remaining free end points are paired in
-    // contour order SKIPPING the consumed ones in between, and joined whenever the whole boundary arc
-    // between them is still untaken (take() may pass over consumed T-joints, it only must not extrude any
-    // segment twice). Iterate until a fixpoint is reached.
-    if (params.connect_polygons && n_remaining > 1) {
-        auto arc_free_ccw = [](const ContourIntersectionPoint *from, const ContourIntersectionPoint *to) -> bool {
-            size_t guard = 0;
-            for (const ContourIntersectionPoint *cp = from; cp != to; cp = cp->next_on_contour) {
-                const ContourIntersectionPoint *next = cp->next_on_contour;
-                if (next == nullptr || next == cp || ++ guard > 1000000)
-                    return false;
-                if (cp->next_trimmed || next->prev_trimmed)
-                    return false;
-            }
-            return true;
-        };
-        for (bool merged_any = true; merged_any && n_remaining > 1; ) {
-            merged_any = false;
-            std::vector<std::vector<ContourIntersectionPoint*>> contour_cps(graph.boundary.size());
-            for (ContourIntersectionPoint &cp : graph.map_infill_end_point_to_boundary)
-                if (cp.contour_idx != boundary_idx_unconnected && ! cp.consumed)
-                    contour_cps[cp.contour_idx].emplace_back(&cp);
-            for (size_t contour_idx = 0; contour_idx < contour_cps.size(); ++ contour_idx) {
-                std::vector<ContourIntersectionPoint*> &cps = contour_cps[contour_idx];
-                if (cps.size() < 2)
-                    continue;
-                std::sort(cps.begin(), cps.end(), [](const auto *l, const auto *r) { return l->param < r->param; });
-                const Points &contour = graph.boundary[contour_idx];
-                for (size_t i = 0; i < cps.size(); ++ i) {
-                    ContourIntersectionPoint *cp1 = cps[i];
-                    ContourIntersectionPoint *cp2 = cps[(i + 1) % cps.size()];
-                    if (cp1 == cp2 || cp1->consumed || cp2->consumed || cp1->point_idx == cp2->point_idx)
-                        continue;
-                    size_t idx1 = get_and_update_merged_with(size_t(cp1 - graph.map_infill_end_point_to_boundary.data()) / 2);
-                    size_t idx2 = get_and_update_merged_with(size_t(cp2 - graph.map_infill_end_point_to_boundary.data()) / 2);
-                    if (idx1 == idx2 || ! arc_free_ccw(cp1, cp2))
-                        continue;
-                    Polyline &polyline1 = infill_ordered[idx1];
-                    Polyline &polyline2 = infill_ordered[idx2];
-                    assert(contour[cp1->point_idx] == polyline1.points.front() || contour[cp1->point_idx] == polyline1.points.back());
-                    if (contour[cp1->point_idx] == polyline1.points.front())
-                        polyline1.reverse();
-                    assert(contour[cp2->point_idx] == polyline2.points.front() || contour[cp2->point_idx] == polyline2.points.back());
-                    if (contour[cp2->point_idx] == polyline2.points.back())
-                        polyline2.reverse();
-                    take(polyline1, polyline2, contour, cp1, cp2, false);
-                    if (idx2 < idx1) {
-                        polyline2 = std::move(polyline1);
-                        polyline1.points.clear();
-                        merged_with[idx1] = merged_with[idx2];
-                    } else {
-                        polyline2.points.clear();
-                        merged_with[idx2] = merged_with[idx1];
-                    }
-                    -- n_remaining;
-                    merged_any = true;
-                    if (n_remaining == 1)
-                        break;
-                }
-                if (n_remaining == 1)
-                    break;
-            }
-        }
-    }
-
-    // Cura-style single-path infill: closing the serpentine into a loop is only allowed as the very last
-    // step, when everything was merged into a single path (n_remaining == 1). The closing boundary arc is
-    // taken only if none of its segments were extruded yet (no double extrusion along the inner wall).
-    // A closed path is later emitted as an ExtrusionLoop, so the G-code generator may start it at the point
-    // nearest to the previous position (e.g. the end of the last perimeter), avoiding the wall->infill travel.
-    if (params.connect_polygons && n_remaining == 1) {
-        size_t idx_remaining = size_t(-1);
-        for (size_t i = 0; i < infill_ordered.size(); ++ i)
-            if (! infill_ordered[i].empty()) {
-                idx_remaining = i;
-                break;
-            }
-        if (idx_remaining != size_t(-1)) {
-            Polyline &polyline = infill_ordered[idx_remaining];
-            if (polyline.size() > 2 && polyline.points.front() != polyline.points.back()) {
-                // Find the contour points matching the two free ends of the single remaining path.
-                ContourIntersectionPoint *cp_front = nullptr;
-                ContourIntersectionPoint *cp_back  = nullptr;
-                for (ContourIntersectionPoint &cp : graph.map_infill_end_point_to_boundary)
-                    if (cp.contour_idx != boundary_idx_unconnected && ! cp.consumed) {
-                        const Point &pt = graph.boundary[cp.contour_idx][cp.point_idx];
-                        if (cp_front == nullptr && pt == polyline.points.front())
-                            cp_front = &cp;
-                        else if (cp_back == nullptr && pt == polyline.points.back())
-                            cp_back = &cp;
-                    }
-                if (cp_front != nullptr && cp_back != nullptr && cp_front->contour_idx == cp_back->contour_idx && cp_front != cp_back) {
-                    const Points &contour = graph.boundary[cp_back->contour_idx];
-                    // Check that the boundary arc from one free end to the other does not cross any segment
-                    // that was already taken by some connection (it would be extruded twice).
-                    auto arc_free = [](const ContourIntersectionPoint *from, const ContourIntersectionPoint *to, bool forward) -> bool {
-                        size_t guard = 0;
-                        for (const ContourIntersectionPoint *cp = from; cp != to; cp = forward ? cp->next_on_contour : cp->prev_on_contour) {
-                            const ContourIntersectionPoint *next = forward ? cp->next_on_contour : cp->prev_on_contour;
-                            if (next == nullptr || next == cp || ++ guard > 1000000)
-                                return false;
-                            if (forward ? (cp->next_trimmed || next->prev_trimmed) : (cp->prev_trimmed || next->next_trimmed))
-                                return false;
-                        }
-                        return true;
-                    };
-                    if (arc_free(cp_back, cp_front, true)) {
-                        take_ccw_full(polyline, contour, cp_back->point_idx, cp_front->point_idx);
-                        for (ContourIntersectionPoint *cp = cp_back; cp != cp_front; cp = cp->next_on_contour) {
-                            cp->consume_next();
-                            cp->next_on_contour->consume_prev();
-                        }
-                    } else if (arc_free(cp_back, cp_front, false)) {
-                        take_cw_full(polyline, contour, cp_back->point_idx, cp_front->point_idx);
-                        for (ContourIntersectionPoint *cp = cp_back; cp != cp_front; cp = cp->prev_on_contour) {
-                            cp->consume_prev();
-                            cp->prev_on_contour->consume_next();
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     polylines_out.reserve(polylines_out.size() + std::count_if(infill_ordered.begin(), infill_ordered.end(), [](const Polyline &pl) { return ! pl.empty(); }));
 	for (Polyline &pl : infill_ordered)
