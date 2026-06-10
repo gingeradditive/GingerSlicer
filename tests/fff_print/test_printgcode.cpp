@@ -6,6 +6,11 @@
 #include "test_data.hpp"
 
 #include <algorithm>
+#ifdef _WIN32
+// catch.hpp pulls in <windows.h> with WIN32_LEAN_AND_MEAN, leaving the NLS API (LCTYPE,
+// LCMapStringW, ...) undeclared for boost::regex v5 w32 traits. Use the portable traits instead.
+#define BOOST_REGEX_NO_W32
+#endif
 #include <boost/regex.hpp>
 
 using namespace Slic3r;
