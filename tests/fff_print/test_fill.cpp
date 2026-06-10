@@ -185,8 +185,56 @@ TEST_CASE("Fill: Pattern Path Length", "[Fill]") {
             Point::new_scale(0,0),Point::new_scale(98,0),Point::new_scale(98,10), Point::new_scale(0,10)
         };
         Slic3r::ExPolygon expolygon(points);
-         
+
         REQUIRE(test_if_solid_surface_filled(expolygon, 0.5, 45.0, 0.99) == true);
+    }
+}
+
+// Ginger: Cura-style single-path infill (connect_infill_polygons).
+// A continuous (simply connected) sparse infill region must come out as ONE polyline:
+// zero travel moves inside the region.
+TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
+    auto make_filler = [](size_t layer_id) {
+        std::unique_ptr<Slic3r::Fill> filler(Slic3r::Fill::new_from_type("rectilinear"));
+        filler->angle    = 0.f;
+        filler->spacing  = 5.0; // large pellet-style bead
+        filler->layer_id = layer_id;
+        filler->z        = 0.9 * (layer_id + 1);
+        return filler;
+    };
+
+    FillParams fill_params;
+    fill_params.density          = 0.2f;
+    fill_params.multiline        = 2;
+    fill_params.connect_polygons = true;
+    fill_params.dont_adjust      = true;
+
+    SECTION("Square 200x200, multiline 2") {
+        Slic3r::Points square { Point::new_scale(0,0), Point::new_scale(200,0), Point::new_scale(200,200), Point::new_scale(0,200) };
+        Slic3r::ExPolygon expolygon(square);
+        for (size_t layer_id : { 0, 1, 2, 3 }) {
+            DYNAMIC_SECTION("layer " << layer_id) {
+                auto filler = make_filler(layer_id);
+                filler->bounding_box = get_extents(expolygon.contour);
+                Slic3r::Surface surface(stInternal, expolygon);
+                Slic3r::Polylines paths = filler->fill_surface(&surface, fill_params);
+                CAPTURE(paths.size());
+                REQUIRE(paths.size() == 1); // single continuous path, no travels
+                REQUIRE(paths.front().size() > 2);
+            }
+        }
+    }
+
+    SECTION("L-shape, multiline 2") {
+        Slic3r::Points lshape { Point::new_scale(0,0), Point::new_scale(200,0), Point::new_scale(200,100),
+                                Point::new_scale(100,100), Point::new_scale(100,200), Point::new_scale(0,200) };
+        Slic3r::ExPolygon expolygon(lshape);
+        auto filler = make_filler(0);
+        filler->bounding_box = get_extents(expolygon.contour);
+        Slic3r::Surface surface(stInternal, expolygon);
+        Slic3r::Polylines paths = filler->fill_surface(&surface, fill_params);
+        CAPTURE(paths.size());
+        REQUIRE(paths.size() == 1); // single continuous path, no travels
     }
 }
 
