@@ -1622,11 +1622,12 @@ static inline void single_path_append_arc(Points &dst, const Points &contour, si
 // A single gap between two components always exists when they share a contour (the component id has to
 // change somewhere along the contour, and that boundary gap cannot have been selected), so all
 // components sharing a boundary always merge; the repair simply prefers merges that do not increase the
-// number of odd-degree vertices. (3) If a single component remains with exactly two loose ends across
-// one unused gap, the path is closed into a loop: a closed trail is emitted as an ExtrusionLoop
-// downstream, so the G-code generator starts it wherever the previous wall ended -> no wall->infill
-// travel. Finally Hierholzer's algorithm extracts maximal trails; every trail is one travel-free path
-// (components with more than two odd-degree vertices decompose into several trails gracefully).
+// number of odd-degree vertices. (3) Odd-degree reduction: loose ends cancel pairwise against free gaps,
+// "walking" along the contour when needed, which turns open serpentines into closed circuits; a closed
+// trail is emitted as an ExtrusionLoop downstream, so the G-code generator starts it wherever the
+// previous wall ended -> no wall->infill travel. Finally Hierholzer's algorithm extracts maximal trails;
+// every trail is one travel-free path (components with more than two odd-degree vertices decompose into
+// several trails gracefully).
 static void connect_infill_single_path(Polylines &&infill_ordered, const BoundaryInfillGraph &graph, Polylines &polylines_out)
 {
     const std::vector<ContourIntersectionPoint> &cps = graph.map_infill_end_point_to_boundary;
@@ -1648,11 +1649,14 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
         size_t v1, v2;      // vertex = index into cps; for fragment edges v1 = 2i (front), v2 = 2i + 1 (back)
         bool   is_gap;
         size_t contour_idx; // gaps only
+        size_t gap_pos;     // gaps only: gap index along the contour
+        bool   active;      // a released gap stays in the adjacency lists but is skipped everywhere
         bool   used;
     };
     std::vector<SinglePathEdge>      edges;
     std::vector<std::vector<size_t>> adjacency(n_vertices);
-    // Union-find over vertices, tracking connected components (gaps are only ever added, never removed).
+    // Union-find over vertices, tracking connected components while gaps are only being added
+    // (passes 1 and 2). Pass 3 releases gaps, where connectivity is re-checked with a BFS instead.
     std::vector<size_t> uf_parent(n_vertices);
     std::iota(uf_parent.begin(), uf_parent.end(), 0);
     auto uf_find = [&uf_parent](size_t x) -> size_t {
@@ -1662,17 +1666,17 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
         }
         return x;
     };
-    auto add_edge = [&edges, &adjacency, &uf_parent, &uf_find](size_t v1, size_t v2, bool is_gap, size_t contour_idx) {
+    auto add_edge = [&edges, &adjacency, &uf_parent, &uf_find](size_t v1, size_t v2, bool is_gap, size_t contour_idx, size_t gap_pos) {
         adjacency[v1].emplace_back(edges.size());
         adjacency[v2].emplace_back(edges.size());
-        edges.push_back({ v1, v2, is_gap, contour_idx, false });
+        edges.push_back({ v1, v2, is_gap, contour_idx, gap_pos, true, false });
         uf_parent[uf_find(v1)] = uf_find(v2);
     };
 
     bool has_fragments = false;
     for (size_t i = 0; i < n_fragments; ++ i)
         if (! standalone[i]) {
-            add_edge(2 * i, 2 * i + 1, false, 0);
+            add_edge(2 * i, 2 * i + 1, false, 0, 0);
             has_fragments = true;
         }
 
@@ -1686,18 +1690,35 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             std::sort(cv.begin(), cv.end(), [&cps](size_t l, size_t r) { return cps[l].param < cps[r].param; });
 
         // Gap k of a contour joins its k-th and (k+1 modulo m)-th vertex along the contour.
-        std::vector<std::vector<char>> gap_taken(graph.boundary.size());
-        std::vector<unsigned>          gap_degree(n_vertices, 0);
-        for (size_t c = 0; c < contour_vertices.size(); ++ c)
+        std::vector<std::vector<char>>   gap_taken(graph.boundary.size());
+        std::vector<std::vector<size_t>> gap_edge(graph.boundary.size()); // (contour, gap) -> edge index
+        std::vector<unsigned>            gap_degree(n_vertices, 0);
+        for (size_t c = 0; c < contour_vertices.size(); ++ c) {
             gap_taken[c].assign(contour_vertices[c].size(), 0);
-        auto take_gap = [&contour_vertices, &gap_taken, &gap_degree, &add_edge](size_t c, size_t k) {
+            gap_edge[c].assign(contour_vertices[c].size(), std::numeric_limits<size_t>::max());
+        }
+        auto take_gap = [&contour_vertices, &gap_taken, &gap_edge, &gap_degree, &edges, &add_edge](size_t c, size_t k) {
             const std::vector<size_t> &cv = contour_vertices[c];
             size_t v1 = cv[k];
             size_t v2 = cv[(k + 1) % cv.size()];
-            add_edge(v1, v2, true, c);
+            if (gap_edge[c][k] != std::numeric_limits<size_t>::max() && ! edges[gap_edge[c][k]].active)
+                // Re-activate a previously released gap edge.
+                edges[gap_edge[c][k]].active = true;
+            else {
+                gap_edge[c][k] = edges.size();
+                add_edge(v1, v2, true, c, k);
+            }
             gap_taken[c][k] = 1;
             ++ gap_degree[v1];
             ++ gap_degree[v2];
+        };
+        auto release_gap = [&contour_vertices, &gap_taken, &gap_edge, &gap_degree, &edges](size_t c, size_t k) {
+            const std::vector<size_t> &cv = contour_vertices[c];
+            assert(gap_taken[c][k] && gap_edge[c][k] != std::numeric_limits<size_t>::max());
+            edges[gap_edge[c][k]].active = false;
+            gap_taken[c][k] = 0;
+            -- gap_degree[cv[k]];
+            -- gap_degree[cv[(k + 1) % cv.size()]];
         };
         auto gap_length = [&graph, &cps](size_t c, size_t v_from, size_t v_to) -> double {
             double d = cps[v_to].param - cps[v_from].param;
@@ -1783,35 +1804,98 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             }
         }
 
-        // Pass 3: close the path into a loop if everything was merged into a single component with
-        // exactly two loose ends sitting across one unused gap.
+        // Pass 3: odd-degree reduction -> closed loops. Loose ends (gap_degree == 0) are odd-degree
+        // vertices that still own free gaps. (a) A free gap between two adjacent loose ends is always
+        // taken: it cancels two odd degrees; in the Euler view extra cycles are harmless, and when the
+        // ends belonged to two components it is a merge as well. (b) A lone loose end may "walk" along
+        // the contour: take its free gap towards a matched neighbor and release the neighbor's other gap
+        // - the odd degree moves two positions over (or cancels against an odd run vertex); the move is
+        // rolled back if releasing a bridge would split the component (BFS check). Walking lets distant
+        // odd pairs meet and cancel through (a), turning open serpentines into closed loops; loops are
+        // emitted as ExtrusionLoop downstream, so the G-code generator starts them right where the wall
+        // ended (no wall->infill travel).
         {
-            std::vector<std::pair<size_t, size_t>> loose; // (contour, position)
-            for (size_t c = 0; c < contour_vertices.size(); ++ c)
-                for (size_t pos = 0; pos < contour_vertices[c].size(); ++ pos)
-                    if (gap_degree[contour_vertices[c][pos]] == 0)
-                        loose.emplace_back(c, pos);
-            if (loose.size() == 2 && loose[0].first == loose[1].first) {
-                bool   single_component = true;
-                size_t root             = std::numeric_limits<size_t>::max();
-                for (size_t v = 0; v < n_vertices; ++ v)
-                    if (! standalone[v / 2]) {
-                        if (root == std::numeric_limits<size_t>::max())
-                            root = uf_find(v);
-                        else if (uf_find(v) != root) {
-                            single_component = false;
+            auto count_components = [&adjacency, &edges, &standalone, n_vertices]() -> size_t {
+                std::vector<char>   seen(n_vertices, 0);
+                std::vector<size_t> stack;
+                size_t              count = 0;
+                for (size_t v = 0; v < n_vertices; ++ v) {
+                    if (standalone[v / 2] || seen[v])
+                        continue;
+                    ++ count;
+                    stack.assign(1, v);
+                    seen[v] = 1;
+                    while (! stack.empty()) {
+                        size_t u = stack.back();
+                        stack.pop_back();
+                        for (size_t e : adjacency[u])
+                            if (edges[e].active) {
+                                size_t w = edges[e].v1 == u ? edges[e].v2 : edges[e].v1;
+                                if (! seen[w]) {
+                                    seen[w] = 1;
+                                    stack.emplace_back(w);
+                                }
+                            }
+                    }
+                }
+                return count;
+            };
+            auto cancel_adjacent = [&contour_vertices, &gap_taken, &gap_degree, &take_gap]() {
+                for (size_t c = 0; c < contour_vertices.size(); ++ c) {
+                    const std::vector<size_t> &cv = contour_vertices[c];
+                    if (cv.size() < 2)
+                        continue;
+                    for (size_t k = 0; k < cv.size(); ++ k)
+                        if (! gap_taken[c][k] && gap_degree[cv[k]] == 0 && gap_degree[cv[(k + 1) % cv.size()]] == 0)
+                            take_gap(c, k);
+                }
+            };
+            cancel_adjacent();
+            for (size_t guard = 0; guard < n_vertices; ++ guard) {
+                bool moved = false;
+                for (size_t c = 0; c < contour_vertices.size() && ! moved; ++ c) {
+                    const std::vector<size_t> &cv = contour_vertices[c];
+                    const size_t m = cv.size();
+                    if (m < 4)
+                        continue;
+                    std::vector<size_t> loose;
+                    for (size_t pos = 0; pos < m; ++ pos)
+                        if (gap_degree[cv[pos]] == 0)
+                            loose.emplace_back(pos);
+                    if (loose.size() < 2)
+                        continue;
+                    for (size_t li = 0; li < loose.size() && ! moved; ++ li) {
+                        const size_t pos = loose[li];
+                        // Cyclic distances to the nearest other loose position, both ways.
+                        size_t d_fwd = std::numeric_limits<size_t>::max(), d_bwd = std::numeric_limits<size_t>::max();
+                        for (size_t lj = 0; lj < loose.size(); ++ lj)
+                            if (lj != li) {
+                                d_fwd = std::min(d_fwd, (loose[lj] + m - pos) % m);
+                                d_bwd = std::min(d_bwd, (pos + m - loose[lj]) % m);
+                            }
+                        for (bool forward : { d_fwd <= d_bwd, d_fwd > d_bwd }) {
+                            const size_t k_take    = forward ? pos : (pos + m - 1) % m;
+                            const size_t neighbor  = forward ? (pos + 1) % m : (pos + m - 1) % m;
+                            const size_t k_release = forward ? (pos + 1) % m : (pos + m - 2) % m;
+                            if (gap_taken[c][k_take] || ! gap_taken[c][k_release] || gap_degree[cv[neighbor]] != 1)
+                                continue;
+                            const size_t components_before = count_components();
+                            take_gap(c, k_take);
+                            release_gap(c, k_release);
+                            if (count_components() > components_before) {
+                                // The released gap was a bridge; roll back.
+                                release_gap(c, k_take);
+                                take_gap(c, k_release);
+                                continue;
+                            }
+                            moved = true;
                             break;
                         }
                     }
-                if (single_component) {
-                    size_t c = loose[0].first;
-                    size_t m = contour_vertices[c].size();
-                    size_t p1 = loose[0].second, p2 = loose[1].second;
-                    if ((p1 + 1) % m == p2 && ! gap_taken[c][p1])
-                        take_gap(c, p1);
-                    else if ((p2 + 1) % m == p1 && ! gap_taken[c][p2])
-                        take_gap(c, p2);
                 }
+                if (! moved)
+                    break;
+                cancel_adjacent();
             }
         }
 
@@ -1820,7 +1904,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
         auto next_unused = [&adjacency, &edges, &cursor](size_t v) -> int {
             const std::vector<size_t> &lst = adjacency[v];
             size_t                    &cur = cursor[v];
-            while (cur < lst.size() && edges[lst[cur]].used)
+            while (cur < lst.size() && (edges[lst[cur]].used || ! edges[lst[cur]].active))
                 ++ cur;
             return cur < lst.size() ? int(lst[cur]) : -1;
         };

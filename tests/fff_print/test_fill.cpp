@@ -221,6 +221,9 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
                 CAPTURE(paths.size());
                 REQUIRE(paths.size() == 1); // single continuous path, no travels
                 REQUIRE(paths.front().size() > 2);
+                // NOTE: this path cannot close into a loop: parallel racetrack rings admit no connected
+                // all-even gap selection (a closed circuit would decompose into per-ring loops).
+                INFO("closed: " << paths.front().is_closed());
             }
         }
     }
