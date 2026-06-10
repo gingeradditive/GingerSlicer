@@ -1580,93 +1580,21 @@ BoundingBox Fill::extended_object_bounding_box() const
     return out.scaled(sqrt(2.));
 }
 
-// Cura-style "Connect Infill Lines": build continuous paths (ideally a single one) that trace the inner wall
-// and fill the interior with no travel moves. Algorithm: starting at a boundary crossing, alternate
-//   (1) cross the interior along an infill line to its partner endpoint, then
-//   (2) walk the boundary arc to the nearest *unvisited* adjacent crossing,
-// repeating until no unvisited neighbor remains. This threads all infill lines into a serpentine that hugs
-// the wall. Each crossing is used exactly once; disconnected components become separate paths.
-static void connect_infill_single_path(Polylines &infill_ordered, BoundaryInfillGraph &graph, Polylines &polylines_out)
-{
-    const size_t n = graph.map_infill_end_point_to_boundary.size(); // 2 endpoints per infill line
-    std::vector<char> visited(n, 0);
-    auto cp_index = [&](const ContourIntersectionPoint *cp) -> size_t { return size_t(cp - graph.map_infill_end_point_to_boundary.data()); };
-    auto usable   = [&](const ContourIntersectionPoint *cp) -> bool {
-        return cp != nullptr && cp->contour_idx != boundary_idx_unconnected;
-    };
-
-    for (size_t start = 0; start < n; ++ start) {
-        if (visited[start])
-            continue;
-        ContourIntersectionPoint *cp = &graph.map_infill_end_point_to_boundary[start];
-        if (! usable(cp)) {
-            visited[start] = 1;
-            continue;
-        }
-        Polyline path;
-        for (;;) {
-            const size_t idx = cp_index(cp);
-            if (visited[idx])
-                break;
-            visited[idx] = 1;
-            const size_t line_idx    = idx / 2;
-            const size_t partner_idx = (idx & 1) ? idx - 1 : idx + 1;
-            ContourIntersectionPoint *partner = &graph.map_infill_end_point_to_boundary[partner_idx];
-            visited[partner_idx] = 1;
-
-            const Points &contour = graph.boundary[cp->contour_idx];
-            Polyline     &line    = infill_ordered[line_idx];
-            if (line.size() < 2 || ! usable(partner))
-                break;
-            // (1) Cross the interior along the infill line, oriented to start at cp's boundary point.
-            if (line.points.front() != contour[cp->point_idx])
-                line.reverse();
-            if (path.empty())
-                path.points = line.points;
-            else
-                // path.back() coincides with line.front() (both are contour[cp->point_idx]).
-                path.points.insert(path.points.end(), line.points.begin() + 1, line.points.end());
-
-            // (2) From partner, walk the boundary arc to the nearest unvisited adjacent crossing.
-            const Points              &pcontour = graph.boundary[partner->contour_idx];
-            const std::vector<double> &pparams  = graph.boundary_params[partner->contour_idx];
-            ContourIntersectionPoint  *nx       = partner->next_on_contour;
-            ContourIntersectionPoint  *pv       = partner->prev_on_contour;
-            const bool nx_ok = usable(nx) && nx != partner && ! visited[cp_index(nx)];
-            const bool pv_ok = usable(pv) && pv != partner && ! visited[cp_index(pv)];
-            bool go_ccw;
-            if (nx_ok && pv_ok) {
-                const double lnx = closed_contour_distance_ccw(pparams[partner->point_idx], pparams[nx->point_idx], pparams.back());
-                const double lpv = closed_contour_distance_cw (pparams[partner->point_idx], pparams[pv->point_idx], pparams.back());
-                go_ccw = lnx <= lpv;
-            } else if (nx_ok) {
-                go_ccw = true;
-            } else if (pv_ok) {
-                go_ccw = false;
-            } else {
-                break; // No unvisited neighbor: end this path.
-            }
-            if (go_ccw) {
-                take_ccw_full(path, pcontour, partner->point_idx, nx->point_idx);
-                cp = nx;
-            } else {
-                take_cw_full(path, pcontour, partner->point_idx, pv->point_idx);
-                cp = pv;
-            }
-        }
-        if (path.size() >= 2)
-            polylines_out.emplace_back(std::move(path));
-    }
-}
-
 void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Polygon*> &boundary_src, const BoundingBox &bbox, Polylines &polylines_out, const double spacing, const FillParams &params)
 {
 	assert(! infill_ordered.empty());
     assert(params.anchor_length     >= 0.);
     assert(params.anchor_length_max >= 0.01f);
     assert(params.anchor_length_max >= params.anchor_length);
-    const double anchor_length     = scale_(params.anchor_length);
-    const double anchor_length_max = scale_(params.anchor_length_max);
+    double anchor_length     = scale_(params.anchor_length);
+    double anchor_length_max = scale_(params.anchor_length_max);
+    // Cura-style single-path infill: force unlimited anchors so every connection traces the full boundary arc
+    // via take() (instead of short take_limited() stubs), merging the infill lines into one continuous path
+    // that hugs the inner wall. Independent of the user's infill_anchor_max setting.
+    if (params.connect_polygons) {
+        anchor_length     = std::numeric_limits<double>::max();
+        anchor_length_max = std::numeric_limits<double>::max();
+    }
 
 #if 0
     append(polylines_out, infill_ordered);
@@ -1675,12 +1603,6 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
 
     // Cura-style single-path infill: skip boundary trimming so the whole inner wall can be traced.
     BoundaryInfillGraph graph = create_boundary_infill_graph(infill_ordered, boundary_src, bbox, spacing, params.connect_polygons);
-
-    if (params.connect_polygons) {
-        // Build a single continuous, closed path (wall + infill, no travels) via the boundary walk.
-        connect_infill_single_path(infill_ordered, graph, polylines_out);
-        return;
-    }
 
     std::vector<size_t> merged_with(infill_ordered.size());
     std::iota(merged_with.begin(), merged_with.end(), 0);
@@ -1832,6 +1754,25 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
                     // Move along the perimeter, but don't take the whole arc.
                     take_limited(polyline1, contour, contour_params, cp1, cp2, false, anchor_length, line_half_width);
                     take_limited(polyline2, contour, contour_params, cp2, cp1, true,  anchor_length, line_half_width);
+                }
+            } else if (params.connect_polygons && arc.arc_length < anchor_length_max) {
+                // Cura-style: cp1 and cp2 belong to the same merged polyline. If they are its two free ends,
+                // append the boundary arc between them to close the serpentine into a single closed loop that
+                // traces the inner wall (removes the final travel and closes the perimeter).
+                Polyline &polyline = infill_ordered[polyline_idx1];
+                if (polyline.size() >= 2) {
+                    const Point &p1 = contour[cp1->point_idx];
+                    const Point &p2 = contour[cp2->point_idx];
+                    const bool   ends_match = (polyline.points.front() == p1 && polyline.points.back() == p2) ||
+                                              (polyline.points.front() == p2 && polyline.points.back() == p1);
+                    if (ends_match) {
+                        // Orient so the polyline ends at cp1, then walk CCW to cp2 (== its front) to close it.
+                        if (polyline.points.back() != p1)
+                            polyline.reverse();
+                        take_ccw_full(polyline, contour, cp1->point_idx, cp2->point_idx);
+                        cp1->consume_next();
+                        cp2->consume_prev();
+                    }
                 }
             }
         }
