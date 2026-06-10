@@ -1905,6 +1905,74 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
             }
         }
 
+    // Cura-style single-path infill: second-order mop-up for stranded groups. The boundary walk and the
+    // greedy pass only join end points that are direct neighbors on the contour; with crossing patterns
+    // (Grid/Triangles: two or three sweeps in the same call) a few merged groups can remain whose facing
+    // end points were consumed by earlier connections. Here the remaining free end points are paired in
+    // contour order SKIPPING the consumed ones in between, and joined whenever the whole boundary arc
+    // between them is still untaken (take() may pass over consumed T-joints, it only must not extrude any
+    // segment twice). Iterate until a fixpoint is reached.
+    if (params.connect_polygons && n_remaining > 1) {
+        auto arc_free_ccw = [](const ContourIntersectionPoint *from, const ContourIntersectionPoint *to) -> bool {
+            size_t guard = 0;
+            for (const ContourIntersectionPoint *cp = from; cp != to; cp = cp->next_on_contour) {
+                const ContourIntersectionPoint *next = cp->next_on_contour;
+                if (next == nullptr || next == cp || ++ guard > 1000000)
+                    return false;
+                if (cp->next_trimmed || next->prev_trimmed)
+                    return false;
+            }
+            return true;
+        };
+        for (bool merged_any = true; merged_any && n_remaining > 1; ) {
+            merged_any = false;
+            std::vector<std::vector<ContourIntersectionPoint*>> contour_cps(graph.boundary.size());
+            for (ContourIntersectionPoint &cp : graph.map_infill_end_point_to_boundary)
+                if (cp.contour_idx != boundary_idx_unconnected && ! cp.consumed)
+                    contour_cps[cp.contour_idx].emplace_back(&cp);
+            for (size_t contour_idx = 0; contour_idx < contour_cps.size(); ++ contour_idx) {
+                std::vector<ContourIntersectionPoint*> &cps = contour_cps[contour_idx];
+                if (cps.size() < 2)
+                    continue;
+                std::sort(cps.begin(), cps.end(), [](const auto *l, const auto *r) { return l->param < r->param; });
+                const Points &contour = graph.boundary[contour_idx];
+                for (size_t i = 0; i < cps.size(); ++ i) {
+                    ContourIntersectionPoint *cp1 = cps[i];
+                    ContourIntersectionPoint *cp2 = cps[(i + 1) % cps.size()];
+                    if (cp1 == cp2 || cp1->consumed || cp2->consumed || cp1->point_idx == cp2->point_idx)
+                        continue;
+                    size_t idx1 = get_and_update_merged_with(size_t(cp1 - graph.map_infill_end_point_to_boundary.data()) / 2);
+                    size_t idx2 = get_and_update_merged_with(size_t(cp2 - graph.map_infill_end_point_to_boundary.data()) / 2);
+                    if (idx1 == idx2 || ! arc_free_ccw(cp1, cp2))
+                        continue;
+                    Polyline &polyline1 = infill_ordered[idx1];
+                    Polyline &polyline2 = infill_ordered[idx2];
+                    assert(contour[cp1->point_idx] == polyline1.points.front() || contour[cp1->point_idx] == polyline1.points.back());
+                    if (contour[cp1->point_idx] == polyline1.points.front())
+                        polyline1.reverse();
+                    assert(contour[cp2->point_idx] == polyline2.points.front() || contour[cp2->point_idx] == polyline2.points.back());
+                    if (contour[cp2->point_idx] == polyline2.points.back())
+                        polyline2.reverse();
+                    take(polyline1, polyline2, contour, cp1, cp2, false);
+                    if (idx2 < idx1) {
+                        polyline2 = std::move(polyline1);
+                        polyline1.points.clear();
+                        merged_with[idx1] = merged_with[idx2];
+                    } else {
+                        polyline2.points.clear();
+                        merged_with[idx2] = merged_with[idx1];
+                    }
+                    -- n_remaining;
+                    merged_any = true;
+                    if (n_remaining == 1)
+                        break;
+                }
+                if (n_remaining == 1)
+                    break;
+            }
+        }
+    }
+
     // Cura-style single-path infill: closing the serpentine into a loop is only allowed as the very last
     // step, when everything was merged into a single path (n_remaining == 1). The closing boundary arc is
     // taken only if none of its segments were extruded yet (no double extrusion along the inner wall).
