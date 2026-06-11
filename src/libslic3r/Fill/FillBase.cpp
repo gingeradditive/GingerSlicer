@@ -1728,68 +1728,17 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             return d;
         };
 
-        // Pass 1: greedy in-order matching along each contour (the natural serpentine, CuraEngine's
-        // connectLines rule of never joining two ends of the same chain).
-        for (size_t c = 0; c < contour_vertices.size(); ++ c) {
-            const std::vector<size_t> &cv = contour_vertices[c];
-            if (cv.size() < 2)
-                continue;
-            int prev = -1;
-            // One extra iteration to consider the wrap-around gap (last, first).
-            for (size_t i = 0; i <= cv.size(); ++ i) {
-                size_t pos = i % cv.size();
-                if (gap_degree[cv[pos]] > 0) { // only possible for cv[0] at the wrap-around
-                    prev = -1;
-                    continue;
-                }
-                if (prev >= 0 && size_t(prev) == (pos + cv.size() - 1) % cv.size() && uf_find(cv[prev]) != uf_find(cv[pos])) {
-                    take_gap(c, size_t(prev));
-                    prev = -1;
-                } else
-                    prev = int(pos);
-            }
-        }
-
-        // Pass 2+3 (repair engine): merge components and reduce odd degrees using unused boundary
-        // gaps. Loose ends (gap_degree == 0) are odd-degree vertices that still own free gaps. Moves,
-        // tried in order and iterated to a fixpoint:
-        //   (a) take any free gap between two adjacent loose ends: cancels two odd degrees, merges two
-        //       components or closes the final loop (extra cycles are harmless in the Euler view);
-        //   (b) T-join alternating flip between two loose ends: when the gap states along the stretch
-        //       alternate free,taken,...,free, flipping the whole stretch makes both ends even while
-        //       every interior vertex keeps its degree; rolled back when a released gap was a bridge
-        //       (BFS check). The two-gap special case is a plain "walk" of a loose end;
-        //   (c) only when stuck: bridge two components over one free gap regardless of degrees (such a
-        //       gap always exists between components sharing a contour: the component id has to change
-        //       at some boundary gap, and that gap cannot have been selected). This is the only move
-        //       that may add odd degrees; after the Euler augmentation below each surviving odd pair
-        //       costs exactly one trail split (one travel move).
+        // Pass 1+2: alternating-phase selection with greedy sector flips.
+        // With every gap available each boundary contour is a ring and the fragments are chords, so
+        // every vertex has degree 3. A selection where every vertex keeps exactly ONE of its two gaps
+        // (all degrees even) is an alternating "phase" of kept gaps along the ring; a phase boundary
+        // ("defect") makes its vertex odd. The number of trails is max(1, odd/2): a pure connected
+        // phase is one closed loop, two defects give one open path, and so on. Strategy: start from
+        // the per-contour phase that minimizes the component count, then greedily flip sectors
+        // (toggling every gap state inside a range) - a flip merges components across its boundary
+        // and flips that start or end at existing defects move or cancel them. Whatever odd vertices
+        // survive are paired by the Euler augmentation below (one travel each).
         {
-            auto count_components = [&adjacency, &edges, &standalone, n_vertices]() -> size_t {
-                std::vector<int>    comp(n_vertices, -1);
-                std::vector<size_t> stack;
-                int                 count = 0;
-                for (size_t v = 0; v < n_vertices; ++ v) {
-                    if (standalone[v / 2] || comp[v] >= 0)
-                        continue;
-                    comp[v] = count;
-                    stack.assign(1, v);
-                    while (! stack.empty()) {
-                        size_t u = stack.back();
-                        stack.pop_back();
-                        for (size_t e : adjacency[u])
-                            if (edges[e].active) {
-                                size_t w = edges[e].v1 == u ? edges[e].v2 : edges[e].v1;
-                                if (comp[w] < 0) {
-                                    comp[w] = count;
-                                    stack.emplace_back(w);
-                                }
-                            }
-                    }
-                    ++ count;
-                }
-                return size_t(count);
-            };
             auto component_labels = [&adjacency, &edges, &standalone, n_vertices](std::vector<int> &comp) -> size_t {
                 comp.assign(n_vertices, -1);
                 std::vector<size_t> stack;
@@ -1815,100 +1764,125 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 }
                 return size_t(count);
             };
-            auto cancel_and_merge_adjacent = [&contour_vertices, &gap_taken, &gap_degree, &take_gap]() -> bool {
-                bool any = false;
-                for (size_t c = 0; c < contour_vertices.size(); ++ c) {
-                    const std::vector<size_t> &cv = contour_vertices[c];
-                    if (cv.size() < 2)
-                        continue;
-                    for (size_t k = 0; k < cv.size(); ++ k)
-                        if (! gap_taken[c][k] && gap_degree[cv[k]] == 0 && gap_degree[cv[(k + 1) % cv.size()]] == 0) {
-                            take_gap(c, k);
-                            any = true;
-                        }
-                }
-                return any;
+            auto count_odd = [&contour_vertices, &gap_degree]() -> size_t {
+                size_t odd = 0;
+                for (const std::vector<size_t> &cv : contour_vertices)
+                    for (size_t v : cv)
+                        if ((gap_degree[v] % 2) == 0)
+                            ++ odd;
+                return odd;
             };
-            auto flip_stretch = [&contour_vertices, &gap_taken, &gap_degree, &take_gap, &release_gap, &count_components]() -> bool {
+            // True cost of a selection: number of extrusion trails = sum over components of
+            // max(1, odd_vertices / 2). Travel moves between trails = trails - 1. Note that splitting
+            // a component CAN reduce the trail count when it splits the odd vertices as well.
+            auto count_trails = [&contour_vertices, &gap_degree, &component_labels]() -> size_t {
+                std::vector<int> comp;
+                size_t n_comp = component_labels(comp);
+                if (n_comp == 0)
+                    return 0;
+                std::vector<size_t> odd(n_comp, 0);
+                for (const std::vector<size_t> &cv : contour_vertices)
+                    for (size_t v : cv)
+                        if ((gap_degree[v] % 2) == 0)
+                            ++ odd[size_t(comp[v])];
+                size_t trails = 0;
+                for (size_t o : odd)
+                    trails += std::max<size_t>(1, o / 2);
+                return trails;
+            };
+            auto toggle_gap = [&contour_vertices, &gap_taken, &take_gap, &release_gap](size_t c, size_t k) {
+                gap_taken[c][k] ? release_gap(c, k) : take_gap(c, k);
+            };
+            auto toggle_range = [&contour_vertices, &toggle_gap](size_t c, size_t first, size_t len) {
+                const size_t m = contour_vertices[c].size();
+                for (size_t l = 0; l < len; ++ l)
+                    toggle_gap(c, (first + l) % m);
+            };
+
+            // Initial alternating phase per contour.
+            for (size_t c = 0; c < contour_vertices.size(); ++ c)
+                if (contour_vertices[c].size() >= 2)
+                    for (size_t k = 0; k < contour_vertices[c].size(); k += 2)
+                        if (k + 1 < contour_vertices[c].size() || (contour_vertices[c].size() % 2) == 0)
+                            take_gap(c, k);
+            // Greedy per-contour phase swap (toggle all gaps of one contour) while it helps.
+            {
+                size_t trails = count_trails();
+                for (size_t c = 0; c < contour_vertices.size(); ++ c) {
+                    const size_t m = contour_vertices[c].size();
+                    if (m < 2)
+                        continue;
+                    toggle_range(c, 0, m);
+                    size_t trails_swapped = count_trails();
+                    if (trails_swapped < trails)
+                        trails = trails_swapped;
+                    else
+                        toggle_range(c, 0, m); // revert
+                }
+            }
+
+            // Greedy sector flips. Candidate sector boundaries: gaps adjacent to defect vertices and
+            // deleted gaps on a component frontier; a sector is any range between two candidates of
+            // the same contour. Accept the flip that lexicographically improves
+            // (components, odd vertices, flipped range length).
+            for (size_t guard = 0; guard < n_vertices + 16; ++ guard) {
+                std::vector<int> comp;
+                component_labels(comp);
+                size_t trails = count_trails();
+                size_t odds   = count_odd();
+                if (trails <= 1 && odds == 0)
+                    break;
+                size_t best_c = 0, best_first = 0, best_len = 0;
+                size_t best_trails = trails, best_odds = odds;
                 for (size_t c = 0; c < contour_vertices.size(); ++ c) {
                     const std::vector<size_t> &cv = contour_vertices[c];
                     const size_t m = cv.size();
-                    if (m < 3)
+                    if (m < 2)
                         continue;
+                    // Candidate boundary gap positions on this contour.
+                    std::vector<size_t> cand;
                     for (size_t pos = 0; pos < m; ++ pos) {
-                        if (gap_degree[cv[pos]] != 0)
-                            continue;
-                        // Walk forward from the loose end expecting strict alternation.
-                        std::vector<std::pair<size_t, bool>> ops; // (gap index, take?)
-                        bool   ok = false;
-                        size_t k  = pos;
-                        for (size_t steps = 0; steps + 2 < m; steps += 2) {
-                            if (gap_taken[c][k % m])
-                                break;
-                            ops.emplace_back(k % m, true);
-                            size_t v_next = cv[(k + 1) % m];
-                            if (gap_degree[v_next] == 0) {
-                                ok = true;
-                                break;
-                            }
-                            if (! gap_taken[c][(k + 1) % m])
-                                break;
-                            ops.emplace_back((k + 1) % m, false);
-                            k += 2;
+                        if ((gap_degree[cv[pos]] % 2) == 0) {
+                            // defect vertex: both its gaps qualify as boundaries
+                            cand.emplace_back((pos + m - 1) % m);
+                            cand.emplace_back(pos);
                         }
-                        if (! ok)
-                            continue;
-                        const size_t components_before = count_components();
-                        for (const std::pair<size_t, bool> &op : ops)
-                            op.second ? take_gap(c, op.first) : release_gap(c, op.first);
-                        if (count_components() > components_before) {
-                            // A released gap was a bridge; roll back.
-                            for (auto it = ops.rbegin(); it != ops.rend(); ++ it)
-                                it->second ? release_gap(c, it->first) : take_gap(c, it->first);
-                            continue;
+                        if (! gap_taken[c][pos] && comp[cv[pos]] != comp[cv[(pos + 1) % m]]) {
+                            // deleted frontier gap
+                            cand.emplace_back(pos);
+                            cand.emplace_back((pos + 1) % m);
                         }
-                        return true;
                     }
-                }
-                return false;
-            };
-            auto take_bridge = [&contour_vertices, &gap_taken, &gap_degree, &gap_length, &take_gap, &component_labels]() -> bool {
-                std::vector<int> comp;
-                if (component_labels(comp) < 2)
-                    return false;
-                size_t best_c = 0, best_k = 0;
-                int    best_priority = std::numeric_limits<int>::max();
-                double best_length   = std::numeric_limits<double>::max();
-                for (size_t c = 0; c < contour_vertices.size(); ++ c) {
-                    const std::vector<size_t> &cv = contour_vertices[c];
-                    if (cv.size() < 2)
+                    std::sort(cand.begin(), cand.end());
+                    cand.erase(std::unique(cand.begin(), cand.end()), cand.end());
+                    if (cand.size() < 2)
                         continue;
-                    for (size_t k = 0; k < cv.size(); ++ k) {
-                        if (gap_taken[c][k])
-                            continue;
-                        size_t v1 = cv[k], v2 = cv[(k + 1) % cv.size()];
-                        if (comp[v1] == comp[v2])
-                            continue;
-                        int    priority = (gap_degree[v1] == 0 || gap_degree[v2] == 0) ? 0 : 1;
-                        double length   = gap_length(c, v1, v2);
-                        if (priority < best_priority || (priority == best_priority && length < best_length)) {
-                            best_c = c; best_k = k; best_priority = priority; best_length = length;
+                    if (cand.size() > 48)
+                        // Keep the search bounded on huge islands; the guard loop iterates anyway.
+                        cand.resize(48);
+                    for (size_t a = 0; a < cand.size(); ++ a)
+                        for (size_t b = 0; b < cand.size(); ++ b) {
+                            if (a == b)
+                                continue;
+                            size_t first = cand[a];
+                            size_t len   = (cand[b] + m - cand[a]) % m;
+                            if (len == 0 || len >= m)
+                                continue;
+                            toggle_range(c, first, len);
+                            size_t trails2 = count_trails();
+                            size_t odds2   = count_odd();
+                            toggle_range(c, first, len); // revert
+                            if (trails2 < best_trails ||
+                                (trails2 == best_trails && odds2 < best_odds) ||
+                                (trails2 == best_trails && odds2 == best_odds && best_len != 0 && len < best_len)) {
+                                best_c = c; best_first = first; best_len = len;
+                                best_trails = trails2; best_odds = odds2;
+                            }
                         }
-                    }
                 }
-                if (best_priority == std::numeric_limits<int>::max())
-                    return false;
-                take_gap(best_c, best_k);
-                return true;
-            };
-            for (size_t guard = 0; guard < 4 * n_vertices + 16; ++ guard) {
-                if (cancel_and_merge_adjacent())
-                    continue;
-                if (flip_stretch())
-                    continue;
-                if (take_bridge())
-                    continue;
-                break;
+                if (best_len == 0 || (best_trails == trails && best_odds >= odds))
+                    break;
+                toggle_range(best_c, best_first, best_len);
             }
         }
 

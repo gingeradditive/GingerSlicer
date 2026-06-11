@@ -306,10 +306,10 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
         Slic3r::Polylines paths = filler->fill_surface(&surface, grid_params);
         CAPTURE(paths.size());
         // Extreme fragment soup (each trapezoid row chopped into many pieces by both long edges):
-        // the no-double-extrusion guarantee is hard, travel minimization is best effort here. The
-        // boundary graph of this case is tree-like, so some odd-degree pairs cannot be cancelled
-        // without re-extruding boundary segments; each surviving pair costs one trail (one travel).
-        REQUIRE(paths.size() <= 5);
+        // the no-double-extrusion guarantee is hard, travel minimization is best effort here. Some
+        // odd-degree pairs cannot be cancelled without re-extruding boundary segments; each surviving
+        // pair costs one trail (one travel move).
+        REQUIRE(paths.size() <= 3);
         require_no_retraced_segments(paths);
     }
 
