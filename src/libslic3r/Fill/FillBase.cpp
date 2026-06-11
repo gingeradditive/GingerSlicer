@@ -1648,6 +1648,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
     struct SinglePathEdge {
         size_t v1, v2;      // vertex = index into cps; for fragment edges v1 = 2i (front), v2 = 2i + 1 (back)
         bool   is_gap;
+        bool   is_virtual;  // odd-degree pairing edge: never extruded, splits the trail (one travel move)
         size_t contour_idx; // gaps only
         size_t gap_pos;     // gaps only: gap index along the contour
         bool   active;      // a released gap stays in the adjacency lists but is skipped everywhere
@@ -1669,7 +1670,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
     auto add_edge = [&edges, &adjacency, &uf_parent, &uf_find](size_t v1, size_t v2, bool is_gap, size_t contour_idx, size_t gap_pos) {
         adjacency[v1].emplace_back(edges.size());
         adjacency[v2].emplace_back(edges.size());
-        edges.push_back({ v1, v2, is_gap, contour_idx, gap_pos, true, false });
+        edges.push_back({ v1, v2, is_gap, false, contour_idx, gap_pos, true, false });
         uf_parent[uf_find(v1)] = uf_find(v2);
     };
 
@@ -1727,7 +1728,8 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             return d;
         };
 
-        // Pass 1: greedy in-order matching along each contour.
+        // Pass 1: greedy in-order matching along each contour (the natural serpentine, CuraEngine's
+        // connectLines rule of never joining two ends of the same chain).
         for (size_t c = 0; c < contour_vertices.size(); ++ c) {
             const std::vector<size_t> &cv = contour_vertices[c];
             if (cv.size() < 2)
@@ -1748,154 +1750,218 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             }
         }
 
-        // Pass 2 (repair): merge the remaining components with unused boundary gaps, preferring merges
-        // that do not increase the number of odd-degree vertices (odd vertices split the final Eulerian
-        // traversal into multiple trails):
-        //   priority 0: single free gap between two loose ends                       (2 odd vertices less)
-        //   priority 1: free gap run whose interior vertices are all loose ends      (2 odd vertices less)
-        //   priority 2: single free gap, loose end to matched vertex                 (unchanged)
-        //   priority 3: single free gap between two matched vertices                 (2 odd vertices more)
-        // Within a priority the shortest extrusion detour wins.
-        for (bool progress = true; progress; ) {
-            progress = false;
-            size_t best_c = 0, best_start = 0, best_len = 0;
-            int    best_priority = std::numeric_limits<int>::max();
-            double best_length   = std::numeric_limits<double>::max();
-            for (size_t c = 0; c < contour_vertices.size(); ++ c) {
-                const std::vector<size_t> &cv = contour_vertices[c];
-                if (cv.size() < 2)
-                    continue;
-                for (size_t start = 0; start < cv.size(); ++ start) {
-                    double length = 0.;
-                    for (size_t len = 1; len < cv.size(); ++ len) {
-                        size_t k     = (start + len - 1) % cv.size();
-                        size_t v_to  = cv[(start + len) % cv.size()];
-                        if (gap_taken[c][k])
-                            break;
-                        if (len > 1 && gap_degree[cv[k]] != 0)
-                            // Runs may only pass over loose ends (a matched interior vertex would need
-                            // one of its gaps twice).
-                            break;
-                        length += gap_length(c, cv[k], v_to);
-                        if (uf_find(cv[start]) != uf_find(v_to)) {
-                            int priority;
-                            if (len == 1)
-                                priority = (gap_degree[cv[start]] == 0 && gap_degree[v_to] == 0) ? 0 :
-                                           (gap_degree[cv[start]] == 0 || gap_degree[v_to] == 0) ? 2 : 3;
-                            else
-                                priority = (gap_degree[cv[start]] == 0 && gap_degree[v_to] == 0) ? 1 : 4;
-                            if (priority < 4 &&
-                                (priority < best_priority || (priority == best_priority && length < best_length))) {
-                                best_c        = c;
-                                best_start    = start;
-                                best_len      = len;
-                                best_priority = priority;
-                                best_length   = length;
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-            if (best_priority < std::numeric_limits<int>::max()) {
-                for (size_t l = 0; l < best_len; ++ l)
-                    take_gap(best_c, (best_start + l) % contour_vertices[best_c].size());
-                progress = true;
-            }
-        }
-
-        // Pass 3: odd-degree reduction -> closed loops. Loose ends (gap_degree == 0) are odd-degree
-        // vertices that still own free gaps. (a) A free gap between two adjacent loose ends is always
-        // taken: it cancels two odd degrees; in the Euler view extra cycles are harmless, and when the
-        // ends belonged to two components it is a merge as well. (b) A lone loose end may "walk" along
-        // the contour: take its free gap towards a matched neighbor and release the neighbor's other gap
-        // - the odd degree moves two positions over (or cancels against an odd run vertex); the move is
-        // rolled back if releasing a bridge would split the component (BFS check). Walking lets distant
-        // odd pairs meet and cancel through (a), turning open serpentines into closed loops; loops are
-        // emitted as ExtrusionLoop downstream, so the G-code generator starts them right where the wall
-        // ended (no wall->infill travel).
+        // Pass 2+3 (repair engine): merge components and reduce odd degrees using unused boundary
+        // gaps. Loose ends (gap_degree == 0) are odd-degree vertices that still own free gaps. Moves,
+        // tried in order and iterated to a fixpoint:
+        //   (a) take any free gap between two adjacent loose ends: cancels two odd degrees, merges two
+        //       components or closes the final loop (extra cycles are harmless in the Euler view);
+        //   (b) T-join alternating flip between two loose ends: when the gap states along the stretch
+        //       alternate free,taken,...,free, flipping the whole stretch makes both ends even while
+        //       every interior vertex keeps its degree; rolled back when a released gap was a bridge
+        //       (BFS check). The two-gap special case is a plain "walk" of a loose end;
+        //   (c) only when stuck: bridge two components over one free gap regardless of degrees (such a
+        //       gap always exists between components sharing a contour: the component id has to change
+        //       at some boundary gap, and that gap cannot have been selected). This is the only move
+        //       that may add odd degrees; after the Euler augmentation below each surviving odd pair
+        //       costs exactly one trail split (one travel move).
         {
             auto count_components = [&adjacency, &edges, &standalone, n_vertices]() -> size_t {
-                std::vector<char>   seen(n_vertices, 0);
+                std::vector<int>    comp(n_vertices, -1);
                 std::vector<size_t> stack;
-                size_t              count = 0;
+                int                 count = 0;
                 for (size_t v = 0; v < n_vertices; ++ v) {
-                    if (standalone[v / 2] || seen[v])
+                    if (standalone[v / 2] || comp[v] >= 0)
                         continue;
-                    ++ count;
+                    comp[v] = count;
                     stack.assign(1, v);
-                    seen[v] = 1;
                     while (! stack.empty()) {
                         size_t u = stack.back();
                         stack.pop_back();
                         for (size_t e : adjacency[u])
                             if (edges[e].active) {
                                 size_t w = edges[e].v1 == u ? edges[e].v2 : edges[e].v1;
-                                if (! seen[w]) {
-                                    seen[w] = 1;
+                                if (comp[w] < 0) {
+                                    comp[w] = count;
                                     stack.emplace_back(w);
                                 }
                             }
                     }
+                    ++ count;
                 }
-                return count;
+                return size_t(count);
             };
-            auto cancel_adjacent = [&contour_vertices, &gap_taken, &gap_degree, &take_gap]() {
+            auto component_labels = [&adjacency, &edges, &standalone, n_vertices](std::vector<int> &comp) -> size_t {
+                comp.assign(n_vertices, -1);
+                std::vector<size_t> stack;
+                int                 count = 0;
+                for (size_t v = 0; v < n_vertices; ++ v) {
+                    if (standalone[v / 2] || comp[v] >= 0)
+                        continue;
+                    comp[v] = count;
+                    stack.assign(1, v);
+                    while (! stack.empty()) {
+                        size_t u = stack.back();
+                        stack.pop_back();
+                        for (size_t e : adjacency[u])
+                            if (edges[e].active) {
+                                size_t w = edges[e].v1 == u ? edges[e].v2 : edges[e].v1;
+                                if (comp[w] < 0) {
+                                    comp[w] = count;
+                                    stack.emplace_back(w);
+                                }
+                            }
+                    }
+                    ++ count;
+                }
+                return size_t(count);
+            };
+            auto cancel_and_merge_adjacent = [&contour_vertices, &gap_taken, &gap_degree, &take_gap]() -> bool {
+                bool any = false;
                 for (size_t c = 0; c < contour_vertices.size(); ++ c) {
                     const std::vector<size_t> &cv = contour_vertices[c];
                     if (cv.size() < 2)
                         continue;
                     for (size_t k = 0; k < cv.size(); ++ k)
-                        if (! gap_taken[c][k] && gap_degree[cv[k]] == 0 && gap_degree[cv[(k + 1) % cv.size()]] == 0)
+                        if (! gap_taken[c][k] && gap_degree[cv[k]] == 0 && gap_degree[cv[(k + 1) % cv.size()]] == 0) {
                             take_gap(c, k);
+                            any = true;
+                        }
                 }
+                return any;
             };
-            cancel_adjacent();
-            for (size_t guard = 0; guard < n_vertices; ++ guard) {
-                bool moved = false;
-                for (size_t c = 0; c < contour_vertices.size() && ! moved; ++ c) {
+            auto flip_stretch = [&contour_vertices, &gap_taken, &gap_degree, &take_gap, &release_gap, &count_components]() -> bool {
+                for (size_t c = 0; c < contour_vertices.size(); ++ c) {
                     const std::vector<size_t> &cv = contour_vertices[c];
                     const size_t m = cv.size();
-                    if (m < 4)
+                    if (m < 3)
                         continue;
-                    std::vector<size_t> loose;
-                    for (size_t pos = 0; pos < m; ++ pos)
-                        if (gap_degree[cv[pos]] == 0)
-                            loose.emplace_back(pos);
-                    if (loose.size() < 2)
+                    for (size_t pos = 0; pos < m; ++ pos) {
+                        if (gap_degree[cv[pos]] != 0)
+                            continue;
+                        // Walk forward from the loose end expecting strict alternation.
+                        std::vector<std::pair<size_t, bool>> ops; // (gap index, take?)
+                        bool   ok = false;
+                        size_t k  = pos;
+                        for (size_t steps = 0; steps + 2 < m; steps += 2) {
+                            if (gap_taken[c][k % m])
+                                break;
+                            ops.emplace_back(k % m, true);
+                            size_t v_next = cv[(k + 1) % m];
+                            if (gap_degree[v_next] == 0) {
+                                ok = true;
+                                break;
+                            }
+                            if (! gap_taken[c][(k + 1) % m])
+                                break;
+                            ops.emplace_back((k + 1) % m, false);
+                            k += 2;
+                        }
+                        if (! ok)
+                            continue;
+                        const size_t components_before = count_components();
+                        for (const std::pair<size_t, bool> &op : ops)
+                            op.second ? take_gap(c, op.first) : release_gap(c, op.first);
+                        if (count_components() > components_before) {
+                            // A released gap was a bridge; roll back.
+                            for (auto it = ops.rbegin(); it != ops.rend(); ++ it)
+                                it->second ? release_gap(c, it->first) : take_gap(c, it->first);
+                            continue;
+                        }
+                        return true;
+                    }
+                }
+                return false;
+            };
+            auto take_bridge = [&contour_vertices, &gap_taken, &gap_degree, &gap_length, &take_gap, &component_labels]() -> bool {
+                std::vector<int> comp;
+                if (component_labels(comp) < 2)
+                    return false;
+                size_t best_c = 0, best_k = 0;
+                int    best_priority = std::numeric_limits<int>::max();
+                double best_length   = std::numeric_limits<double>::max();
+                for (size_t c = 0; c < contour_vertices.size(); ++ c) {
+                    const std::vector<size_t> &cv = contour_vertices[c];
+                    if (cv.size() < 2)
                         continue;
-                    for (size_t li = 0; li < loose.size() && ! moved; ++ li) {
-                        const size_t pos = loose[li];
-                        // Cyclic distances to the nearest other loose position, both ways.
-                        size_t d_fwd = std::numeric_limits<size_t>::max(), d_bwd = std::numeric_limits<size_t>::max();
-                        for (size_t lj = 0; lj < loose.size(); ++ lj)
-                            if (lj != li) {
-                                d_fwd = std::min(d_fwd, (loose[lj] + m - pos) % m);
-                                d_bwd = std::min(d_bwd, (pos + m - loose[lj]) % m);
-                            }
-                        for (bool forward : { d_fwd <= d_bwd, d_fwd > d_bwd }) {
-                            const size_t k_take    = forward ? pos : (pos + m - 1) % m;
-                            const size_t neighbor  = forward ? (pos + 1) % m : (pos + m - 1) % m;
-                            const size_t k_release = forward ? (pos + 1) % m : (pos + m - 2) % m;
-                            if (gap_taken[c][k_take] || ! gap_taken[c][k_release] || gap_degree[cv[neighbor]] != 1)
-                                continue;
-                            const size_t components_before = count_components();
-                            take_gap(c, k_take);
-                            release_gap(c, k_release);
-                            if (count_components() > components_before) {
-                                // The released gap was a bridge; roll back.
-                                release_gap(c, k_take);
-                                take_gap(c, k_release);
-                                continue;
-                            }
-                            moved = true;
-                            break;
+                    for (size_t k = 0; k < cv.size(); ++ k) {
+                        if (gap_taken[c][k])
+                            continue;
+                        size_t v1 = cv[k], v2 = cv[(k + 1) % cv.size()];
+                        if (comp[v1] == comp[v2])
+                            continue;
+                        int    priority = (gap_degree[v1] == 0 || gap_degree[v2] == 0) ? 0 : 1;
+                        double length   = gap_length(c, v1, v2);
+                        if (priority < best_priority || (priority == best_priority && length < best_length)) {
+                            best_c = c; best_k = k; best_priority = priority; best_length = length;
                         }
                     }
                 }
-                if (! moved)
-                    break;
-                cancel_adjacent();
+                if (best_priority == std::numeric_limits<int>::max())
+                    return false;
+                take_gap(best_c, best_k);
+                return true;
+            };
+            for (size_t guard = 0; guard < 4 * n_vertices + 16; ++ guard) {
+                if (cancel_and_merge_adjacent())
+                    continue;
+                if (flip_stretch())
+                    continue;
+                if (take_bridge())
+                    continue;
+                break;
+            }
+        }
+
+        // Pass 3b: Euler augmentation. The stack-based Hierholzer below is only valid on Eulerian
+        // components (all degrees even, or exactly two odd ones when starting at an odd vertex);
+        // anything else corrupts the vertex/edge association and materializes retraced segments
+        // (double extrusion). Pair ALL remaining odd-degree vertices of each component with virtual
+        // edges - a virtual edge is never extruded, it splits the trail there (one travel move), which
+        // is exactly the topological lower bound. Components without odd vertices come out as closed
+        // loops, components with 2k odd vertices as k open trails.
+        {
+            // Component labels (BFS over active edges).
+            std::vector<int> comp(n_vertices, -1);
+            int              n_comp = 0;
+            {
+                std::vector<size_t> stack;
+                for (size_t v = 0; v < n_vertices; ++ v) {
+                    if (standalone[v / 2] || comp[v] >= 0)
+                        continue;
+                    comp[v] = n_comp;
+                    stack.assign(1, v);
+                    while (! stack.empty()) {
+                        size_t u = stack.back();
+                        stack.pop_back();
+                        for (size_t e : adjacency[u])
+                            if (edges[e].active) {
+                                size_t w = edges[e].v1 == u ? edges[e].v2 : edges[e].v1;
+                                if (comp[w] < 0) {
+                                    comp[w] = n_comp;
+                                    stack.emplace_back(w);
+                                }
+                            }
+                    }
+                    ++ n_comp;
+                }
+            }
+            // Odd-degree vertices per component (degree = 1 fragment + gap_degree -> odd when
+            // gap_degree is even), sorted along the boundary so that pairs are close to each other.
+            std::vector<std::vector<size_t>> odd_by_comp(n_comp);
+            for (size_t v = 0; v < n_vertices; ++ v)
+                if (! standalone[v / 2] && (gap_degree[v] % 2) == 0)
+                    odd_by_comp[size_t(comp[v])].emplace_back(v);
+            for (std::vector<size_t> &odd : odd_by_comp) {
+                assert((odd.size() % 2) == 0);
+                std::sort(odd.begin(), odd.end(), [&cps](size_t l, size_t r) {
+                    return cps[l].contour_idx < cps[r].contour_idx ||
+                           (cps[l].contour_idx == cps[r].contour_idx && cps[l].param < cps[r].param);
+                });
+                for (size_t i = 0; i + 1 < odd.size(); i += 2) {
+                    adjacency[odd[i]].emplace_back(edges.size());
+                    adjacency[odd[i + 1]].emplace_back(edges.size());
+                    edges.push_back({ odd[i], odd[i + 1], false, true, 0, 0, true, false });
+                }
             }
         }
 
@@ -1928,13 +1994,20 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             if (trail.size() < 2)
                 return;
             std::reverse(trail.begin(), trail.end());
-            Polyline pl;
+            Polylines pieces;
+            Polyline  pl;
             pl.points.emplace_back(vertex_point(trail.front().first));
             for (size_t i = 1; i < trail.size(); ++ i) {
                 size_t                v_from = trail[i - 1].first;
                 size_t                v_to   = trail[i].first;
                 const SinglePathEdge &e      = edges[size_t(trail[i].second)];
-                if (e.is_gap)
+                if (e.is_virtual) {
+                    // Trail split point: never extruded, the printer travels here.
+                    if (pl.size() > 1)
+                        pieces.emplace_back(std::move(pl));
+                    pl = Polyline();
+                    pl.points.emplace_back(vertex_point(v_to));
+                } else if (e.is_gap)
                     single_path_append_arc(pl.points, graph.boundary[e.contour_idx],
                                            cps[v_from].point_idx, cps[v_to].point_idx, /* forward */ v_from == e.v1);
                 else {
@@ -1946,13 +2019,18 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 }
             }
             if (pl.size() > 1)
-                polylines_out.emplace_back(std::move(pl));
+                pieces.emplace_back(std::move(pl));
+            // The circuit starts at an arbitrary vertex: when it was split by virtual edges, the first
+            // and the last piece are the two halves of one and the same trail - join them back.
+            if (pieces.size() > 1 && pieces.front().points.front() == pieces.back().points.back()) {
+                pieces.back().points.insert(pieces.back().points.end(), pieces.front().points.begin() + 1, pieces.front().points.end());
+                pieces.front() = std::move(pieces.back());
+                pieces.pop_back();
+            }
+            append(polylines_out, std::move(pieces));
         };
-        // Open trails must start at an odd-degree vertex (degree = 1 fragment + gap_degree, odd when
-        // gap_degree is even); circuits and leftovers may start anywhere.
-        for (size_t v = 0; v < n_vertices; ++ v)
-            if (! standalone[v / 2] && (gap_degree[v] % 2) == 0 && next_unused(v) >= 0)
-                run_trail(v);
+        // After the Euler augmentation every component is a circuit; any vertex with unused edges may
+        // start it. A circuit containing k virtual edges materializes into k open trails.
         for (size_t v = 0; v < n_vertices; ++ v)
             if (! standalone[v / 2] && next_unused(v) >= 0)
                 run_trail(v);

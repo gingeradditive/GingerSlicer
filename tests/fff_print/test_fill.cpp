@@ -1,6 +1,8 @@
 #include <catch2/catch.hpp>
 
 #include <numeric>
+#include <set>
+#include <tuple>
 #include <sstream>
 
 #include "libslic3r/ClipperUtils.hpp"
@@ -209,6 +211,25 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
     fill_params.connect_polygons = true;
     fill_params.dont_adjust      = true;
 
+    // Pellet printers must never extrude twice over the same line: verify that no segment is
+    // traversed twice, within a path or across paths.
+    auto require_no_retraced_segments = [](const Slic3r::Polylines &paths) {
+        std::set<std::tuple<coord_t, coord_t, coord_t, coord_t>> seen;
+        size_t duplicates = 0;
+        for (const Polyline &pl : paths)
+            for (size_t i = 1; i < pl.size(); ++ i) {
+                Point a = pl.points[i - 1], b = pl.points[i];
+                if (a == b)
+                    continue;
+                if (b.x() < a.x() || (b.x() == a.x() && b.y() < a.y()))
+                    std::swap(a, b);
+                if (! seen.insert(std::make_tuple(a.x(), a.y(), b.x(), b.y())).second)
+                    ++ duplicates;
+            }
+        CAPTURE(duplicates);
+        REQUIRE(duplicates == 0);
+    };
+
     SECTION("Square 200x200, multiline 2") {
         Slic3r::Points square { Point::new_scale(0,0), Point::new_scale(200,0), Point::new_scale(200,200), Point::new_scale(0,200) };
         Slic3r::ExPolygon expolygon(square);
@@ -220,6 +241,7 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
                 Slic3r::Polylines paths = filler->fill_surface(&surface, fill_params);
                 CAPTURE(paths.size());
                 REQUIRE(paths.size() == 1); // single continuous path, no travels
+        require_no_retraced_segments(paths);
                 REQUIRE(paths.front().size() > 2);
                 // NOTE: this path cannot close into a loop: parallel racetrack rings admit no connected
                 // all-even gap selection (a closed circuit would decompose into per-ring loops).
@@ -244,6 +266,7 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
         Slic3r::Polylines paths = filler->fill_surface(&surface, grid_params);
         CAPTURE(paths.size());
         REQUIRE(paths.size() == 1); // single continuous path, no travels
+        require_no_retraced_segments(paths);
     }
 
     SECTION("Square 200x200, grid trapezoidal (multiline 2)") {
@@ -260,6 +283,7 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
         Slic3r::Polylines paths = filler->fill_surface(&surface, grid_params);
         CAPTURE(paths.size());
         REQUIRE(paths.size() == 1); // single continuous path, no travels
+        require_no_retraced_segments(paths);
     }
 
     SECTION("Narrow slanted strip, grid trapezoidal (multiline 2)") {
@@ -281,7 +305,12 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
         Slic3r::Surface surface(stInternal, expolygon);
         Slic3r::Polylines paths = filler->fill_surface(&surface, grid_params);
         CAPTURE(paths.size());
-        REQUIRE(paths.size() == 1); // single continuous path, no travels
+        // Extreme fragment soup (each trapezoid row chopped into many pieces by both long edges):
+        // the no-double-extrusion guarantee is hard, travel minimization is best effort here. The
+        // boundary graph of this case is tree-like, so some odd-degree pairs cannot be cancelled
+        // without re-extruding boundary segments; each surviving pair costs one trail (one travel).
+        REQUIRE(paths.size() <= 5);
+        require_no_retraced_segments(paths);
     }
 
     SECTION("L-shape, multiline 2") {
@@ -294,6 +323,7 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
         Slic3r::Polylines paths = filler->fill_surface(&surface, fill_params);
         CAPTURE(paths.size());
         REQUIRE(paths.size() == 1); // single continuous path, no travels
+        require_no_retraced_segments(paths);
     }
 }
 
