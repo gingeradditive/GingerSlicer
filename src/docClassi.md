@@ -1,28 +1,33 @@
-# 001 Utils/ASCIIFolding
+
+🟢 DA MANTENERE 
+🟡 DA DECIDERE SE MANTENERE 
+🔴 DA TOGLIERE
+
+# 🟢 001 Utils/ASCIIFolding 
 Utilità fold UTF-8 accented caratteri a ASCII: fold_utf8_to_ascii() legacy firmware filename compatibility, fold_to_ascii(wchar_t) singolo carattere. Feature accented character stripping.
 
-# 002 Utils/AstroBox
+# 🔴 002 Utils/AstroBox
 PrintHost AstroBox: inherits PrintHost, HTTP API key auth, test/upload/start print, auto-discovery enabled. Feature AstroBox cloud printer integration.
 
-# 003 Utils/Bonjour
+# 🔴 003 Utils/Bonjour
 mDNS service discovery Bonjour: struct BonjourReply (ip/port/service_name/txt_data), class Bonjour async lookup/resolve con callback fn. Feature printer auto-discovery network.
 
-# 004 Utils/ColorSpaceConvert
+# 🟢 004 Utils/ColorSpaceConvert
 Color space conversione: RGB↔Lab↔XYZ pipeline, RGB↔HSV, RGB→YUV, DeltaE76/94/00 color difference metriche, wxColour converters. Feature color math utilities.
 
-# 005 Utils/CrealityPrint
+# 🔴 005 Utils/CrealityPrint
 PrintHost CrealityPrint: cloud API, SSL config, web UI URL, chunked upload, start print action. Feature Creality cloud printer integration.
 
-# 006 Utils/Duet
+# 🔴 006 Utils/Duet
 PrintHost Duet: RRF/DSF connection modes, password auth, simulation mode start, timestamp URL. Feature Duet 3D printer integration.
 
-# 007 Utils/ElegooLink
+# 🔴 007 Utils/ElegooLink
 PrintHost ElegooLink (inherits OctoPrint): WebSocket client per print control, chunked upload con MD5, bed leveling/filament/timelapse opzioni.
 
 # 008 Utils/EmbossStyleManager
 Emboss style manager: font caching (imgui + wxFont), style list storage/load config, add/rename/erase/swap style, GPU font release. Core emboss text styling.
 
-# 009 Utils/ESP3D
+# 🔴 009 Utils/ESP3D
 PrintHost ESP3D: TCP console integration, command format utility, file upload, start print action, error code parsing. Feature ESP3D firmware integration.
 
 # 010 Utils/FileHelp
@@ -62,7 +67,7 @@ PrintHost MKS: TCP console integration, file upload con URL construction, device
 PrintHost Obico (inherits PrintHost): cloud service, OAuth login, get_login_url(auth_url), API key config, test/upload, get_printers lista. Feature Obico cloud integration.
 
 # 022 Utils/OctoPrint
-PrintHost OctoPrint: HTTP API key auth, auto-discovery, start print action, cafile SSL support. Plus subclass `PrusaLink` (HTTP Digest auth, PUT/POST dual-mode upload, storage selection).
+PrintHost OctoPrint (klipper): HTTP API key auth, auto-discovery, start print action, cafile SSL support. Plus subclass `PrusaLink` (HTTP Digest auth, PUT/POST dual-mode upload, storage selection).
 
 # 023 Utils/PresetUpdater
 Preset updater OTA: sync(http_url, language) background config fetch, slic3r_update_notify(), config_update enum result (noop/update/reject/notification), install_bundles_rsrc(list). Feature profile OTA update.
