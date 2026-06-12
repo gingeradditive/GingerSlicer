@@ -3027,10 +3027,15 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
                 continue;
             Polylines joined;
             connect_infill(std::move(rows), inner, joined, this->spacing, params);
-            // A closed centerline would widen into two concentric loops; open it at its seam.
-            for (Polyline &pl : joined)
-                if (pl.size() > 3 && pl.points.front() == pl.points.back())
-                    pl.points.pop_back();
+            // With an EVEN multiline a closed centerline would widen into two concentric loops; open it
+            // at its seam so the widened result stays one single ring. With an ODD multiline the
+            // centerline itself is extruded (multiline_fill() inserts it at offset 0): keep it CLOSED,
+            // the splice below merges it with the offset rings into one closed loop. An open centerline
+            // would stay a separate open path: no free seam, one travel move to reach it.
+            if ((params.multiline % 2) == 0)
+                for (Polyline &pl : joined)
+                    if (pl.size() > 3 && pl.points.front() == pl.points.back())
+                        pl.points.pop_back();
             // Widen the connected path; the union outline comes back as one outer wall plus the hole
             // walls of the pockets the path encloses - splice them into one single closed loop.
             multiline_fill(joined, params, spacing);
@@ -3297,11 +3302,15 @@ bool FillRectilinear::fill_surface_trapezoidal(
                 continue;
             Polylines joined;
             connect_infill(std::move(rows), inner, joined, this->spacing, params);
-            // A closed centerline would widen into two concentric loops; open it at its seam so the
-            // widened result stays one single ring.
-            for (Polyline &pl : joined)
-                if (pl.size() > 3 && pl.points.front() == pl.points.back())
-                    pl.points.pop_back();
+            // With an EVEN multiline a closed centerline would widen into two concentric loops; open it
+            // at its seam so the widened result stays one single ring. With an ODD multiline the
+            // centerline itself is extruded (multiline_fill() inserts it at offset 0): keep it CLOSED,
+            // the splice below merges it with the offset rings into one closed loop. An open centerline
+            // would stay a separate open path: no free seam, one travel move to reach it.
+            if ((params.multiline % 2) == 0)
+                for (Polyline &pl : joined)
+                    if (pl.size() > 3 && pl.points.front() == pl.points.back())
+                        pl.points.pop_back();
             // Widen the connected path; the union outline comes back as one outer wall plus the hole
             // walls of the pockets the path encloses - splice them into one single closed loop.
             multiline_fill(joined, params, spacing);

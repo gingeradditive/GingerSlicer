@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <boost/log/trivial.hpp>
+#include "../AABBTreeLines.hpp"
 #include "../ClipperUtils.hpp"
 #include "../Clipper2Utils.hpp"
 #include "../EdgeGrid.hpp"
@@ -1594,7 +1595,8 @@ BoundingBox Fill::extended_object_bounding_box() const
 // the hole walls of the pockets it encloses) into a single closed loop. Loops are linked pairwise at
 // their closest approach with two short link segments crossing the empty space in between; the cuts in
 // the two loops are staggered by ~one extrusion width, so the links land in the cut gaps instead of
-// over already extruded material. Open polylines are left untouched.
+// over already extruded material. Rings that remain (no other ring within reach) are attached to the
+// closest open polyline as a detour; open polylines are otherwise left untouched.
 void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger)
 {
     // Separate the closed loops (normalized to an open ring representation) from open polylines.
@@ -1608,63 +1610,163 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
     }
     loops.clear();
 
-    auto advance_by = [](const Points &pts, size_t start, double distance, bool forward) -> size_t {
-        size_t i         = start;
-        double remaining = distance;
-        for (size_t guard = 0; guard + 1 < pts.size(); ++ guard) {
-            size_t next = forward ? (i + 1) % pts.size() : (i + pts.size() - 1) % pts.size();
-            remaining -= (pts[next] - pts[i]).cast<double>().norm();
-            i = next;
-            if (remaining <= 0.)
+    // The closest point on the segment (a, b) to p. Clipper outlines have vertices only at corners and
+    // caps: the closest approach between two rings (or a ring and a path) usually falls in the middle
+    // of a long straight segment, so all searches below project onto segments instead of comparing
+    // vertices - a vertex-based link can come out many millimeters long and run nearly parallel to an
+    // already extruded wall.
+    auto closest_on_segment = [](const Point &p, const Point &a, const Point &b) -> Point {
+        Vec2d  ab   = (b - a).cast<double>();
+        double len2 = ab.squaredNorm();
+        if (len2 <= 0.)
+            return a;
+        double t = std::clamp((p - a).cast<double>().dot(ab) / len2, 0., 1.);
+        return Point((a.cast<double>() + ab * t).cast<coord_t>());
+    };
+
+    // Traverse the whole ring once, entering at `entry` (a point on the segment R[seg] -> R[seg+1]) and
+    // exiting at the point one `stagger` away from the entry on the far side of the walk; the arc
+    // between exit and entry is the cut gap the link segments land in. `walk_forward` selects the
+    // traversal direction (the cut gap is always on the side the walk does NOT start towards).
+    auto walk_ring = [](const Points &R, size_t seg, const Point &entry, double stagger, bool walk_forward) -> Points {
+        const size_t m = R.size();
+        Points out;
+        out.reserve(m + 2);
+        out.emplace_back(entry);
+        // Locate the exit point at arc distance `stagger` from the entry, moving against the walk
+        // direction; the vertices inside that arc belong to the cut gap and are skipped.
+        double remaining = stagger;
+        Point  cur    = entry;
+        size_t n_skip = 0;
+        size_t ni     = walk_forward ? seg : (seg + 1) % m;
+        while (true) {
+            double seg_len = (R[ni] - cur).cast<double>().norm();
+            if (seg_len >= remaining || n_skip + 2 >= m)
                 break;
+            remaining -= seg_len;
+            cur = R[ni];
+            ni  = walk_forward ? (ni + m - 1) % m : (ni + 1) % m;
+            ++ n_skip;
         }
-        return i;
+        Vec2d  dir = (R[ni] - cur).cast<double>();
+        double dl  = dir.norm();
+        Point  exit_pt = dl <= 0. ? cur : Point((cur.cast<double>() + dir * std::min(1., remaining / dl)).cast<coord_t>());
+        size_t first   = walk_forward ? (seg + 1) % m : seg;
+        for (size_t cnt = 0; cnt < m - n_skip; ++ cnt)
+            out.emplace_back(R[walk_forward ? (first + cnt) % m : (first + m - cnt) % m]);
+        out.emplace_back(exit_pt);
+        return out;
     };
 
     const double max_link2 = max_link_distance * max_link_distance;
     for (bool merged_any = true; merged_any && rings.size() > 1; ) {
         merged_any = false;
-        // Globally closest vertex pair between any two rings.
-        size_t bi = 0, bj = 0, bia = 0, bib = 0;
+        // Globally closest approach between any two rings: vertices of one against segments of the other.
+        size_t bi = 0, bj = 0, b_vert = 0, b_seg = 0;
+        Point  b_proj;
         double best = max_link2;
-        for (size_t i = 0; i + 1 < rings.size(); ++ i)
-            for (size_t j = i + 1; j < rings.size(); ++ j)
-                for (size_t a = 0; a < rings[i].size(); ++ a)
-                    for (size_t b = 0; b < rings[j].size(); ++ b) {
-                        double d = (rings[j].points[b] - rings[i].points[a]).cast<double>().squaredNorm();
+        for (size_t i = 0; i < rings.size(); ++ i)
+            for (size_t j = 0; j < rings.size(); ++ j) {
+                if (i == j)
+                    continue;
+                const Points &A = rings[i].points; // segments
+                const Points &B = rings[j].points; // vertices
+                for (size_t v = 0; v < B.size(); ++ v)
+                    for (size_t s = 0; s < A.size(); ++ s) {
+                        Point  proj = closest_on_segment(B[v], A[s], A[(s + 1) % A.size()]);
+                        double d    = (B[v] - proj).cast<double>().squaredNorm();
                         if (d < best) {
                             best = d;
-                            bi = i; bj = j; bia = a; bib = b;
+                            bi = i; bj = j; b_vert = v; b_seg = s; b_proj = proj;
                         }
                     }
+            }
         if (best >= max_link2)
             break;
         const Points &A = rings[bi].points;
         const Points &B = rings[bj].points;
-        // Stagger the cut of each ring; pick the direction on B that keeps the second link short.
-        size_t ja  = advance_by(A, bia, stagger, true);
-        size_t jbf = advance_by(B, bib, stagger, true);
-        size_t jbb = advance_by(B, bib, stagger, false);
-        bool   b_stagger_fwd = (B[jbf] - A[ja]).cast<double>().squaredNorm() < (B[jbb] - A[ja]).cast<double>().squaredNorm();
-        size_t jb  = b_stagger_fwd ? jbf : jbb;
+        // Cut B at its closest vertex, A at the projected point right across; stagger both cuts and
+        // pick the walk direction on A that keeps the closing link short. The merged sequence is
+        // B-walk, link, A-walk; the final re-close below adds the second link back to the B entry.
+        Points pieceB   = walk_ring(B, b_vert, B[b_vert], stagger, false);
+        Points pieceA_f = walk_ring(A, b_seg, b_proj, stagger, true);
+        Points pieceA_b = walk_ring(A, b_seg, b_proj, stagger, false);
+        // Prefer the A direction whose closing link does not cross the first link, then the shorter one.
+        auto segments_cross = [](const Point &a1, const Point &a2, const Point &b1, const Point &b2) -> bool {
+            auto ccw = [](const Point &p, const Point &q, const Point &r) -> double {
+                return double(q.x() - p.x()) * double(r.y() - p.y()) - double(q.y() - p.y()) * double(r.x() - p.x());
+            };
+            return ccw(a1, a2, b1) * ccw(a1, a2, b2) < 0. && ccw(b1, b2, a1) * ccw(b1, b2, a2) < 0.;
+        };
+        bool   f_cross = segments_cross(pieceB.back(), b_proj, pieceA_f.back(), pieceB.front());
+        bool   b_cross = segments_cross(pieceB.back(), b_proj, pieceA_b.back(), pieceB.front());
+        double f_len   = (pieceA_f.back() - pieceB.front()).cast<double>().squaredNorm();
+        double b_len   = (pieceA_b.back() - pieceB.front()).cast<double>().squaredNorm();
+        Points &pieceA = (f_cross != b_cross) ? (b_cross ? pieceA_f : pieceA_b)
+                                              : (f_len <= b_len ? pieceA_f : pieceA_b);
         Polyline merged;
-        merged.points.reserve(A.size() + B.size() + 1);
-        // All of A except the stagger arc (bia -> ja).
-        for (size_t idx = ja; ; idx = (idx + 1) % A.size()) {
-            merged.points.emplace_back(A[idx]);
-            if (idx == bia)
-                break;
-        }
-        // Link 1: A[bia] -> B[bib], then all of B except its stagger arc, ending at B[jb];
-        // link 2 (B[jb] -> A[ja]) closes the ring when the loop is re-closed below.
-        for (size_t idx = bib; ; idx = b_stagger_fwd ? (idx + B.size() - 1) % B.size() : (idx + 1) % B.size()) {
-            merged.points.emplace_back(B[idx]);
-            if (idx == jb)
-                break;
-        }
+        merged.points.reserve(pieceA.size() + pieceB.size());
+        merged.points.insert(merged.points.end(), pieceB.begin(), pieceB.end());
+        merged.points.insert(merged.points.end(), pieceA.begin(), pieceA.end());
         rings[bi] = std::move(merged);
         rings.erase(rings.begin() + bj);
         merged_any = true;
+    }
+
+    // Attach any leftover ring to the closest open polyline (odd multiline with an open centerline:
+    // a serpentine over an odd number of rows cannot close, so the centerline stays an open path and
+    // the ring wall around it must be reached from it). The path detours from its closest point
+    // around the whole ring and back: the out and return links share the junction point but land on
+    // the ring one stagger apart, so they diverge instead of overlapping.
+    for (bool attached_any = true; attached_any && ! rings.empty() && ! open.empty(); ) {
+        attached_any = false;
+        size_t br = 0, bo = 0, bk = 0, b_seg = 0;
+        Point  b_entry, b_junction;
+        bool   b_insert_junction = false;
+        double best = max_link2;
+        for (size_t r = 0; r < rings.size(); ++ r)
+            for (size_t o = 0; o < open.size(); ++ o) {
+                const Points &R = rings[r].points;
+                const Points &P = open[o].points;
+                // Path vertex against ring segments...
+                for (size_t k = 0; k < P.size(); ++ k)
+                    for (size_t s = 0; s < R.size(); ++ s) {
+                        Point  proj = closest_on_segment(P[k], R[s], R[(s + 1) % R.size()]);
+                        double d    = (P[k] - proj).cast<double>().squaredNorm();
+                        if (d < best) {
+                            best = d;
+                            br = r; bo = o; bk = k; b_seg = s; b_entry = proj; b_junction = P[k];
+                            b_insert_junction = false;
+                        }
+                    }
+                // ... and ring vertex against path segments (the junction is inserted into the path).
+                for (size_t v = 0; v < R.size(); ++ v)
+                    for (size_t k = 0; k + 1 < P.size(); ++ k) {
+                        Point  proj = closest_on_segment(R[v], P[k], P[k + 1]);
+                        double d    = (R[v] - proj).cast<double>().squaredNorm();
+                        if (d < best) {
+                            best = d;
+                            br = r; bo = o; bk = k; b_seg = v; b_entry = rings[r].points[v]; b_junction = proj;
+                            b_insert_junction = true;
+                        }
+                    }
+            }
+        if (best >= max_link2)
+            break;
+        const Points &R      = rings[br].points;
+        Points        walk_f = walk_ring(R, b_seg, b_entry, stagger, true);
+        Points        walk_b = walk_ring(R, b_seg, b_entry, stagger, false);
+        Points       &walk   = (walk_f.back() - b_junction).cast<double>().squaredNorm() <
+                               (walk_b.back() - b_junction).cast<double>().squaredNorm() ? walk_f : walk_b;
+        Points ins;
+        ins.reserve(walk.size() + 2);
+        if (b_insert_junction)
+            ins.emplace_back(b_junction);
+        ins.insert(ins.end(), walk.begin(), walk.end());
+        ins.emplace_back(b_junction); // return link, back to the junction point
+        open[bo].points.insert(open[bo].points.begin() + bk + 1, ins.begin(), ins.end());
+        rings.erase(rings.begin() + br);
+        attached_any = true;
     }
 
     // Re-close the rings and emit everything.
@@ -1714,7 +1816,7 @@ static inline void single_path_append_arc(Points &dst, const Points &contour, si
 // previous wall ended -> no wall->infill travel. Finally Hierholzer's algorithm extracts maximal trails;
 // every trail is one travel-free path (components with more than two odd-degree vertices decompose into
 // several trails gracefully).
-static void connect_infill_single_path(Polylines &&infill_ordered, const BoundaryInfillGraph &graph, Polylines &polylines_out)
+static void connect_infill_single_path(Polylines &&infill_ordered, const BoundaryInfillGraph &graph, const double spacing, Polylines &polylines_out)
 {
     const std::vector<ContourIntersectionPoint> &cps = graph.map_infill_end_point_to_boundary;
     const size_t n_fragments = infill_ordered.size();
@@ -1776,6 +1878,52 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
         for (std::vector<size_t> &cv : contour_vertices)
             std::sort(cv.begin(), cv.end(), [&cps](size_t l, size_t r) { return cps[l].param < cps[r].param; });
 
+        // A gap arc that runs nearly PARALLEL to an infill fragment at less than one extrusion width
+        // apart would re-extrude that fragment: a row nearly tangent to the wall plus the boundary
+        // stretch right under it would be printed twice (an out-and-back spur in the path). Block such
+        // gaps for good - the solver treats them as nonexistent and routes around them.
+        std::vector<std::vector<char>> gap_blocked(graph.boundary.size());
+        {
+            std::vector<Line> fragment_lines;
+            for (size_t i = 0; i < n_fragments; ++ i)
+                if (! standalone[i])
+                    for (size_t j = 1; j < infill_ordered[i].size(); ++ j)
+                        fragment_lines.emplace_back(infill_ordered[i].points[j - 1], infill_ordered[i].points[j]);
+            AABBTreeLines::LinesDistancer<Line> distancer(fragment_lines);
+            const double dist_colliding      = 0.8 * scale_(spacing);
+            const double max_coincident      = 1.5 * scale_(spacing);
+            const double cos_parallel        = cos(25. * M_PI / 180.);
+            for (size_t c = 0; c < contour_vertices.size(); ++ c) {
+                const std::vector<size_t> &cv = contour_vertices[c];
+                gap_blocked[c].assign(cv.size(), 0);
+                const Points &contour = graph.boundary[c];
+                for (size_t k = 0; k < cv.size(); ++ k) {
+                    size_t idx_from = cps[cv[k]].point_idx;
+                    size_t idx_to   = cps[cv[(k + 1) % cv.size()]].point_idx;
+                    double coincident = 0.;
+                    for (size_t i = idx_from; i != idx_to && coincident <= max_coincident; ) {
+                        const Point &prev = contour[i];
+                        if (++ i == contour.size())
+                            i = 0;
+                        Vec2d  seg = (contour[i] - prev).cast<double>();
+                        double len = seg.norm();
+                        if (len <= 0.)
+                            continue;
+                        Point mid((prev + contour[i]) / 2);
+                        auto [dist, line_idx, np] = distancer.distance_from_lines_extra<false>(mid);
+                        if (dist < dist_colliding) {
+                            Vec2d frag = (fragment_lines[line_idx].b - fragment_lines[line_idx].a).cast<double>();
+                            double frag_len = frag.norm();
+                            if (frag_len > 0. && std::abs(seg.dot(frag)) > cos_parallel * len * frag_len)
+                                coincident += len;
+                        }
+                    }
+                    if (coincident > max_coincident)
+                        gap_blocked[c][k] = 1;
+                }
+            }
+        }
+
         // Gap k of a contour joins its k-th and (k+1 modulo m)-th vertex along the contour.
         std::vector<std::vector<char>>   gap_taken(graph.boundary.size());
         std::vector<std::vector<size_t>> gap_edge(graph.boundary.size()); // (contour, gap) -> edge index
@@ -1784,7 +1932,12 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             gap_taken[c].assign(contour_vertices[c].size(), 0);
             gap_edge[c].assign(contour_vertices[c].size(), std::numeric_limits<size_t>::max());
         }
-        auto take_gap = [&contour_vertices, &gap_taken, &gap_edge, &gap_degree, &edges, &add_edge](size_t c, size_t k) {
+        auto take_gap = [&contour_vertices, &gap_taken, &gap_edge, &gap_degree, &edges, &add_edge, &gap_blocked](size_t c, size_t k) {
+            if (gap_blocked[c][k])
+                // Re-extrusion of a coincident fragment - this gap may never be selected. Callers
+                // (the initial phase and the sector flips) just leave a defect here; the repair
+                // machinery and the Euler augmentation handle it like any other deleted gap.
+                return;
             const std::vector<size_t> &cv = contour_vertices[c];
             size_t v1 = cv[k];
             size_t v2 = cv[(k + 1) % cv.size()];
@@ -2169,7 +2322,7 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
     if (params.connect_polygons) {
         // Cura-style single-path infill: dedicated Eulerian-trail connector, replaces the greedy
         // anchor-based machinery below entirely.
-        connect_infill_single_path(std::move(infill_ordered), graph, polylines_out);
+        connect_infill_single_path(std::move(infill_ordered), graph, spacing, polylines_out);
         return;
     }
 

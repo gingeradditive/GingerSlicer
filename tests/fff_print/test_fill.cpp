@@ -230,6 +230,54 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
         REQUIRE(duplicates == 0);
     };
 
+    // Catch the near-coincident case the exact-duplicate detector above misses: two long, nearly
+    // parallel segments closer than half the extrusion width (e.g. a boundary arc traced right under a
+    // row that is almost tangent to the wall - an out-and-back spur of doubled extrusion).
+    auto require_no_overlapping_parallel_segments = [](const Slic3r::Polylines &paths, double width_mm) {
+        struct Seg { Vec2d a, b; };
+        std::vector<Seg> segs;
+        for (const Polyline &pl : paths)
+            for (size_t i = 1; i < pl.size(); ++ i)
+                if (pl.points[i - 1] != pl.points[i])
+                    segs.push_back({ pl.points[i - 1].cast<double>(), pl.points[i].cast<double>() });
+        const double dist_max    = 0.45 * scale_(width_mm);
+        const double min_overlap = 3.0  * scale_(width_mm);
+        size_t violations = 0;
+        for (size_t i = 0; i < segs.size() && violations == 0; ++ i)
+            for (size_t j = i + 1; j < segs.size(); ++ j) {
+                Vec2d  di = segs[i].b - segs[i].a, dj = segs[j].b - segs[j].a;
+                double li = di.norm(), lj = dj.norm();
+                if (li < SCALED_EPSILON || lj < SCALED_EPSILON)
+                    continue;
+                if (std::abs(di.dot(dj)) < 0.95 * li * lj)
+                    continue; // not nearly parallel
+                // Longitudinal overlap of j on i's axis.
+                Vec2d  u  = di / li;
+                double t0 = (segs[j].a - segs[i].a).dot(u), t1 = (segs[j].b - segs[i].a).dot(u);
+                double lo = std::max(0., std::min(t0, t1)), hi = std::min(li, std::max(t0, t1));
+                if (hi - lo <= min_overlap)
+                    continue;
+                // Perpendicular offset over the overlapping stretch, sampled; nearly parallel lines ->
+                // the offset varies linearly, sampling is exact enough.
+                Vec2d  n = Vec2d(-u.y(), u.x());
+                double close_len = 0.;
+                const int K = 16;
+                for (int k = 0; k <= K; ++ k) {
+                    double t  = lo + (hi - lo) * k / K;
+                    double s  = std::abs(t1 - t0) < SCALED_EPSILON ? 0. : (t - t0) / (t1 - t0);
+                    Vec2d  pj = segs[j].a + dj * s;
+                    if (std::abs((pj - (segs[i].a + u * t)).dot(n)) < dist_max)
+                        close_len += (hi - lo) / (K + 1);
+                }
+                if (close_len > min_overlap) {
+                    ++ violations;
+                    break;
+                }
+            }
+        CAPTURE(violations);
+        REQUIRE(violations == 0);
+    };
+
     SECTION("Square 200x200, multiline 2") {
         Slic3r::Points square { Point::new_scale(0,0), Point::new_scale(200,0), Point::new_scale(200,200), Point::new_scale(0,200) };
         Slic3r::ExPolygon expolygon(square);
@@ -242,6 +290,7 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
                 CAPTURE(paths.size());
                 REQUIRE(paths.size() == 1); // single continuous path, no travels
                 require_no_retraced_segments(paths);
+                require_no_overlapping_parallel_segments(paths, filler->spacing);
                 REQUIRE(paths.front().size() > 2);
                 // Connect-before-multiply: the spliced outline is one CLOSED loop, emitted as an
                 // ExtrusionLoop so the G-code starts it right where the wall ended (no travel at all).
@@ -267,6 +316,7 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
         CAPTURE(paths.size());
         REQUIRE(paths.size() == 1); // single continuous path, no travels
         require_no_retraced_segments(paths);
+        require_no_overlapping_parallel_segments(paths, filler->spacing);
     }
 
     SECTION("Square 200x200, grid trapezoidal (multiline 2)") {
@@ -284,6 +334,7 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
         CAPTURE(paths.size());
         REQUIRE(paths.size() == 1); // single continuous path, no travels
         require_no_retraced_segments(paths);
+        require_no_overlapping_parallel_segments(paths, filler->spacing);
     }
 
     SECTION("Narrow slanted strip, grid trapezoidal (multiline 2)") {
@@ -311,6 +362,7 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
         REQUIRE(paths.size() == 1);
         REQUIRE(paths.front().is_closed());
         require_no_retraced_segments(paths);
+        require_no_overlapping_parallel_segments(paths, filler->spacing);
     }
 
     SECTION("L-shape, multiline 2") {
@@ -324,6 +376,64 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
         CAPTURE(paths.size());
         REQUIRE(paths.size() == 1); // single continuous path, no travels
         require_no_retraced_segments(paths);
+        require_no_overlapping_parallel_segments(paths, filler->spacing);
+    }
+
+    SECTION("Square 200x200, multiline 3 (odd: centerline spliced with the ring)") {
+        // With an odd multiline the centerline itself is extruded: it must stay CLOSED so the splice
+        // merges it with the offset ring walls into one closed loop (-> ExtrusionLoop -> free seam).
+        Slic3r::Points square { Point::new_scale(0,0), Point::new_scale(200,0), Point::new_scale(200,200), Point::new_scale(0,200) };
+        Slic3r::ExPolygon expolygon(square);
+        FillParams params3 = fill_params;
+        params3.multiline  = 3;
+        auto filler = make_filler(0);
+        filler->bounding_box = get_extents(expolygon.contour);
+        Slic3r::Surface surface(stInternal, expolygon);
+        Slic3r::Polylines paths = filler->fill_surface(&surface, params3);
+        CAPTURE(paths.size());
+        // A serpentine over an ODD number of rows cannot close (parity), so the centerline may stay an
+        // open path - but the ring wall is spliced into it as a detour: still ONE path, zero travels.
+        REQUIRE(paths.size() == 1);
+        require_no_retraced_segments(paths);
+        require_no_overlapping_parallel_segments(paths, filler->spacing);
+    }
+
+    SECTION("Square 200x200, grid trapezoidal (multiline 3)") {
+        std::unique_ptr<Slic3r::Fill> filler(Slic3r::Fill::new_from_type("grid"));
+        filler->angle    = 0.f;
+        filler->spacing  = 5.0;
+        filler->layer_id = 0;
+        filler->z        = 0.9;
+        FillParams params3 = fill_params;
+        params3.multiline  = 3;
+        Slic3r::Points square { Point::new_scale(0,0), Point::new_scale(200,0), Point::new_scale(200,200), Point::new_scale(0,200) };
+        Slic3r::ExPolygon expolygon(square);
+        filler->bounding_box = get_extents(expolygon.contour);
+        Slic3r::Surface surface(stInternal, expolygon);
+        Slic3r::Polylines paths = filler->fill_surface(&surface, params3);
+        CAPTURE(paths.size());
+        REQUIRE(paths.size() == 1); // single continuous path, no travels
+        REQUIRE(paths.front().is_closed());
+        require_no_retraced_segments(paths);
+        require_no_overlapping_parallel_segments(paths, filler->spacing);
+    }
+
+    SECTION("Slanted wall nearly tangent to a row, multiline 2") {
+        // A wall at ~14 deg from the row direction: one row always crosses it at a grazing angle, so
+        // the row and the boundary stretch right under it nearly coincide. Selecting that boundary gap
+        // would extrude the same line twice (an out-and-back spur, seen on a real part); the connector
+        // must block it and route around.
+        Slic3r::Points quad { Point::new_scale(0,0), Point::new_scale(200,0), Point::new_scale(200,200), Point::new_scale(50,200) };
+        Slic3r::ExPolygon expolygon(quad);
+        auto filler = make_filler(0);
+        filler->bounding_box = get_extents(expolygon.contour);
+        Slic3r::Surface surface(stInternal, expolygon);
+        Slic3r::Polylines paths = filler->fill_surface(&surface, fill_params);
+        CAPTURE(paths.size());
+        REQUIRE(paths.size() == 1); // single continuous path, no travels
+        REQUIRE(paths.front().is_closed());
+        require_no_retraced_segments(paths);
+        require_no_overlapping_parallel_segments(paths, filler->spacing);
     }
 }
 
