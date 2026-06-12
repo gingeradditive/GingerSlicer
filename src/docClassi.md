@@ -1,3 +1,189 @@
+---
+
+# 🟢 ASSOLUTAMENTE DA MANTENERE (Core Architecture - 31 file)
+
+## Rendering & Visualization (9 files)
+- **3D Scene**: GLVolume, rendering foundation
+- **3DBed**: Bed plane 3D rendering
+- **Camera**: 3D view projection system
+- **GLModel**: GPU geometry abstraction
+- **GLShader**: GLSL shader compilation
+- **GLShadersManager**: Shader cache
+- **GLTexture**: GPU texture management
+- **OpenGLManager**: GL context lifecycle
+- **GCodeViewer**: G-code 3D visualization
+
+## Gizmo System (4 files)
+- **GLGizmoBase**: Gizmo interaction framework
+- **GLGizmosManager**: Gizmo orchestration
+- **GLGizmosCommon**: Common data pool
+- **GLGizmoPainterBase**: Paint-on gizmo base
+
+## GUI Foundation (8 files)
+- **GLCanvas3D**: Main 3D editing canvas
+- **Tab**: Print/Filament/Printer settings panel
+- **Field**: Config option UI widgets
+- **Plater**: Main editing workspace
+- **Selection**: 3D object selection system
+- **PartPlate**: Single plate management
+- **GUI_App**: Application lifecycle
+- **MainFrame**: Main window
+
+## Configuration & State (6 files)
+- **PrintConfig**: Parameter definitions (core)
+- **Config/Snapshot**: Configuration versioning
+- **Config/Version**: Bundle version schema
+- **UndoRedo**: Undo/redo system
+- **ProjectDirtyStateManager**: Change tracking
+- **OptionsGroup**: Config UI grouping
+
+## Background Processing (4 files)
+- **BackgroundSlicingProcess**: Async slicing thread
+- **Worker**: Job queue framework
+- **Job**: Job base abstraction
+- **ProgressIndicator**: Progress tracking interface
+
+---
+
+# 🟡 DA DECIDERE - Low to Medium Priority (67 file)
+
+## Gizmo Specializations (27 files)
+Geometry editing tools - usefulness varia in base a use case:
+- GLGizmoMove, GLGizmoScale, GLGizmoRotate: Basic 3D transforms (KEEP - essential)
+- GLGizmoCut, GLGizmoMeshBoolean: Boolean CAD operations (MEDIUM - specializzato)
+- GLGizmoMmuSegmentation, GLGizmoSeam, GLGizmoFuzzySkin: Painting tools (MEDIUM - print quality)
+- GLGizmoEmboss, GLGizmoText, GLGizmoSVG: 3D text/design (MEDIUM - feature-specific)
+- GLGizmoAdvancedCut, GLGizmoMeasure: Advanced measurement/cutting (MEDIUM - CAD-grade)
+- GLGizmoFdmSupports, GLGizmoBrimEars: Paint-on features (MEDIUM)
+- GLGizmoFlatten: Auto-orient on curved surfaces (LOW - rare workflow)
+- GLGizmoSimplify: Mesh optimization (MEDIUM - useful)
+- GLGizmoAssembly, GLGizmoHollow, GLGizmoSlaSupports, GLGizmoFaceDetector: SLA-specific (LOW - SLA niche)
+
+## UI Widgets & Panels (25 files)
+Custom wxWidgets extensions - decide per platform standardization:
+- Button, CheckBox, TextInput, Label: Basic widgets (KEEP - everywhere)
+- ComboBox, DropDown, RadioBox: Selection widgets (KEEP - everywhere)
+- ProgressBar, ProgressDialog: Progress UI (KEEP - important)
+- Advanced: AxisCtrlButton, StepCtrl, ImageSwitchButton, SwitchButton, TabCtrl (MEDIUM - specialized UI)
+- Container/Layout: StaticBox, ScrolledWindow, LabeledStaticBox, PopupWindow (MEDIUM - reusable)
+- Niche: RoundedRectangle, TempInput, SpinInput, StaticLine (LOW - very specific)
+
+## Background Jobs (11 files)
+Async work queues - usefulness by feature:
+- BoostThreadWorker, PlaterWorker, ThreadSafeQueue: Threading infrastructure (KEEP)
+- ArrangeJob, FillBedJob, OrientJob: Core arrange/orient (KEEP - essential)
+- EmbossJob, CreateFontNameImageJob, CreateFontStyleImagesJob: Text/emboss (MEDIUM)
+- SLAImportJob, RotoptimizeJob: SLA-specific (LOW)
+- UpgradeNetworkJob: Plugin auto-update (LOW - rare)
+
+## GUI Utilities & Helpers (15 files)
+Infrastructure and dialog utilities:
+- BitmapCache, ScalableBitmap, GUI_Utils: DPI scaling (KEEP - ubiquitous)
+- Search: Option search system (MEDIUM - useful but not critical)
+- RaycastManager: Mouse picking infrastructure (KEEP - essential for gizmos)
+- UnsavedChangesDialog, MsgDialog: Message dialogs (KEEP)
+- NotificationManager: Toast notifications (KEEP - feedback UX)
+- SavePresetDialog, CreatePresetsDialog: Preset management (MEDIUM)
+- ObjColorDialog, OAuthDialog: Feature-specific (MEDIUM)
+- SysInfoDialog, NetworkTestDialog: Diagnostics (LOW - support tools)
+- PresetComboBoxes, PresetHints: Preset UI (MEDIUM)
+
+## Specialized UI Dialogs (10 files)
+Feature-specific panels and dialogs - utility varia:
+- BBLStatusBar, BBLTopbar, NotificationManager: BBS-specific UI (MEDIUM - nice but replaceable)
+- GCodeViewer: G-code visualization (KEEP - essential preview)
+- Auxiliary, AuxiliaryDialog, GUI_AuxiliaryList: Project file attachments (LOW - BBS feature)
+- PhysicalPrinterDialog, PrintHostDialogs: PrintHost UI (MEDIUM - network printing)
+- PlateSettingsDialog, GUI_ObjectTable: Multi-plate features (MEDIUM - BBS feature)
+- BedShapeDialog, WipeTowerDialog, calib_dlg: Printer configuration (MEDIUM - specific)
+- DailyTips, HintNotification: Onboarding (LOW - nice-to-have)
+
+## Print Host & Network (10 files)
+Cloud printer integrations - strong deprecation candidates:
+- **PrintHost (base)**: Abstract framework (KEEP - architecture)
+- **OctoPrint, PrusaLink**: Industry standard (KEEP - OctoPrint huge ecosystem)
+- AstroBox, FlashAir, Bonjour: Legacy/wireless tech (LOW - obsolete)
+- CrealityPrint, MKS, Flashforge, Elegoo: Vendor-specific (MEDIUM - vendor loyalty)
+- Duet, Repetier, ESP3D, SimplyPrint, Obico: Niche hosts (LOW - specialized)
+
+## Utils - File & System (10 files)
+System integration utilities:
+- Serial, SerialMessage, TCPConsole: Hardware communication (KEEP - printer control)
+- Http, WebSocketClient: Network clients (KEEP - essential)
+- FileHelp, Process, InstanceCheck: System utilities (KEEP)
+- RemovableDriveManager: USB export (MEDIUM - useful)
+- FixModelByWin10, FontConfigHelp, RetinaHelper: Platform-specific (LOW - if cross-platform possible)
+- PresetUpdater: Profile OTA update (MEDIUM - feature-specific)
+
+## Utils - Minor Helpers (6 files)
+Miscellaneous small utilities:
+- ColorSpaceConvert: Color math (LOW - very specific)
+- EmbossStyleManager: Font caching (MEDIUM - if keeping emboss)
+- json_diff: Settings compression (LOW - internal)
+- minilzo_extension: LZO compression (LOW - internal)
+- ASCIIFolding: Firmware name legacy support (LOW - legacy)
+- Profile (Shiny profiling): Debug only (LOW - dev-only)
+
+---
+
+# 🔴 DA PULIRE - Candidates for Removal (20 file)
+
+## BBS/Bambu-Specific Features (7 files)
+Proprietary Bambu Studio extensions - consider if not essential:
+- **BBLStatusBarSend**: Proprietary send UI (BBS only)
+- **ModelMall**: Model marketplace web UI (BBS only)
+- **Project, ProjectDirtyStateManager**: Project file attachment (BBS only)
+- **Downloader, DownloaderFileGet, DownloadProgressDialog**: Model downloader (BBS only)
+- **PrinterWebView**: Web printer interface panel (BBS probably)
+
+## SLA-Only Features (4 files)
+Stereolithography support - if SLA removed:
+- GLGizmoHollow
+- GLGizmoSlaSupports
+- RotoptimizeJob
+- SLAImportDialog/SLAImportJob (borderline - 2 files)
+
+## Desktop Environment Integration (2 files)
+Platform-specific integration - low maintenance value:
+- **DesktopIntegrationDialog**: Linux .desktop files (Linux only)
+- **Mouse3DController**: 3DConnexion device support (niche/expensive hardware)
+
+## Deprecated/Unused Components (7 files)
+Almost-empty or obsolete files:
+- **ConfigWizard**: Setup wizard removed, only enum stubs left
+- **WebUpdatePlugin**: Completely empty (1 line)
+- **UserNotification**: Completely empty stub
+- **SingleChoiceDialog**: Minimalist not reused
+- **WebViewDialog**: Browser integration for marketplace (BBS only)
+- **KBShortcutsDialog**: Keyboard shortcuts help (nice but low priority)
+- **PrivacyUpdateDialog**: Privacy/update notifications (could consolidate)
+
+## Legacy/Niche Utilities (3 files)
+Very specific legacy support:
+- **InstanceID**: Unique ID generation (probably unused)
+- **ProfileDescription**: 28 hardcoded preset descriptions (i18n could handle this)
+- **Bonjour**: mDNS lookup (could use system API directly)
+
+---
+
+## Summary Statistics
+
+| Category | Count | Action |
+|----------|-------|--------|
+| **Keep (Core)** | 31 | Essential - no removal |
+| **Decide** | 67 | Case-by-case evaluation |
+| **Clean** | 20 | Strong removal candidates |
+| **TOTAL** | **118** | |
+
+### Cleanup Strategy
+1. **Phase 1**: Remove 20 low-priority BBS/SLA/deprecated (easily justified)
+2. **Phase 2**: Audit 67 "decide" files for cross-module dependencies before cleanup
+3. **Phase 3**: Consolidate remaining 31 core files, possible refactoring simplification
+
+---
+
+# 📋 Original File Descriptions (Reference)
+
 # Utils/ASCIIFolding
 Utilità fold UTF-8 accented caratteri a ASCII: fold_utf8_to_ascii() legacy firmware filename compatibility, fold_to_ascii(wchar_t) singolo carattere. Feature accented character stripping.
 
