@@ -1590,6 +1590,92 @@ BoundingBox Fill::extended_object_bounding_box() const
     return out.scaled(sqrt(2.));
 }
 
+// Splice a set of closed loops (e.g. the outline walls of a dilated infill band: one outer wall plus
+// the hole walls of the pockets it encloses) into a single closed loop. Loops are linked pairwise at
+// their closest approach with two short link segments crossing the empty space in between; the cuts in
+// the two loops are staggered by ~one extrusion width, so the links land in the cut gaps instead of
+// over already extruded material. Open polylines are left untouched.
+void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger)
+{
+    // Separate the closed loops (normalized to an open ring representation) from open polylines.
+    Polylines rings, open;
+    for (Polyline &pl : loops) {
+        if (pl.size() > 3 && pl.points.front() == pl.points.back()) {
+            pl.points.pop_back();
+            rings.emplace_back(std::move(pl));
+        } else if (pl.size() > 1)
+            open.emplace_back(std::move(pl));
+    }
+    loops.clear();
+
+    auto advance_by = [](const Points &pts, size_t start, double distance, bool forward) -> size_t {
+        size_t i         = start;
+        double remaining = distance;
+        for (size_t guard = 0; guard + 1 < pts.size(); ++ guard) {
+            size_t next = forward ? (i + 1) % pts.size() : (i + pts.size() - 1) % pts.size();
+            remaining -= (pts[next] - pts[i]).cast<double>().norm();
+            i = next;
+            if (remaining <= 0.)
+                break;
+        }
+        return i;
+    };
+
+    const double max_link2 = max_link_distance * max_link_distance;
+    for (bool merged_any = true; merged_any && rings.size() > 1; ) {
+        merged_any = false;
+        // Globally closest vertex pair between any two rings.
+        size_t bi = 0, bj = 0, bia = 0, bib = 0;
+        double best = max_link2;
+        for (size_t i = 0; i + 1 < rings.size(); ++ i)
+            for (size_t j = i + 1; j < rings.size(); ++ j)
+                for (size_t a = 0; a < rings[i].size(); ++ a)
+                    for (size_t b = 0; b < rings[j].size(); ++ b) {
+                        double d = (rings[j].points[b] - rings[i].points[a]).cast<double>().squaredNorm();
+                        if (d < best) {
+                            best = d;
+                            bi = i; bj = j; bia = a; bib = b;
+                        }
+                    }
+        if (best >= max_link2)
+            break;
+        const Points &A = rings[bi].points;
+        const Points &B = rings[bj].points;
+        // Stagger the cut of each ring; pick the direction on B that keeps the second link short.
+        size_t ja  = advance_by(A, bia, stagger, true);
+        size_t jbf = advance_by(B, bib, stagger, true);
+        size_t jbb = advance_by(B, bib, stagger, false);
+        bool   b_stagger_fwd = (B[jbf] - A[ja]).cast<double>().squaredNorm() < (B[jbb] - A[ja]).cast<double>().squaredNorm();
+        size_t jb  = b_stagger_fwd ? jbf : jbb;
+        Polyline merged;
+        merged.points.reserve(A.size() + B.size() + 1);
+        // All of A except the stagger arc (bia -> ja).
+        for (size_t idx = ja; ; idx = (idx + 1) % A.size()) {
+            merged.points.emplace_back(A[idx]);
+            if (idx == bia)
+                break;
+        }
+        // Link 1: A[bia] -> B[bib], then all of B except its stagger arc, ending at B[jb];
+        // link 2 (B[jb] -> A[ja]) closes the ring when the loop is re-closed below.
+        for (size_t idx = bib; ; idx = b_stagger_fwd ? (idx + B.size() - 1) % B.size() : (idx + 1) % B.size()) {
+            merged.points.emplace_back(B[idx]);
+            if (idx == jb)
+                break;
+        }
+        rings[bi] = std::move(merged);
+        rings.erase(rings.begin() + bj);
+        merged_any = true;
+    }
+
+    // Re-close the rings and emit everything.
+    for (Polyline &pl : rings) {
+        if (pl.points.front() != pl.points.back())
+            pl.points.emplace_back(pl.points.front());
+        loops.emplace_back(std::move(pl));
+    }
+    append(loops, std::move(open));
+}
+
 // Append the boundary points from the vertex at idx_from to the vertex at idx_to (excluding the start
 // point, including the end point), walking the contour forward (increasing indices) or backward.
 static inline void single_path_append_arc(Points &dst, const Points &contour, size_t idx_from, size_t idx_to, bool forward)
@@ -1920,21 +2006,35 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 }
             }
             // Odd-degree vertices per component (degree = 1 fragment + gap_degree -> odd when
-            // gap_degree is even), sorted along the boundary so that pairs are close to each other.
+            // gap_degree is even). A virtual edge is where the trail gets split, i.e. where the
+            // printer travels: pair the odd vertices greedily by EUCLIDEAN distance so that every
+            // travel move is as short as possible.
             std::vector<std::vector<size_t>> odd_by_comp(n_comp);
             for (size_t v = 0; v < n_vertices; ++ v)
                 if (! standalone[v / 2] && (gap_degree[v] % 2) == 0)
                     odd_by_comp[size_t(comp[v])].emplace_back(v);
             for (std::vector<size_t> &odd : odd_by_comp) {
                 assert((odd.size() % 2) == 0);
-                std::sort(odd.begin(), odd.end(), [&cps](size_t l, size_t r) {
-                    return cps[l].contour_idx < cps[r].contour_idx ||
-                           (cps[l].contour_idx == cps[r].contour_idx && cps[l].param < cps[r].param);
-                });
-                for (size_t i = 0; i + 1 < odd.size(); i += 2) {
-                    adjacency[odd[i]].emplace_back(edges.size());
-                    adjacency[odd[i + 1]].emplace_back(edges.size());
-                    edges.push_back({ odd[i], odd[i + 1], false, true, 0, 0, true, false });
+                while (odd.size() >= 2) {
+                    size_t best_i = 0, best_j = 1;
+                    double best_d = std::numeric_limits<double>::max();
+                    for (size_t i = 0; i < odd.size(); ++ i)
+                        for (size_t j = i + 1; j < odd.size(); ++ j) {
+                            const Point &pi = graph.boundary[cps[odd[i]].contour_idx][cps[odd[i]].point_idx];
+                            const Point &pj = graph.boundary[cps[odd[j]].contour_idx][cps[odd[j]].point_idx];
+                            double d = (pj - pi).cast<double>().squaredNorm();
+                            if (d < best_d) {
+                                best_d = d;
+                                best_i = i;
+                                best_j = j;
+                            }
+                        }
+                    adjacency[odd[best_i]].emplace_back(edges.size());
+                    adjacency[odd[best_j]].emplace_back(edges.size());
+                    edges.push_back({ odd[best_i], odd[best_j], false, true, 0, 0, true, false });
+                    // best_j > best_i: erase in this order to keep indices valid.
+                    odd.erase(odd.begin() + best_j);
+                    odd.erase(odd.begin() + best_i);
                 }
             }
         }

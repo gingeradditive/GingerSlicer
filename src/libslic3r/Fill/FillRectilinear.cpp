@@ -3017,8 +3017,30 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
                         line_width + coord_t(SCALED_EPSILON), line_spacing, coord_t(scale_(sweep.pattern_shift)), fill_lines);
     }
 
-    // Apply multiline offset if needed
-    multiline_fill(fill_lines, params, spacing);
+    if (params.connect_polygons && params.multiline > 1) {
+        // Cura order: connect BEFORE multiply (see fill_surface_trapezoidal for the rationale).
+        ExPolygons inners = offset_ex(surface->expolygon, -float(scale_((0.5 * params.multiline + 0.15) * this->spacing)));
+        Polylines  connected;
+        for (const ExPolygon &inner : inners) {
+            Polylines rows = intersection_pl(fill_lines, inner);
+            if (rows.empty())
+                continue;
+            Polylines joined;
+            connect_infill(std::move(rows), inner, joined, this->spacing, params);
+            // A closed centerline would widen into two concentric loops; open it at its seam.
+            for (Polyline &pl : joined)
+                if (pl.size() > 3 && pl.points.front() == pl.points.back())
+                    pl.points.pop_back();
+            // Widen the connected path; the union outline comes back as one outer wall plus the hole
+            // walls of the pockets the path encloses - splice them into one single closed loop.
+            multiline_fill(joined, params, spacing);
+            single_path_splice_loops(joined, scale_(4. * this->spacing * params.multiline), scale_(this->spacing));
+            append(connected, std::move(joined));
+        }
+        fill_lines = std::move(connected);
+    } else
+        // Apply multiline offset if needed
+        multiline_fill(fill_lines, params, spacing);
 
     // Contract surface polygon by half line width to avoid excesive overlap with perimeter
     ExPolygons contracted = offset_ex(surface->expolygon, -float(scale_(0.5 * this->spacing)));
@@ -3261,8 +3283,35 @@ bool FillRectilinear::fill_surface_trapezoidal(
         break;
     }
 
-    // Apply multiline fill
-    multiline_fill(polylines, params, spacing);
+    if (params.connect_polygons && params.multiline > 1) {
+        // Cura order: connect BEFORE multiply. Join the row centerlines into one continuous path per
+        // island on a surface contracted by the full multiline half-width, then widen the connected
+        // path with multiline_fill(): for multiline == 2 the racetrack ring around the connected path
+        // is a single CLOSED loop by construction - zero travel moves and a free seam (the G-code
+        // generator starts an ExtrusionLoop wherever the previous wall ended).
+        ExPolygons inners = offset_ex(expolygon, -float(scale_((0.5 * params.multiline + 0.15) * this->spacing)));
+        Polylines  connected;
+        for (const ExPolygon &inner : inners) {
+            Polylines rows = intersection_pl(polylines, inner);
+            if (rows.empty())
+                continue;
+            Polylines joined;
+            connect_infill(std::move(rows), inner, joined, this->spacing, params);
+            // A closed centerline would widen into two concentric loops; open it at its seam so the
+            // widened result stays one single ring.
+            for (Polyline &pl : joined)
+                if (pl.size() > 3 && pl.points.front() == pl.points.back())
+                    pl.points.pop_back();
+            // Widen the connected path; the union outline comes back as one outer wall plus the hole
+            // walls of the pockets the path encloses - splice them into one single closed loop.
+            multiline_fill(joined, params, spacing);
+            single_path_splice_loops(joined, scale_(4. * this->spacing * params.multiline), scale_(this->spacing));
+            append(connected, std::move(joined));
+        }
+        polylines = std::move(connected);
+    } else
+        // Apply multiline fill
+        multiline_fill(polylines, params, spacing);
 
     // Contract surface polygon by half line width to avoid excesive overlap with perimeter
     ExPolygons contracted = offset_ex(expolygon, -float(scale_(0.5 * this->spacing)));

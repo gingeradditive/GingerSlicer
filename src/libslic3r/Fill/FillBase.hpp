@@ -225,8 +225,11 @@ public:
 
     static coord_t  _adjust_solid_spacing(const coord_t width, const coord_t distance);
 };
-   //Fill  Multiline 
+   //Fill  Multiline
    void multiline_fill(Polylines& polylines, const FillParams& params, float spacing);
+   // Cura-style single-path infill: splice closed loops (outline walls of a dilated band) into one
+   // closed loop with short staggered link segments (see FillBase.cpp).
+   void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger);
 } // namespace Slic3r
 
 #endif // slic3r_FillBase_hpp_

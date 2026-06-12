@@ -241,11 +241,11 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
                 Slic3r::Polylines paths = filler->fill_surface(&surface, fill_params);
                 CAPTURE(paths.size());
                 REQUIRE(paths.size() == 1); // single continuous path, no travels
-        require_no_retraced_segments(paths);
+                require_no_retraced_segments(paths);
                 REQUIRE(paths.front().size() > 2);
-                // NOTE: this path cannot close into a loop: parallel racetrack rings admit no connected
-                // all-even gap selection (a closed circuit would decompose into per-ring loops).
-                INFO("closed: " << paths.front().is_closed());
+                // Connect-before-multiply: the spliced outline is one CLOSED loop, emitted as an
+                // ExtrusionLoop so the G-code starts it right where the wall ended (no travel at all).
+                REQUIRE(paths.front().is_closed());
             }
         }
     }
@@ -306,10 +306,10 @@ TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
         Slic3r::Polylines paths = filler->fill_surface(&surface, grid_params);
         CAPTURE(paths.size());
         // Extreme fragment soup (each trapezoid row chopped into many pieces by both long edges):
-        // the no-double-extrusion guarantee is hard, travel minimization is best effort here. Some
-        // odd-degree pairs cannot be cancelled without re-extruding boundary segments; each surviving
-        // pair costs one trail (one travel move).
-        REQUIRE(paths.size() <= 3);
+        // connect-before-multiply dilates and unions whatever trails the connector produced, and the
+        // spliced outline comes back as one single closed loop even here.
+        REQUIRE(paths.size() == 1);
+        REQUIRE(paths.front().is_closed());
         require_no_retraced_segments(paths);
     }
 
