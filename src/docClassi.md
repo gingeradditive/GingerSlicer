@@ -1,5 +1,3 @@
----
-
 # 🟢 ASSOLUTAMENTE DA MANTENERE (Core Architecture - 31 file)
 
 ## Rendering & Visualization (9 files)
