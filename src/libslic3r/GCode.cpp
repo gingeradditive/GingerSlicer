@@ -3570,52 +3570,68 @@ std::string GCode::generate_skirt(const Print &print,
     return gcode;
 }
 
-// Order a set of points (e.g. island representative positions) into a short OPEN travel tour that
-// begins at `start` (the current nozzle position). Greedy nearest-neighbour seed, then 2-opt
-// refinement. Islands used to be printed in their fixed construction order, which made every layer
-// end on one island and jump straight back to island 0 — the same long diagonal travel repeated on
-// every layer. Reordering by proximity removes that. Returns a permutation of [0, pts.size()).
-static std::vector<size_t> order_points_open_tour(const std::vector<Point> &pts, const Point &start)
+// Order islands into a short OPEN travel tour that begins at `start` (the current nozzle position).
+// Each island is described by a set of candidate points (`cand[i]`, a downsampled cloud of its
+// extrusion points) so the tour cost uses the real NEAREST APPROACH to each island, not a blurred
+// centroid (a centroid mis-orders large/elongated or interlocking islands). Greedy nearest-neighbour
+// seed picks, at each step, the unvisited island whose closest candidate is nearest to the current
+// point and enters there; a 2-opt pass over the chosen entry points then refines the open tour.
+// Islands used to print in fixed construction order, which made every layer jump back across the whole
+// part (the same long diagonal repeated on every layer). Fills `entry[i]` = the entry point chosen for
+// island i (used to orient the wall seam / look-ahead). Returns a permutation of [0, cand.size()).
+static std::vector<size_t> order_islands_tour(const std::vector<std::vector<Point>> &cand, const Point &start, std::vector<Point> &entry)
 {
-    const size_t n = pts.size();
-    std::vector<size_t> order(n);
-    std::iota(order.begin(), order.end(), 0);
-    if (n < 2)
+    const size_t n = cand.size();
+    entry.assign(n, start);
+    std::vector<size_t> order;
+    order.reserve(n);
+    if (n == 0)
         return order;
 
-    auto d2 = [](const Point &a, const Point &b) { return (a - b).cast<double>().squaredNorm(); };
+    auto nearest_in = [](const std::vector<Point> &pts, const Point &p, double &d2_out) -> Point {
+        double best = std::numeric_limits<double>::max();
+        Point  bp   = pts.empty() ? p : pts.front();
+        for (const Point &q : pts) {
+            double d = (q - p).cast<double>().squaredNorm();
+            if (d < best) { best = d; bp = q; }
+        }
+        d2_out = pts.empty() ? std::numeric_limits<double>::max() : best;
+        return bp;
+    };
 
-    // Nearest-neighbour seed from the current position.
+    // Greedy nearest-neighbour seed over the real candidate points.
     std::vector<char> used(n, 0);
     Point cur = start;
     for (size_t k = 0; k < n; ++k) {
         size_t best = 0;
         double bd   = std::numeric_limits<double>::max();
+        Point  be   = cur;
         for (size_t i = 0; i < n; ++i)
             if (! used[i]) {
-                double dd = d2(cur, pts[i]);
-                if (dd < bd) { bd = dd; best = i; }
+                double d;
+                Point  e = nearest_in(cand[i], cur, d);
+                if (d < bd) { bd = d; best = i; be = e; }
             }
-        used[best] = 1;
-        order[k]   = best;
-        cur        = pts[best];
+        used[best]   = 1;
+        entry[best]  = be;
+        order.push_back(best);
+        cur = be;
     }
 
-    // 2-opt on the open tour anchored at `start` (skip on very large layers to bound the cost).
-    if (n <= 256) {
-        auto dist = [&](const Point &a, const Point &b) { return std::sqrt(d2(a, b)); };
+    // 2-opt over the chosen entry points, open tour anchored at `start` (cap to bound the cost).
+    if (n > 2 && n <= 256) {
+        auto dist = [](const Point &a, const Point &b) { return std::sqrt((a - b).cast<double>().squaredNorm()); };
         bool improved = true;
         int  guard    = 0;
         while (improved && guard++ < 1000) {
             improved = false;
             for (size_t i = 0; i + 1 < n && ! improved; ++i)
                 for (size_t j = i + 1; j < n; ++j) {
-                    // Reversing order[i..j] swaps the edge into i and the edge out of j.
-                    const Point &A = (i == 0) ? start : pts[order[i - 1]];
-                    const Point &B = pts[order[i]];
-                    const Point &C = pts[order[j]];
+                    const Point &A = (i == 0) ? start : entry[order[i - 1]];
+                    const Point &B = entry[order[i]];
+                    const Point &C = entry[order[j]];
                     const bool   has_succ = j + 1 < n;
-                    const Point &D = has_succ ? pts[order[j + 1]] : C;
+                    const Point &D = has_succ ? entry[order[j + 1]] : C;
                     double before = dist(A, B) + (has_succ ? dist(C, D) : 0.);
                     double after  = dist(A, C) + (has_succ ? dist(B, D) : 0.);
                     if (after + SCALED_EPSILON < before) {
@@ -4422,25 +4438,32 @@ LayerResult GCode::process_layer(
                 // is seeded at the current nozzle position, so it also continues naturally across the
                 // layer change. `island_repr` is each island's centroid; `island_order` the visit order.
                 std::vector<ObjectByExtruder::Island> &islands = instance_to_print.object_by_extruder.islands;
-                std::vector<Point> island_repr(islands.size());
+                // Per-island candidate point cloud (downsampled extrusion points) for the travel tour,
+                // so the order uses the real nearest approach to each island instead of a centroid.
+                std::vector<std::vector<Point>> island_cand(islands.size());
                 for (size_t i = 0; i < islands.size(); ++ i) {
-                    Vec2d  sum(0., 0.);
-                    size_t cnt = 0;
+                    Points pts;
                     for (const ObjectByExtruder::Island::Region &reg : islands[i].by_region)
                         for (const ExtrusionEntitiesPtr *lst : { &reg.perimeters, &reg.infills })
-                            for (const ExtrusionEntity *ee : *lst) {
-                                sum += ee->first_point().cast<double>();
-                                ++ cnt;
-                            }
-                    island_repr[i] = cnt ? Point((sum / double(cnt)).cast<coord_t>()) : this->last_pos();
+                            for (const ExtrusionEntity *ee : *lst)
+                                ee->collect_points(pts);
+                    // Cap to ~32 points per island by striding (keeps the tour cheap, still captures extent).
+                    const size_t cap    = 32;
+                    const size_t stride = pts.empty() ? 1 : std::max<size_t>(1, pts.size() / cap);
+                    island_cand[i].reserve(cap + 1);
+                    for (size_t k = 0; k < pts.size(); k += stride)
+                        island_cand[i].emplace_back(pts[k]);
+                    if (island_cand[i].empty())
+                        island_cand[i].emplace_back(this->last_pos());
                 }
-                const std::vector<size_t> island_order = order_points_open_tour(island_repr, this->last_pos());
+                std::vector<Point>        island_entry;
+                const std::vector<size_t> island_order = order_islands_tour(island_cand, this->last_pos(), island_entry);
 
                 for (size_t island_seq = 0; island_seq < island_order.size(); ++ island_seq) {
                     ObjectByExtruder::Island &island = islands[island_order[island_seq]];
-                    // Look-ahead target for seam orientation: where the toolhead heads after this island.
+                    // Look-ahead target for seam orientation: the entry point of the NEXT island in the tour.
                     const Point* next_island_target = (island_seq + 1 < island_order.size()) ?
-                        &island_repr[island_order[island_seq + 1]] : nullptr;
+                        &island_entry[island_order[island_seq + 1]] : nullptr;
                     const auto& by_region_specific = is_anything_overridden ? island.by_region_per_copy(by_region_per_copy_cache, static_cast<unsigned int>(instance_to_print.instance_id), extruder_id, print_wipe_extrusions != 0) : island.by_region;
                     //BBS: add brim by obj by extruder
                     if (first_layer) {
