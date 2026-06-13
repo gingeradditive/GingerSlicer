@@ -4683,7 +4683,13 @@ std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, dou
     // or, if `start_point` is specified, start the loop at point closest to it
     Point last_pos = start_point ? *start_point : this->last_pos();
     float seam_overhang = std::numeric_limits<float>::lowest();
-    if (!m_config.spiral_mode && description == "perimeter") {
+    if (start_point && description == "perimeter" && !m_config.spiral_mode) {
+        // Ginger single-path infill (connect_infill_polygons): the caller forces the wall seam to the
+        // infill connection point so the wall ends right where the infill begins -> (near) zero
+        // wall->infill travel. Bypass the SeamPlacer entirely; the cosmetic seam position is
+        // intentionally overridden in favour of a travel-free transition (critical on pellet printers).
+        loop.split_at(*start_point, false);
+    } else if (!m_config.spiral_mode && description == "perimeter") {
         assert(m_layer != nullptr);
         m_seam_placer.place_seam(m_layer, loop, last_pos, seam_overhang);
     } else
@@ -4982,14 +4988,14 @@ std::string GCode::extrude_multi_path(ExtrusionMultiPath multipath, std::string 
     return gcode;
 }
 
-std::string GCode::extrude_entity(const ExtrusionEntity &entity, std::string description, double speed, const ExtrusionEntitiesPtr& region_perimeters)
+std::string GCode::extrude_entity(const ExtrusionEntity &entity, std::string description, double speed, const ExtrusionEntitiesPtr& region_perimeters, const Point* start_point)
 {
     if (const ExtrusionPath* path = dynamic_cast<const ExtrusionPath*>(&entity))
         return this->extrude_path(*path, description, speed);
     else if (const ExtrusionMultiPath* multipath = dynamic_cast<const ExtrusionMultiPath*>(&entity))
         return this->extrude_multi_path(*multipath, description, speed);
     else if (const ExtrusionLoop* loop = dynamic_cast<const ExtrusionLoop*>(&entity))
-        return this->extrude_loop(*loop, description, speed, region_perimeters);
+        return this->extrude_loop(*loop, description, speed, region_perimeters, start_point);
     else
         throw Slic3r::InvalidArgument("Invalid argument supplied to extrude()");
     return "";
@@ -5010,6 +5016,43 @@ std::string GCode::extrude_path(ExtrusionPath path, std::string description, dou
     return gcode;
 }
 
+// Ginger single-path infill: the connected sparse-infill path/loop has its ends ON the inner wall
+// (they are projected onto the boundary). Return the connection point of the region's sparse infill
+// that is closest to `from` (the arrival point): an open path may only be entered at an end point, a
+// closed loop at any of its points. Forcing the wall seam here makes the wall end where the infill
+// begins (zero wall->infill travel), and choosing the point closest to the arrival also keeps the
+// unavoidable inter-island travel as short as possible.
+static bool infill_connection_anchor(const ExtrusionEntitiesPtr &infills, const Point &from, Point &out)
+{
+    bool   found    = false;
+    double best_d2  = std::numeric_limits<double>::max();
+    auto   consider = [&](const Point &p) {
+        double d2 = (p - from).cast<double>().squaredNorm();
+        if (d2 < best_d2) { best_d2 = d2; out = p; found = true; }
+    };
+    std::function<void(const ExtrusionEntity*)> visit = [&](const ExtrusionEntity *ee) {
+        if (const auto *eec = dynamic_cast<const ExtrusionEntityCollection*>(ee)) {
+            for (const ExtrusionEntity *c : eec->entities)
+                visit(c);
+            return;
+        }
+        if (ee->role() != erInternalInfill) // only the sparse infill is connected to the wall
+            return;
+        if (const auto *loop = dynamic_cast<const ExtrusionLoop*>(ee)) {
+            Points pts;
+            loop->collect_points(pts);
+            for (const Point &p : pts)
+                consider(p);
+        } else {
+            consider(ee->first_point());
+            consider(ee->last_point());
+        }
+    };
+    for (const ExtrusionEntity *ee : infills)
+        visit(ee);
+    return found;
+}
+
 // Extrude perimeters: Decide where to put seams (hide or align seams).
 std::string GCode::extrude_perimeters(const Print &print, const std::vector<ObjectByExtruder::Island::Region> &by_region, bool is_first_layer, bool is_infill_first)
 {
@@ -5023,8 +5066,22 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                 : (m_config.is_infill_first == is_infill_first);
             if (!should_print) continue;
 
-            for (const ExtrusionEntity* ee : region.perimeters)
-                gcode += this->extrude_entity(*ee, "perimeter", -1., region.perimeters);
+            // Ginger single-path infill: when the sparse infill is connected into one path, force the
+            // seam of the LAST wall (the one printed right before the infill) onto the infill's
+            // connection point, so that wall ends exactly where the infill starts (no wall->infill
+            // travel). Only the last wall is forced - the other walls keep their normal cosmetic seam.
+            // The anchor is the infill point nearest to the current position, which also shortens the
+            // inevitable travel into this island.
+            const Point* anchor_ptr = nullptr;
+            Point        anchor;
+            if (m_config.connect_infill_polygons && ! region.infills.empty() &&
+                infill_connection_anchor(region.infills, this->last_pos(), anchor))
+                anchor_ptr = &anchor;
+
+            for (const ExtrusionEntity* ee : region.perimeters) {
+                const bool is_last = ee == region.perimeters.back();
+                gcode += this->extrude_entity(*ee, "perimeter", -1., region.perimeters, is_last ? anchor_ptr : nullptr);
+            }
         }
     return gcode;
 }
