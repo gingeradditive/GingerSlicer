@@ -39,7 +39,7 @@ Windows 10 SDK model fixing wrapper: fix_model_by_win10_sdk_gui() thin wrapper P
 # 012 Utils/FlashAir
 PrintHost FlashAir: SD card file upload via HTTP, timestamp URL generation, simple host-based. Feature FlashAir wireless SD card integration.
 
-# 013 Utils/Flashforge
+# 🔴 013 Utils/Flashforge
 PrintHost Flashforge: serial command protocol (SerialMessage), Klipper vs legacy firmware support, buffer size config, device info/status commands. Feature Flashforge printer serial control.
 
 # 014 Utils/FontConfigHelp
@@ -60,13 +60,13 @@ JSON differencing: load_compatible_settings(type, version), all2diff/diff2all tr
 # 019 Utils/minilzo_extension
 LZO compression wrapper: lzo_compress/lzo_decompress(in, in_len, out, out_len) thin wrapper minilzo library. Feature compression utility.
 
-# 020 Utils/MKS
+# 🔴 020 Utils/MKS
 PrintHost MKS: TCP console integration, file upload con URL construction, device status/temp/print command, error code parsing. Feature MKS printer integration.
 
-# 021 Utils/Obico
+# 🔴 021 Utils/Obico
 PrintHost Obico (inherits PrintHost): cloud service, OAuth login, get_login_url(auth_url), API key config, test/upload, get_printers lista. Feature Obico cloud integration.
 
-# 022 Utils/OctoPrint
+# 🔴 022 Utils/OctoPrint
 PrintHost OctoPrint (klipper): HTTP API key auth, auto-discovery, start print action, cafile SSL support. Plus subclass `PrusaLink` (HTTP Digest auth, PUT/POST dual-mode upload, storage selection).
 
 # 023 Utils/PresetUpdater
@@ -87,7 +87,7 @@ Namespace ProfileDescrption: array 28 stringhe localizzate PROFILE_DESCRIPTION_*
 # 028 Utils/RaycastManager
 Raycasting manager 3D: struct Hit (tr_key, squared_distance, position/normal), AABBMesh per ray picking, ISkip interfaccia filtraggio, actualize(object/instance). Core mouse picking.
 
-# 029 Utils/Repetier
+# 🔴 029 Utils/Repetier
 PrintHost Repetier: server multi-printer/group support, API key auth, get_groups/get_printers lista. Feature Repetier server integration multi-device.
 
 # 030 Utils/RetinaHelper
@@ -192,7 +192,7 @@ Classe centrale per validazione e toggle visibilità campi UI al cambio config. 
 # 063 GUI/CreatePresetsDialog
 Dialog per creazione preset filamento e stampante: scelta vendor/tipo/seriale, selezione stampanti compatibili, generazione nome preset. Feature gestione preset utente.
 
-# 064 GUI/DailyTips
+# 🔴 064 GUI/DailyTips
 Pannello ImGui "Daily Tips": mostra suggerimenti giornalieri da hint database con navigazione pagine, espansione/collasso, fade. Anche `DailyTipsWindow` come wrapper.
 
 # 065 GUI/DesktopIntegrationDialog
@@ -207,7 +207,7 @@ Layer HTTP basso livello per download file: `FileGet` con PIMPL, usa Utils/Http.
 # 068 GUI/DownloadProgressDialog
 Dialog progresso download/aggiornamento network plugin: progress bar, note di rilascio, stato installazione. Lancia `UpgradeNetworkJob`. Feature aggiornamento plugin rete BBS.
 
-# 069 GUI/DragCanvas
+# 🔴 069 GUI/DragCanvas
 Canvas wxPanel per drag&drop di swatches colore (ordine estrusori). `DragShape` rappresenta un colore trascinabile. Usato per riordinare filamenti multi-materiale.
 
 # 070 GUI/EditGCodeDialog
@@ -486,10 +486,10 @@ Enum UserNotificationStyle (NORMAL/WARNING_CONFIRM), classe UserNotification vuo
 # 161 GUI/WebUpdatePlugin
 File vuoto (1 riga vuota). Probabilmente obsoleto o placeholder non implementato. Candidato all'eliminazione.
 
-# 162 GUI/WebViewDialog
+# 🔴 162 GUI/WebViewDialog
 Panel wxWebView per browser integrato nel Plater: carica URL, navigazione back/forward/reload, ejecuta JavaScript custom, login callback con timer, supporto mDNS (Bonjour). Feature BBS per mostrare model mall/staff pick/design info. Dipende da wxWebView della piattaforma.
 
-# 163 GUI/WipeTowerDialog
+# 🔴 163 GUI/WipeTowerDialog
 Dialog configurazione wipe tower/ramming: `RammingPanel` con chart grafico volume/tempo customizzabile, `WipingPanel` matrice flushing colori con selezione automatica/manuale estrusore. Integra `RammingChart` per spline curve. Feature multi-materiale dedicata.
 
 # 164 GUI/wxExtensions
@@ -612,10 +612,10 @@ Classe base astratta `ProgressIndicator`: interfaccia progress tracking (set_ran
 # 203 GUI/Jobs/RotoptimizeJob
 Job ottimizzazione rotazione SLA: enum metodi (best surface quality/least supports/lowest Z height), FindFn callback per orientation::find_*, accuracy customizzabile. Feature SLA automatic model rotation optimization. Integra libslic3r SLA.
 
-# 204 GUI/Jobs/SLAImportDialog
+# 🔴 204 GUI/Jobs/SLAImportDialog
 Dialog import SLA archive (SL1/SL1S/ZIP): file picker, combo selection import mode (model+profile/profile only/model only), quality dropdown (accurate/balanced/quick), Get marchsq window size per mesh-to-volume conversion.
 
-# 205 GUI/Jobs/SLAImportJob
+# 🔴 205 GUI/Jobs/SLAImportJob
 Job import SLA: `SLAImportJobView` interfaccia (get_selection/get_path/get_marchsq_windowsize), `prepare()` carica archive, `process()` mesh conversion, `finalize()` integra volumi Plater. Feature SLA project import.
 
 # 206 GUI/Jobs/ThreadSafeQueue
