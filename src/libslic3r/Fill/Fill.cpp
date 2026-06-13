@@ -1280,7 +1280,12 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
             params.symmetric_infill_y_axis = surface_fill.params.symmetric_infill_y_axis;
 
         }
-		if (surface_fill.params.pattern == ipGrid)
+		// Grid normally forbids reversing a fill line (the two crossing sweeps rely on a fixed
+		// direction). But with connect_infill_polygons the whole region is ONE connected path/loop, so
+		// its global direction is arbitrary: it MUST stay reversible, otherwise the path always starts
+		// at its fixed first point instead of where the wall seam ended — a huge wall->infill travel
+		// across the island (the chainer cannot flip a non-reversible path toward the current position).
+		if (surface_fill.params.pattern == ipGrid && !params.connect_polygons)
 			params.can_reverse = false;
 		for (ExPolygon& expoly : surface_fill.expolygons) {
 
