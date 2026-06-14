@@ -5131,6 +5131,15 @@ std::string GCode::extrude_path(ExtrusionPath path, std::string description, dou
 // one-step look-ahead that the previous "nearest to the previous feature only" logic was missing.
 static bool infill_connection_anchor(const ExtrusionEntitiesPtr &infills, const Point &from, const Point *to, Point &out)
 {
+    // Roles whose infill we try to start exactly where the wall ends (zero wall->infill travel).
+    // Sparse (erInternalInfill, connected into one path/loop) plus the solid surfaces: internal solid,
+    // top and bottom. Top/bottom/internal-solid are MONOTONIC-ordered open paths (not loops): their
+    // monotonic distribution over the island already is a single path, so we anchor the wall seam onto
+    // the START of that ordered sequence and report its END for the next feature's seam. Bridges and
+    // ironing are excluded (special flow / finishing pass).
+    auto is_connectable = [](ExtrusionRole r) {
+        return r == erInternalInfill || r == erSolidInfill || r == erTopSolidInfill || r == erBottomSurface;
+    };
     bool   found     = false;
     double best_cost = std::numeric_limits<double>::max();
     auto   consider  = [&](const Point &entry, const Point &exit) {
@@ -5141,14 +5150,23 @@ static bool infill_connection_anchor(const ExtrusionEntitiesPtr &infills, const 
     };
     std::function<void(const ExtrusionEntity*)> visit = [&](const ExtrusionEntity *ee) {
         if (const auto *eec = dynamic_cast<const ExtrusionEntityCollection*>(ee)) {
+            // A no_sort collection of a connectable role (monotonic solid/top/bottom) is ONE ordered
+            // path printed in stored order - treat it as a unit. Its only valid entry is the sequence
+            // start (the chainer keeps no_sort order, so the wall seam must land there); the exit is the
+            // sequence end. Do NOT recurse into the leaves, or the anchor could grab a mid-sequence line
+            // end and the chainer would still begin at first_point -> a real wall->infill travel.
+            if (eec->no_sort && ! eec->entities.empty() && is_connectable(eec->entities.front()->role())) {
+                consider(eec->first_point(), eec->last_point());
+                return;
+            }
             for (const ExtrusionEntity *c : eec->entities)
                 visit(c);
             return;
         }
-        if (ee->role() != erInternalInfill) // only the sparse infill is connected to the wall
+        if (! is_connectable(ee->role()))
             return;
         if (const auto *loop = dynamic_cast<const ExtrusionLoop*>(ee)) {
-            // Closed loop: entry == exit == the chosen seam point.
+            // Closed loop (connected sparse single path): entry == exit == the chosen seam point.
             Points pts;
             loop->collect_points(pts);
             for (const Point &p : pts)
