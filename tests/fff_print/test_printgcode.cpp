@@ -2,6 +2,15 @@
 
 #include "libslic3r/libslic3r.h"
 #include "libslic3r/GCodeReader.hpp"
+#include "libslic3r/Model.hpp"
+#include "libslic3r/Print.hpp"
+#include "libslic3r/Preset.hpp"
+#include "libslic3r/Format/bbs_3mf.hpp"
+
+#include <iostream>
+#include <fstream>
+#include <boost/filesystem.hpp>
+#include <boost/nowide/cstdio.hpp>
 
 #include "test_data.hpp"
 
@@ -271,6 +280,80 @@ SCENARIO( "PrintGCode basic functionality", "[PrintGCode]") {
 				REQUIRE((sscanf(gcode.data() + pos, "(%lf mm)", &z) == 1));
 				REQUIRE(z == Approx(20.));
 			}
+        }
+    }
+}
+
+// single_path_mode regression guard (end-to-end, at the G-code level). The polyline-level test in
+// test_fill.cpp cannot see emission-stage bugs (e.g. the can_reverse bug that started the infill at the
+// wrong end, 200-300 mm from the wall). It loads a REAL Ginger project 3mf (model + complete embedded
+// pellet config, single_path_mode on) - so no synthetic/incomplete config - and asserts the invariant
+// on the emitted G-code: zero travel between two infill extrusions of one connected region, plus a loose
+// wall->infill bound. Tag [.] = hidden (run explicitly: fff_print_tests "[SinglePath]") because it needs
+// the local fixture and slices a real part.
+SCENARIO("Single path: zero travel inside connected infill", "[.][SinglePath]") {
+    const std::string path = std::string(TEST_DATA_DIR) + "/single_path_guard.3mf";
+    if (! boost::filesystem::exists(path)) {
+        WARN("fixture tests/data/single_path_guard.3mf not present; skipping single-path travel guard");
+        return;
+    }
+    GIVEN("the real single_path_mode part loaded from a 3mf") {
+        DynamicPrintConfig        config;
+        ConfigSubstitutionContext ctx(ForwardCompatibilitySubstitutionRule::Enable);
+        PlateDataPtrs             plate_data;
+        std::vector<Preset*>      project_presets;
+        // Must include LoadModel (=geometry) and LoadConfig; AddDefaultInstances alone loads neither,
+        // leaving model.objects empty. Pass plate_data so the project's plate/objects are reconstructed.
+        LoadStrategy strategy = LoadStrategy::AddDefaultInstances | LoadStrategy::LoadModel | LoadStrategy::LoadConfig;
+        Model model = Model::read_from_file(path, &config, &ctx, strategy, &plate_data, &project_presets);
+        REQUIRE(! model.objects.empty());
+
+        config.set_key_value("gcode_comments", new ConfigOptionBool(true)); // role comments for classification
+        config.normalize_fdm();
+
+        Print print;
+        print.apply(model, config);
+        std::string gcode = Slic3r::Test::gcode(print); // process() + export (passes a valid result)
+        REQUIRE(! gcode.empty());
+
+        enum class Role { Other, Perimeter, Infill };
+        Role   last_extrude_role = Role::Other;
+        bool   pending_travel    = false;
+        double pending_travel_mm = 0.;
+        size_t infill_internal_travels = 0;
+        double max_wall_to_infill_mm   = 0.;
+
+        GCodeReader reader;
+        reader.parse_buffer(gcode, [&](GCodeReader& self, const GCodeReader::GCodeLine& line) {
+            if (line.travel() && line.dist_XY(self) > 1.0f) {           // a real travel move (> 1 mm)
+                pending_travel    = true;
+                pending_travel_mm = line.dist_XY(self);
+            } else if (line.extruding(self)) {
+                const std::string_view c = line.comment();
+                Role r = c.find("infill") != std::string_view::npos ? Role::Infill :
+                         (c.find("perimeter") != std::string_view::npos ? Role::Perimeter : Role::Other);
+                if (pending_travel) {
+                    // A travel directly between two infill extrusions (no wall in between) means the
+                    // single path broke into pieces inside one connected region.
+                    if (last_extrude_role == Role::Infill && r == Role::Infill)
+                        ++ infill_internal_travels;
+                    if (last_extrude_role == Role::Perimeter && r == Role::Infill)
+                        max_wall_to_infill_mm = std::max(max_wall_to_infill_mm, pending_travel_mm);
+                }
+                pending_travel    = false;
+                last_extrude_role = r;
+            }
+        });
+
+        THEN("there is no travel inside a connected infill region") {
+            CAPTURE(infill_internal_travels);
+            REQUIRE(infill_internal_travels == 0);
+        }
+        THEN("the wall to infill transition is not a gross jump (catches can_reverse-style divergence)") {
+            // Loose bound for now (the seam coordination is still heuristic; Phase 1 fusion will make
+            // this 0). The can_reverse regression produced 200-310 mm jumps, easily caught here.
+            CAPTURE(max_wall_to_infill_mm);
+            CHECK(max_wall_to_infill_mm < 50.0);
         }
     }
 }

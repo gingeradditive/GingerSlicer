@@ -192,10 +192,10 @@ TEST_CASE("Fill: Pattern Path Length", "[Fill]") {
     }
 }
 
-// Ginger: Cura-style single-path infill (connect_infill_polygons).
+// Ginger: single-path infill (single_path_mode, config key formerly connect_infill_polygons).
 // A continuous (simply connected) sparse infill region must come out as ONE polyline:
 // zero travel moves inside the region.
-TEST_CASE("Fill: connect_infill_polygons single path", "[Fill]") {
+TEST_CASE("Fill: single_path_mode single path", "[Fill]") {
     auto make_filler = [](size_t layer_id) {
         std::unique_ptr<Slic3r::Fill> filler(Slic3r::Fill::new_from_type("rectilinear"));
         filler->angle    = 0.f;

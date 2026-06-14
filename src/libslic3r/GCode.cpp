@@ -4787,7 +4787,7 @@ std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, dou
     Point last_pos = start_point ? *start_point : this->last_pos();
     float seam_overhang = std::numeric_limits<float>::lowest();
     if (start_point && description == "perimeter" && !m_config.spiral_mode) {
-        // Ginger single-path infill (connect_infill_polygons): the caller forces the wall seam to the
+        // Ginger single-path infill (single_path_mode): the caller forces the wall seam to the
         // infill connection point so the wall ends right where the infill begins -> (near) zero
         // wall->infill travel. Bypass the SeamPlacer entirely; the cosmetic seam position is
         // intentionally overridden in favour of a travel-free transition (critical on pellet printers).
@@ -5185,7 +5185,7 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
             // inevitable travel into this island.
             const Point* anchor_ptr = nullptr;
             Point        anchor;
-            if (m_config.connect_infill_polygons && ! region.infills.empty() &&
+            if (m_config.single_path_mode && ! region.infills.empty() &&
                 infill_connection_anchor(region.infills, this->last_pos(), next_island_target, anchor))
                 anchor_ptr = &anchor;
 

@@ -902,7 +902,7 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
                 // Orca: apply fill multiline only for sparse infill
                 params.multiline = params.extrusion_role == erInternalInfill ? int(region_config.fill_multiline) : 1;
                 // Connect infill lines into a single path (Cura-style), only for sparse infill.
-                params.connect_polygons = params.extrusion_role == erInternalInfill ? bool(region_config.connect_infill_polygons) : false;
+                params.connect_polygons = params.extrusion_role == erInternalInfill ? bool(region_config.single_path_mode) : false;
 
                 if (params.extrusion_role == erInternalInfill) {
                     params.angle = calculate_infill_rotation_angle(layer.object(), layer.id(), region_config.infill_direction.value,
@@ -1281,7 +1281,7 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
 
         }
 		// Grid normally forbids reversing a fill line (the two crossing sweeps rely on a fixed
-		// direction). But with connect_infill_polygons the whole region is ONE connected path/loop, so
+		// direction). But with single_path_mode the whole region is ONE connected path/loop, so
 		// its global direction is arbitrary: it MUST stay reversible, otherwise the path always starts
 		// at its fixed first point instead of where the wall seam ended — a huge wall->infill travel
 		// across the island (the chainer cannot flip a non-reversible path toward the current position).
