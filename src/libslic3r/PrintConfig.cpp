@@ -84,7 +84,6 @@ static t_config_enum_values s_keys_map_PrintHostType {
     { "crealityprint",  htCrealityPrint },
     { "duet",           htDuet },
     { "flashair",       htFlashAir },
-    { "astrobox",       htAstroBox },
     { "repetier",       htRepetier },
     { "mks",            htMKS },
     { "esp3d",          htESP3D },
@@ -4103,7 +4102,6 @@ void PrintConfigDef::init_fff_params()
     def->enum_values.push_back("octoprint");
     def->enum_values.push_back("duet");
     def->enum_values.push_back("flashair");
-    def->enum_values.push_back("astrobox");
     def->enum_values.push_back("repetier");
     def->enum_values.push_back("mks");
     def->enum_values.push_back("esp3d");
@@ -4117,7 +4115,6 @@ void PrintConfigDef::init_fff_params()
     def->enum_labels.push_back("Octo/Klipper");
     def->enum_labels.push_back("Duet");
     def->enum_labels.push_back("FlashAir");
-    def->enum_labels.push_back("AstroBox");
     def->enum_labels.push_back("Repetier");
     def->enum_labels.push_back("MKS");
     def->enum_labels.push_back("ESP3D");

@@ -229,7 +229,7 @@ void gcode_add_line_number(const std::string& path, const DynamicPrintConfig& co
 // Returns true if a post-processing script was executed.
 // Returns false if no post-processing script was defined.
 // Throws an exception on error.
-// host is one of "File", "PrusaLink", "Repetier", "SL1Host", "OctoPrint", "FlashAir", "Duet", "AstroBox" ...
+// host is one of "File", "PrusaLink", "Repetier", "SL1Host", "OctoPrint", "FlashAir", "Duet" ...
 // For a "File" target, a temp file will be created for src_path by adding a ".pp" suffix and src_path will be updated.
 // In that case the caller is responsible to delete the temp file created.
 // output_name is the final name of the G-code on SD card or when uploaded to PrusaLink or OctoPrint.
@@ -281,7 +281,7 @@ bool run_post_process_scripts(std::string &src_path, bool make_copy, const std::
 
     // Store print configuration into environment variables.
     config.setenv_();
-    // Let the post-processing script know the target host ("File", "PrusaLink", "Repetier", "SL1Host", "OctoPrint", "FlashAir", "Duet", "AstroBox" ...)
+    // Let the post-processing script know the target host ("File", "PrusaLink", "Repetier", "SL1Host", "OctoPrint", "FlashAir", "Duet" ...)
     boost::nowide::setenv("SLIC3R_PP_HOST", host.c_str(), 1);
     // Let the post-processing script know the final file name. For "File" host, it is a full path of the target file name and its location, for example pointing to an SD card.
     // For "PrusaLink" or "OctoPrint", it is a file name optionally with a directory on the target host.
