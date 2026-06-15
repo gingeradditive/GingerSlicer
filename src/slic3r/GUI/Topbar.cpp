@@ -1,5 +1,6 @@
 #include "Topbar.hpp"
 #include "wx/artprov.h"
+#include "wx/dcgraph.h"
 #include "wx/aui/framemanager.h"
 #include "wx/display.h"
 #include "I18N.hpp"

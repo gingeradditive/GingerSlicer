@@ -23,12 +23,16 @@
 #include "UnsavedChangesDialog.hpp"
 #include "Widgets/SideButton.hpp"
 #include "Widgets/SideMenuPopup.hpp"
+#include "Widgets/Label.hpp"
+#include "Widgets/SwitchButton.hpp"
 
 #include <boost/property_tree/ptree_fwd.hpp>
 
 // BBS
 #include "Topbar.hpp"
 #include "PrinterWebView.hpp"
+#include "WebViewDialog.hpp"
+#include "GUI_App.hpp"
 
 #define ENABEL_PRINT_ALL 0
 

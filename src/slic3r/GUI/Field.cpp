@@ -12,6 +12,7 @@
 
 #include <regex>
 #include <wx/numformatter.h>
+#include <wx/dcgraph.h>
 #include <wx/tooltip.h>
 #include <wx/notebook.h>
 #include <wx/listbook.h>

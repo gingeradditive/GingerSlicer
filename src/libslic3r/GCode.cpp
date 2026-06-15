@@ -2516,7 +2516,6 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
                 // Purge the extruder, pull out the active filament.
                 file.write(m_wipe_tower->finalize(*this));
         }
-    }
     //BBS: the last retraction
     // Write end commands to file.
     file.write(this->retract(false, true));
@@ -2617,6 +2616,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
    
       file.write("; CONFIG_BLOCK_END\n\n");
 
+    }
     file.write("\n");
 
     print.throw_if_canceled();
