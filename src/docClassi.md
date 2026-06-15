@@ -82,115 +82,116 @@ Process launcher semplice: start_new_slicer(path, single_instance), start_new_gc
 
 # === DA CONTROLLARE ===
 
-## 026 Utils/Profile
+## 🟢 026 Utils/Profile
 Wrapper profiling Shiny intrusive: SLIC3R_GUI_PROFILE_FUNC/BLOCK/UPDATE/OUTPUT macros (disabled per default senza SLIC3R_PROFILE_GUI). Minimale profiling hook.
 
-## 027 Utils/ProfileDescription
+## 🟢 027 Utils/ProfileDescription
 Namespace ProfileDescrption: array 28 stringhe localizzate PROFILE_DESCRIPTION_* descrizioni layer height profili BBS (layer height vs quality vs time tradeoff).
 
-## 028 Utils/RaycastManager
+## 🟢 028 Utils/RaycastManager
 Raycasting manager 3D: struct Hit (tr_key, squared_distance, position/normal), AABBMesh per ray picking, ISkip interfaccia filtraggio, actualize(object/instance). Core mouse picking.
 
 ## 🔴 029 Utils/Repetier
 PrintHost Repetier: server multi-printer/group support, API key auth, get_groups/get_printers lista. Feature Repetier server integration multi-device.
 
-## 030 Utils/RetinaHelper
+## 🟢 030 Utils/RetinaHelper
 macOS Retina display support: get_use_retina(), get_scale_factor(), platform-specific wrapper opaco (pimpl pattern). Minimale DPI scaling helper.
 
-## 031 Utils/Serial
+## 🔴 031 Utils/Serial
 Serial port wrapper: struct SerialPortInfo (port/vendor_id/product_id/friendly_name/is_printer), scan_serial_ports(), class Serial thin boost::asio wrapper. Feature serial port utilities.
 
-## 032 Utils/SerialMessage
+## 🔴 032 Utils/SerialMessage
 Struct SerialMessage minimale: message std::string + messageType (Command/Data enum). Semplice comando/dato wrapper.
 
-## 033 Utils/SerialMessageType
+## 🔴 033 Utils/SerialMessageType
 Enum SerialMessageType: Command, Data. Minimale type tag per messaggi seriali.
 
-## 034 Utils/SimplyPrint
+## 🔴 034 Utils/SimplyPrint
 PrintHost SimplyPrint: cloud OAuth login credential storage, chunked upload >100MB con MD5, temp upload API, API retry on token refresh, QueuePrint post-action. Feature SimplyPrint integration.
 
-## 035 Utils/TCPConsole
+## 🟡 035 Utils/TCPConsole
 TCP telnet-like console: boost::asio socket/resolver, enqueue_cmd(SerialMessage) queue, run_queue(), timeout configurabile, line delimiter/done string. Core TCP command interface.
 
-## 036 Utils/UndoRedo
+## 🟢 036 Utils/UndoRedo
 Undo/Redo snapshot management: enum SnapshotType (Action/GizmoAction/Selection/ProjectSeparator/EnteringGizmo/LeavingGizmo*), struct SnapshotData (tipo, flags, printer_technology), Snapshot timestamp. Core undo-redo system.
 
-## 037 Utils/WebSocketClient
+## 🟢 037 Utils/WebSocketClient
 WebSocket client wrapper: boost::beast websocket, connect(host, port, path), send/receive(timeout), User-Agent decorator, try-catch error handling. Feature WebSocket communication.
 
-## 038 Utils/WxFontUtils
+## 🟢 038 Utils/WxFontUtils
 wxFont utilities: can_load, create_font_file(wxFont)→FontFile, serialize/deserialize wxFont per persistenza, set_italic/set_bold con Emboss integration. Feature wxFont helpers emboss.
 
-## 039 Config/Snapshot
+## 🟢 039 Config/Snapshot
 Gestisce snapshot della configurazione utente (preset print/filament/printer/vendor). Classe `Snapshot` salva/carica ini, confronta directory attiva, esporta selezioni. `SnapshotDB` indicizza tutti gli snapshot su disco. Usato dal sistema di upgrade/rollback configurazione.
 
-## 040 Config/Version
+## 🟢 040 Config/Version
 Struttura `Version` per versioni bundle di configurazione (config_version, min/max slic3r_version). Classe `Index` carica/salva indice versioni vendor scaricato da internet. Usato dal sistema OTA di aggiornamento profili.
 
-## 041 GUI/2DBed
+## 🟢 041 GUI/2DBed
 Widget wxPanel `Bed_2D` che disegna il piano di stampa 2D (usato in BedShapeDialog). Converte coordinate, genera griglia, disegna sagoma del piatto. Utile e attivo.
 
-## 042 GUI/3DBed
+## 🟢 042 GUI/3DBed
 Classe `Bed3D` per rendering OpenGL del piano di stampa 3D nel canvas principale. Gestisce texture, griglia, modello STL del piatto, colori assi. Core del rendering del bed, necessario.
 
-## 043 GUI/3DScene
+## 🟢 043 GUI/3DScene
 Header principale della scena 3D OpenGL: `GLVolume`, `GLVolumeCollection`, macro `glsafe`/`glcheck` per debug GL, helper colori estrusori. Base di tutto il rendering 3D.
 
-## 044 GUI/AboutDialog
+## 🟢 044 GUI/AboutDialog
 Dialog "About": logo, testo versione, link. `CopyrightsDialog` mostra librerie terze con copyright/link HTML. Utile per UI ma non critico per slicing.
 
-## 045 GUI/Auxiliary
+## 🟢 045 GUI/Auxiliary
 Pannello "Auxiliary Files" (file allegati al progetto 3MF): lista file, upload/download, anteprima immagini. Usa wxDataViewCtrl, integra con ProjectTask. Feature BBS/Bambu.
 
-## 046 GUI/AuxiliaryDataViewModel
+## 🟢 046 GUI/AuxiliaryDataViewModel
 ViewModel wxDataViewModel per il pannello Auxiliary Files. Gestisce nodi ad albero (cartelle/file) per wxDataViewCtrl. Dipendente da Auxiliary.hpp.
 
-## 047 GUI/AuxiliaryDialog
+## 🟢 047 GUI/AuxiliaryDialog
 Dialog wrapper per `AuxiliaryList`: finestra modale che ospita il pannello lista file ausiliari. Minimalista, dipende da GUI_Utils.
 
-## 048 GUI/BackgroundSlicingProcess
+## 🟢 048 GUI/BackgroundSlicingProcess
 Thread background per slicing asincrono. Gestisce stati (idle/slicing/cancellatoin/error), eventi wxEvent al completamento, esportazione G-code/SLA, invio a print host. Core del processo di slicing, indispensabile.
 
-## 049 GUI/BBLStatusBar
+## 🟢 049 GUI/BBLStatusBar
 Barra di stato inferiore (wxPanel): progress bar, testo stato, bottone annulla, info oggetti/slicing. Implementa `ProgressIndicator`. Sostituisce la wxStatusBar standard. Necessario.
 
-## 050 GUI/BBLStatusBarSend
+## 🟡 050 GUI/BBLStatusBarSend
 Variante della status bar per il pannello di invio stampa: progress bar con blocchi colorati, link errore espandibile, bottone annulla. Specifica per flusso send-to-printer BBS.
 
-## 051 GUI/BBLTopbar
+## 🟡 051 GUI/BBLTopbar
 Barra titolo/menu custom (wxAuiToolBar): file menu, undo/redo, salva, pubblica, calibrazione, finestra draggabile. Sostituisce la titlebar nativa su Windows. Necessario per UI BBS/Bambu.
 
-## 052 GUI/BedShapeDialog
+## 🟡 052 GUI/BedShapeDialog
 Dialog configurazione forma piatto: rettangolare, circolare, custom. Panel `BedShapePanel` con preview 2D e opzioni dimensione/origine. Aperto da Print Settings→Bed Shape.
+> NOTA: Mantere SOLO piatto quadrato
 
-## 053 GUI/BitmapCache
+## 🟢 053 GUI/BitmapCache
 Cache globale bitmap wxWidgets: carica PNG/SVG da resources/icons, scala per Retina, converte in grayscale, crea bitmap colore solido. Componente infrastrutturale GUI, molto usato.
 
-## 054 GUI/BitmapComboBox
+## 🟢 054 GUI/BitmapComboBox
 `BitmapComboBox` estende wxBitmapComboBox con fix per macOS (scaling Retina) e Windows (custom draw). Usato nelle combo preset sidebar/tab.
 
-## 055 GUI/BonjourDialog
+## 🔴 055 GUI/BonjourDialog
 Dialog ricerca stampanti via Bonjour/mDNS: lista risultati live, selezione IP. Anche `IPListDialog` per scelta IP multipli. Usato in configurazione PrintHost.
 
-## 056 GUI/calib_dlg
+## 🔴 056 GUI/calib_dlg
 Dialog di calibrazione: PA (Pressure Advance), temperatura, flusso, VFA, max volumetric speed. Genera print job di calibrazione. Feature di calibrazione automatica OrcaSlicer.
 
-## 057 GUI/Camera
+## 🟢 057 GUI/Camera
 Struttura `Camera` per la vista 3D OpenGL: tipo (Ortho/Perspective), zoom, target, matrice view/projection, frustrum. Gestisce tutti i parametri di proiezione. Core del rendering, indispensabile.
 
-## 058 GUI/CameraUtils
+## 🟢 058 GUI/CameraUtils
 Utility statiche per la camera: proiezione 3D→2D, ray casting da schermo, hull 2D di GLVolume, posizione Z=0 sotto mouse. Supporto a picking e gizmos.
 
-## 059 GUI/CloneDialog
+## 🟢 059 GUI/CloneDialog
 Dialog "Clona oggetti": spinner conteggio copie, checkbox arrange automatico, progress bar. Lancia clone+arrange in background. Funzione utile del Plater.
 
-## 060 GUI/ConfigExceptions
+## 🟢 060 GUI/ConfigExceptions
 Header minimale: eccezioni `ConfigError` e `ConfigGUITypeError` per errori di tipo nelle opzioni GUI. Solo 16 righe, usato come base eccezioni config.
 
-## 061 GUI/ConfigManipulation
+## 🟢 061 GUI/ConfigManipulation
 Classe centrale per validazione e toggle visibilità campi UI al cambio config. Gestisce cross-field dependencies (toggle_print_fff_options, update_print_fff_config, ecc.). Indispensabile per Tab.cpp.
 
-## 062 GUI/ConfigWizard
+## 🔴 062 GUI/ConfigWizard
 **Setup Wizard rimosso.** Rimangono solo enum `RunReason` e `StartPage` per compatibilità con codice esistente. Candidato eliminazione (o riduzione a solo enum in altro header).
 
 ## 063 GUI/CreatePresetsDialog
