@@ -9,6 +9,8 @@
 
 #include <iostream>
 #include <fstream>
+#include <map>
+#include <sstream>
 #include <boost/filesystem.hpp>
 #include <boost/nowide/cstdio.hpp>
 
@@ -316,44 +318,75 @@ SCENARIO("Single path: zero travel inside connected infill", "[.][SinglePath]") 
         std::string gcode = Slic3r::Test::gcode(print); // process() + export (passes a valid result)
         REQUIRE(! gcode.empty());
 
-        enum class Role { Other, Perimeter, Infill };
-        Role   last_extrude_role = Role::Other;
-        bool   pending_travel    = false;
-        double pending_travel_mm = 0.;
-        size_t infill_internal_travels = 0;
-        double max_wall_to_infill_mm   = 0.;
+        // Classify each move by the per-feature ;TYPE: role tag (emitted by _extrude when the role
+        // changes), NOT by the inline description comment, which is "infill" for sparse AND every
+        // solid/top/bottom surface. This mirrors build\analyze_feature_travels.ps1 and lets us check
+        // the wall -> top/bottom/solid coincidence that the extended anchor now targets.
+        struct Acc { size_t count = 0; double sum = 0.; double max = 0.;
+                     void add(double mm) { ++count; sum += mm; max = std::max(max, mm); } };
+        std::map<std::string, Acc> by_transition;
+        std::string cur_type;            // role from the most recent ;TYPE: line
+        std::string last_extruded_type;  // role of the previous extruding move
+        bool        pending_travel    = false;
+        double      pending_travel_mm = 0.;
 
         GCodeReader reader;
         reader.parse_buffer(gcode, [&](GCodeReader& self, const GCodeReader::GCodeLine& line) {
+            const std::string_view c = line.comment();
+            if (c.rfind("TYPE:", 0) == 0) {                             // a ";TYPE:<role>" line
+                cur_type = std::string(c.substr(5));
+                return;
+            }
             if (line.travel() && line.dist_XY(self) > 1.0f) {           // a real travel move (> 1 mm)
                 pending_travel    = true;
                 pending_travel_mm = line.dist_XY(self);
             } else if (line.extruding(self)) {
-                const std::string_view c = line.comment();
-                Role r = c.find("infill") != std::string_view::npos ? Role::Infill :
-                         (c.find("perimeter") != std::string_view::npos ? Role::Perimeter : Role::Other);
-                if (pending_travel) {
-                    // A travel directly between two infill extrusions (no wall in between) means the
-                    // single path broke into pieces inside one connected region.
-                    if (last_extrude_role == Role::Infill && r == Role::Infill)
-                        ++ infill_internal_travels;
-                    if (last_extrude_role == Role::Perimeter && r == Role::Infill)
-                        max_wall_to_infill_mm = std::max(max_wall_to_infill_mm, pending_travel_mm);
-                }
-                pending_travel    = false;
-                last_extrude_role = r;
+                // The wall->infill travel (if any) is emitted before the new ;TYPE:, so cur_type here
+                // already names the destination feature and last_extruded_type names the source.
+                if (pending_travel && ! last_extruded_type.empty())
+                    by_transition[last_extruded_type + " -> " + cur_type].add(pending_travel_mm);
+                pending_travel     = false;
+                last_extruded_type = cur_type;
             }
         });
 
-        THEN("there is no travel inside a connected infill region") {
-            CAPTURE(infill_internal_travels);
-            REQUIRE(infill_internal_travels == 0);
+        auto is_wall  = [](const std::string& t) { return t == "Inner wall" || t == "Outer wall"; };
+        auto is_solid = [](const std::string& t) { return t == "Top surface" || t == "Bottom surface" || t == "Internal solid infill"; };
+        Acc  wall_to_sparse, wall_to_solid;
+        for (const auto& kv : by_transition) {
+            const auto  sep  = kv.first.find(" -> ");
+            const std::string from = kv.first.substr(0, sep);
+            const std::string to   = kv.first.substr(sep + 4);
+            if (is_wall(from) && to == "Sparse infill")
+                { wall_to_sparse.count += kv.second.count; wall_to_sparse.sum += kv.second.sum; wall_to_sparse.max = std::max(wall_to_sparse.max, kv.second.max); }
+            if (is_wall(from) && is_solid(to))
+                { wall_to_solid.count  += kv.second.count; wall_to_solid.sum  += kv.second.sum;  wall_to_solid.max  = std::max(wall_to_solid.max,  kv.second.max); }
         }
-        THEN("the wall to infill transition is not a gross jump (catches can_reverse-style divergence)") {
-            // Loose bound for now (the seam coordination is still heuristic; Phase 1 fusion will make
-            // this 0). The can_reverse regression produced 200-310 mm jumps, easily caught here.
-            CAPTURE(max_wall_to_infill_mm);
-            CHECK(max_wall_to_infill_mm < 50.0);
+
+        // Always-visible breakdown (WARN prints regardless of pass/fail) - read this for the real numbers.
+        // NOTE: same-role infill->infill travels here are the unavoidable inter-island / inter-layer hops
+        // (this multi-island part groups same-role features under one ;TYPE: block), NOT single-path breaks
+        // inside one connected region - gcode alone cannot tell those apart without region info. Intra-region
+        // single-path integrity (no break, no retraced segment) is asserted by the polyline-level tests in
+        // test_fill.cpp; here we guard the wall->infill coincidence that the gcode-stage anchor controls.
+        {
+            std::ostringstream os;
+            os << "single_path travel breakdown (travels > 1mm, by ;TYPE: transition):\n";
+            for (const auto& kv : by_transition)
+                os << "  " << kv.first << ": count=" << kv.second.count
+                   << " total=" << (long) (kv.second.sum + 0.5) << "mm max=" << kv.second.max << "mm\n";
+            WARN(os.str());
+        }
+
+        THEN("the wall to sparse-infill transition is not a gross jump (can_reverse-style guard)") {
+            CAPTURE(wall_to_sparse.max);
+            CHECK(wall_to_sparse.max < 50.0);
+        }
+        THEN("the wall to top/bottom/solid transition coincides with the monotonic start (extended anchor)") {
+            // With the extended anchor the inner wall ends on the monotonic start, so these travels
+            // should be absent or tiny. Gross-divergence guard here; the WARN breakdown shows the real value.
+            CAPTURE(wall_to_solid.count, wall_to_solid.sum, wall_to_solid.max);
+            CHECK(wall_to_solid.max < 50.0);
         }
     }
 }
