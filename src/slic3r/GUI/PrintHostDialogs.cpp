@@ -73,7 +73,6 @@ void PrintHostSendDialog::init()
     content_sizer->AddSpacer(VERT_SPACING);
     
     if (combo_groups != nullptr) {
-        // Repetier specific: Show a selection of file groups.
         auto *label_group = new wxStaticText(this, wxID_ANY, _L("Group"));
         content_sizer->Add(label_group);
         content_sizer->Add(combo_groups, 0, wxBOTTOM, 2*VERT_SPACING);        

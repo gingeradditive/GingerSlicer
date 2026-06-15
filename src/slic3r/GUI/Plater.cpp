@@ -12337,7 +12337,6 @@ void Plater::send_gcode_legacy(int plate_idx, Export3mfProgressFn proFn, bool us
         default_output_file.replace_extension("3mf");
     }
 
-    // Repetier specific: Query the server for the list of file groups.
     wxArrayString groups;
     {
         wxBusyCursor wait;

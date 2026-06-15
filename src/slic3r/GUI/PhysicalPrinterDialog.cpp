@@ -506,7 +506,7 @@ void PhysicalPrinterDialog::update(bool printer_change)
         }
         {
             m_optgroup->show_field("printhost_apikey", true);
-            supports_multiple_printers = opt->value == htRepetier;
+            supports_multiple_printers = false;
 
             if (opt->value == htSimplyPrint) {
                 // Set the host url

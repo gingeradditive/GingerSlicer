@@ -60,12 +60,9 @@ public:
     virtual bool has_auto_discovery() const = 0;
     virtual bool can_test() const = 0;
     virtual PrintHostPostUploadActions get_post_upload_actions() const = 0;
-    // A print host usually does not support multiple printers, with the exception of Repetier server.
     virtual bool supports_multiple_printers() const { return false; }
     virtual std::string get_host() const = 0;
 
-    // Support for Repetier server multiple groups & printers. Not supported by other print hosts.
-    // Returns false if not supported. May throw HostNetworkError.
     virtual bool get_groups(wxArrayString & /* groups */) const { return false; }
     virtual bool get_printers(wxArrayString & /* printers */) const { return false; }
     // Support for uploading to different storage. Not supported by other print hosts.

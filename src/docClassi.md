@@ -80,8 +80,6 @@ Classe base astratta PrintHost: enum PostUploadAction (none/start/simulate/queue
 ## 🟢 025 Utils/Process
 Process launcher semplice: start_new_slicer(path, single_instance), start_new_gcodeviewer(path), start_new_gcodeviewer_open_file(). Utility processi GUI separati.
 
-# === DA CONTROLLARE ===
-
 ## 🟢 026 Utils/Profile
 Wrapper profiling Shiny intrusive: SLIC3R_GUI_PROFILE_FUNC/BLOCK/UPDATE/OUTPUT macros (disabled per default senza SLIC3R_PROFILE_GUI). Minimale profiling hook.
 
@@ -93,6 +91,8 @@ Raycasting manager 3D: struct Hit (tr_key, squared_distance, position/normal), A
 
 ## 🔴 029 Utils/Repetier
 PrintHost Repetier: server multi-printer/group support, API key auth, get_groups/get_printers lista. Feature Repetier server integration multi-device.
+
+# === DA CONTROLLARE ===
 
 ## 🟢 030 Utils/RetinaHelper
 macOS Retina display support: get_use_retina(), get_scale_factor(), platform-specific wrapper opaco (pimpl pattern). Minimale DPI scaling helper.
@@ -111,6 +111,8 @@ PrintHost SimplyPrint: cloud OAuth login credential storage, chunked upload >100
 
 ## 🟡 035 Utils/TCPConsole
 TCP telnet-like console: boost::asio socket/resolver, enqueue_cmd(SerialMessage) queue, run_queue(), timeout configurabile, line delimiter/done string. Core TCP command interface.
+
+> Pulire tutto quello che non viene usato con la stampante Ginger/G1 (moonraker e klipper)
 
 ## 🟢 036 Utils/UndoRedo
 Undo/Redo snapshot management: enum SnapshotType (Action/GizmoAction/Selection/ProjectSeparator/EnteringGizmo/LeavingGizmo*), struct SnapshotData (tipo, flags, printer_technology), Snapshot timestamp. Core undo-redo system.
@@ -188,28 +190,28 @@ Dialog "Clona oggetti": spinner conteggio copie, checkbox arrange automatico, pr
 ## 🟢 060 GUI/ConfigExceptions
 Header minimale: eccezioni `ConfigError` e `ConfigGUITypeError` per errori di tipo nelle opzioni GUI. Solo 16 righe, usato come base eccezioni config.
 
-## 🟢 061 GUI/ConfigManipulation
+## 🔴 061 GUI/ConfigManipulation
 Classe centrale per validazione e toggle visibilità campi UI al cambio config. Gestisce cross-field dependencies (toggle_print_fff_options, update_print_fff_config, ecc.). Indispensabile per Tab.cpp.
 
 ## 🔴 062 GUI/ConfigWizard
 **Setup Wizard rimosso.** Rimangono solo enum `RunReason` e `StartPage` per compatibilità con codice esistente. Candidato eliminazione (o riduzione a solo enum in altro header).
 
-## 063 GUI/CreatePresetsDialog
+## 🔴 063 GUI/CreatePresetsDialog
 Dialog per creazione preset filamento e stampante: scelta vendor/tipo/seriale, selezione stampanti compatibili, generazione nome preset. Feature gestione preset utente.
 
 ## 🔴 064 GUI/DailyTips
 Pannello ImGui "Daily Tips": mostra suggerimenti giornalieri da hint database con navigazione pagine, espansione/collasso, fade. Anche `DailyTipsWindow` come wrapper.
 
-## 065 GUI/DesktopIntegrationDialog
+## 🟢 065 GUI/DesktopIntegrationDialog
 **Solo Linux.** Dialog integrazione desktop: crea/rimuove file .desktop e icone per GingerSlicer e GcodeViewer. Gestisce registrazione URL scheme per downloader.
 
-## 066 GUI/Downloader
+## 🟡 066 GUI/Downloader
 Sistema download file via URL: classe `Download` (stato, pausa, annulla) e `Downloader` (gestione lista download, eventi wxEvtHandler). Usato per download modelli da web.
 
-## 067 GUI/DownloaderFileGet
+## 🟡 067 GUI/DownloaderFileGet
 Layer HTTP basso livello per download file: `FileGet` con PIMPL, usa Utils/Http. Emette eventi wxEvent (completamento, progresso, errore, pausa). Dipendenza di Downloader.
 
-## 068 GUI/DownloadProgressDialog
+## 🔴 068 GUI/DownloadProgressDialog
 Dialog progresso download/aggiornamento network plugin: progress bar, note di rilascio, stato installazione. Lancia `UpgradeNetworkJob`. Feature aggiornamento plugin rete BBS.
 
 ## 🔴 069 GUI/DragCanvas
