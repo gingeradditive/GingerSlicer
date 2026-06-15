@@ -19,7 +19,6 @@
 #include "../GUI/PrintHostDialogs.hpp"
 #include "../GUI/MainFrame.hpp"
 #include "../GUI/I18N.hpp"
-#include "Obico.hpp"
 #include "SimplyPrint.hpp"
 
 namespace fs = boost::filesystem;
@@ -52,7 +51,6 @@ PrintHost* PrintHost::get_print_host(DynamicPrintConfig *config)
             case htRepetier:  return new Repetier(config);
             case htPrusaLink: return new PrusaLink(config);
             case htPrusaConnect: return new PrusaConnect(config);
-            case htObico:     return new Obico(config);
             case htSimplyPrint: return new SimplyPrint(config);
             default:          return nullptr;
         }

@@ -83,7 +83,6 @@ static t_config_enum_values s_keys_map_PrintHostType {
     { "octoprint",      htOctoPrint },
     { "flashair",       htFlashAir },
     { "repetier",       htRepetier },
-    { "obico",          htObico },
     { "simplyprint",    htSimplyPrint },
 
 };
@@ -4097,14 +4096,12 @@ void PrintConfigDef::init_fff_params()
     def->enum_values.push_back("octoprint");
     def->enum_values.push_back("flashair");
     def->enum_values.push_back("repetier");
-    def->enum_values.push_back("obico");
     def->enum_values.push_back("simplyprint");
     def->enum_labels.push_back("PrusaLink");
     def->enum_labels.push_back("PrusaConnect");
     def->enum_labels.push_back("Octo/Klipper");
     def->enum_labels.push_back("FlashAir");
     def->enum_labels.push_back("Repetier");
-    def->enum_labels.push_back("Obico");
     def->enum_labels.push_back("SimplyPrint");
     def->mode = comAdvanced;
     def->cli = ConfigOptionDef::nocli;
