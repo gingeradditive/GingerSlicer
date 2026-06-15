@@ -390,3 +390,104 @@ SCENARIO("Single path: zero travel inside connected infill", "[.][SinglePath]") 
         }
     }
 }
+
+// Exploratory guard for LIGHTNING infill single-path with fill_multiline=2. The UI gate
+// (have_connectable_infill_pattern) excludes lightning, but Fill.cpp gates connect_polygons only on
+// the role (erInternalInfill) - lightning IS erInternalInfill and FillLightning already routes through
+// chain_or_connect_infill - so we can exercise the connector on the lightning TREE topology headless by
+// overriding the loaded config, no GUI build needed. Question being answered: does the single-path
+// connector (built for scanlines) produce a clean single path on a widened lightning tree, or does it
+// leave many internal travels? Reports the per-;TYPE: travel breakdown for inspection.
+SCENARIO("Single path: lightning fill_multiline=2", "[.][SinglePathLightning]") {
+    const std::string path = std::string(TEST_DATA_DIR) + "/single_path_guard.3mf";
+    if (! boost::filesystem::exists(path)) {
+        WARN("fixture tests/data/single_path_guard.3mf not present; skipping lightning single-path probe");
+        return;
+    }
+    GIVEN("the real part re-configured to lightning + fill_multiline=2 + single_path_mode") {
+        DynamicPrintConfig        config;
+        ConfigSubstitutionContext ctx(ForwardCompatibilitySubstitutionRule::Enable);
+        PlateDataPtrs             plate_data;
+        std::vector<Preset*>      project_presets;
+        LoadStrategy strategy = LoadStrategy::AddDefaultInstances | LoadStrategy::LoadModel | LoadStrategy::LoadConfig;
+        Model model = Model::read_from_file(path, &config, &ctx, strategy, &plate_data, &project_presets);
+        REQUIRE(! model.objects.empty());
+
+        config.set_key_value("sparse_infill_pattern", new ConfigOptionEnum<InfillPattern>(ipLightning));
+        config.set_key_value("fill_multiline",        new ConfigOptionInt(2));
+        config.set_key_value("single_path_mode",      new ConfigOptionBool(true));
+        config.set_key_value("gcode_comments",        new ConfigOptionBool(true));
+        config.normalize_fdm();
+
+        Print print;
+        print.apply(model, config);
+        std::string gcode = Slic3r::Test::gcode(print);
+        REQUIRE(! gcode.empty());
+
+        struct Acc { size_t count = 0; double sum = 0.; double max = 0.;
+                     void add(double mm) { ++count; sum += mm; max = std::max(max, mm); } };
+        std::map<std::string, Acc> by_transition;
+        std::string cur_type, last_extruded_type;
+        bool   pending_travel    = false;
+        double pending_travel_mm = 0.;
+        // Out-and-back doubled-extrusion detector inside Sparse infill (= lightning here), mirrors
+        // build\find_spikes.ps1: two consecutive extrusion legs >= 5mm whose directions are nearly
+        // opposite (> 175 deg) means the path retraces over (or right next to) what it just laid down.
+        // This is the critical "no extrusion over already-extruded lines" property (priority #2), most at
+        // risk on the lightning TREE where Euler augmentation could materialize retraced segments.
+        bool   have_prev_dir = false;
+        double prev_dx = 0., prev_dy = 0., prev_len = 0.;
+        size_t spikes = 0;
+        GCodeReader reader;
+        reader.parse_buffer(gcode, [&](GCodeReader& self, const GCodeReader::GCodeLine& line) {
+            const std::string_view c = line.comment();
+            if (c.rfind("TYPE:", 0) == 0) { cur_type = std::string(c.substr(5)); have_prev_dir = false; return; }
+            if (line.travel() && line.dist_XY(self) > 1.0f) {
+                pending_travel = true; pending_travel_mm = line.dist_XY(self);
+                have_prev_dir = false;                                  // a travel breaks the leg chain
+            } else if (line.extruding(self)) {
+                if (pending_travel && ! last_extruded_type.empty())
+                    by_transition[last_extruded_type + " -> " + cur_type].add(pending_travel_mm);
+                pending_travel = false; last_extruded_type = cur_type;
+                if (cur_type == "Sparse infill") {                      // lightning is erInternalInfill
+                    const double dx = line.new_X(self) - self.x(), dy = line.new_Y(self) - self.y();
+                    const double len = std::sqrt(dx * dx + dy * dy);
+                    if (len > 0.001) {
+                        if (have_prev_dir && len >= 5.0 && prev_len >= 5.0) {
+                            const double dot = (dx * prev_dx + dy * prev_dy) / (len * prev_len);
+                            if (dot < -0.996) ++ spikes;               // > 174.9 deg reversal
+                        }
+                        prev_dx = dx; prev_dy = dy; prev_len = len; have_prev_dir = true;
+                    }
+                } else have_prev_dir = false;
+            }
+        });
+
+        Acc wall_to_sparse, sparse_internal;
+        for (const auto& kv : by_transition) {
+            const auto sep = kv.first.find(" -> ");
+            const std::string from = kv.first.substr(0, sep), to = kv.first.substr(sep + 4);
+            if ((from == "Inner wall" || from == "Outer wall") && to == "Sparse infill")
+                { wall_to_sparse.count += kv.second.count; wall_to_sparse.sum += kv.second.sum; wall_to_sparse.max = std::max(wall_to_sparse.max, kv.second.max); }
+            if (from == "Sparse infill" && to == "Sparse infill")
+                { sparse_internal.count += kv.second.count; sparse_internal.sum += kv.second.sum; sparse_internal.max = std::max(sparse_internal.max, kv.second.max); }
+        }
+        {
+            std::ostringstream os;
+            os << "LIGHTNING ml=2 single_path travel breakdown (travels > 1mm, by ;TYPE: transition):\n";
+            for (const auto& kv : by_transition)
+                os << "  " << kv.first << ": count=" << kv.second.count
+                   << " total=" << (long) (kv.second.sum + 0.5) << "mm max=" << kv.second.max << "mm\n";
+            WARN(os.str());
+        }
+        THEN("report wall->infill and sparse-internal travel (inspection, loose guards)") {
+            CAPTURE(wall_to_sparse.count, wall_to_sparse.sum, wall_to_sparse.max);
+            CAPTURE(sparse_internal.count, sparse_internal.sum, sparse_internal.max);
+            CHECK(wall_to_sparse.max < 50.0);
+        }
+        THEN("lightning single-path does not retrace over its own lines (no out-and-back doubled extrusion)") {
+            CAPTURE(spikes);
+            CHECK(spikes == 0);
+        }
+    }
+}
