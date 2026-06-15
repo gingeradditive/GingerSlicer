@@ -901,10 +901,11 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
                 }
                 // Orca: apply fill multiline only for sparse infill
                 params.multiline = params.extrusion_role == erInternalInfill ? int(region_config.fill_multiline) : 1;
-                // Connect infill lines into a single path (Cura-style). Sparse plus the solid surfaces
-                // (internal solid, top, bottom): single_path_mode routes them through connect_infill() so
-                // each connected region becomes ONE continuous path with no internal travel (the monotonic
-                // ordering otherwise leaves long jumps between disjoint sub-regions of a non-convex surface).
+                // Connect infill lines into a single path (Cura-style). Enabled for sparse plus the solid
+                // surfaces (internal solid, top, bottom) under single_path_mode. Sparse line patterns are
+                // fully connected via connect_infill(); solid/top/bottom currently still print with the
+                // monotonic ordering (the dense-line single-path / BCD step is future work, see
+                // FillRectilinear::fill_surface_by_lines), so the flag is groundwork for those roles.
                 params.connect_polygons = (params.extrusion_role == erInternalInfill ||
                                            params.extrusion_role == erSolidInfill ||
                                            params.extrusion_role == erTopSolidInfill ||

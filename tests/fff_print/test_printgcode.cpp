@@ -423,7 +423,6 @@ SCENARIO("Single path: lightning fill_multiline=2", "[.][SinglePathLightning]") 
         print.apply(model, config);
         std::string gcode = Slic3r::Test::gcode(print);
         REQUIRE(! gcode.empty());
-        if (const char* dump = std::getenv("SINGLEPATH_DUMP")) { std::ofstream(dump, std::ios::binary) << gcode; }
 
         struct Acc { size_t count = 0; double sum = 0.; double max = 0.;
                      void add(double mm) { ++count; sum += mm; max = std::max(max, mm); } };

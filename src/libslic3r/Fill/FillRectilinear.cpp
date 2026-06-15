@@ -2810,8 +2810,10 @@ bool FillRectilinear::fill_surface_by_lines(const Surface *surface, const FillPa
     // already rotated back into the original frame, so we append the connected result directly and return -
     // it must NOT pass through the tail rotation below.
     // NOTE: full_infill (solid / top / bottom) is intentionally EXCLUDED here - the sparse-tuned Eulerian
-    // connector fragments dense lines into many trails (worse than monotonic). Dense solid single-path is
-    // handled by the BCD step on the monotonic cells further down (see monotonic_infill branch).
+    // connector fragments dense lines into many trails (worse than monotonic), so dense solid currently
+    // falls through to the monotonic path below. Making solid/top/bottom a true 0-travel single path needs a
+    // boustrophedon-cell-decomposition step on the monotonic cells (future work; connect_polygons is already
+    // propagated for those roles in Fill.cpp as groundwork).
     if (params.connect_polygons && ! params.full_infill()) {
         const float   angle      = rotate_vector.first;
         const coord_t line_width = coord_t(scale_(this->spacing));
