@@ -204,8 +204,6 @@ Dialog per creazione preset filamento e stampante: scelta vendor/tipo/seriale, s
 ## 🔴 064 GUI/DailyTips
 Pannello ImGui "Daily Tips": mostra suggerimenti giornalieri da hint database con navigazione pagine, espansione/collasso, fade. Anche `DailyTipsWindow` come wrapper.
 
-# === DA CONTROLLARE ===
-
 ## 🟢 065 GUI/DesktopIntegrationDialog
 **Solo Linux.** Dialog integrazione desktop: crea/rimuove file .desktop e icone per GingerSlicer e GcodeViewer. Gestisce registrazione URL scheme per downloader.
 
@@ -310,6 +308,8 @@ Header utility GUI massiccio (~500 righe): DPI scaling, `DPIDialog`, `ScalableBi
 
 ## 🟢 099 GUI/HttpServer
 Server HTTP locale (localhost:13618) basato su Boost.Beast: `http_headers`, `session` per gestione richieste. Usato per comunicazione locale con browser/estensioni.
+
+# === DA CONTROLLARE ===
 
 ## 🟡 100 GUI/I18N
 Macro localizzazione `_()`, `_L()`, `_CTX()`, `_utf8()`. Implementazione pass-through (inglese solo) con conversione UTF8. Stub per i18n disabilitato.

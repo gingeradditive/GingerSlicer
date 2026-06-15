@@ -44,15 +44,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/CloneDialog.hpp
     GUI/ConfigManipulation.cpp
     GUI/ConfigManipulation.hpp
-    GUI/ConfigWizard.hpp
     GUI/DesktopIntegrationDialog.cpp
     GUI/DesktopIntegrationDialog.hpp
-    GUI/Downloader.cpp
-    GUI/DownloaderFileGet.cpp
-    GUI/DownloaderFileGet.hpp
-    GUI/Downloader.hpp
-    GUI/DownloadProgressDialog.cpp
-    GUI/DownloadProgressDialog.hpp
     GUI/DragCanvas.cpp
     GUI/DragCanvas.hpp
     GUI/EditGCodeDialog.cpp
@@ -202,8 +195,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/Jobs/SLAImportJob.cpp
     GUI/Jobs/SLAImportJob.hpp
     GUI/Jobs/ThreadSafeQueue.hpp
-    GUI/Jobs/UpgradeNetworkJob.cpp
-    GUI/Jobs/UpgradeNetworkJob.hpp
     GUI/Jobs/Worker.hpp
     GUI/KBShortcutsDialog.cpp
     GUI/KBShortcutsDialog.hpp

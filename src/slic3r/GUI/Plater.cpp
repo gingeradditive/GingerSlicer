@@ -178,9 +178,6 @@ wxDEFINE_EVENT(EVT_RESTORE_PROJECT,                 wxCommandEvent);
 //BBS: repair model
 wxDEFINE_EVENT(EVT_REPAIR_MODEL,                    wxCommandEvent);
 wxDEFINE_EVENT(EVT_FILAMENT_COLOR_CHANGED,          wxCommandEvent);
-wxDEFINE_EVENT(EVT_INSTALL_PLUGIN_NETWORKING,       wxCommandEvent);
-wxDEFINE_EVENT(EVT_UPDATE_PLUGINS_WHEN_LAUNCH,       wxCommandEvent);
-wxDEFINE_EVENT(EVT_INSTALL_PLUGIN_HINT,             wxCommandEvent);
 wxDEFINE_EVENT(EVT_PREVIEW_ONLY_MODE_HINT,          wxCommandEvent);
 //BBS: print
 wxDEFINE_EVENT(EVT_PRINT_FROM_SDCARD_VIEW,          SimpleEvent);
@@ -2378,8 +2375,6 @@ struct Plater::priv
     //BBS: add model repair
     void on_repair_model(wxCommandEvent &event);
     void on_filament_color_changed(wxCommandEvent &event);
-    void show_install_plugin_hint(wxCommandEvent &event);
-    void install_network_plugin(wxCommandEvent &event);
     void show_preview_only_hint(wxCommandEvent &event);
     //BBS: add part plate related logic
     void on_plate_right_click(RBtnPlateEvent&);
@@ -2488,7 +2483,6 @@ private:
 
     void undo_redo_to(std::vector<UndoRedo::Snapshot>::const_iterator it_snapshot);
     void update_after_undo_redo(const UndoRedo::Snapshot& snapshot, bool temp_snapshot_was_taken = false);
-    void update_plugin_when_launch(wxCommandEvent& event);
     // path to project folder stored with no extension
     boost::filesystem::path     m_project_folder;
 
@@ -2629,9 +2623,6 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     this->q->Bind(EVT_PUBLISH, &priv::on_action_publish, this);
     this->q->Bind(EVT_REPAIR_MODEL, &priv::on_repair_model, this);
     this->q->Bind(EVT_FILAMENT_COLOR_CHANGED, &priv::on_filament_color_changed, this);
-    this->q->Bind(EVT_INSTALL_PLUGIN_NETWORKING, &priv::install_network_plugin, this);
-    this->q->Bind(EVT_INSTALL_PLUGIN_HINT, &priv::show_install_plugin_hint, this);
-    this->q->Bind(EVT_UPDATE_PLUGINS_WHEN_LAUNCH, &priv::update_plugin_when_launch, this);
     this->q->Bind(EVT_PREVIEW_ONLY_MODE_HINT, &priv::show_preview_only_hint, this);
     this->q->Bind(EVT_CREATE_FILAMENT, &priv::on_create_filament, this);
     this->q->Bind(EVT_MODIFY_FILAMENT, &priv::on_modify_filament, this);
@@ -3042,14 +3033,6 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
         this->q->load_files(input_files);
     });
     
-    this->q->Bind(EVT_START_DOWNLOAD_OTHER_INSTANCE, [](StartDownloadOtherInstanceEvent& evt) {
-        BOOST_LOG_TRIVIAL(trace) << "Received url from other instance event.";
-        wxGetApp().mainframe->Raise();
-        for (size_t i = 0; i < evt.data.size(); ++i) {
-            wxGetApp().start_download(evt.data[i]);
-        }
-       
-    });
     this->q->Bind(EVT_INSTANCE_GO_TO_FRONT, [this](InstanceGoToFrontEvent &) {
         bring_instance_forward();
     });
@@ -6962,16 +6945,7 @@ void Plater::priv::on_tab_selection_changing(wxBookCtrlEvent& e)
     sidebar_layout.show = new_sel == MainFrame::tp3DEditor || new_sel == MainFrame::tpPreview;
     update_sidebar();
     int old_sel = e.GetOldSelection();
-    if (false) {
-        if (false) {
-            e.Veto();
-            BOOST_LOG_TRIVIAL(info) << boost::format("skipped tab switch from %1% to %2%, lack of network plugins") % old_sel % new_sel;
-            if (q) {
-                wxCommandEvent* evt = new wxCommandEvent(EVT_INSTALL_PLUGIN_HINT);
-                wxQueueEvent(q, evt);
-            }
-        }
-    } else {
+    {
         if (new_sel == MainFrame::tpMonitor && wxGetApp().preset_bundle != nullptr) {
             auto     cfg = wxGetApp().preset_bundle->printers.get_edited_preset().config;
             wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
@@ -7098,38 +7072,6 @@ void Plater::priv::on_filament_color_changed(wxCommandEvent &event)
     }
 }
 
-void Plater::priv::install_network_plugin(wxCommandEvent &event)
-{
-    wxGetApp().ShowDownNetPluginDlg();
-    return;
-}
-
-void Plater::priv::update_plugin_when_launch(wxCommandEvent &event)
-{
-    std::string data_dir_str = data_dir();
-    boost::filesystem::path data_dir_path(data_dir_str);
-    auto cache_folder = data_dir_path / "ota";
-    std::string changelog_file = cache_folder.string() + "/network_plugins.json";
-
-    UpdatePluginDialog dlg(wxGetApp().mainframe);
-    dlg.update_info(changelog_file);
-    auto result = dlg.ShowModal();
-
-    auto app_config = wxGetApp().app_config;
-    if (!app_config) return;
-
-    if (result == wxID_OK) {
-        app_config->set("update_network_plugin", "true");
-    }
-    else if (result == wxID_NO) {
-        app_config->set("update_network_plugin", "false");
-    }
-}
-
-void Plater::priv::show_install_plugin_hint(wxCommandEvent &event)
-{
-    notification_manager->bbl_show_plugin_install_notification(into_u8(_L("Network Plug-in is not detected. Network related features are unavailable.")));
-}
 
 void Plater::priv::show_preview_only_hint(wxCommandEvent &event)
 {
@@ -8874,13 +8816,6 @@ void Plater::import_model_id(wxString download_info)
 void Plater::download_project(const wxString& project_id)
 {
     return;
-}
-
-void Plater::request_model_download(wxString url)
-{
-    wxCommandEvent* event = new wxCommandEvent(EVT_IMPORT_MODEL_ID);
-    event->SetString(url);
-    wxQueueEvent(this, event);
 }
 
 void Plater::request_download_project(std::string project_id)

@@ -848,84 +848,6 @@ wxWindow *PreferencesDialog ::create_item_radiobox(wxString title, wxWindow *par
     return item;
 }
 
-#ifdef WIN32
-wxBoxSizer* PreferencesDialog::create_item_link_association(wxWindow* parent, wxString url_prefix, wxString website_name)
-{
-    wxString title = _L("Associate") + (boost::format(" %1%://") % url_prefix.c_str()).str();
-    wxString tooltip = _L("Associate") + " " + url_prefix + ":// " + _L("with GingerSlicer so that Orca can open models from") + " " + website_name;
-
-    std::wstring registered_bin; // not used, just here to provide a ref to check fn
-    bool reg_to_current_instance = wxGetApp().check_url_association(url_prefix.ToStdWstring(), registered_bin);
-
-    auto* h_sizer = new wxBoxSizer(wxHORIZONTAL); // contains checkbox and other elements on the first line
-    h_sizer->Add(0, 0, 0, wxEXPAND | wxLEFT, 23);
-
-    // build checkbox
-    auto checkbox = new ::CheckBox(parent);
-    checkbox->SetToolTip(tooltip);
-    checkbox->SetValue(reg_to_current_instance); // If registered to the current instance, checkbox should be checked
-    checkbox->Enable(!reg_to_current_instance); // Since unregistering isn't supported, checkbox is disabled when checked
-
-    h_sizer->Add(checkbox, 0, wxALIGN_CENTER, 0);
-    h_sizer->Add(0, 0, 0, wxEXPAND | wxLEFT, 8);
-
-    // build text next to checkbox
-    auto checkbox_title = new wxStaticText(parent, wxID_ANY, title);
-    checkbox_title->SetToolTip(tooltip);
-    checkbox_title->SetForegroundColour(DESIGN_GRAY900_COLOR);
-    checkbox_title->SetFont(::Label::Body_13);
-    auto size = checkbox_title->GetTextExtent(title);
-    checkbox_title->SetMinSize({ size.x + FromDIP(5), -1 });
-    checkbox_title->Wrap(-1);
-    h_sizer->Add(checkbox_title, 0, wxALIGN_CENTER | wxALL, 3);
-
-    auto* v_sizer = new wxBoxSizer(wxVERTICAL);
-    v_sizer->Add(h_sizer);
-
-    // build text below checkbox that indicates the instance currently registered to handle the link type
-    auto* registered_instance_title = new wxStaticText(parent, wxID_ANY, "");
-    registered_instance_title->SetForegroundColour(DESIGN_GRAY900_COLOR);
-    registered_instance_title->SetFont(::Label::Body_13);
-    registered_instance_title->Wrap(-1);
-
-    // update the text below checkbox
-    auto update_current_association_str = [=, &reg_to_current_instance](){
-        // get registered binary for given link type
-        std::wstring registered_bin;
-        reg_to_current_instance = wxGetApp().check_url_association(url_prefix.wc_str(), registered_bin);
-
-        // format registered binary to get only the path and remove excess chars
-        if (!registered_bin.empty())
-            // skip idx 0 because it is the first quotation mark
-            registered_bin = registered_bin.substr(1, registered_bin.find(L'\"', 1) - 1);
-
-        wxString current_association_str = _L("Current Association: ");
-        if (reg_to_current_instance) {
-            current_association_str += _L("Current Instance");
-            registered_instance_title->SetToolTip(_L("Current Instance Path: ") + registered_bin);
-        } else if (registered_bin.empty())
-            current_association_str += _L("None");
-        else
-            current_association_str += registered_bin;
-
-        registered_instance_title->SetLabel(current_association_str);
-        auto size = registered_instance_title->GetTextExtent(current_association_str);
-        registered_instance_title->SetMinSize({ size.x + FromDIP(5), -1 });
-    };
-    update_current_association_str();
-
-    v_sizer->Add(registered_instance_title, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, 60);
-
-    checkbox->Bind(wxEVT_TOGGLEBUTTON, [=](wxCommandEvent& e) {
-        wxGetApp().associate_url(url_prefix.ToStdWstring());
-        checkbox->Disable();
-        update_current_association_str();
-        e.Skip();
-    });
-
-    return v_sizer;
-}
-#endif // WIN32
 
 PreferencesDialog::PreferencesDialog(wxWindow *parent, wxWindowID id, const wxString &title, const wxPoint &pos, const wxSize &size, long style)
     : DPIDialog(parent, id, _L("Preferences"), pos, size, style)
@@ -1124,10 +1046,6 @@ wxWindow* PreferencesDialog::create_general_page()
     auto item_associate_step = create_item_checkbox(_L("Associate .step/.stp files to GingerSlicer"), page,
                                                          _L("If enabled, sets GingerSlicer as default application to open .step files"), 50, "associate_step");
 
-    auto title_associate_url = create_item_title(_L("Associate web links to GingerSlicer"), page, _L("Associate URLs to GingerSlicer"));
-
-    auto associate_url_bambustudio = create_item_link_association(page, L"bambustudio", "Makerworld.com");
-    auto associate_url_cura        = create_item_link_association(page, L"cura", "Thingiverse.com");
 #endif // _WIN32
 
     // auto title_modelmall = create_item_title(_L("Online Models"), page, _L("Online Models"));
@@ -1193,9 +1111,6 @@ wxWindow* PreferencesDialog::create_general_page()
     sizer_page->Add(item_associate_3mf, 0, wxTOP, FromDIP(3));
     sizer_page->Add(item_associate_stl, 0, wxTOP, FromDIP(3));
     sizer_page->Add(item_associate_step, 0, wxTOP, FromDIP(3));
-    sizer_page->Add(title_associate_url, 0, wxTOP| wxEXPAND, FromDIP(20));
-    sizer_page->Add(associate_url_bambustudio, 0, wxTOP, FromDIP(3));
-    sizer_page->Add(associate_url_cura, 0, wxTOP, FromDIP(3));
 #endif // _WIN32
     // auto item_title_modelmall = sizer_page->Add(title_modelmall, 0, wxTOP | wxEXPAND, FromDIP(20));
     // auto item_item_modelmall = sizer_page->Add(item_modelmall, 0, wxTOP, FromDIP(3));

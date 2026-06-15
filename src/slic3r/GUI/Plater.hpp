@@ -101,9 +101,6 @@ wxDECLARE_EVENT(EVT_PUBLISH,        wxCommandEvent);
 wxDECLARE_EVENT(EVT_OPEN_PLATESETTINGSDIALOG,        wxCommandEvent);
 wxDECLARE_EVENT(EVT_REPAIR_MODEL,        wxCommandEvent);
 wxDECLARE_EVENT(EVT_FILAMENT_COLOR_CHANGED,        wxCommandEvent);
-wxDECLARE_EVENT(EVT_INSTALL_PLUGIN_NETWORKING,        wxCommandEvent);
-wxDECLARE_EVENT(EVT_INSTALL_PLUGIN_HINT,        wxCommandEvent);
-wxDECLARE_EVENT(EVT_UPDATE_PLUGINS_WHEN_LAUNCH,        wxCommandEvent);
 wxDECLARE_EVENT(EVT_PREVIEW_ONLY_MODE_HINT,        wxCommandEvent);
 wxDECLARE_EVENT(EVT_PRINT_FROM_SDCARD_VIEW,   SimpleEvent);
 wxDECLARE_EVENT(EVT_CREATE_FILAMENT, SimpleEvent);
@@ -251,7 +248,6 @@ public:
     //BBS download project by project id
     void import_model_id(wxString download_info);
     void download_project(const wxString& project_id);
-    void request_model_download(wxString url);
     void request_download_project(std::string project_id);
     // BBS: check snapshot
     bool up_to_date(bool saved, bool backup);

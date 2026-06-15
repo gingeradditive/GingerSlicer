@@ -6,7 +6,6 @@
 
 #include "format.hpp"
 #include "libslic3r_version.h"
-#include "Downloader.hpp"
 
 // Localization headers: include libslic3r version first so everything in this file
 // uses the slic3r/GUI version (the macros will take precedence over the functions).
@@ -97,7 +96,6 @@
 #include "SendSystemInfoDialog.hpp"
 #include "ParamsDialog.hpp"
 #include "KBShortcutsDialog.hpp"
-#include "DownloadProgressDialog.hpp"
 
 #include "BitmapCache.hpp"
 #include "PartPlate.hpp"
@@ -769,11 +767,7 @@ void GUI_App::post_init()
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(", init with input files, size %1%, input_gcode %2%")
             %this->init_params->input_files.size() %this->init_params->input_gcode;
         const auto first_url = this->init_params->input_files.front();
-        if (this->init_params->input_files.size() == 1 && is_supported_open_protocol(first_url)) {
-            switch_to_3d = true;
-            start_download(first_url);
-            m_open_method = "url";
-        } else {
+        {
             switch_to_3d = true;
             if (this->init_params->input_gcode) {
                 mainframe->select_tab(size_t(MainFrame::tp3DEditor));
@@ -980,7 +974,6 @@ GUI_App::GUI_App()
     , m_em_unit(10)
     , m_imgui(new ImGuiWrapper())
 	, m_removable_drive_manager(std::make_unique<RemovableDriveManager>())
-    , m_downloader(std::make_unique<Downloader>())
 	, m_other_instance_message_handler(std::make_unique<OtherInstanceMessageHandler>())
 {
 	//app config initializes early becasuse it is used in instance checking in GingerSlicer.cpp
@@ -1517,8 +1510,6 @@ bool GUI_App::on_init_inner()
             associate_files(L"step");
             associate_files(L"stp");
         }
-        associate_url(L"gingerslicer");
-
         if (app_config->get("associate_gcode") == "true")
             associate_files(L"gcode");
 #endif // __WXMSW__
@@ -2113,20 +2104,6 @@ void GUI_App::ShowUserGuide() {
     run_wizard(ConfigWizard::RR_USER);
 }
 
-void GUI_App::ShowDownNetPluginDlg() {
-    try {
-        auto iter = std::find_if(dialogStack.begin(), dialogStack.end(), [](auto dialog) {
-            return dynamic_cast<DownloadProgressDialog *>(dialog) != nullptr;
-        });
-        if (iter != dialogStack.end())
-            return;
-        DownloadProgressDialog dlg(_L("Downloading Bambu Network Plug-in"));
-        dlg.ShowModal();
-    } catch (std::exception &) {
-        ;
-    }
-}
-
 void GUI_App::ShowUserLogin(bool show)
 {
 }
@@ -2416,9 +2393,6 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     }
                 }
             }
-            else if (command_str.compare("begin_network_plugin_download") == 0) {
-                CallAfter([this] { wxGetApp().ShowDownNetPluginDlg(); });
-            }
             else if (command_str.compare("get_web_shortcut") == 0) {
                 if (root.get_child_optional("key_event") != boost::none) {
                     pt::ptree key_event_node = root.get_child("key_event");
@@ -2478,7 +2452,7 @@ std::string GUI_App::handle_web_request(std::string cmd)
                     if (path.has_value()) 
                     { 
                         wxString realurl = from_u8(url_decode(path.value()));
-                        wxGetApp().request_model_download(realurl);
+                        // model download removed
                     }
                 }
             }
@@ -2493,13 +2467,6 @@ std::string GUI_App::handle_web_request(std::string cmd)
 
 void GUI_App::handle_script_message(std::string msg)
 {
-}
-
-void GUI_App::request_model_download(wxString url)
-{
-    if (plater_) {
-        plater_->request_model_download(url);
-    }
 }
 
 //BBS download project by project id
@@ -3468,7 +3435,6 @@ void GUI_App::open_preferences(size_t open_on_tab, const std::string& highlight_
                 associate_files(L"step");
                 associate_files(L"stp");
             }
-            associate_url(L"gingerslicer");
         }
         else {
             if (app_config->get("associate_gcode") == "true")
@@ -3822,9 +3788,6 @@ void GUI_App::OSXStoreOpenFiles(const wxArrayString &fileNames)
 
 void GUI_App::MacOpenURL(const wxString& url)
 {
-    if (url.empty())
-        return;
-    start_download(into_u8(url));
 }
 
 // wxWidgets override to get an event on open files.
@@ -3946,11 +3909,6 @@ ParamsDialog* GUI_App::params_dialog()
 Model& GUI_App::model()
 {
     return plater_->model();
-}
-
-Downloader* GUI_App::downloader()
-{
-    return m_downloader.get();
 }
 
 void GUI_App::load_url(wxString url)
@@ -4541,81 +4499,6 @@ void GUI_App::disassociate_files(std::wstring extend)
 #endif // WIN32
 }
 
-bool GUI_App::check_url_association(std::wstring url_prefix, std::wstring& reg_bin)
-{
-    reg_bin = L"";
-#ifdef WIN32
-    wxRegKey key_full(wxRegKey::HKCU, "Software\\Classes\\" + url_prefix + "\\shell\\open\\command");
-    if (!key_full.Exists()) {
-        return false;
-    }
-    reg_bin = key_full.QueryDefaultValue().ToStdWstring();
-
-    boost::filesystem::path binary_path(boost::filesystem::canonical(boost::dll::program_location()));
-    std::wstring key_string = L"\"" + binary_path.wstring() + L"\" \"%1\"";
-    return key_string == reg_bin;
-#else
-    return false;
-#endif // WIN32
-}
-
-void GUI_App::associate_url(std::wstring url_prefix)
-{
-#ifdef WIN32
-    boost::filesystem::path binary_path(boost::filesystem::canonical(boost::dll::program_location()));
-    // the path to binary needs to be correctly saved in string with respect to localized characters
-    wxString wbinary = wxString::FromUTF8(binary_path.string());
-    std::string binary_string = (boost::format("%1%") % wbinary).str();
-    BOOST_LOG_TRIVIAL(info) << "Downloader registration: Path of binary: " << binary_string;
-
-    std::string key_string = "\"" + binary_string + "\" \"%1\"";
-
-    wxRegKey key_first(wxRegKey::HKCU, "Software\\Classes\\" + url_prefix);
-    wxRegKey key_full(wxRegKey::HKCU, "Software\\Classes\\" + url_prefix + "\\shell\\open\\command");
-    if (!key_first.Exists()) {
-        key_first.Create(false);
-    }
-    key_first.SetValue("URL Protocol", "");
-
-    if (!key_full.Exists()) {
-        key_full.Create(false);
-    }
-    key_full = key_string;
-#elif defined(__linux__) && defined(SLIC3R_DESKTOP_INTEGRATION)
-    DesktopIntegrationDialog::perform_downloader_desktop_integration(into_u8(url_prefix));
-#endif // WIN32
-}
-
-void GUI_App::disassociate_url(std::wstring url_prefix)
-{
-#ifdef WIN32
-    wxRegKey key_full(wxRegKey::HKCU, "Software\\Classes\\" + url_prefix + "\\shell\\open\\command");
-    if (!key_full.Exists()) {
-        return;
-    }
-    key_full = "";
-#endif // WIN32
-}
-
-
-void GUI_App::start_download(std::string url)
-{
-    if (!plater_) {
-        BOOST_LOG_TRIVIAL(error) << "Could not start URL download: plater is nullptr.";
-        return;
-    }
-    //lets always init so if the download dest folder was changed, new dest is used
-    boost::filesystem::path dest_folder(app_config->get("download_path"));
-    if (dest_folder.empty() || !boost::filesystem::is_directory(dest_folder)) {
-        std::string msg = _u8L("Could not start URL download. Destination folder is not set. Please choose destination folder in Configuration Wizard.");
-        BOOST_LOG_TRIVIAL(error) << msg;
-        show_error(nullptr, msg);
-        return;
-    }
-    m_downloader->init(dest_folder);
-    m_downloader->start_download(url);
-
-}
 
 bool is_support_filament(int extruder_id)
 {
