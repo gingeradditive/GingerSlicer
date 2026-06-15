@@ -952,9 +952,6 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionInt,  interlocking_depth))
     ((ConfigOptionInt,  interlocking_boundary_avoidance))
 
-    // Orca: internal use only
-    ((ConfigOptionBool,  calib_flowrate_topinfill_special_order)) // ORCA: special flag for flow rate calibration
-
 
 )
 
@@ -1155,7 +1152,6 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloats,              filament_flow_ratio))
     ((ConfigOptionBools,               enable_pressure_advance))
     ((ConfigOptionFloats,              pressure_advance))
-    // Orca: adaptive pressure advance and calibration model
     ((ConfigOptionBools,                adaptive_pressure_advance))
     ((ConfigOptionBools,                adaptive_pressure_advance_overhangs))
     ((ConfigOptionStrings,             adaptive_pressure_advance_model))

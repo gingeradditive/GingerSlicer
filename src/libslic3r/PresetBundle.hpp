@@ -116,8 +116,6 @@ public:
 
     // Orca: update selected filament and print
     void           update_selections(AppConfig &config);
-    void set_calibrate_printer(std::string name);
-
     void set_is_validation_mode(bool mode) { validation_mode = mode; }
     void set_vendor_to_validate(std::string vendor) { vendor_to_validate = vendor; }
 
@@ -141,10 +139,6 @@ public:
     // Filament preset names for a multi-extruder or multi-material print.
     // extruders.size() should be the same as printers.get_edited_preset().config.nozzle_diameter.size()
     std::vector<std::string>    filament_presets;
-    // Calibrate
-    Preset const * calibrate_printer = nullptr;
-    std::set<Preset const *> calibrate_filaments;
-
     // The project configuration values are kept separated from the print/filament/printer preset,
     // they are being serialized / deserialized from / to the .amf, .3mf, .config, .gcode,
     // and they are being used by slicing core.

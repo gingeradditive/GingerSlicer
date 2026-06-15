@@ -194,7 +194,7 @@ Dialog "Clona oggetti": spinner conteggio copie, checkbox arrange automatico, pr
 ## 🟢 060 GUI/ConfigExceptions
 Header minimale: eccezioni `ConfigError` e `ConfigGUITypeError` per errori di tipo nelle opzioni GUI. Solo 16 righe, usato come base eccezioni config.
 
-## 🔴 061 GUI/ConfigManipulation
+## 🟢 061 GUI/ConfigManipulation
 Classe centrale per validazione e toggle visibilità campi UI al cambio config. Gestisce cross-field dependencies (toggle_print_fff_options, update_print_fff_config, ecc.). Indispensabile per Tab.cpp.
 
 ## 🔴 062 GUI/ConfigWizard

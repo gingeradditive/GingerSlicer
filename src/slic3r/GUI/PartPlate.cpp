@@ -4641,7 +4641,7 @@ bool PartPlateList::preprocess_nonprefered_areas(arrangement::ArrangePolygons& r
 	bool added = false;
 
 	std::vector<BoundingBoxf> nonprefered_regions;
-	nonprefered_regions.emplace_back(Vec2d{ 18,0 }, Vec2d{ 240,15 }); // new extrusion & hand-eye calibration region
+	nonprefered_regions.emplace_back(Vec2d{ 18,0 }, Vec2d{ 240,15 }); // extrusion startup region
 
 	//has exclude areas
 	PartPlate* plate = m_plate_list[0];
@@ -5276,9 +5276,6 @@ int PartPlateList::store_to_3mf_structure(PlateDataPtrs& plate_data_list, bool w
 			if (m_plate_list[i]->get_slice_result() && m_plate_list[i]->is_slice_result_valid()) {
 				// BBS only include current palte_idx
 				if (plate_idx == i || plate_idx == PLATE_CURRENT_IDX || plate_idx == PLATE_ALL_IDX) {
-					//load calibration thumbnail
-					//if (m_plate_list[i]->cali_thumbnail_data.is_valid())
-					//	plate_data_item->pattern_file = "valid_pattern";
 					if (m_plate_list[i]->cali_bboxes_data.is_valid())
 						plate_data_item->pattern_bbox_file = "valid_pattern_bbox";
 					plate_data_item->gcode_file       = m_plate_list[i]->m_gcode_result->filename;

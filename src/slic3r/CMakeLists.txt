@@ -36,8 +36,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/BitmapCache.hpp
     GUI/BitmapComboBox.cpp
     GUI/BitmapComboBox.hpp
-    GUI/calib_dlg.cpp
-    GUI/calib_dlg.hpp
     GUI/Camera.cpp
     GUI/Camera.hpp
     GUI/CameraUtils.cpp

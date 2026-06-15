@@ -23,7 +23,6 @@
 #include "libslic3r/Model.hpp"
 #include "libslic3r/PrintBase.hpp"
 
-#include "libslic3r/calib.hpp"
 #include "libslic3r/CutUtils.hpp"
 #include "libslic3r/FlushVolCalc.hpp"
 
@@ -270,16 +269,6 @@ public:
     void reload_gcode_from_disk();
     void refresh_print();
 
-    // SoftFever
-    void calib_pa(const Calib_Params& params);
-    void calib_flowrate(bool is_linear, int pass);
-    void calib_temp(const Calib_Params& params);
-    void calib_max_vol_speed(const Calib_Params& params);
-    void calib_retraction(const Calib_Params& params);
-    void calib_VFA(const Calib_Params& params);
-    void calib_input_shaping_freq(const Calib_Params& params);
-    void calib_input_shaping_damp(const Calib_Params& params);
-    void calib_junction_deviation(const Calib_Params& params);
 
     BuildVolume_Type get_build_volume_type() const;
 
@@ -809,11 +798,6 @@ private:
     void single_snapshots_leave(SingleSnapshot *single);
     // BBS: add project slice related functions
     int start_next_slice();
-
-    void _calib_pa_pattern(const Calib_Params& params);
-    void _calib_pa_pattern_gen_gcode();
-    void _calib_pa_tower(const Calib_Params& params);
-    void _calib_pa_select_added_objects();
 
     void cut_horizontal(size_t obj_idx, size_t instance_idx, double z, ModelObjectCutAttributes attributes);
 

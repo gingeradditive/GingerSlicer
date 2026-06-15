@@ -151,7 +151,6 @@ const std::string METADATA_DIR = "Metadata/";
 const std::string ACCESOR_DIR = "accesories/";
 const std::string GCODE_EXTENSION = ".gcode";
 const std::string THUMBNAIL_EXTENSION = ".png";
-const std::string CALIBRATION_INFO_EXTENSION = ".json";
 const std::string CONTENT_TYPES_FILE = "[Content_Types].xml";
 const std::string RELATIONSHIPS_FILE = "_rels/.rels";
 const std::string THUMBNAIL_FILE = "Metadata/plate_1.png";
@@ -1833,10 +1832,6 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
                 }
                 else if (!dont_load_config && boost::algorithm::istarts_with(name, METADATA_DIR) && boost::algorithm::iends_with(name, THUMBNAIL_EXTENSION)) {
                     //BBS parsing pattern thumbnail and plate thumbnails
-                    _extract_file_from_archive(archive, stat);
-                }
-                else if (!dont_load_config && boost::algorithm::istarts_with(name, METADATA_DIR) && boost::algorithm::iends_with(name, CALIBRATION_INFO_EXTENSION)) {
-                    //BBS parsing pattern config files
                     _extract_file_from_archive(archive, stat);
                 }
                 else {
@@ -5562,7 +5557,6 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             const std::vector<ThumbnailData*>& top_thumbnail_data,
             const std::vector<ThumbnailData*>& pick_thumbnail_data,
             Export3mfProgressFn proFn,
-            const std::vector<ThumbnailData*>& calibration_data,
             const std::vector<PlateBBoxData*>& id_bboxes,
             BBLProject* project = nullptr,
             int export_plate_idx = -1);
@@ -5572,7 +5566,6 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         bool _add_content_types_file_to_archive(mz_zip_archive& archive);
 
         bool _add_thumbnail_file_to_archive(mz_zip_archive& archive, const ThumbnailData& thumbnail_data, const char* local_path, int index, bool generate_small_thumbnail = false);
-        bool _add_calibration_file_to_archive(mz_zip_archive& archive, const ThumbnailData& thumbnail_data, int index);
         bool _add_bbox_file_to_archive(mz_zip_archive& archive, const PlateBBoxData& id_bboxes, int index);
         bool _add_relationships_file_to_archive(mz_zip_archive &                archive,
                                                 std::string const &             from    = {},
@@ -5648,7 +5641,7 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         bool result = _save_model_to_file(filename + ".tmp", *store_params.model, store_params.plate_data_list, store_params.project_presets, store_params.config,
                                           store_params.thumbnail_data, store_params.no_light_thumbnail_data, store_params.top_thumbnail_data, store_params.pick_thumbnail_data,
                                           store_params.proFn,
-            store_params.calibration_thumbnail_data, store_params.id_bboxes, store_params.project, store_params.export_plate_idx);
+            store_params.id_bboxes, store_params.project, store_params.export_plate_idx);
         if (result) {
             boost::filesystem::rename(filename + ".tmp", filename, ec);
             if (ec) {
@@ -5727,7 +5720,6 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         const std::vector<ThumbnailData*>& top_thumbnail_data,
         const std::vector<ThumbnailData*>& pick_thumbnail_data,
         Export3mfProgressFn proFn,
-        const std::vector<ThumbnailData*>& calibration_data,
         const std::vector<PlateBBoxData*>& id_bboxes,
         BBLProject* project,
         int export_plate_idx)
@@ -5921,31 +5913,9 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
             }
         }
 
-        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ":" <<__LINE__ << boost::format(",before add calibration thumbnails, count %1%\n")%calibration_data.size();
-        //BBS add calibration thumbnail for each plate
-        if (!m_skip_static && calibration_data.size() > 0) {
-            // Adds the file Metadata/calibration_p[X].png.
-            for (unsigned int index = 0; index < calibration_data.size(); index++)
-            {
-                if (proFn) {
-                    proFn(EXPORT_STAGE_ADD_THUMBNAILS, index, calibration_data.size(), cb_cancel);
-                    if (cb_cancel)
-                        return false;
-                }
 
-                if (calibration_data[index]->is_valid())
-                {
-                    if (!_add_calibration_file_to_archive(archive, *calibration_data[index], index)) {
-                        close_zip_writer(&archive);
-                        return false;
-                    }
-                }
-            }
-        }
-
-        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ":" <<__LINE__ << boost::format(",before add calibration boundingbox, count %1%\n")%id_bboxes.size();
+        BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << ":" <<__LINE__ << boost::format(",before add plate bboxes, count %1%\n")%id_bboxes.size();
         if (!m_skip_static && id_bboxes.size() > 0) {
-            // Adds the file Metadata/calibration_p[X].png.
             for (unsigned int index = 0; index < id_bboxes.size(); index++)
             {
                 // BBS: save bounding box to json
@@ -6295,25 +6265,6 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
         return res;
     }
 
-    bool _BBS_3MF_Exporter::_add_calibration_file_to_archive(mz_zip_archive& archive, const ThumbnailData& thumbnail_data, int index)
-    {
-        bool res = false;
-
-        /*size_t png_size = 0;
-        void* png_data = tdefl_write_image_to_png_file_in_memory_ex((const void*)thumbnail_data.pixels.data(), thumbnail_data.width, thumbnail_data.height, 4, &png_size, MZ_DEFAULT_COMPRESSION, 1);
-        if (png_data != nullptr) {
-            std::string thumbnail_name = (boost::format(PATTERN_FILE_FORMAT) % (index + 1)).str();
-            res = mz_zip_writer_add_mem(&archive, thumbnail_name.c_str(), (const void*)png_data, png_size, MZ_NO_COMPRESSION);
-            mz_free(png_data);
-        }
-
-        if (!res) {
-            add_error("Unable to add thumbnail file to archive");
-            BOOST_LOG_TRIVIAL(error) << __FUNCTION__ << ":" << __LINE__ << boost::format(", Unable to add thumbnail file to archive\n");
-        }*/
-
-        return res;
-    }
 
     bool _BBS_3MF_Exporter::_add_bbox_file_to_archive(mz_zip_archive& archive, const PlateBBoxData& id_bboxes, int index)
     {

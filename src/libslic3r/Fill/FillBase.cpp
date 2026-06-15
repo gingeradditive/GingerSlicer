@@ -164,12 +164,6 @@ void Fill::fill_surface_extrusion(const Surface* surface, const FillParams& para
         out.push_back(eec = new ExtrusionEntityCollection());
         // Only concentric fills are not sorted.
         eec->no_sort = this->no_sort();
-        // ORCA: special flag for flow rate calibration
-        auto is_flow_calib = params.extrusion_role == erTopSolidInfill && this->print_object_config->has("calib_flowrate_topinfill_special_order") &&
-                             this->print_object_config->option("calib_flowrate_topinfill_special_order")->getBool();
-        if (is_flow_calib) {
-            eec->no_sort = true;
-        }
         size_t idx   = eec->entities.size();
         if (params.use_arachne) {
             Flow new_flow = params.flow.with_spacing(float(this->spacing));
@@ -192,7 +186,7 @@ void Fill::fill_surface_extrusion(const Surface* surface, const FillParams& para
                 params.extrusion_role,
                 flow_mm3_per_mm, float(flow_width), params.flow.height());
         }
-        if (!params.can_reverse || is_flow_calib) {
+        if (!params.can_reverse) {
             for (size_t i = idx; i < eec->entities.size(); i++)
                 eec->entities[i]->set_reverse();
         }

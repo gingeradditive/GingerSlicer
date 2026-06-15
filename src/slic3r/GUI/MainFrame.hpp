@@ -29,7 +29,6 @@
 // BBS
 #include "Topbar.hpp"
 #include "PrinterWebView.hpp"
-#include "calib_dlg.hpp"
 
 #define ENABEL_PRINT_ALL 0
 
@@ -95,7 +94,6 @@ class MainFrame : public DPIFrame
 
     wxMenuBar*  m_menubar{ nullptr };
     //wxMenu* publishMenu{ nullptr };
-    wxMenu *    m_calib_menu{nullptr};
 
 #if 0
     wxMenuItem* m_menu_item_repeat { nullptr }; // doesn't used now
@@ -208,7 +206,6 @@ public:
         tpPreview       = 2,
         tpMonitor       = 3,
         tpProject       = 4,
-        tpCalibration   = 5,
         tpAuxiliary     = 6,
         toDebugTool     = 7,
     };
@@ -331,15 +328,6 @@ public:
     void        refresh_plugin_tips();
     void RunScript(wxString js);
 
-
-    PA_Calibration_Dlg* m_pa_calib_dlg{ nullptr };
-    Temp_Calibration_Dlg* m_temp_calib_dlg{ nullptr };
-    MaxVolumetricSpeed_Test_Dlg* m_vol_test_dlg { nullptr };
-    VFA_Test_Dlg* m_vfa_test_dlg { nullptr };
-    Retraction_Test_Dlg* m_retraction_calib_dlg{ nullptr };
-    Input_Shaping_Freq_Test_Dlg* m_IS_freq_calib_dlg{ nullptr };
-    Input_Shaping_Damp_Test_Dlg* m_IS_damp_calib_dlg{ nullptr };
-    Junction_Deviation_Test_Dlg* m_junction_deviation_calib_dlg{ nullptr };
 
     // BBS. Replace title bar and menu bar with top bar.
     Topbar*               m_topbar{ nullptr };

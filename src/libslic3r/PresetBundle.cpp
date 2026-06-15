@@ -259,7 +259,6 @@ PresetsConfigSubstitutions PresetBundle::load_presets(AppConfig &config, Forward
 
     this->load_selections(config, preferred_selection);
 
-    set_calibrate_printer("");
 
     //BBS: add config related logs
     BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(" finished, returned substitutions %1%")%substitutions.size();
@@ -605,7 +604,6 @@ PresetsConfigSubstitutions PresetBundle::load_user_presets(std::string user, For
     this->update_multi_material_filament_presets();
     this->update_compatible(PresetSelectCompatibleType::Never);
 
-    set_calibrate_printer("");
 
     return PresetsConfigSubstitutions();
 }
@@ -680,7 +678,6 @@ PresetsConfigSubstitutions PresetBundle::load_user_presets(AppConfig &          
     this->update_compatible(PresetSelectCompatibleType::Never);
     //this->load_selections(config, PresetPreferences());
 
-    set_calibrate_printer("");
 
     if (! errors_cummulative.empty())
         throw Slic3r::RuntimeError(errors_cummulative);
@@ -1887,28 +1884,6 @@ void PresetBundle::set_num_filaments(unsigned int n, std::string new_color)
     update_multi_material_filament_presets();
 }
 
-void PresetBundle::set_calibrate_printer(std::string name)
-{
-    if (name.empty()) {
-        calibrate_filaments.clear();
-        return;
-    }
-    if (!name.empty())
-        calibrate_printer = printers.find_preset(name);
-    const Preset &                printer_preset = calibrate_printer ? *calibrate_printer : printers.get_edited_preset();
-    const PresetWithVendorProfile active_printer = printers.get_preset_with_vendor_profile(printer_preset);
-    DynamicPrintConfig            config;
-    config.set_key_value("printer_preset", new ConfigOptionString(active_printer.preset.name));
-    const ConfigOption *opt = active_printer.preset.config.option("nozzle_diameter");
-    if (opt) config.set_key_value("num_extruders", new ConfigOptionInt((int) static_cast<const ConfigOptionFloats *>(opt)->values.size()));
-    calibrate_filaments.clear();
-    for (size_t i = filaments.num_default_presets(); i < filaments.size(); ++i) {
-        const Preset &                preset                          = filaments.m_presets[i];
-        const PresetWithVendorProfile this_preset_with_vendor_profile = filaments.get_preset_with_vendor_profile(preset);
-        bool                          is_compatible                   = is_compatible_with_printer(this_preset_with_vendor_profile, active_printer, &config);
-        if (is_compatible) calibrate_filaments.insert(&preset);
-    }
-}
 
 std::set<std::string> PresetBundle::get_printer_names_by_printer_type_and_nozzle(const std::string &printer_type, std::string nozzle_diameter_str)
 {

@@ -27,7 +27,6 @@ enum CUSTOM_ID
     ID_TITLE,
     ID_MODEL_STORE,
     ID_PUBLISH,
-    ID_CALIB,
     ID_TOOL_BAR = 3200,
     ID_AMS_NOTEBOOK,
 };
@@ -196,7 +195,6 @@ void Topbar::Init(wxFrame* parent)
     m_frame = parent;
     m_skip_popup_file_menu = false;
     m_skip_popup_dropdown_menu = false;
-    m_skip_popup_calib_menu    = false;
 
     wxInitAllImageHandlers();
 
@@ -246,10 +244,6 @@ void Topbar::Init(wxFrame* parent)
 
     //this->AddSpacer(FromDIP(10));
 
-    //wxBitmap calib_bitmap          = create_scaled_bitmap("calib_sf", nullptr, TOPBAR_ICON_SIZE);
-    //wxBitmap calib_bitmap_inactive = create_scaled_bitmap("calib_sf_inactive", nullptr, TOPBAR_ICON_SIZE);
-    //m_calib_item                   = this->AddTool(ID_CALIB, _L("Calibration"), calib_bitmap);
-    //m_calib_item->SetDisabledBitmap(calib_bitmap_inactive);
 
     this->AddSpacer(FromDIP(10));
     this->AddStretchSpacer(1);
@@ -294,7 +288,6 @@ void Topbar::Init(wxFrame* parent)
     this->Bind(wxEVT_MENU_CLOSE, &Topbar::OnMenuClose, this);
     this->Bind(wxEVT_AUITOOLBAR_TOOL_DROPDOWN, &Topbar::OnFileToolItem, this, ID_TOP_FILE_MENU);
     this->Bind(wxEVT_AUITOOLBAR_TOOL_DROPDOWN, &Topbar::OnDropdownToolItem, this, ID_TOP_DROPDOWN_MENU);
-    this->Bind(wxEVT_AUITOOLBAR_TOOL_DROPDOWN, &Topbar::OnCalibToolItem, this, ID_CALIB);
     this->Bind(wxEVT_AUITOOLBAR_TOOL_DROPDOWN, &Topbar::OnIconize, this, wxID_ICONIZE_FRAME);
     this->Bind(wxEVT_AUITOOLBAR_TOOL_DROPDOWN, &Topbar::OnFullScreen, this, wxID_MAXIMIZE_FRAME);
     this->Bind(wxEVT_AUITOOLBAR_TOOL_DROPDOWN, &Topbar::OnCloseFrame, this, wxID_CLOSE_FRAME);
@@ -347,7 +340,6 @@ void Topbar::EnableUndoRedoItems()
 {
     this->EnableTool(m_undo_item->GetId(), true);
     this->EnableTool(m_redo_item->GetId(), true);
-    //this->EnableTool(m_calib_item->GetId(), true);
     Refresh();
 }
 
@@ -355,7 +347,6 @@ void Topbar::DisableUndoRedoItems()
 {
     this->EnableTool(m_undo_item->GetId(), false);
     this->EnableTool(m_redo_item->GetId(), false);
-    //this->EnableTool(m_calib_item->GetId(), false);
     Refresh();
 }
 
@@ -382,11 +373,6 @@ void Topbar::AddDropDownMenuItem(wxMenuItem* menu_item)
 wxMenu* Topbar::GetTopMenu()
 {
     return &m_top_menu;
-}
-
-wxMenu* Topbar::GetCalibMenu()
-{
-    return &m_calib_menu;
 }
 
 void Topbar::SetTitle(wxString title)
@@ -535,22 +521,6 @@ void Topbar::OnDropdownToolItem(wxAuiToolBarEvent& evt)
     tb->SetToolSticky(evt.GetId(), false);
 }
 
-void Topbar::OnCalibToolItem(wxAuiToolBarEvent &evt)
-{
-    wxAuiToolBar *tb = static_cast<wxAuiToolBar *>(evt.GetEventObject());
-
-    tb->SetToolSticky(evt.GetId(), true);
-
-    if (!m_skip_popup_calib_menu) {
-        auto rec = this->GetToolRect(ID_CALIB);
-        GetParent()->PopupMenu(&m_calib_menu, wxPoint(rec.GetLeft(), this->GetSize().GetHeight() - 2));
-    } else {
-        m_skip_popup_calib_menu = false;
-    }
-
-    // make sure the button is "un-stuck"
-    tb->SetToolSticky(evt.GetId(), false);
-}
 
 void Topbar::OnMouseLeftDown(wxMouseEvent& event)
 {
