@@ -394,8 +394,6 @@ set(SLIC3R_GUI_SOURCES
     Utils/ColorSpaceConvert.hpp
     Utils/EmbossStyleManager.cpp
     Utils/EmbossStyleManager.hpp
-    Utils/ESP3D.cpp
-    Utils/ESP3D.hpp
     Utils/FileHelp.cpp
     Utils/FileHelp.hpp
     Utils/FixModelByWin10.cpp
