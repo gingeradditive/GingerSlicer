@@ -30,8 +30,6 @@
 #include "I18N.hpp"
 #include "NotificationManager.hpp"
 #include "format.hpp"
-#include "DailyTips.hpp"
-
 #include "slic3r/GUI/Gizmos/GLGizmoPainterBase.hpp"
 #include "slic3r/Utils/UndoRedo.hpp"
 
@@ -2032,7 +2030,6 @@ void GLCanvas3D::render(bool only_init)
             bottom_margin = SLIDER_BOTTOM_MARGIN * scale_factor * GCODE_VIEWER_SLIDER_SCALE;
         }
         wxGetApp().plater()->get_notification_manager()->render_notifications(*this, get_overlay_window_width(), bottom_margin, right_margin);
-        wxGetApp().plater()->get_dailytips()->render();
     }
 
     wxGetApp().imgui()->render();

@@ -147,7 +147,6 @@
 
 #include "PrintHostDialogs.hpp"
 #include "PlateSettingsDialog.hpp"
-#include "DailyTips.hpp"
 #include "FileArchiveDialog.hpp"
 #include "StepMeshDialog.hpp"
 #include "CloneDialog.hpp"
@@ -6551,9 +6550,7 @@ void Plater::priv::on_slicing_began()
     notification_manager->close_notification_of_type(NotificationType::ExportFinished);
     bool is_first_plate = m_cur_slice_plate == 0;
     bool slice_all = q->m_only_gcode ? m_slice_all_only_has_gcode : m_slice_all;
-    bool need_change_dailytips = !(slice_all && !is_first_plate);
     notification_manager->set_slicing_progress_began();
-    notification_manager->update_slicing_notif_dailytips(need_change_dailytips);
 }
 void Plater::priv::add_warning(const Slic3r::PrintStateBase::Warning& warning, size_t oid)
 {
@@ -13027,12 +13024,6 @@ Mouse3DController& Plater::get_mouse3d_controller()
 NotificationManager * Plater::get_notification_manager()
 {
     return p->notification_manager.get();
-}
-
-DailyTipsWindow* Plater::get_dailytips() const
-{
-    static DailyTipsWindow* dailytips_win = new DailyTipsWindow();
-    return dailytips_win;
 }
 
 const NotificationManager * Plater::get_notification_manager() const

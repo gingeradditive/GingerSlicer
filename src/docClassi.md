@@ -180,8 +180,6 @@ Dialog ricerca stampanti via Bonjour/mDNS: lista risultati live, selezione IP. A
 ## 🔴 056 GUI/calib_dlg
 Dialog di calibrazione: PA (Pressure Advance), temperatura, flusso, VFA, max volumetric speed. Genera print job di calibrazione. Feature di calibrazione automatica OrcaSlicer.
 
-# === DA CONTROLLARE ===
-
 ## 🟢 057 GUI/Camera
 Struttura `Camera` per la vista 3D OpenGL: tipo (Ortho/Perspective), zoom, target, matrice view/projection, frustrum. Gestisce tutti i parametri di proiezione. Core del rendering, indispensabile.
 
@@ -205,6 +203,8 @@ Dialog per creazione preset filamento e stampante: scelta vendor/tipo/seriale, s
 
 ## 🔴 064 GUI/DailyTips
 Pannello ImGui "Daily Tips": mostra suggerimenti giornalieri da hint database con navigazione pagine, espansione/collasso, fade. Anche `DailyTipsWindow` come wrapper.
+
+# === DA CONTROLLARE ===
 
 ## 🟢 065 GUI/DesktopIntegrationDialog
 **Solo Linux.** Dialog integrazione desktop: crea/rimuove file .desktop e icone per GingerSlicer e GcodeViewer. Gestisce registrazione URL scheme per downloader.

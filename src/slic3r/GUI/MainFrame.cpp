@@ -61,8 +61,6 @@
 #include "MarkdownTip.hpp"
 #include "NetworkTestDialog.hpp"
 #include "Widgets/WebView.hpp"
-#include "DailyTips.hpp"
-
 #ifdef _WIN32
 #include <dbt.h>
 #include <shlobj.h>
@@ -2001,11 +1999,6 @@ static wxMenu* generate_help_menu()
     // Open Config Folder
     append_menu_item(helpMenu, wxID_ANY, _L("Show Configuration Folder"), _L("Show Configuration Folder"),
         [](wxCommandEvent&) { Slic3r::GUI::desktop_open_datadir_folder(); });
-
-    append_menu_item(helpMenu, wxID_ANY, _L("Show Tip of the Day"), _L("Show Tip of the Day"), [](wxCommandEvent&) {
-        wxGetApp().plater()->get_dailytips()->open();
-        wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
-        });
 
     // Report a bug
     //append_menu_item(helpMenu, wxID_ANY, _L("Report Bug(TODO)"), _L("Report a bug of GingerSlicer"),
