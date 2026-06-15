@@ -1,5 +1,5 @@
-#ifndef _prusaslicer_technologies_h_
-#define _prusaslicer_technologies_h_
+#ifndef _gingerslicer_technologies_h_
+#define _gingerslicer_technologies_h_
 
 //=============
 // debug techs
@@ -63,4 +63,4 @@
 #define ENABLE_RAYCAST_PICKING_DEBUG 0
 
 
-#endif // _prusaslicer_technologies_h_
+#endif // _gingerslicer_technologies_h_

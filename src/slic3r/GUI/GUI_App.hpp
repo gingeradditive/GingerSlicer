@@ -580,7 +580,7 @@ public:
     void            associate_url(std::wstring url_prefix);
     void            disassociate_url(std::wstring url_prefix);
 
-    // URL download - PrusaSlicer gets system call to open prusaslicer:// URL which should contain address of download
+    // URL download - GingerSlicer gets system call to open gingerslicer:// URL which should contain address of download
     void            start_download(std::string url);
 
     std::string     get_model_http_url(std::string country_code);

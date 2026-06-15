@@ -1,5 +1,5 @@
-#ifndef PRUSASLICER_AABBMESH_H
-#define PRUSASLICER_AABBMESH_H
+#ifndef GINGERSLICER_AABBMESH_H
+#define GINGERSLICER_AABBMESH_H
 
 #include <memory>
 #include <vector>

@@ -68,7 +68,7 @@ public:
     // Returns false if not supported. May throw HostNetworkError.
     virtual bool get_groups(wxArrayString & /* groups */) const { return false; }
     virtual bool get_printers(wxArrayString & /* printers */) const { return false; }
-    // Support for PrusaLink uploading to different storage. Not supported by other print hosts.
+    // Support for uploading to different storage. Not supported by other print hosts.
     // Returns false if not supported or fail.
     virtual bool get_storage(wxArrayString& /*storage_path*/, wxArrayString& /*storage_name*/) const { return false; }
 

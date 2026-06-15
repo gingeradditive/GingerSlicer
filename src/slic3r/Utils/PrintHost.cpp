@@ -49,13 +49,11 @@ PrintHost* PrintHost::get_print_host(DynamicPrintConfig *config)
             case htOctoPrint: return new OctoPrint(config);
             case htFlashAir:  return new FlashAir(config);
             case htRepetier:  return new Repetier(config);
-            case htPrusaLink: return new PrusaLink(config);
-            case htPrusaConnect: return new PrusaConnect(config);
             case htSimplyPrint: return new SimplyPrint(config);
             default:          return nullptr;
         }
     } else {
-        return new SL1Host(config);
+        return nullptr;
     }
 }
 

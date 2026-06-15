@@ -121,7 +121,7 @@ PhysicalPrinterDialog::~PhysicalPrinterDialog()
 void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgroup)
 {
     m_optgroup->m_on_change = [this](t_config_option_key opt_key, boost::any value) {
-        if (opt_key == "host_type" || opt_key == "printhost_authorization_type")
+        if (opt_key == "host_type")
             this->update();
         if (opt_key == "print_host")
             this->update_printhost_buttons();
@@ -250,8 +250,6 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
         m_optgroup->append_single_option_line(option);
     }
 
-    m_optgroup->append_single_option_line("printhost_authorization_type");
-
     option = m_optgroup->get_option("printhost_apikey");
     option.opt.width = Field::def_width_wider();
     m_optgroup->append_single_option_line(option);
@@ -314,12 +312,6 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
             return sizer;
         };
         m_optgroup->append_line(line);
-    }
-
-    for (const std::string& opt_key : std::vector<std::string>{ "printhost_user", "printhost_password" }) {        
-        option = m_optgroup->get_option(opt_key);
-        option.opt.width = Field::def_width_wider();
-        m_optgroup->append_single_option_line(option);
     }
 
 #ifdef WIN32
@@ -506,34 +498,17 @@ void PhysicalPrinterDialog::update(bool printer_change)
         if (Field* printhost_field = m_optgroup->get_field("print_host"); printhost_field) {
             if (wxTextCtrl* temp = dynamic_cast<TextCtrl*>(printhost_field)->text_ctrl(); temp) {
                 const auto current_host = temp->GetValue();
-                if (current_host == L"https://connect.prusa3d.com" ||
-                    current_host == "https://simplyprint.io" || current_host == "https://simplyprint.io/panel") {
+                if (current_host == "https://simplyprint.io" || current_host == "https://simplyprint.io/panel") {
                     temp->SetValue(wxString());
                     m_config->opt_string("print_host") = "";
                 }
             }
         }
-        if (opt->value == htPrusaLink) { // PrusaConnect does NOT allow http digest
-            m_optgroup->show_field("printhost_authorization_type");
-            AuthorizationType auth_type = m_config->option<ConfigOptionEnum<AuthorizationType>>("printhost_authorization_type")->value;
-            m_optgroup->show_field("printhost_apikey", auth_type == AuthorizationType::atKeyPassword);
-            for (const char* opt_key : { "printhost_user", "printhost_password" })
-                m_optgroup->show_field(opt_key, auth_type == AuthorizationType::atUserPassword); 
-        } else {
-            m_optgroup->hide_field("printhost_authorization_type");
+        {
             m_optgroup->show_field("printhost_apikey", true);
-            for (const std::string& opt_key : std::vector<std::string>{ "printhost_user", "printhost_password" })
-                m_optgroup->hide_field(opt_key);
             supports_multiple_printers = opt->value == htRepetier;
 
-            if (opt->value == htPrusaConnect) { // automatically show default prusaconnect address
-                if (Field* printhost_field = m_optgroup->get_field("print_host"); printhost_field) {
-                    if (wxTextCtrl* temp = dynamic_cast<TextCtrl*>(printhost_field)->text_ctrl(); temp && temp->GetValue().IsEmpty()) {
-                        temp->SetValue(L"https://connect.prusa3d.com");
-                        m_config->opt_string("print_host") = "https://connect.prusa3d.com";
-                    }
-                }
-            } else if (opt->value == htSimplyPrint) {
+            if (opt->value == htSimplyPrint) {
                 // Set the host url
                 if (Field* printhost_field = m_optgroup->get_field("print_host"); printhost_field) {
                     printhost_field->disable();
@@ -576,14 +551,7 @@ void PhysicalPrinterDialog::update(bool printer_change)
     else {
         m_optgroup->set_value("host_type", int(PrintHostType::htOctoPrint), false);
         m_optgroup->hide_field("host_type");
-
-        m_optgroup->show_field("printhost_authorization_type");
-
-        AuthorizationType auth_type = m_config->option<ConfigOptionEnum<AuthorizationType>>("printhost_authorization_type")->value;
-        m_optgroup->show_field("printhost_apikey", auth_type == AuthorizationType::atKeyPassword);
-
-        for (const char *opt_key : { "printhost_user", "printhost_password" })
-            m_optgroup->show_field(opt_key, auth_type == AuthorizationType::atUserPassword);
+        m_optgroup->show_field("printhost_apikey", true);
     }
 
     m_optgroup->show_field("printhost_port", supports_multiple_printers);
@@ -616,11 +584,7 @@ void PhysicalPrinterDialog::update_host_type(bool printer_change)
     choice->set_values(types);
     int index_in_choice = (printer_change ? std::clamp(last_in_conf - ((int)ht->m_opt.enum_values.size() - (int)types.size()), 0, (int)ht->m_opt.enum_values.size() - 1) : last_in_conf);
     choice->set_value(index_in_choice);
-    if ("prusalink" == ht->m_opt.enum_values.at(index_in_choice))
-        m_config->set_key_value("host_type", new ConfigOptionEnum<PrintHostType>(htPrusaLink));
-    else if ("prusaconnect" == ht->m_opt.enum_values.at(index_in_choice))
-        m_config->set_key_value("host_type", new ConfigOptionEnum<PrintHostType>(htPrusaConnect));
-    else {
+    {
         int host_type = std::clamp(index_in_choice + ((int)ht->m_opt.enum_values.size() - (int)types.size()), 0, (int)ht->m_opt.enum_values.size() - 1);
         PrintHostType type = static_cast<PrintHostType>(host_type);
         m_config->set_key_value("host_type", new ConfigOptionEnum<PrintHostType>(type));

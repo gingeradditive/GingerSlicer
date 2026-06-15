@@ -12344,7 +12344,6 @@ void Plater::send_gcode_legacy(int plate_idx, Export3mfProgressFn proFn, bool us
         upload_job.printhost->get_groups(groups);
     }
 
-    // PrusaLink specific: Query the server for the list of file groups.
     wxArrayString storage_paths;
     wxArrayString storage_names;
     {
@@ -12377,13 +12376,6 @@ void Plater::send_gcode_legacy(int plate_idx, Export3mfProgressFn proFn, bool us
         upload_job.upload_data.group       = pDlg->group();
         upload_job.upload_data.storage     = pDlg->storage();
         upload_job.upload_data.extended_info = pDlg->extendedInfo();
-    }
-
-    // Show "Is printer clean" dialog for PrusaConnect - Upload and print.
-    if (std::string(upload_job.printhost->get_name()) == "PrusaConnect" && upload_job.upload_data.post_action == PrintHostPostUploadAction::StartPrint) {
-        GUI::MessageDialog dlg(nullptr, _L("Is the printer ready? Is the print sheet in place, empty and clean?"), _L("Upload and Print"), wxOK | wxCANCEL);
-        if (dlg.ShowModal() != wxID_OK)
-            return;
     }
 
     if (use_3mf) {

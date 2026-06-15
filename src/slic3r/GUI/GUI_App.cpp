@@ -1078,7 +1078,7 @@ bool GUI_App::init_opengl()
 #endif
 }
 
-// gets path to PrusaSlicer.ini, returns semver from first line comment
+// gets path to slicer.ini, returns semver from first line comment
 static boost::optional<Semver> parse_semver_from_ini(std::string path)
 {
     std::ifstream stream(path);
@@ -1132,7 +1132,7 @@ void GUI_App::init_webview_runtime()
 
 void GUI_App::init_app_config()
 {
-	// Profiles for the alpha are stored into the PrusaSlicer-alpha directory to not mix with the current release.
+	// Profiles for the alpha are stored into the GingerSlicer-alpha directory to not mix with the current release.
     SetAppName(SLIC3R_APP_KEY);
 //	SetAppName(SLIC3R_APP_KEY "-alpha");
 //  SetAppName(SLIC3R_APP_KEY "-beta");
@@ -3808,7 +3808,7 @@ void GUI_App::OSXStoreOpenFiles(const wxArrayString &fileNames)
         if (is_gcode_file(into_u8(filename)))
             ++ num_gcodes;
     if (fileNames.size() == num_gcodes) {
-        // Opening PrusaSlicer by drag & dropping a G-Code onto GingerSlicer icon in Finder,
+        // Opening GingerSlicer by drag & dropping a G-Code onto GingerSlicer icon in Finder,
         // just G-codes were passed. Switch to G-code viewer mode.
         m_app_mode = EAppMode::GCodeViewer;
         unlock_lockfile(get_instance_hash_string() + ".lock", data_dir() + "/cache/");

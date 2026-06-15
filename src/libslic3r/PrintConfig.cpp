@@ -78,21 +78,12 @@ static t_config_enum_values s_keys_map_PrinterTechnology {
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(PrinterTechnology)
 
 static t_config_enum_values s_keys_map_PrintHostType {
-    { "prusalink",      htPrusaLink },
-    { "prusaconnect",   htPrusaConnect },
     { "octoprint",      htOctoPrint },
     { "flashair",       htFlashAir },
     { "repetier",       htRepetier },
     { "simplyprint",    htSimplyPrint },
-
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(PrintHostType)
-
-static t_config_enum_values s_keys_map_AuthorizationType {
-    { "key",            atKeyPassword },
-    { "user",           atUserPassword }
-};
-CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(AuthorizationType)
 
 static t_config_enum_values s_keys_map_GCodeFlavor {
     { "marlin",         gcfMarlinLegacy },
@@ -619,20 +610,6 @@ void PrintConfigDef::init_common_params()
 
     // Options used by physical printers
 
-    def = this->add("printhost_user", coString);
-    def->label = L("User");
-    //def->tooltip = L("");
-    def->mode = comAdvanced;
-    def->cli = ConfigOptionDef::nocli;
-    def->set_default_value(new ConfigOptionString());
-
-    def = this->add("printhost_password", coString);
-    def->label = L("Password");
-    //def->tooltip = L("");
-    def->mode = comAdvanced;
-    def->cli = ConfigOptionDef::nocli;
-    def->set_default_value(new ConfigOptionString());
-
     // Only available on Windows.
     def = this->add("printhost_ssl_ignore_revoke", coBool);
     def->label = L("Ignore HTTPS certificate revocation checks");
@@ -648,18 +625,6 @@ void PrintConfigDef::init_common_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionStrings());
 
-    def = this->add("printhost_authorization_type", coEnum);
-    def->label = L("Authorization Type");
-    //def->tooltip = L("");
-    def->enum_keys_map = &ConfigOptionEnum<AuthorizationType>::get_enum_values();
-    def->enum_values.push_back("key");
-    def->enum_values.push_back("user");
-    def->enum_labels.push_back(L("API key"));
-    def->enum_labels.push_back(L("HTTP digest"));
-    def->mode = comAdvanced;
-    def->cli = ConfigOptionDef::nocli;
-    def->set_default_value(new ConfigOptionEnum<AuthorizationType>(atKeyPassword));
-    
     // temporary workaround for compatibility with older Slicer
     {
         def = this->add("preset_name", coString);
@@ -4091,14 +4056,10 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("Ginger Slicer can upload G-code files to a printer host. This field must contain "
                    "the kind of the host.");
     def->enum_keys_map = &ConfigOptionEnum<PrintHostType>::get_enum_values();
-    def->enum_values.push_back("prusalink");
-    def->enum_values.push_back("prusaconnect");
     def->enum_values.push_back("octoprint");
     def->enum_values.push_back("flashair");
     def->enum_values.push_back("repetier");
     def->enum_values.push_back("simplyprint");
-    def->enum_labels.push_back("PrusaLink");
-    def->enum_labels.push_back("PrusaConnect");
     def->enum_labels.push_back("Octo/Klipper");
     def->enum_labels.push_back("FlashAir");
     def->enum_labels.push_back("Repetier");
