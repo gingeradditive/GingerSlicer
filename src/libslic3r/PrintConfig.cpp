@@ -81,7 +81,6 @@ static t_config_enum_values s_keys_map_PrintHostType {
     { "prusalink",      htPrusaLink },
     { "prusaconnect",   htPrusaConnect },
     { "octoprint",      htOctoPrint },
-    { "duet",           htDuet },
     { "flashair",       htFlashAir },
     { "repetier",       htRepetier },
     { "mks",            htMKS },
@@ -89,7 +88,7 @@ static t_config_enum_values s_keys_map_PrintHostType {
     { "obico",          htObico },
     { "flashforge",     htFlashforge },
     { "simplyprint",    htSimplyPrint },
-    { "elegoolink",     htElegooLink }
+
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(PrintHostType)
 
@@ -4099,7 +4098,6 @@ void PrintConfigDef::init_fff_params()
     def->enum_values.push_back("prusalink");
     def->enum_values.push_back("prusaconnect");
     def->enum_values.push_back("octoprint");
-    def->enum_values.push_back("duet");
     def->enum_values.push_back("flashair");
     def->enum_values.push_back("repetier");
     def->enum_values.push_back("mks");
@@ -4107,11 +4105,9 @@ void PrintConfigDef::init_fff_params()
     def->enum_values.push_back("obico");
     def->enum_values.push_back("flashforge");
     def->enum_values.push_back("simplyprint");
-    def->enum_values.push_back("elegoolink");
     def->enum_labels.push_back("PrusaLink");
     def->enum_labels.push_back("PrusaConnect");
     def->enum_labels.push_back("Octo/Klipper");
-    def->enum_labels.push_back("Duet");
     def->enum_labels.push_back("FlashAir");
     def->enum_labels.push_back("Repetier");
     def->enum_labels.push_back("MKS");
@@ -4119,7 +4115,6 @@ void PrintConfigDef::init_fff_params()
     def->enum_labels.push_back("Obico");
     def->enum_labels.push_back("Flashforge");
     def->enum_labels.push_back("SimplyPrint");
-    def->enum_labels.push_back("Elegoo Link");
     def->mode = comAdvanced;
     def->cli = ConfigOptionDef::nocli;
     def->set_default_value(new ConfigOptionEnum<PrintHostType>(htOctoPrint));

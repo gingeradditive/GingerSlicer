@@ -12,7 +12,7 @@ namespace Slic3r {
 // Returns true if a post-processing script was executed.
 // Returns false if no post-processing script was defined.
 // Throws an exception on error.
-// host is one of "File", "PrusaLink", "Repetier", "SL1Host", "OctoPrint", "FlashAir", "Duet" ...
+// host is one of "File", "PrusaLink", "Repetier", "SL1Host", "OctoPrint", "FlashAir" ...
 // If make_copy, then a temp file will be created for src_path by adding a ".pp" suffix and src_path will be updated.
 // In that case the caller is responsible to delete the temp file created.
 // output_name is the final name of the G-code on SD card or when uploaded to PrusaLink or OctoPrint.
