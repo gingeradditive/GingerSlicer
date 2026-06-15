@@ -79,7 +79,6 @@ CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(PrinterTechnology)
 
 static t_config_enum_values s_keys_map_PrintHostType {
     { "octoprint",      htOctoPrint },
-    { "flashair",       htFlashAir },
     { "repetier",       htRepetier },
     { "simplyprint",    htSimplyPrint },
 };
@@ -4057,11 +4056,9 @@ void PrintConfigDef::init_fff_params()
                    "the kind of the host.");
     def->enum_keys_map = &ConfigOptionEnum<PrintHostType>::get_enum_values();
     def->enum_values.push_back("octoprint");
-    def->enum_values.push_back("flashair");
     def->enum_values.push_back("repetier");
     def->enum_values.push_back("simplyprint");
     def->enum_labels.push_back("Octo/Klipper");
-    def->enum_labels.push_back("FlashAir");
     def->enum_labels.push_back("Repetier");
     def->enum_labels.push_back("SimplyPrint");
     def->mode = comAdvanced;

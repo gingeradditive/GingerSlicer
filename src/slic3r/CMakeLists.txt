@@ -398,8 +398,6 @@ set(SLIC3R_GUI_SOURCES
     Utils/FileHelp.hpp
     Utils/FixModelByWin10.cpp
     Utils/FixModelByWin10.hpp
-    Utils/FlashAir.cpp
-    Utils/FlashAir.hpp
     Utils/FontConfigHelp.cpp
     Utils/FontConfigHelp.hpp
     Utils/HexFile.cpp
