@@ -392,8 +392,6 @@ set(SLIC3R_GUI_SOURCES
     Utils/ASCIIFolding.hpp
     Utils/ColorSpaceConvert.cpp
     Utils/ColorSpaceConvert.hpp
-    Utils/CrealityPrint.cpp
-    Utils/CrealityPrint.hpp
     Utils/Duet.cpp
     Utils/Duet.hpp
     Utils/ElegooLink.cpp
