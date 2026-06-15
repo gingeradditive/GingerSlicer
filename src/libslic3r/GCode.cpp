@@ -5203,9 +5203,34 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
             // inevitable travel into this island.
             const Point* anchor_ptr = nullptr;
             Point        anchor;
-            if (m_config.single_path_mode && ! region.infills.empty() &&
-                infill_connection_anchor(region.infills, this->last_pos(), next_island_target, anchor))
-                anchor_ptr = &anchor;
+            if (m_config.single_path_mode) {
+                if (! region.infills.empty() &&
+                    infill_connection_anchor(region.infills, this->last_pos(), next_island_target, anchor)) {
+                    // Island with connectable infill: pin the last wall's seam to the infill connection so the
+                    // wall ends where the infill begins (0 wall->infill); the anchor already orients the infill
+                    // exit toward the next island (accounts for the infill being printed between wall and the
+                    // departure - a naive wall-only seam would ignore that and lengthen the travel).
+                    anchor_ptr = &anchor;
+                } else if (! region.perimeters.empty()) {
+                    // Wall-only island (no connectable infill - the separated prongs, the bulk of lightning's
+                    // long inter-island travels). Long travels degrade the pellet melt. Closest-point CHAIN
+                    // (Davide): place this island's wall seam at the perimeter point CLOSEST to where the
+                    // previous island ended (current toolhead pos) - "position the next start by the previous
+                    // end". Each island then enters at its closest approach to the one printed before it, so
+                    // the inter-island hop is the minimal curve-to-curve distance instead of a static
+                    // cosmetic-corner seam on the far side.
+                    Points pts;
+                    region.perimeters.back()->collect_points(pts);
+                    const Point from = this->last_pos();
+                    double best = std::numeric_limits<double>::max();
+                    for (const Point &p : pts) {
+                        double c = (p - from).cast<double>().squaredNorm();
+                        if (c < best) { best = c; anchor = p; }
+                    }
+                    if (! pts.empty())
+                        anchor_ptr = &anchor;
+                }
+            }
 
             for (const ExtrusionEntity* ee : region.perimeters) {
                 const bool is_last = ee == region.perimeters.back();
