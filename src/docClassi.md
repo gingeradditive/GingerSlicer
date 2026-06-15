@@ -164,8 +164,6 @@ Barra titolo/menu custom (wxAuiToolBar): file menu, undo/redo, salva, pubblica, 
 
 > Pulire tutto quello che non viene usato con la stampante Ginger/G1 (moonraker e klipper)
 
-# === DA CONTROLLARE ===
-
 ## 🟡 052 GUI/BedShapeDialog
 Dialog configurazione forma piatto: rettangolare, circolare, custom. Panel `BedShapePanel` con preview 2D e opzioni dimensione/origine. Aperto da Print Settings→Bed Shape.
 > NOTA: Mantere SOLO piatto quadrato
@@ -181,6 +179,8 @@ Dialog ricerca stampanti via Bonjour/mDNS: lista risultati live, selezione IP. A
 
 ## 🔴 056 GUI/calib_dlg
 Dialog di calibrazione: PA (Pressure Advance), temperatura, flusso, VFA, max volumetric speed. Genera print job di calibrazione. Feature di calibrazione automatica OrcaSlicer.
+
+# === DA CONTROLLARE ===
 
 ## 🟢 057 GUI/Camera
 Struttura `Camera` per la vista 3D OpenGL: tipo (Ortho/Perspective), zoom, target, matrice view/projection, frustrum. Gestisce tutti i parametri di proiezione. Core del rendering, indispensabile.
@@ -221,97 +221,97 @@ Dialog progresso download/aggiornamento network plugin: progress bar, note di ri
 ## 🔴 069 GUI/DragCanvas
 Canvas wxPanel per drag&drop di swatches colore (ordine estrusori). `DragShape` rappresenta un colore trascinabile. Usato per riordinare filamenti multi-materiale.
 
-## 070 GUI/EditGCodeDialog
+## 🟢 070 GUI/EditGCodeDialog
 Dialog editor G-code custom con lista variabili placeholder (stati slicing, statistiche, dimensioni, temperature). Testo editor + ricerca variabile + inserimento. Usato da Tab custom gcode fields.
 
-## 071 GUI/Event
+## 🟢 071 GUI/Event
 Header template wxEvent riutilizzabili: `SimpleEvent`, `IntEvent`, `ArrayEvent<T,N>`, `Event<T>`. Infrastruttura eventi tipizzati per comunicazione tra componenti GUI.
 
-## 072 GUI/ExtraRenderers
+## 🟢 072 GUI/ExtraRenderers
 Renderer custom per wxDataViewCtrl: `DataViewBitmapText` (testo+icona), `BitmapTextRenderer` (editing inline), `BitmapChoiceRenderer` (combo con icona). Usato in ObjectList e altri DataView.
 
-## 073 GUI/Field
+## 🟢 073 GUI/Field
 Classi widget per opzioni config GUI: `Field` (base), `TextCtrl`, `CheckBox`, `SpinCtrl`, `Choice`, `ColourPicker`, ecc. Gestisce undo/redo visuale, tooltip, enable/disable. Cuore dei Tab settings, indispensabile.
 
-## 074 GUI/FileArchiveDialog
+## 🟢 074 GUI/FileArchiveDialog
 Dialog visualizzazione contenuto archivi ZIP/3MF: tree view con toggle per includere/escludere file, anteprima struttura. Usato per import/export selettivo file archivio.
 
-## 075 GUI/format
+## 🟢 075 GUI/format
 Wrapper `format_wxstr()` attorno a `boost::format` per produrre `wxString` da stringhe UTF8 miste. Usato pervasivamente in tutta la GUI per messaggi localizzati.
 
-## 076 GUI/GCodeViewer
+## 🟢 076 GUI/GCodeViewer
 Viewer G-code 3D OpenGL: parsing GCodeProcessor, buffer vertex multi-tipo (extrusion/travel/wipe/retractions), colorazione per ruolo/temperatura/velocità/materiale, slider layer/move. Core della preview G-code, >900 righe header.
 
-## 077 GUI/GLCanvas3D
+## 🟢 077 GUI/GLCanvas3D
 Canvas OpenGL principale (~1272 righe header): gestisce rendering scena 3D, input mouse/tastiera, selezione, gizmos, toolbar GL, bed, GCodeViewer. Nucleo dell'interazione 3D.
 
-## 078 GUI/GLModel
+## 🟢 078 GUI/GLModel
 Classe `GLModel`: geometria OpenGL (vertex buffer, index buffer, layout P2/P3/P3N3/ecc), upload GPU, render. Helper factory per primitive (arrow, sphere, cylinder, ecc). Base di tutto il rendering 3D.
 
-## 079 GUI/GLSelectionRectangle
+## 🟢 079 GUI/GLSelectionRectangle
 Rettangolo di selezione rubber-band nel canvas 3D: stati off/select/deselect, contiene punti 3D nel rettangolo 2D. Usato per selezione multipla oggetti.
 
-## 080 GUI/GLShader
+## 🟢 080 GUI/GLShader
 `GLShaderProgram`: compilazione/linking shader GLSL (vertex, fragment, geometry, tessellation, compute), cache uniform/attrib location, set_uniform per tutti i tipi. Infrastruttura shader OpenGL.
 
-## 081 GUI/GLShadersManager
+## 🟢 081 GUI/GLShadersManager
 Gestore centralizato shader: `init()` compila tutti gli shader dell'app, `get_shader(name)` li recupera per nome. Piccolo ma fondamentale per il sistema GL.
 
-## 082 GUI/GLTexture
+## 🟢 082 GUI/GLTexture
 `GLTexture`: carica PNG/SVG su GPU, compressione DXT in thread background, supporto mipmap. Usata per texture bed, icone toolbar GL, testi ImGui.
 
-## 083 GUI/GLToolbar
+## 🟢 083 GUI/GLToolbar
 Toolbar OpenGL su canvas 3D: pulsanti con icone SVG, eventi wxEvent per ogni azione (slice, print, add, delete, arrange, clone, ecc). `GLRadioToolbar` per toggle view 3D/preview/assemble.
 
-## 084 GUI/GUI
+## 🟢 084 GUI/GUI
 Header utility globali GUI: funzioni `show_error`, `show_info`, `change_opt_value`, `disable_screensaver`, prefix shortcut (Ctrl/⌘). Entry point helpers condivisi.
 
-## 085 GUI/GUI_App
+## 🟢 085 GUI/GUI_App
 Classe principale applicazione `GUI_App` (wxApp): gestisce PresetBundle, Plater, MainFrame, ImGui, OpenGL, aggiornamenti, istanza singola, dark mode. Entry point dell'intera GUI.
 
-## 086 GUI/GUI_AuxiliaryList
+## 🟢 086 GUI/GUI_AuxiliaryList
 `AuxiliaryList` (wxDataViewCtrl): lista file ausiliari con drag&drop, context menu (crea cartella, importa, elimina, rinomina, apri). Usato nel pannello Auxiliary.
 
-## 087 GUI/GUI_Colors
+## 🟢 087 GUI/GUI_Colors
 Enum `RenderCol_` e classe `RenderColor` con array `ImVec4 colors[]` per tutti i colori di rendering personalizzabili (sfondo, piatti, modelli, assi, grabbers). Usato da Preferences per tema colori.
 
-## 088 GUI/GUI_Factories
+## 🟢 088 GUI/GUI_Factories
 `SettingsFactory`: raggruppa opzioni config per categoria, bitmap icone categorie, opzioni visibili per oggetto/parte. `MenuFactory`: costruisce menu contestuale oggetti con bitmap volumi (solid/part/modifier/negative). Core UI settings.
 
-## 089 GUI/GUI_Geometry
+## 🟢 089 GUI/GUI_Geometry
 `TransformationType`: enum bitfield per coordinate (World/Instance/Local) + modalità (Absolute/Relative) + gruppo (Joint/Independent). Usato da gizmos per determinare sistema coordinate trasformazioni.
 
-## 090 GUI/GUI_Init
+## 🟢 090 GUI/GUI_Init
 `GUI_InitParams`: struct parametri avvio GUI (argc/argv, preset_substitutions, load_configs, input_files). `GUI_Run()` entry point loop wxWidgets. Thin wrapper avvio.
 
-## 091 GUI/GUI_ObjectLayers
+## 🟢 091 GUI/GUI_ObjectLayers
 Pannello editing layer ranges oggetto: `LayerRangeEditor` per MinZ/MaxZ/layer height, lista range con pulsanti +/-/delete. `ObjectLayers` gestisce t_layer_config_ranges. Feature per per-object layer editing.
 
-## 092 GUI/GUI_ObjectList
+## 🟢 092 GUI/GUI_ObjectList
 Tree view wxDataViewCtrl oggetti/volumi/parti: `ObjectDataViewModel`, drag&drop, context menu, selezione multipla, toggles visibility/solid/wireframe. Sidebar principale, ~500 righe header. Core UI.
 
-## 093 GUI/GUI_ObjectSettings
+## 🟢 093 GUI/GUI_ObjectSettings
 Pannello settings per oggetto/part: `OG_Settings` base, `ObjectSettings` wrapper per ConfigOptionsGroup. Con `NEW_OBJECT_SETTING` usa TabPrintModel invece di pannello separato. Feature settings per-oggetto.
 
-## 094 GUI/GUI_ObjectTable
+## 🟢 094 GUI/GUI_ObjectTable
 Grid wxGrid per editing tabellare oggetti: `ObjectTablePanel`, `GridCellIconRenderer`, `GridCellTextEditor`. Feature BBS per editing multi-oggetto in tabella (nome, posizione, rotazione, scale). >600 righe header.
 
-## 095 GUI/GUI_ObjectTableSettings
+## 🟢 095 GUI/GUI_ObjectTableSettings
 Pannello settings per riga tabella oggetti: `OTG_Settings` base, `ObjectTableSettings` con ConfigOptionsGroup per riga selezionata. Companion di GUI_ObjectTable.
 
-## 096 GUI/GUI_Preview
+## 🟢 096 GUI/GUI_Preview
 Pannello preview G-code: `View3D` con GLCanvas3D, GCodeViewer, slider layer, toolbar. Gestisce visualizzazione print sliced. Core della preview.
 
-## 097 GUI/GUI_Utils
+## 🟢 097 GUI/GUI_Utils
 Header utility GUI massiccio (~500 righe): DPI scaling, `DPIDialog`, `ScalableBitmap`, `from_dip`, `msw_rescale`, eventi HID/Volume Windows, `copy_file_gui`. Infrastruttura DPI-aware.
 
-## 098 GUI/HintNotification
+## 🟢 098 GUI/HintNotification
 `HintDatabase`: singleton per suggerimenti giornalieri, caricamento da file, navigazione prev/next/random. `HintData` struct con testo, hyperlink, callback. Usato da DailyTips.
 
-## 099 GUI/HttpServer
+## 🟢 099 GUI/HttpServer
 Server HTTP locale (localhost:13618) basato su Boost.Beast: `http_headers`, `session` per gestione richieste. Usato per comunicazione locale con browser/estensioni.
 
-## 100 GUI/I18N
+## 🟡 100 GUI/I18N
 Macro localizzazione `_()`, `_L()`, `_CTX()`, `_utf8()`. Implementazione pass-through (inglese solo) con conversione UTF8. Stub per i18n disabilitato.
 
 ## 101 GUI/IconManager
