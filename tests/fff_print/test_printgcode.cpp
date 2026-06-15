@@ -423,6 +423,7 @@ SCENARIO("Single path: lightning fill_multiline=2", "[.][SinglePathLightning]") 
         print.apply(model, config);
         std::string gcode = Slic3r::Test::gcode(print);
         REQUIRE(! gcode.empty());
+        if (const char* dump = std::getenv("SINGLEPATH_DUMP")) { std::ofstream(dump, std::ios::binary) << gcode; }
 
         struct Acc { size_t count = 0; double sum = 0.; double max = 0.;
                      void add(double mm) { ++count; sum += mm; max = std::max(max, mm); } };
@@ -449,7 +450,9 @@ SCENARIO("Single path: lightning fill_multiline=2", "[.][SinglePathLightning]") 
                 if (pending_travel && ! last_extruded_type.empty())
                     by_transition[last_extruded_type + " -> " + cur_type].add(pending_travel_mm);
                 pending_travel = false; last_extruded_type = cur_type;
-                if (cur_type == "Sparse infill") {                      // lightning is erInternalInfill
+                const bool is_infill_type = cur_type == "Sparse infill" || cur_type == "Internal solid infill" ||
+                                            cur_type == "Top surface" || cur_type == "Bottom surface";
+                if (is_infill_type) {                                  // lightning sparse + connected solid/top/bottom
                     const double dx = line.new_X(self) - self.x(), dy = line.new_Y(self) - self.y();
                     const double len = std::sqrt(dx * dx + dy * dy);
                     if (len > 0.001) {

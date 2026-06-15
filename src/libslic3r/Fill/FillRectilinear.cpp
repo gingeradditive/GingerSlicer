@@ -2748,6 +2748,9 @@ BoundingBox FillRectilinear::extended_object_bounding_box() const {
     return out.scaled(sqrt(2.));
 }
 
+// Defined later in this file; needed by the single-path branch of fill_surface_by_lines below.
+void make_fill_lines(const ExPolygonWithOffset &poly_with_offset, Point refpt, double angle, coord_t x_margin, coord_t line_spacing, coord_t pattern_shift, Polylines &fill_lines);
+
 bool FillRectilinear::fill_surface_by_lines(const Surface *surface, const FillParams &params, float angleBase, float pattern_shift, Polylines &polylines_out)
 {
     // At the end, only the new polylines will be rotated back.
@@ -2799,6 +2802,35 @@ bool FillRectilinear::fill_surface_by_lines(const Surface *surface, const FillPa
             bounding_box.min, 
             Point(line_spacing, line_spacing), 
             refpt));
+    }
+
+    // Ginger single-path: when single_path_mode connects this surface (solid / top / bottom), route the
+    // raw scanlines through connect_infill() so the surface comes out as ONE continuous path traced along
+    // the inner wall, instead of the monotonic / graph ordering which leaves long travel moves between the
+    // disjoint sub-regions of a non-convex surface. Mirrors the ml==1 tail of fill_surface_by_multilines:
+    // make_fill_lines() lays the lines already rotated back into the original frame, so we append the
+    // connected result directly and return - it must NOT pass through the tail rotation below.
+    if (params.connect_polygons) {
+        const float   angle      = rotate_vector.first;
+        const coord_t line_width = coord_t(scale_(this->spacing));
+        // Build the scanlines the same way fill_surface_by_multilines does (base contour rotated by -angle,
+        // make_fill_lines rotates the points back into the original frame).
+        ExPolygonWithOffset base(surface->expolygon, 0, float(scale_(this->overlap + 0.5 * this->spacing)));
+        Polylines fill_lines;
+        make_fill_lines(ExPolygonWithOffset(base, - angle), rotate_vector.second.rotated(- angle), angle,
+                        line_width + coord_t(SCALED_EPSILON), line_spacing, coord_t(scale_(pattern_shift)), fill_lines);
+        // Contract the surface by half a line width so the connecting segments hug the inner wall without
+        // overlapping the perimeter, exactly like fill_surface_by_multilines does.
+        ExPolygons contracted = offset_ex(surface->expolygon, - float(scale_(0.5 * this->spacing)));
+        const ExPolygon &boundary = contracted.empty() ? surface->expolygon : contracted.front();
+        fill_lines = intersection_pl(std::move(fill_lines), boundary);
+        if (! fill_lines.empty()) {
+            const size_t first = polylines_out.size();
+            Slic3r::Fill::chain_or_connect_infill(std::move(fill_lines), boundary, polylines_out, this->spacing, params);
+            for (size_t i = first; i < polylines_out.size(); ++ i)
+                polylines_out[i].remove_duplicate_points();
+        }
+        return true;
     }
 
     // Intersect a set of euqally spaced vertical lines wiht expolygon.
