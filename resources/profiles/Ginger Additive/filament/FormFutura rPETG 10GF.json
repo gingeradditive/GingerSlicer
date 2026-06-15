@@ -54,7 +54,13 @@
       "7"
    ],
    "from": "system",
+   "hot_plate_temp": [
+      "80"
+   ],
    "hot_plate_temp_initial_layer": [
+      "80"
+   ],
+   "cool_plate_temp": [
       "80"
    ],
    "cool_plate_temp_initial_layer": [
@@ -87,7 +93,7 @@
    "slow_down_layer_time": [
       "40"
    ],
-   "version": "3.0.0.4",
+   "version": "3.0.0.5",
    "compatible_printers": [
       "Ginger G1 1.0 nozzle",
       "Ginger G1 1.8 nozzle",

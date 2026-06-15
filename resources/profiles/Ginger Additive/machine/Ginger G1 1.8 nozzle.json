@@ -25,7 +25,7 @@
   ],
   "nozzle_height": "2.5",
   "printer_notes": "",
-  "printer_variant": "3.0",
+  "printer_variant": "1.8",
   "resonance_avoidance": "0",
   "retract_restart_extra": [
     "25"
@@ -43,7 +43,7 @@
   "travel_slope": [
     "3"
   ],
-  "version": "3.0.0.4",
+  "version": "3.0.0.5",
   "wipe_distance": [
         "3"
     ],

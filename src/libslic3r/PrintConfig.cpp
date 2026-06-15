@@ -838,7 +838,7 @@ void PrintConfigDef::init_fff_params()
     def->enum_labels.emplace_back(L("Textured PEI Plate"));
     def->enum_labels.emplace_back(L("Textured Cool Plate"));
     def->enum_labels.emplace_back(L("Cool Plate (SuperTack)"));
-    def->set_default_value(new ConfigOptionEnum<BedType>(btPC));
+    def->set_default_value(new ConfigOptionEnum<BedType>(btPEI));
 
     // Orca: allow profile maker to set default bed type in machine profile
     // This option won't be shown in the UI
