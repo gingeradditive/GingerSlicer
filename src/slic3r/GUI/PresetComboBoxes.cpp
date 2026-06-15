@@ -32,7 +32,6 @@
 #include "MainFrame.hpp"
 #include "format.hpp"
 #include "Tab.hpp"
-#include "ConfigWizard.hpp"
 #include "../Utils/ASCIIFolding.hpp"
 #include "../Utils/FixModelByWin10.hpp"
 #include "../Utils/UndoRedo.hpp"

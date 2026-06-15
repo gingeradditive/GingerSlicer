@@ -60,7 +60,6 @@
 #include "NotificationManager.hpp"
 #include "MarkdownTip.hpp"
 #include "NetworkTestDialog.hpp"
-#include "ConfigWizard.hpp"
 #include "Widgets/WebView.hpp"
 #include "DailyTips.hpp"
 
@@ -69,8 +68,6 @@
 #include <shlobj.h>
 #include <shellapi.h>
 #endif // _WIN32
-#include <slic3r/GUI/CreatePresetsDialog.hpp>
-
 
 namespace Slic3r {
 namespace GUI {
@@ -2846,10 +2843,6 @@ struct ConfigsOverwriteConfirmDialog : MessageDialog
 
 void MainFrame::export_config()
 {
-    ExportConfigsDialog export_configs_dlg(nullptr);
-    export_configs_dlg.ShowModal();
-    return;
-
     // Generate a cummulative configuration for the selected print, filaments and printer.
     wxDirDialog dlg(this, _L("Choose a directory"),
         from_u8(!m_last_config.IsEmpty() ? get_dir_name(m_last_config) : wxGetApp().app_config->get_last_dir()), wxDD_DEFAULT_STYLE | wxDD_DIR_MUST_EXIST);

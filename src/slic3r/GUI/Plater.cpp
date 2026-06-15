@@ -100,7 +100,6 @@
 #include "BackgroundSlicingProcess.hpp"
 #include "PublishDialog.hpp"
 #include "ModelMall.hpp"
-#include "ConfigWizard.hpp"
 #include "../Utils/ASCIIFolding.hpp"
 #include "../Utils/FixModelByWin10.hpp"
 #include "../Utils/PrintHost.hpp"
@@ -149,7 +148,6 @@
 #include "PrintHostDialogs.hpp"
 #include "PlateSettingsDialog.hpp"
 #include "DailyTips.hpp"
-#include "CreatePresetsDialog.hpp"
 #include "FileArchiveDialog.hpp"
 #include "StepMeshDialog.hpp"
 #include "CloneDialog.hpp"
@@ -1187,23 +1185,7 @@ Sidebar::Sidebar(Plater *parent)
 
 Sidebar::~Sidebar() {}
 
-void Sidebar::create_printer_preset()
-{
-    CreatePrinterPresetDialog dlg(wxGetApp().mainframe);
-    int                       res = dlg.ShowModal();
-    if (wxID_OK == res) {
-        wxGetApp().mainframe->update_side_preset_ui();
-        update_ui_from_settings();
-        update_all_preset_comboboxes();
-        wxGetApp().load_current_presets();
-        CreatePresetSuccessfulDialog success_dlg(wxGetApp().mainframe, SuccessType::PRINTER);
-        int                          res = success_dlg.ShowModal();
-        if (res == wxID_OK) {
-            p->editing_filament = -1;
-            if (p->combo_printer->switch_to_tab()) p->editing_filament = 0;
-        }
-    }
-}
+void Sidebar::create_printer_preset() {}
 
 void Sidebar::init_filament_combo(PlaterPresetComboBox **combo, const int filament_idx)
 {
@@ -7959,47 +7941,9 @@ void Plater::priv::on_action_layersediting(SimpleEvent&)
     notification_manager->set_move_from_overlay(view3D->is_layers_editing_enabled());
 }
 
-void Plater::priv::on_create_filament(SimpleEvent &)
-{
-    CreateFilamentPresetDialog dlg(wxGetApp().mainframe);
-    int res = dlg.ShowModal();
-    if (wxID_OK == res) {
-        wxGetApp().mainframe->update_side_preset_ui();
-        update_ui_from_settings();
-        sidebar->update_all_preset_comboboxes();
-        CreatePresetSuccessfulDialog success_dlg(wxGetApp().mainframe, SuccessType::FILAMENT);
-        int                          res = success_dlg.ShowModal();
-    }
-}
+void Plater::priv::on_create_filament(SimpleEvent &) {}
 
-void Plater::priv::on_modify_filament(SimpleEvent &evt)
-{
-    Filamentinformation *filament_info = static_cast<Filamentinformation *>(evt.GetEventObject());
-    int                 res;
-    std::shared_ptr<Preset> need_edit_preset;
-    {
-        EditFilamentPresetDialog dlg(wxGetApp().mainframe, filament_info);
-        res = dlg.ShowModal();
-        need_edit_preset = dlg.get_need_edit_preset();
-    }
-    wxGetApp().mainframe->update_side_preset_ui();
-    update_ui_from_settings();
-    sidebar->update_all_preset_comboboxes();
-    if (wxID_EDIT == res) {
-        Tab *tab = wxGetApp().get_tab(Preset::Type::TYPE_FILAMENT);
-        //tab->restore_last_select_item();
-        if (tab == nullptr) { return; }
-        // Popup needs to be called before "restore_last_select_item", otherwise the page may not be updated
-        wxGetApp().params_dialog()->Popup();
-        tab->restore_last_select_item();
-        // Opening Studio and directly accessing the Filament settings interface through the edit preset button will not take effect and requires manual settings.
-        tab->set_just_edit(true);
-        tab->select_preset(need_edit_preset->name);
-        // when some preset have modified, if the printer is not need_edit_preset_name compatible printer, the preset will jump to other preset, need select again
-        if (!need_edit_preset->is_compatible) tab->select_preset(need_edit_preset->name);
-    }
-
-}
+void Plater::priv::on_modify_filament(SimpleEvent &evt) {}
 
 void Plater::priv::on_add_filament(SimpleEvent &evt) {
     sidebar->add_filament();

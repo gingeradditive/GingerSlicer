@@ -5,7 +5,21 @@
 #include <string>
 #include <boost/algorithm/string/split.hpp>
 #include "ImGuiWrapper.hpp"
-#include "ConfigWizard.hpp"
+struct ConfigWizard {
+    enum RunReason {
+        RR_DATA_EMPTY,
+        RR_DATA_LEGACY,
+        RR_DATA_INCOMPAT,
+        RR_USER,
+    };
+    enum StartPage {
+        SP_WELCOME,
+        SP_PRINTERS,
+        SP_FILAMENTS,
+        SP_MATERIALS,
+        SP_CUSTOM,
+    };
+};
 #include "OpenGLManager.hpp"
 #include "libslic3r/Preset.hpp"
 #include "libslic3r/PresetBundle.hpp"
@@ -120,7 +134,6 @@ enum CameraMenuIDs {
 
 
 class Tab;
-class ConfigWizard;
 class GizmoObjectManipulation;
 
 static wxString dots("...", wxConvUTF8);

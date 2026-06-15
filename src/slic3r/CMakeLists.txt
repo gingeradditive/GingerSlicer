@@ -45,8 +45,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/ConfigManipulation.cpp
     GUI/ConfigManipulation.hpp
     GUI/ConfigWizard.hpp
-    GUI/CreatePresetsDialog.cpp
-    GUI/CreatePresetsDialog.hpp
     GUI/DailyTips.cpp
     GUI/DailyTips.hpp
     GUI/DesktopIntegrationDialog.cpp
