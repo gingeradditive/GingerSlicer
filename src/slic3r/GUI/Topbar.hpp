@@ -7,13 +7,13 @@
 
 using namespace Slic3r::GUI;
 
-class BBLTopbar : public wxAuiToolBar
+class Topbar : public wxAuiToolBar
 {
 public:
-    BBLTopbar(wxWindow* pwin, wxFrame* parent);
-    BBLTopbar(wxFrame* parent);
+    Topbar(wxWindow* pwin, wxFrame* parent);
+    Topbar(wxFrame* parent);
     void Init(wxFrame *parent);
-    ~BBLTopbar();
+    ~Topbar();
     void UpdateToolbarWidth(int width);
     void Rescale();
     void OnIconize(wxAuiToolBarEvent& event);
@@ -29,15 +29,11 @@ public:
     void OnMouseCaptureLost(wxMouseCaptureLostEvent& event);
     void OnMenuClose(wxMenuEvent& event);
     void OnOpenProject(wxAuiToolBarEvent& event);
-    void show_publish_button(bool show);
     void OnSaveProject(wxAuiToolBarEvent& event);
     void OnUndo(wxAuiToolBarEvent& event);
     void OnRedo(wxAuiToolBarEvent& event);
-    void OnModelStoreClicked(wxAuiToolBarEvent& event);
-    void OnPublishClicked(wxAuiToolBarEvent &event);
-
     wxAuiToolBarItem* FindToolByCurrentPosition();
-	
+
     void SetFileMenu(wxMenu* file_menu);
     void AddDropDownSubMenu(wxMenu* sub_menu, const wxString& title);
     void AddDropDownMenuItem(wxMenuItem* menu_item);
@@ -52,8 +48,6 @@ public:
 
     void SaveNormalRect();
 
-    void ShowCalibrationButton(bool show = true);
-
 private:
     wxFrame* m_frame;
     wxAuiToolBarItem* m_file_menu_item;
@@ -64,17 +58,9 @@ private:
     wxMenu* m_file_menu;
     wxMenu m_calib_menu;
     wxAuiToolBarItem* m_title_item;
-    wxAuiToolBarItem* m_account_item;
-    wxAuiToolBarItem* m_model_store_item;
-    
-    wxAuiToolBarItem *m_publish_item;
     wxAuiToolBarItem* m_undo_item;
     wxAuiToolBarItem* m_redo_item;
-    wxAuiToolBarItem* m_calib_item;
     wxAuiToolBarItem* maximize_btn;
-
-    wxBitmap m_publish_bitmap;
-    wxBitmap m_publish_disable_bitmap;
 
     wxBitmap maximize_bitmap;
     wxBitmap window_bitmap;

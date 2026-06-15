@@ -154,8 +154,6 @@ Thread background per slicing asincrono. Gestisce stati (idle/slicing/cancellato
 ## 🟢 049 GUI/BBLStatusBar
 Barra di stato inferiore (wxPanel): progress bar, testo stato, bottone annulla, info oggetti/slicing. Implementa `ProgressIndicator`. Sostituisce la wxStatusBar standard. Necessario.
 
-# === DA CONTROLLARE ===
-
 ## 🟡 050 GUI/BBLStatusBarSend
 Variante della status bar per il pannello di invio stampa: progress bar con blocchi colorati, link errore espandibile, bottone annulla. Specifica per flusso send-to-printer BBS.
 
@@ -165,6 +163,8 @@ Variante della status bar per il pannello di invio stampa: progress bar con bloc
 Barra titolo/menu custom (wxAuiToolBar): file menu, undo/redo, salva, pubblica, calibrazione, finestra draggabile. Sostituisce la titlebar nativa su Windows. Necessario per UI BBS/Bambu.
 
 > Pulire tutto quello che non viene usato con la stampante Ginger/G1 (moonraker e klipper)
+
+# === DA CONTROLLARE ===
 
 ## 🟡 052 GUI/BedShapeDialog
 Dialog configurazione forma piatto: rettangolare, circolare, custom. Panel `BedShapePanel` con preview 2D e opzioni dimensione/origine. Aperto da Print Settings→Bed Shape.

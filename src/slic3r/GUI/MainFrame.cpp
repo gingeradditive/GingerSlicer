@@ -214,7 +214,7 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
     wxGetApp().update_fonts(this);
 
 #ifndef __APPLE__
-    m_topbar         = new BBLTopbar(this);
+    m_topbar         = new Topbar(this);
 #else
     auto panel_topbar = new wxPanel(this, wxID_ANY);
     panel_topbar->SetBackgroundColour(wxColour(48, 38, 38));
@@ -960,11 +960,6 @@ void MainFrame::update_title()
     return;
 }
 
-void MainFrame::show_publish_button(bool show)
-{
-    // m_publish_btn->Show(show);
-    // Layout();
-}
 
 void MainFrame::update_title_colour_after_set_title()
 {

@@ -26,10 +26,10 @@ set(SLIC3R_GUI_SOURCES
     GUI/BackgroundSlicingProcess.hpp
     GUI/BBLStatusBar.cpp
     GUI/BBLStatusBar.hpp
-    GUI/BBLStatusBarSend.cpp
-    GUI/BBLStatusBarSend.hpp
-    GUI/BBLTopbar.cpp
-    GUI/BBLTopbar.hpp
+    GUI/StatusBarSend.cpp
+    GUI/StatusBarSend.hpp
+    GUI/Topbar.cpp
+    GUI/Topbar.hpp
     GUI/BedShapeDialog.cpp
     GUI/BedShapeDialog.hpp
     GUI/BitmapCache.cpp

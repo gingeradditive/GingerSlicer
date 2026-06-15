@@ -52,7 +52,7 @@ DownloadProgressDialog::DownloadProgressDialog(wxString title)
     m_simplebook_status->SetMaxSize(wxSize(FromDIP(400), FromDIP(70)));
 
     //mode normal
-    m_status_bar    = std::make_shared<BBLStatusBarSend>(m_simplebook_status);
+    m_status_bar    = std::make_shared<StatusBarSend>(m_simplebook_status);
     m_panel_download = m_status_bar->get_panel();
     m_panel_download->SetSize(wxSize(FromDIP(400), FromDIP(70)));
     m_panel_download->SetMinSize(wxSize(FromDIP(400), FromDIP(70)));

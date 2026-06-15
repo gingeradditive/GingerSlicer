@@ -27,7 +27,7 @@
 #include <boost/property_tree/ptree_fwd.hpp>
 
 // BBS
-#include "BBLTopbar.hpp"
+#include "Topbar.hpp"
 #include "PrinterWebView.hpp"
 #include "calib_dlg.hpp"
 
@@ -242,7 +242,7 @@ public:
     Plater*     plater() { return m_plater; }
 
     // BBS
-    BBLTopbar* topbar() { return m_topbar; }
+    Topbar* topbar() { return m_topbar; }
 
     // for cali to update tab when save new preset
     void update_filament_tab_ui();
@@ -250,7 +250,6 @@ public:
     void        update_title();
     void        set_max_recent_count(int max);
 
-    void        show_publish_button(bool show);
 
 	void        update_title_colour_after_set_title();
     void        show_option(bool show);
@@ -343,7 +342,7 @@ public:
     Junction_Deviation_Test_Dlg* m_junction_deviation_calib_dlg{ nullptr };
 
     // BBS. Replace title bar and menu bar with top bar.
-    BBLTopbar*            m_topbar{ nullptr };
+    Topbar*               m_topbar{ nullptr };
     PrintHostQueueDialog* printhost_queue_dlg() { return m_printhost_queue_dlg; }
     Plater*               m_plater { nullptr };
     //AuxiliaryPanel*       m_auxiliary{ nullptr };

@@ -15,7 +15,7 @@
 #include "Widgets/CheckBox.hpp"
 #include "Widgets/TextInput.hpp"
 #include "BBLStatusBar.hpp"
-#include "BBLStatusBarSend.hpp"
+#include "StatusBarSend.hpp"
 #include "libslic3r/Semver.hpp"
 
 class wxBoxSizer;
