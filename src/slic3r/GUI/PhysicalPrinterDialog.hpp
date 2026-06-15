@@ -29,7 +29,6 @@ class PhysicalPrinterDialog : public DPIDialog
     DynamicPrintConfig* m_config            { nullptr };
     ConfigOptionsGroup* m_optgroup          { nullptr };
 
-    Button*     m_printhost_browse_btn              {nullptr};
     Button*     m_printhost_test_btn                {nullptr};
     Button*     m_printhost_logout_btn              {nullptr};
     Button*     m_printhost_cafile_browse_btn       {nullptr};

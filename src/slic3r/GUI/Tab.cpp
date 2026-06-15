@@ -52,7 +52,6 @@
 #include "libslic3r/GCode/Thumbnails.hpp"
 
 #include "BedShapeDialog.hpp"
-// #include "BonjourDialog.hpp"
 #ifdef WIN32
 	#include <commctrl.h>
 #endif // WIN32

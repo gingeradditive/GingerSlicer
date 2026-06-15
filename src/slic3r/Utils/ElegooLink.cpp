@@ -27,8 +27,6 @@
 #include "slic3r/GUI/format.hpp"
 #include "Http.hpp"
 #include "libslic3r/AppConfig.hpp"
-#include "Bonjour.hpp"
-#include "slic3r/GUI/BonjourDialog.hpp"
 
 namespace fs = boost::filesystem;
 namespace pt = boost::property_tree;
@@ -587,65 +585,7 @@ namespace Slic3r {
 
     bool ElegooLink::upload(PrintHostUpload upload_data, ProgressFn prorgess_fn, ErrorFn error_fn, InfoFn info_fn) const
     {
-    #ifndef WIN32
         return upload_inner_with_host(std::move(upload_data), prorgess_fn, error_fn, info_fn);
-    #else
-        std::string host = get_host_from_url(m_host);
-
-        // decide what to do based on m_host - resolve hostname or upload to ip
-        std::vector<boost::asio::ip::address> resolved_addr;
-        boost::system::error_code ec;
-        boost::asio::ip::address host_ip = boost::asio::ip::make_address(host, ec);
-        if (!ec) {
-            resolved_addr.push_back(host_ip);
-        } else if ( GUI::get_app_config()->get_bool("allow_ip_resolve") && boost::algorithm::ends_with(host, ".local")){
-            Bonjour("octoprint")
-                .set_hostname(host)
-                .set_retries(5) // number of rounds of queries send
-                .set_timeout(1) // after each timeout, if there is any answer, the resolving will stop
-                .on_resolve([&ra = resolved_addr](const std::vector<BonjourReply>& replies) {
-                    for (const auto & rpl : replies) {
-                        boost::asio::ip::address ip(rpl.ip);
-                        ra.emplace_back(ip);
-                        BOOST_LOG_TRIVIAL(info) << "Resolved IP address: " << rpl.ip;
-                    }
-                })
-                .resolve_sync();
-        }
-        if (resolved_addr.empty()) {
-            // no resolved addresses - try system resolving
-            BOOST_LOG_TRIVIAL(error) << "ElegooLink failed to resolve hostname " << m_host << " into the IP address. Starting upload with system resolving.";
-            return upload_inner_with_host(std::move(upload_data), prorgess_fn, error_fn, info_fn);
-        } else if (resolved_addr.size() == 1) {
-            // one address resolved - upload there
-            return upload_inner_with_resolved_ip(std::move(upload_data), prorgess_fn, error_fn, info_fn, resolved_addr.front());
-        }  else if (resolved_addr.size() == 2 && resolved_addr[0].is_v4() != resolved_addr[1].is_v4()) {
-            // there are just 2 addresses and 1 is ip_v4 and other is ip_v6
-            // try sending to both. (Then if both fail, show both error msg after second try)
-            wxString error_message;
-            if (!upload_inner_with_resolved_ip(std::move(upload_data), prorgess_fn
-                , [&msg = error_message, resolved_addr](wxString error) { msg = GUI::format_wxstr("%1%: %2%", resolved_addr.front(), error); }
-                , info_fn, resolved_addr.front())
-                &&
-                !upload_inner_with_resolved_ip(std::move(upload_data), prorgess_fn
-                , [&msg = error_message, resolved_addr](wxString error) { msg += GUI::format_wxstr("\n%1%: %2%", resolved_addr.back(), error); }
-                , info_fn, resolved_addr.back())
-                ) {
-
-                error_fn(error_message);
-                return false;
-            }
-            return true;
-        } else {
-            // There are multiple addresses - user needs to choose which to use.
-            size_t selected_index = resolved_addr.size(); 
-            IPListDialog dialog(nullptr, boost::nowide::widen(m_host), resolved_addr, selected_index);
-            if (dialog.ShowModal() == wxID_OK && selected_index < resolved_addr.size()) {    
-                return upload_inner_with_resolved_ip(std::move(upload_data), prorgess_fn, error_fn, info_fn, resolved_addr[selected_index]);
-            }
-        }
-        return false;
-    #endif // WIN32
     }
 
     bool ElegooLink::print(WebSocketClient&  client,

@@ -36,8 +36,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/BitmapCache.hpp
     GUI/BitmapComboBox.cpp
     GUI/BitmapComboBox.hpp
-    GUI/BonjourDialog.cpp
-    GUI/BonjourDialog.hpp
     GUI/calib_dlg.cpp
     GUI/calib_dlg.hpp
     GUI/Camera.cpp
@@ -392,8 +390,6 @@ set(SLIC3R_GUI_SOURCES
     pchheader.hpp
     Utils/ASCIIFolding.cpp
     Utils/ASCIIFolding.hpp
-    Utils/Bonjour.cpp
-    Utils/Bonjour.hpp
     Utils/ColorSpaceConvert.cpp
     Utils/ColorSpaceConvert.hpp
     Utils/CrealityPrint.cpp

@@ -34,7 +34,6 @@
 #include "../Utils/UndoRedo.hpp"
 #include "RemovableDriveManager.hpp"
 #include "BitmapCache.hpp"
-#include "BonjourDialog.hpp"
 #include "MsgDialog.hpp"
 #include "OAuthDialog.hpp"
 #include "SimplyPrint.hpp"
@@ -143,20 +142,6 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
         return sizer;
     };
 
-    auto printhost_browse = [=](wxWindow* parent) 
-    {
-        auto sizer = create_sizer_with_btn(parent, &m_printhost_browse_btn, "printer_host_browser", _L("Browse") + " " + dots);
-        m_printhost_browse_btn->Bind(wxEVT_BUTTON, [=](wxCommandEvent& e) {
-            BonjourDialog dialog(this, Preset::printer_technology(*m_config));
-            if (dialog.show_and_lookup()) {
-                m_optgroup->set_value("print_host", dialog.get_selected(), true);
-                m_optgroup->get_field("print_host")->field_changed();
-            }
-        });
-
-        return sizer;
-    };
-
     auto print_host_test = [=](wxWindow* parent) {
         auto sizer = create_sizer_with_btn(parent, &m_printhost_test_btn, "printer_host_test", _L("Test"));
 
@@ -244,7 +229,6 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
     Option option = m_optgroup->get_option("print_host");
     option.opt.width = Field::def_width_wider();
     Line host_line = m_optgroup->create_single_option_line(option);
-    host_line.append_widget(printhost_browse);
     host_line.append_widget(print_host_test);
     host_line.append_widget(print_host_logout);
     m_optgroup->append_line(host_line);
@@ -444,7 +428,6 @@ void PhysicalPrinterDialog::update_printhost_buttons()
     std::unique_ptr<PrintHost> host(PrintHost::get_print_host(m_config));
     if (host) {
         m_printhost_test_btn->Enable(!m_config->opt_string("print_host").empty() && host->can_test());
-        m_printhost_browse_btn->Show(host->has_auto_discovery());
         m_printhost_logout_btn->Show(host->is_logged_in());
         m_printhost_test_btn->SetLabel(host->is_cloud() ? _L("Login/Test") : _L("Test"));
     }
@@ -710,7 +693,6 @@ void PhysicalPrinterDialog::on_dpi_changed(const wxRect& suggested_rect)
 {
     const int& em = em_unit();
 
-    m_printhost_browse_btn->Rescale();
     m_printhost_test_btn->Rescale();
     m_printhost_logout_btn->Rescale();
     if (m_printhost_cafile_browse_btn)
