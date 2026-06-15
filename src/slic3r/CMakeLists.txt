@@ -414,8 +414,6 @@ set(SLIC3R_GUI_SOURCES
     Utils/json_diff.hpp
     Utils/minilzo_extension.cpp
     Utils/minilzo_extension.hpp
-    Utils/MKS.cpp
-    Utils/MKS.hpp
     Utils/Obico.cpp
     Utils/Obico.hpp
     Utils/OctoPrint.cpp

@@ -16,7 +16,6 @@
 #include "OctoPrint.hpp"
 #include "FlashAir.hpp"
 #include "Repetier.hpp"
-#include "MKS.hpp"
 #include "../GUI/PrintHostDialogs.hpp"
 #include "../GUI/MainFrame.hpp"
 #include "../GUI/I18N.hpp"
@@ -54,7 +53,6 @@ PrintHost* PrintHost::get_print_host(DynamicPrintConfig *config)
             case htRepetier:  return new Repetier(config);
             case htPrusaLink: return new PrusaLink(config);
             case htPrusaConnect: return new PrusaConnect(config);
-            case htMKS:       return new MKS(config);
             case htObico:     return new Obico(config);
             case htFlashforge: return new Flashforge(config);
             case htSimplyPrint: return new SimplyPrint(config);

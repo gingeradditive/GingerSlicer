@@ -15,7 +15,7 @@ namespace Utils {
 using boost::asio::ip::tcp;
 
 // Generic command / response TCP telnet like console class.
-// Used by the MKS host to send G-code commands to test connection ("M105") and to start printing ("M23 filename", "M24").
+// Used by the Flashforge host to send G-code commands over TCP.
 class TCPConsole
 {
 public:
