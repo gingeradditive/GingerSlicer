@@ -400,8 +400,6 @@ set(SLIC3R_GUI_SOURCES
     Utils/FixModelByWin10.hpp
     Utils/FlashAir.cpp
     Utils/FlashAir.hpp
-    Utils/Flashforge.cpp
-    Utils/Flashforge.hpp
     Utils/FontConfigHelp.cpp
     Utils/FontConfigHelp.hpp
     Utils/HexFile.cpp
@@ -432,12 +430,8 @@ set(SLIC3R_GUI_SOURCES
     Utils/Repetier.hpp
     Utils/Serial.cpp
     Utils/Serial.hpp
-    Utils/SerialMessage.hpp
-    Utils/SerialMessageType.hpp
     Utils/SimplyPrint.cpp
     Utils/SimplyPrint.hpp
-    Utils/TCPConsole.cpp
-    Utils/TCPConsole.hpp
     Utils/UndoRedo.cpp
     Utils/UndoRedo.hpp
     Utils/WebSocketClient.hpp

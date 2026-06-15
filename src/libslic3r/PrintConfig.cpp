@@ -84,7 +84,6 @@ static t_config_enum_values s_keys_map_PrintHostType {
     { "flashair",       htFlashAir },
     { "repetier",       htRepetier },
     { "obico",          htObico },
-    { "flashforge",     htFlashforge },
     { "simplyprint",    htSimplyPrint },
 
 };
@@ -4099,7 +4098,6 @@ void PrintConfigDef::init_fff_params()
     def->enum_values.push_back("flashair");
     def->enum_values.push_back("repetier");
     def->enum_values.push_back("obico");
-    def->enum_values.push_back("flashforge");
     def->enum_values.push_back("simplyprint");
     def->enum_labels.push_back("PrusaLink");
     def->enum_labels.push_back("PrusaConnect");
@@ -4107,7 +4105,6 @@ void PrintConfigDef::init_fff_params()
     def->enum_labels.push_back("FlashAir");
     def->enum_labels.push_back("Repetier");
     def->enum_labels.push_back("Obico");
-    def->enum_labels.push_back("Flashforge");
     def->enum_labels.push_back("SimplyPrint");
     def->mode = comAdvanced;
     def->cli = ConfigOptionDef::nocli;
