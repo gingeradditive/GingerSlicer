@@ -2804,13 +2804,15 @@ bool FillRectilinear::fill_surface_by_lines(const Surface *surface, const FillPa
             refpt));
     }
 
-    // Ginger single-path: when single_path_mode connects this surface (solid / top / bottom), route the
-    // raw scanlines through connect_infill() so the surface comes out as ONE continuous path traced along
-    // the inner wall, instead of the monotonic / graph ordering which leaves long travel moves between the
-    // disjoint sub-regions of a non-convex surface. Mirrors the ml==1 tail of fill_surface_by_multilines:
-    // make_fill_lines() lays the lines already rotated back into the original frame, so we append the
-    // connected result directly and return - it must NOT pass through the tail rotation below.
-    if (params.connect_polygons) {
+    // Ginger single-path: for line-based SPARSE infill that lands here (rectilinear multiline==1), route the
+    // raw scanlines through connect_infill() so the surface comes out as ONE continuous path traced along the
+    // inner wall. Mirrors the ml==1 tail of fill_surface_by_multilines: make_fill_lines() lays the lines
+    // already rotated back into the original frame, so we append the connected result directly and return -
+    // it must NOT pass through the tail rotation below.
+    // NOTE: full_infill (solid / top / bottom) is intentionally EXCLUDED here - the sparse-tuned Eulerian
+    // connector fragments dense lines into many trails (worse than monotonic). Dense solid single-path is
+    // handled by the BCD step on the monotonic cells further down (see monotonic_infill branch).
+    if (params.connect_polygons && ! params.full_infill()) {
         const float   angle      = rotate_vector.first;
         const coord_t line_width = coord_t(scale_(this->spacing));
         // Build the scanlines the same way fill_surface_by_multilines does (base contour rotated by -angle,
