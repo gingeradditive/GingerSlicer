@@ -723,3 +723,92 @@ TextInput text field: wxTextCtrl + label/icon customizzabile, label/text color s
 
 ## 239 GUI/Widgets/WebView
 WebView helper thin wrapper: CreateWebView(parent, url) factory, CheckWebViewRuntime/DownloadAndInstallWebViewRuntime Windows-specific, LoadUrl/RunScript, RecreateAll. Feature wxWebView helper utilities.
+
+---
+
+# === DIPENDENZE ESTERNE (deps/) ===
+
+🟢 DA MANTENERE
+🟡 DA DECIDERE SE MANTENERE
+🔴 DA TOGLIERE
+
+## 🟢 DEP-01 Boost
+Usata in 334 file sorgente. Filesystem, logging (BOOST_LOG_TRIVIAL), thread, asio (TCPConsole/WebSocket), beast (HttpServer), geometry, format, serialization. Dipendenza fondamentale, impossibile rimuovere.
+
+## 🟢 DEP-02 wxWidgets
+Usata in 325 file sorgente. Framework GUI principale: finestre, eventi, controlli, dialogs, bitmap, font, OpenGL canvas. Impossibile rimuovere.
+
+## 🟢 DEP-03 TBB (Intel Threading Building Blocks)
+Usata in 67 file sorgente. Parallelizzazione algoritmi slicing (tbb::parallel_for, tbb::blocked_range), task arena, allocatore tbbmalloc. Core performance multi-thread.
+
+## 🟢 DEP-04 GLEW
+Usata in 51 file sorgente. OpenGL Extension Wrangler: inizializzazione estensioni GL, shader, VBO. Necessaria per tutto il rendering OpenGL.
+
+## 🟢 DEP-05 PNG (libpng)
+Usata in 63 file sorgente. Lettura/scrittura PNG per thumbnails G-code, texture bed, icone, export immagini. Indispensabile.
+
+## 🟢 DEP-06 CURL (libcurl)
+Usata in 42 file sorgente tramite wrapper Utils/Http. HTTP GET/POST/PUT per print host, OTA updates, download modelli. Fondamentale networking.
+
+## 🟢 DEP-07 Cereal
+Usata in 38 file sorgente. Serializzazione/deserializzazione config, undo/redo snapshots, cache emboss. Indispensabile.
+
+## 🟢 DEP-08 CGAL
+Usata in 19 file sorgente. Algoritmi geometria computazionale: boolean mesh, medial axis, Voronoi. Richiesta esplicitamente da libslic3r_cgal target. Dipende da GMP e MPFR.
+
+## 🟢 DEP-09 OpenVDB
+Usata in 8 file sorgente: OpenVDBUtils, TreeSupport3D, SLA/Hollowing, CSGMesh. Voxelizzazione per supporti albero e hollowing SLA. Dipende da Blosc e OpenEXR (transitive).
+
+## 🟢 DEP-10 OpenSSL
+Usata in 7 file sorgente. SSL per HTTPS (libcurl), crittografia. Necessaria per comunicazioni sicure con print host e cloud.
+
+## 🟢 DEP-11 OCCT (OpenCASCADE)
+Usata in 7 file sorgente: STEP.cpp, TextShape.cpp, svg.cpp, EditGCodeDialog. Import file CAD (.step), text shape generation, SVG processing. Richiede FREETYPE come dipendenza.
+
+## 🟢 DEP-12 JPEG
+Usata in 6 file sorgente: Thumbnails.cpp, bbs_3mf.cpp, GUI_Utils.cpp, Project.cpp, Auxiliary.cpp, PresetUpdater.cpp. Encoding/decoding thumbnails e immagini progetto.
+
+## 🟢 DEP-13 NLopt
+Usata in 6 file sorgente: Arrange.cpp, NLoptOptimizer.hpp, SLA/Rotfinder, SLA/SupportTree. Ottimizzazione numerica per arranging oggetti e orientamento SLA. Essenziale per funzioni SLA.
+
+## 🟢 DEP-14 EXPAT
+Usata in 5 file sorgente: 3mf.hpp/cpp, bbs_3mf.cpp, AMF.cpp. Parser XML per import/export formati 3MF e AMF. Indispensabile per I/O file progetto.
+
+## 🟢 DEP-15 NanoSVG
+Usata in 11 file sorgente. Parser SVG leggero per icone SVG, emboss SVG, texture toolbar GL. Necessario per rendering SVG.
+
+## 🟢 DEP-16 libnoise
+Usata in 13 file sorgente: FuzzySkin.cpp, PerimeterGenerator.hpp, PrintConfig, SeamPlacer, Slicing. Generazione rumore Perlin per fuzzy skin, seam placement, pattern crosshatch. Necessaria per feature di texture superficiale.
+
+## 🟢 DEP-17 Qhull
+Usata in 3 file sorgente: TriangleMesh.cpp, Model.cpp. Calcolo convex hull 3D per bounding volume, collision detection. Usata ma limitata.
+
+## 🟢 DEP-18 GLFW
+Usata solo in src/GingerSlicer.cpp (main). Inizializzazione contesto OpenGL headless per rilevare versione GL supportata prima di creare finestra wxWidgets. Rimovibile solo se si trova altro metodo per GL version detection.
+
+## 🟡 DEP-19 FREETYPE
+Zero include diretti nel codice sorgente. Linkata solo via CMakeLists come dipendenza transitiva di OCCT (rendering font nei file CAD). Se si mantiene OCCT, FREETYPE deve rimanere. Valutare se disabilitare USE_FREETYPE in OCCT (opzione commentata in deps/OCCT/OCCT.cmake).
+
+## 🟡 DEP-20 GMP
+Zero include diretti. Dipendenza transitiva richiesta da CGAL (deps/CGAL/CGAL.cmake: DEPENDS dep_GMP dep_MPFR). Non rimuovibile finché si usa CGAL.
+
+## 🟡 DEP-21 MPFR
+Zero include diretti. Dipendenza transitiva richiesta da CGAL (deps/CGAL/CGAL.cmake: DEPENDS dep_GMP dep_MPFR). Non rimuovibile finché si usa CGAL.
+
+## 🟡 DEP-22 ZLIB
+Un solo file sorgente (AboutDialog.cpp, solo per la stringa versione). Dipendenza transitiva di PNG, CURL, Boost. Tecnicamente non rimuovibile dall'albero di build perché altre lib la richiedono.
+
+## 🟡 DEP-23 OpenCV
+Usata in 2 file: ObjColorUtils.hpp (k-means clustering colori per multi-material), Slicing.cpp (commento algoritmico, nessun include diretto). ObjColorUtils.hpp implementa color clustering per ObjColorDialog. Rimovibile solo se si riscrive il k-means manualmente o si usa alternativa leggera.
+
+## 🟡 DEP-24 WebView2
+Solo Windows. Usata in WebView.cpp (include WebView2.h) e GUI_App.cpp (messaggio installazione). Necessaria per wxWebView su Windows (Edge/Chromium). Non toccabile su Windows; su macOS/Linux non viene compilata.
+
+## 🔴 DEP-25 Blosc
+Zero include diretti nel codice sorgente. Zero riferimenti in CMakeLists src/. È dipendenza transitiva di OpenVDB (deps/OpenVDB/OpenVDB.cmake: DEPENDS dep_Blosc). Se si rimuove OpenVDB, si rimuove anche Blosc. Da sola non ha ragione di esistere.
+
+## 🔴 DEP-26 OpenEXR
+Zero include diretti nel codice sorgente. Dipendenza transitiva di OpenVDB (deps/OpenVDB/OpenVDB.cmake: DEPENDS dep_OpenEXR). Stessa situazione di Blosc: rimuovibile solo insieme a OpenVDB.
+
+## 🔴 DEP-27 OpenCSG
+Presente in deps/CMakeLists.txt (include OpenCSG/OpenCSG.cmake) ma nessun altro target dipende da lei (nessun DEPENDS dep_OpenCSG trovato). Unico riferimento nel sorgente è un commento in CSGMesh.hpp ("rendered with OpenCSG or..."). Non è linkata in nessun target_link_libraries. Candidata alla rimozione completa.
