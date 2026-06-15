@@ -35,8 +35,6 @@
 #include "RemovableDriveManager.hpp"
 #include "BitmapCache.hpp"
 #include "MsgDialog.hpp"
-#include "OAuthDialog.hpp"
-#include "SimplyPrint.hpp"
 
 namespace Slic3r {
 namespace GUI {
@@ -127,8 +125,6 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
             this->update_printhost_buttons();
         if (opt_key == "printhost_port")
             this->update_ports();
-        if (opt_key == "bbl_use_print_host_webui")
-            this->update_webui();
     };
 
     m_optgroup->append_single_option_line("host_type");
@@ -161,25 +157,12 @@ void PhysicalPrinterDialog::build_printhost_settings(ConfigOptionsGroup* m_optgr
                 result = host->test(msg);
 
                 if (!result && host->is_cloud()) {
-                    if (const auto h = dynamic_cast<SimplyPrint*>(host.get()); h) {
-                        OAuthDialog dlg(this, h->get_oauth_params());
-                        dlg.ShowModal();
+                    PrinterCloudAuthDialog dlg(this->GetParent(), host.get());
+                    dlg.ShowModal();
 
-                        const auto& r = dlg.get_result();
-                        result = r.success;
-                        if (r.success) {
-                            h->save_oauth_credential(r);
-                        } else {
-                            msg = r.error_message;
-                        }
-                    } else {
-                        PrinterCloudAuthDialog dlg(this->GetParent(), host.get());
-                        dlg.ShowModal();
-                        
-                        const auto api_key = dlg.GetApiKey();
-                        m_config->opt_string("printhost_apikey") = api_key;
-                        result       = !api_key.empty();
-                    }
+                    const auto api_key = dlg.GetApiKey();
+                    m_config->opt_string("printhost_apikey") = api_key;
+                    result = !api_key.empty();
                 }
             }
             if (result)
@@ -362,30 +345,6 @@ void PhysicalPrinterDialog::update_ports() {
     }
 }
 
-void PhysicalPrinterDialog::update_webui()
-{
-    const PrinterTechnology tech = Preset::printer_technology(*m_config);
-    if (tech == ptFFF) {
-        const auto opt = m_config->option<ConfigOptionEnum<PrintHostType>>("host_type");
-        if (opt->value == htSimplyPrint) {
-            bool bbl_use_print_host_webui = false;
-            if (Field* printhost_webui_field = m_optgroup->get_field("bbl_use_print_host_webui"); printhost_webui_field) {
-                if (CheckBox* temp = dynamic_cast<CheckBox*>(printhost_webui_field); temp) {
-                    bbl_use_print_host_webui = boost::any_cast<bool>(temp->get_value());
-                }
-            }
-
-            const std::string v = bbl_use_print_host_webui ? "https://simplyprint.io/panel" : "";
-            if (Field* printhost_webui_field = m_optgroup->get_field("print_host_webui"); printhost_webui_field) {
-                if (wxTextCtrl* temp = dynamic_cast<TextCtrl*>(printhost_webui_field)->text_ctrl(); temp) {
-                    temp->SetValue(v);
-                }
-            }
-            m_config->opt_string("print_host_webui") = v;
-        }
-    }
-}
-
 void PhysicalPrinterDialog::update_printhost_buttons()
 {
     std::unique_ptr<PrintHost> host(PrintHost::get_print_host(m_config));
@@ -483,70 +442,16 @@ void PhysicalPrinterDialog::update(bool printer_change)
     bool supports_multiple_printers = false;
     if (tech == ptFFF) {
         update_host_type(printer_change);
-        const auto opt = m_config->option<ConfigOptionEnum<PrintHostType>>("host_type");
         m_optgroup->show_field("host_type");
 
         m_optgroup->enable_field("print_host");
         m_optgroup->show_field("print_host_webui");
-        m_optgroup->hide_field("bbl_use_print_host_webui");
         m_optgroup->enable_field("printhost_cafile");
         m_optgroup->enable_field("printhost_ssl_ignore_revoke");
         if (m_printhost_cafile_browse_btn)
             m_printhost_cafile_browse_btn->Enable();
 
-        // hide pre-configured address, in case user switched to a different host type
-        if (Field* printhost_field = m_optgroup->get_field("print_host"); printhost_field) {
-            if (wxTextCtrl* temp = dynamic_cast<TextCtrl*>(printhost_field)->text_ctrl(); temp) {
-                const auto current_host = temp->GetValue();
-                if (current_host == "https://simplyprint.io" || current_host == "https://simplyprint.io/panel") {
-                    temp->SetValue(wxString());
-                    m_config->opt_string("print_host") = "";
-                }
-            }
-        }
-        {
-            m_optgroup->show_field("printhost_apikey", true);
-            supports_multiple_printers = false;
-
-            if (opt->value == htSimplyPrint) {
-                // Set the host url
-                if (Field* printhost_field = m_optgroup->get_field("print_host"); printhost_field) {
-                    printhost_field->disable();
-                    if (wxTextCtrl* temp = dynamic_cast<TextCtrl*>(printhost_field)->text_ctrl(); temp && temp->GetValue().IsEmpty()) {
-                        temp->SetValue("https://simplyprint.io/panel");
-                    }
-                    m_config->opt_string("print_host") = "https://simplyprint.io/panel";
-                }
-
-                const auto current_webui = m_config->opt_string("print_host_webui");
-                if (!current_webui.empty()) {
-                    if (Field* printhost_webui_field = m_optgroup->get_field("print_host_webui"); printhost_webui_field) {
-                        if (wxTextCtrl* temp = dynamic_cast<TextCtrl*>(printhost_webui_field)->text_ctrl(); temp) {
-                            temp->SetValue("https://simplyprint.io/panel");
-                        }
-                    }
-                    m_config->opt_string("print_host_webui") = "https://simplyprint.io/panel";
-                }
-
-                // For bbl printers, show option to control the device tab
-                if (wxGetApp().preset_bundle->is_bbl_vendor()) {
-                    m_optgroup->show_field("bbl_use_print_host_webui");
-                    const bool use_print_host_webui = !current_webui.empty();
-                    if (Field* printhost_webui_field = m_optgroup->get_field("bbl_use_print_host_webui"); printhost_webui_field) {
-                        if (CheckBox* temp = dynamic_cast<CheckBox*>(printhost_webui_field); temp) {
-                            temp->set_value(use_print_host_webui);
-                        }
-                    }
-                }
-
-                m_optgroup->hide_field("print_host_webui");
-                m_optgroup->hide_field("printhost_apikey");
-                m_optgroup->disable_field("printhost_cafile");
-                m_optgroup->disable_field("printhost_ssl_ignore_revoke");
-                if (m_printhost_cafile_browse_btn)
-                    m_printhost_cafile_browse_btn->Disable();
-            }
-        }
+        m_optgroup->show_field("printhost_apikey", true);
     }
     else {
         m_optgroup->set_value("host_type", int(PrintHostType::htOctoPrint), false);

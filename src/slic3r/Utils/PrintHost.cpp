@@ -17,7 +17,6 @@
 #include "../GUI/PrintHostDialogs.hpp"
 #include "../GUI/MainFrame.hpp"
 #include "../GUI/I18N.hpp"
-#include "SimplyPrint.hpp"
 
 namespace fs = boost::filesystem;
 using boost::optional;
@@ -45,7 +44,6 @@ PrintHost* PrintHost::get_print_host(DynamicPrintConfig *config)
 
         switch (host_type) {
             case htOctoPrint: return new OctoPrint(config);
-            case htSimplyPrint: return new SimplyPrint(config);
             default:          return nullptr;
         }
     } else {

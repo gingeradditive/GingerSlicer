@@ -1307,8 +1307,7 @@ void Sidebar::apply_printer_host_to_config(const std::string &host)
     else {
         if (!url.Lower().starts_with("http"))
             url = wxString::Format("http://%s", url);
-        const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
-        if (cfg.has("printhost_apikey") && (host_type != htSimplyPrint))
+        if (cfg.has("printhost_apikey"))
             apikey = cfg.opt_string("printhost_apikey");
     }
     p_mainframe->load_printer_url(url, apikey);
@@ -1337,8 +1336,7 @@ void Sidebar::update_all_preset_comboboxes()
     else {
         if (!url.Lower().starts_with("http"))
             url = wxString::Format("http://%s", url);
-        const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
-        if (cfg.has("printhost_apikey") && (host_type != htSimplyPrint))
+        if (cfg.has("printhost_apikey"))
             apikey = cfg.opt_string("printhost_apikey");
         print_btn_type = preset_bundle.is_bbl_vendor() ? MainFrame::PrintSelectType::ePrintPlate : MainFrame::PrintSelectType::eSendGcode;
     }

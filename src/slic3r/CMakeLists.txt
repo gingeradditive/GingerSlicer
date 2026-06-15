@@ -422,10 +422,6 @@ set(SLIC3R_GUI_SOURCES
     Utils/Profile.hpp
     Utils/RaycastManager.cpp
     Utils/RaycastManager.hpp
-    Utils/Serial.cpp
-    Utils/Serial.hpp
-    Utils/SimplyPrint.cpp
-    Utils/SimplyPrint.hpp
     Utils/UndoRedo.cpp
     Utils/UndoRedo.hpp
     Utils/WebSocketClient.hpp

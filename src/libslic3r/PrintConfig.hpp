@@ -57,7 +57,7 @@ enum class NoiseType {
 };
 
 enum PrintHostType {
-    htOctoPrint, htSimplyPrint
+    htOctoPrint
 };
 
 enum InfillPattern : int {

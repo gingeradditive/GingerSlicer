@@ -92,8 +92,6 @@ Raycasting manager 3D: struct Hit (tr_key, squared_distance, position/normal), A
 ## 🔴 029 Utils/Repetier
 PrintHost Repetier: server multi-printer/group support, API key auth, get_groups/get_printers lista. Feature Repetier server integration multi-device.
 
-# === DA CONTROLLARE ===
-
 ## 🟢 030 Utils/RetinaHelper
 macOS Retina display support: get_use_retina(), get_scale_factor(), platform-specific wrapper opaco (pimpl pattern). Minimale DPI scaling helper.
 
@@ -109,7 +107,7 @@ Enum SerialMessageType: Command, Data. Minimale type tag per messaggi seriali.
 ## 🔴 034 Utils/SimplyPrint
 PrintHost SimplyPrint: cloud OAuth login credential storage, chunked upload >100MB con MD5, temp upload API, API retry on token refresh, QueuePrint post-action. Feature SimplyPrint integration.
 
-## 🟡 035 Utils/TCPConsole
+## 🔴 035 Utils/TCPConsole
 TCP telnet-like console: boost::asio socket/resolver, enqueue_cmd(SerialMessage) queue, run_queue(), timeout configurabile, line delimiter/done string. Core TCP command interface.
 
 > Pulire tutto quello che non viene usato con la stampante Ginger/G1 (moonraker e klipper)
@@ -156,11 +154,17 @@ Thread background per slicing asincrono. Gestisce stati (idle/slicing/cancellato
 ## 🟢 049 GUI/BBLStatusBar
 Barra di stato inferiore (wxPanel): progress bar, testo stato, bottone annulla, info oggetti/slicing. Implementa `ProgressIndicator`. Sostituisce la wxStatusBar standard. Necessario.
 
+# === DA CONTROLLARE ===
+
 ## 🟡 050 GUI/BBLStatusBarSend
 Variante della status bar per il pannello di invio stampa: progress bar con blocchi colorati, link errore espandibile, bottone annulla. Specifica per flusso send-to-printer BBS.
 
+> Pulire tutto quello che non viene usato con la stampante Ginger/G1 (moonraker e klipper)
+
 ## 🟡 051 GUI/BBLTopbar
 Barra titolo/menu custom (wxAuiToolBar): file menu, undo/redo, salva, pubblica, calibrazione, finestra draggabile. Sostituisce la titlebar nativa su Windows. Necessario per UI BBS/Bambu.
+
+> Pulire tutto quello che non viene usato con la stampante Ginger/G1 (moonraker e klipper)
 
 ## 🟡 052 GUI/BedShapeDialog
 Dialog configurazione forma piatto: rettangolare, circolare, custom. Panel `BedShapePanel` con preview 2D e opzioni dimensione/origine. Aperto da Print Settings→Bed Shape.

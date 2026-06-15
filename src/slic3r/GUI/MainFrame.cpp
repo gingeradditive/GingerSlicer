@@ -1663,16 +1663,7 @@ wxBoxSizer* MainFrame::create_side_tools()
                     p->Dismiss();
                     });
 
-                bool support_print_all = true;
-
-                const auto preset_bundle = wxGetApp().preset_bundle;
-                if (preset_bundle) {
-                    auto cfg = preset_bundle->printers.get_edited_preset().config;
-                    const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
-
-                    // Only simply print support uploading all plates
-                    support_print_all = host_type == PrintHostType::htSimplyPrint;
-                }
+                bool support_print_all = false;
 
                 p->append_button(print_plate_btn);
                 if (support_print_all) {
