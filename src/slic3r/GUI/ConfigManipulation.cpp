@@ -567,7 +567,7 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
 
     bool have_infill = config->option<ConfigOptionPercent>("sparse_infill_density")->value > 0;
     // sparse_infill_filament uses the same logic as in Print::extruders()
-    for (auto el : { "sparse_infill_pattern", "infill_combination", "fill_multiline","single_path_mode","infill_direction",
+    for (auto el : { "sparse_infill_pattern", "infill_combination", "fill_multiline","infill_direction",
         "minimum_sparse_infill_area", "sparse_infill_filament", "infill_anchor", "infill_anchor_max","infill_shift_step","sparse_infill_rotate_template","symmetric_infill_y_axis"})
         toggle_line(el, have_infill);
 
@@ -579,18 +579,12 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     bool          have_multiline_infill_pattern = pattern == ipGyroid || pattern == ipGrid || pattern == ipRectilinear || pattern == ipTpmsD || pattern == ipTpmsFK || pattern == ipCrossHatch || pattern == ipHoneycomb || pattern == ipLateralLattice || pattern == ipLateralHoneycomb || pattern == ipConcentric ||
                                                   pattern == ipCubic || pattern == ipStars || pattern == ipAlignedRectilinear || pattern == ipLightning || pattern == ip3DHoneycomb || pattern == ipAdaptiveCubic || pattern == ipSupportCubic|| pattern == ipTriangles || pattern == ipQuarterCubic|| pattern == ipArchimedeanChords || pattern == ipHilbertCurve || pattern == ipOctagramSpiral;
     // If there is infill, enable/disable fill_multiline according to whether the pattern supports multiline infill.
-    // Single path mode (Cura-style single-path, taken further) is meaningful for patterns that go through
-    // connect_infill() along the inner wall: the line-based families, plus Lightning - its tree routes
-    // through chain_or_connect_infill() too, and with fill_multiline=2 the connector produces a clean
-    // single path with no wall->infill travel and no retraced segments (validated headless on a real part;
-    // ml=1 lightning still works but stays more fragmented, so ml=2 is recommended for lightning).
-    bool have_connectable_infill_pattern = pattern == ipRectilinear || pattern == ipAlignedRectilinear ||
-                                           pattern == ipGrid || pattern == ipTriangles || pattern == ipStars ||
-                                           pattern == ipCubic || pattern == ipQuarterCubic || pattern == ipZigZag ||
-                                           pattern == ipCrossZag || pattern == ipLockedZag || pattern == ipLightning;
+    // NOTE: single_path_mode is intentionally NOT gated here. It now lives in Others > Special mode and is a
+    // print-wide travel/seam mode (it also drives the inner-wall and inter-island seam in GCode.cpp), so it stays
+    // available even at 0% infill and for any pattern. The infill-CONNECT part only applies to line-based patterns
+    // (gated in Fill.cpp by sparse_infill_pattern); the wall / inter-island seam part applies regardless.
     if (have_infill) {
         toggle_field("fill_multiline", have_multiline_infill_pattern);
-        toggle_field("single_path_mode", have_connectable_infill_pattern);
         // If the infill pattern does not support multiline fill_multiline is changed to 1.
         // Necessary when the pattern contains params.multiline (for example, triangles because they belong to the rectilinear class)
         if (!have_multiline_infill_pattern) {

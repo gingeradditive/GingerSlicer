@@ -2426,11 +2426,16 @@ void PrintConfigDef::init_fff_params()
     // Connect infill polygons (Cura-style single-path infill).
     def             = this->add("single_path_mode", coBool);
     def->label      = L("Single path");
-    def->category   = L("Strength");
-    def->tooltip    = L("Print each connected region as one continuous extrusion path with zero travel moves: the infill "
-                        "lines are joined along the inner wall and the wall and infill become a single path (similar to "
-                        "Cura's \"Connect Infill Lines\", taken further). Critical for pellet printers where travel moves are "
-                        "costly. Only supported for line-based infill patterns (Rectilinear, Grid, Triangles, etc.).");
+    def->category   = L("Others");
+    def->tooltip    = L("Pellet travel-minimization mode (similar to Cura's \"Connect Infill Lines\", taken further). "
+                        "When enabled: (1) connectable line-based infill (Rectilinear, Grid, Triangles, Lightning, ...) "
+                        "is joined into one continuous path along the inner wall, with no internal travel; (2) the inner "
+                        "wall ends exactly where the infill begins, so there is no wall-to-infill travel; (3) on islands "
+                        "with no connectable infill, the wall seam is placed at the point closest to where the previous "
+                        "island ended, minimizing the unavoidable travel between separate islands. Critical for pellet "
+                        "printers, where long travel moves degrade the melt. The infill-connect part (1) only applies to "
+                        "line-based patterns; the wall and inter-island seam optimization (2,3) applies to any pattern and "
+                        "even at 0% infill.");
     def->mode       = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 

@@ -901,16 +901,22 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
                 }
                 // Orca: apply fill multiline only for sparse infill
                 params.multiline = params.extrusion_role == erInternalInfill ? int(region_config.fill_multiline) : 1;
-                // Connect infill lines into a single path (Cura-style). Enabled for sparse plus the solid
-                // surfaces (internal solid, top, bottom) under single_path_mode. Sparse line patterns are
-                // fully connected via connect_infill(); solid/top/bottom currently still print with the
-                // monotonic ordering (the dense-line single-path / BCD step is future work, see
-                // FillRectilinear::fill_surface_by_lines), so the flag is groundwork for those roles.
-                params.connect_polygons = (params.extrusion_role == erInternalInfill ||
-                                           params.extrusion_role == erSolidInfill ||
-                                           params.extrusion_role == erTopSolidInfill ||
-                                           params.extrusion_role == erBottomSurface)
-                                          ? bool(region_config.single_path_mode) : false;
+                // Connect infill lines into a single path (Cura-style) under single_path_mode. single_path_mode
+                // is now a print-wide toggle (it also drives the wall / inter-island seam in GCode.cpp), so the
+                // SPARSE infill is only connected when its pattern is line-based (the connector joins straight
+                // scanlines along the inner wall - it can't handle curved / 3D patterns like Gyroid, Honeycomb,
+                // Concentric, TPMS, ...). Solid / top / bottom keep the flag as groundwork (they still print
+                // monotonic; the dense single-path / BCD step is future work - see FillRectilinear).
+                auto connectable_pattern = [](InfillPattern p) {
+                    return p == ipRectilinear || p == ipAlignedRectilinear || p == ipGrid || p == ipTriangles ||
+                           p == ipStars || p == ipCubic || p == ipQuarterCubic || p == ipZigZag ||
+                           p == ipCrossZag || p == ipLockedZag || p == ipLightning;
+                };
+                params.connect_polygons = bool(region_config.single_path_mode) &&
+                    ((params.extrusion_role == erInternalInfill && connectable_pattern(region_config.sparse_infill_pattern.value)) ||
+                     params.extrusion_role == erSolidInfill ||
+                     params.extrusion_role == erTopSolidInfill ||
+                     params.extrusion_role == erBottomSurface);
 
                 if (params.extrusion_role == erInternalInfill) {
                     params.angle = calculate_infill_rotation_angle(layer.object(), layer.id(), region_config.infill_direction.value,
