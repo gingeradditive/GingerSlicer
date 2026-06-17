@@ -5195,46 +5195,49 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                 : (m_config.is_infill_first == is_infill_first);
             if (!should_print) continue;
 
-            // Ginger single-path infill: when the sparse infill is connected into one path, force the
-            // seam of the LAST wall (the one printed right before the infill) onto the infill's
-            // connection point, so that wall ends exactly where the infill starts (no wall->infill
-            // travel). Only the last wall is forced - the other walls keep their normal cosmetic seam.
-            // The anchor is the infill point nearest to the current position, which also shortens the
-            // inevitable travel into this island.
-            const Point* anchor_ptr = nullptr;
-            Point        anchor;
-            if (m_config.single_path_mode) {
-                if (! region.infills.empty() &&
-                    infill_connection_anchor(region.infills, this->last_pos(), next_island_target, anchor)) {
-                    // Island with connectable infill: pin the last wall's seam to the infill connection so the
-                    // wall ends where the infill begins (0 wall->infill); the anchor already orients the infill
-                    // exit toward the next island (accounts for the infill being printed between wall and the
-                    // departure - a naive wall-only seam would ignore that and lengthen the travel).
-                    anchor_ptr = &anchor;
-                } else if (! region.perimeters.empty()) {
-                    // Wall-only island (no connectable infill - the separated prongs, the bulk of lightning's
-                    // long inter-island travels). Long travels degrade the pellet melt. Closest-point CHAIN
-                    // (Davide): place this island's wall seam at the perimeter point CLOSEST to where the
-                    // previous island ended (current toolhead pos) - "position the next start by the previous
-                    // end". Each island then enters at its closest approach to the one printed before it, so
-                    // the inter-island hop is the minimal curve-to-curve distance instead of a static
-                    // cosmetic-corner seam on the far side.
-                    Points pts;
-                    region.perimeters.back()->collect_points(pts);
-                    const Point from = this->last_pos();
-                    double best = std::numeric_limits<double>::max();
-                    for (const Point &p : pts) {
-                        double c = (p - from).cast<double>().squaredNorm();
-                        if (c < best) { best = c; anchor = p; }
-                    }
-                    if (! pts.empty())
-                        anchor_ptr = &anchor;
-                }
-            }
+            // Ginger single-path infill: minimize travel by SEAM PLACEMENT only (no connector, no
+            // avoid-crossing detours). EVERY wall loop is started at the point CLOSEST to where the
+            // previous loop ended (closest-point chain) -> shortest possible loop-to-loop travel. This
+            // is what fixes a holed/ring cross-section: the outer ring and the hole ring (and every
+            // extra hole) each start at their nearest approach to the toolhead, so the hop between
+            // concentric/adjacent walls is the wall gap instead of a chord across the hole. The LAST
+            // wall (innermost, printed right before the infill) is instead pinned to the infill
+            // connection point so the wall ends exactly where the single-path infill begins (zero
+            // wall->infill travel); that anchor is the infill point nearest the current position and,
+            // when given, orients the infill exit toward the next island. last_pos() is re-read each
+            // iteration, so it already reflects where the previous loop ended.
+            const bool single_path = m_config.single_path_mode;
+            // Hook the last-printed wall onto the single-path infill ONLY when walls precede infill;
+            // with is_infill_first the infill is already extruded, so there is nothing to hook to and
+            // the wall is just chained by proximity like the others.
+            const bool hook_infill = single_path && ! is_infill_first && ! region.infills.empty();
 
-            for (const ExtrusionEntity* ee : region.perimeters) {
-                const bool is_last = ee == region.perimeters.back();
-                gcode += this->extrude_entity(*ee, "perimeter", -1., region.perimeters, is_last ? anchor_ptr : nullptr);
+            for (size_t i = 0; i < region.perimeters.size(); ++ i) {
+                const ExtrusionEntity* ee       = region.perimeters[i];
+                const bool             is_last   = i + 1 == region.perimeters.size();
+                Point                  seam;
+                const Point*           seam_ptr = nullptr;
+                if (single_path) {
+                    // The infill anchor is computed HERE (right before the last wall), so it uses the
+                    // real toolhead position AFTER the preceding walls, not a stale pre-walls position;
+                    // it picks the infill entry nearest that position (and, with a look-ahead target,
+                    // orients the infill exit toward the next island). The last wall is a closed loop
+                    // entered and left at its seam, so pinning the seam there makes the wall end exactly
+                    // where the infill begins (zero wall->infill travel).
+                    if (is_last && hook_infill &&
+                        infill_connection_anchor(region.infills, this->last_pos(), next_island_target, seam)) {
+                        seam_ptr = &seam;
+                    } else {
+                        // Closest-point chain: start this loop at the point closest to where the previous
+                        // loop/island ended. last_pos() is re-read each iteration and split_at() projects
+                        // it onto the loop (foot point, not just a vertex), so this is the true minimal
+                        // loop-to-loop travel - e.g. the hole ring starts at its nearest approach to the
+                        // outer ring instead of a chord across the hole.
+                        seam     = this->last_pos();
+                        seam_ptr = &seam;
+                    }
+                }
+                gcode += this->extrude_entity(*ee, "perimeter", -1., region.perimeters, seam_ptr);
             }
         }
     return gcode;
