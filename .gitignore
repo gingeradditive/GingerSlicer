@@ -1,8 +1,7 @@
 Build
 Build.bat
 /build*/
-# Customer part used as a local single_path slicing-guard fixture (do NOT commit customer geometry).
-tests/data/single_path_guard.3mf
+tests/data/*
 CMakeLists.txt.user
 **/CMakeLists.txt.autosave
 deps/build*
