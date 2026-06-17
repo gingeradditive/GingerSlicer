@@ -237,6 +237,8 @@ struct SurfaceFillParams
     float       	density = 0.f;
     // Infill line multiplier count.
     int   multiline = 1;
+    // Connect infill lines along the inner wall into a single continuous path (Cura-style).
+    bool  connect_polygons = false;
     // Don't adjust spacing to fill the space evenly.
 //    bool        	dont_adjust = false;
     // Length of the infill anchor along the perimeter line.
@@ -286,6 +288,7 @@ struct SurfaceFillParams
 		RETURN_COMPARE_NON_EQUAL(is_using_template_angle);
 		RETURN_COMPARE_NON_EQUAL(density);
 		RETURN_COMPARE_NON_EQUAL(multiline);
+		RETURN_COMPARE_NON_EQUAL_TYPED(unsigned, connect_polygons);
 //		RETURN_COMPARE_NON_EQUAL_TYPED(unsigned, dont_adjust);
 		RETURN_COMPARE_NON_EQUAL(anchor_length);
 		RETURN_COMPARE_NON_EQUAL(anchor_length_max);
@@ -317,6 +320,7 @@ struct SurfaceFillParams
 				this->bridge_angle 		== rhs.bridge_angle		&&
 				this->density   		== rhs.density   		&&
 				this->multiline             == rhs.multiline    &&
+				this->connect_polygons      == rhs.connect_polygons &&
 //				this->dont_adjust   	== rhs.dont_adjust 		&&
 				this->anchor_length  	== rhs.anchor_length    &&
 				this->anchor_length_max == rhs.anchor_length_max &&
@@ -897,6 +901,22 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
                 }
                 // Orca: apply fill multiline only for sparse infill
                 params.multiline = params.extrusion_role == erInternalInfill ? int(region_config.fill_multiline) : 1;
+                // Connect infill lines into a single path (Cura-style) under single_path_mode. single_path_mode
+                // is now a print-wide toggle (it also drives the wall / inter-island seam in GCode.cpp), so the
+                // SPARSE infill is only connected when its pattern is line-based (the connector joins straight
+                // scanlines along the inner wall - it can't handle curved / 3D patterns like Gyroid, Honeycomb,
+                // Concentric, TPMS, ...). Solid / top / bottom keep the flag as groundwork (they still print
+                // monotonic; the dense single-path / BCD step is future work - see FillRectilinear).
+                auto connectable_pattern = [](InfillPattern p) {
+                    return p == ipRectilinear || p == ipAlignedRectilinear || p == ipGrid || p == ipTriangles ||
+                           p == ipStars || p == ipCubic || p == ipQuarterCubic || p == ipZigZag ||
+                           p == ipCrossZag || p == ipLockedZag || p == ipLightning;
+                };
+                params.connect_polygons = bool(region_config.single_path_mode) &&
+                    ((params.extrusion_role == erInternalInfill && connectable_pattern(region_config.sparse_infill_pattern.value)) ||
+                     params.extrusion_role == erSolidInfill ||
+                     params.extrusion_role == erTopSolidInfill ||
+                     params.extrusion_role == erBottomSurface);
 
                 if (params.extrusion_role == erInternalInfill) {
                     params.angle = calculate_infill_rotation_angle(layer.object(), layer.id(), region_config.infill_direction.value,
@@ -1238,6 +1258,7 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         FillParams params;
         params.density 		     = float(0.01 * surface_fill.params.density);
         params.multiline         = surface_fill.params.multiline;
+        params.connect_polygons  = surface_fill.params.connect_polygons;
 		params.dont_adjust		 = false; //  surface_fill.params.dont_adjust;
         params.anchor_length     = surface_fill.params.anchor_length;
 		params.anchor_length_max = surface_fill.params.anchor_length_max;
@@ -1273,7 +1294,12 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
             params.symmetric_infill_y_axis = surface_fill.params.symmetric_infill_y_axis;
 
         }
-		if (surface_fill.params.pattern == ipGrid)
+		// Grid normally forbids reversing a fill line (the two crossing sweeps rely on a fixed
+		// direction). But with single_path_mode the whole region is ONE connected path/loop, so
+		// its global direction is arbitrary: it MUST stay reversible, otherwise the path always starts
+		// at its fixed first point instead of where the wall seam ended — a huge wall->infill travel
+		// across the island (the chainer cannot flip a non-reversible path toward the current position).
+		if (surface_fill.params.pattern == ipGrid && !params.connect_polygons)
 			params.can_reverse = false;
 		for (ExPolygon& expoly : surface_fill.expolygons) {
 
@@ -1428,6 +1454,7 @@ Polylines Layer::generate_sparse_infill_polylines_for_anchoring(FillAdaptive::Oc
         params.lateral_lattice_angle_2   = surface_fill.params.lateral_lattice_angle_2;
         params.infill_overhang_angle   = surface_fill.params.infill_overhang_angle;
         params.multiline         = surface_fill.params.multiline;
+        params.connect_polygons  = surface_fill.params.connect_polygons;
 
         for (ExPolygon &expoly : surface_fill.expolygons) {
             // Spacing is modified by the filler to indicate adjustments. Reset it for each expolygon.

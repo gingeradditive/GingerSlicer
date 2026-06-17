@@ -2423,6 +2423,22 @@ void PrintConfigDef::init_fff_params()
     def->max = 10; // Maximum number of lines for infill pattern
     def->set_default_value(new ConfigOptionInt(1));
 
+    // Connect infill polygons (Cura-style single-path infill).
+    def             = this->add("single_path_mode", coBool);
+    def->label      = L("Single path");
+    def->category   = L("Others");
+    def->tooltip    = L("Pellet travel-minimization mode (similar to Cura's \"Connect Infill Lines\", taken further). "
+                        "When enabled: (1) connectable line-based infill (Rectilinear, Grid, Triangles, Lightning, ...) "
+                        "is joined into one continuous path along the inner wall, with no internal travel; (2) the inner "
+                        "wall ends exactly where the infill begins, so there is no wall-to-infill travel; (3) on islands "
+                        "with no connectable infill, the wall seam is placed at the point closest to where the previous "
+                        "island ended, minimizing the unavoidable travel between separate islands. Critical for pellet "
+                        "printers, where long travel moves degrade the melt. The infill-connect part (1) only applies to "
+                        "line-based patterns; the wall and inter-island seam optimization (2,3) applies to any pattern and "
+                        "even at 0% infill.");
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("sparse_infill_pattern", coEnum);
     def->label = L("Sparse infill pattern");
     def->category = L("Strength");
@@ -7006,7 +7022,10 @@ void PrintConfigDef::init_sla_params()
 void PrintConfigDef::handle_legacy(t_config_option_key &opt_key, std::string &value)
 {
     //BBS: handle legacy options
-    if (opt_key == "enable_wipe_tower") {
+    if (opt_key == "connect_infill_polygons") {
+        // Ginger: renamed to single_path_mode (the feature now fuses wall+infill+solid into one path).
+        opt_key = "single_path_mode";
+    } else if (opt_key == "enable_wipe_tower") {
         opt_key = "enable_prime_tower";
     } else if (opt_key == "wipe_tower_width") {
         opt_key = "prime_tower_width";

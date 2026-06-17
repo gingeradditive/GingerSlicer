@@ -579,6 +579,10 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     bool          have_multiline_infill_pattern = pattern == ipGyroid || pattern == ipGrid || pattern == ipRectilinear || pattern == ipTpmsD || pattern == ipTpmsFK || pattern == ipCrossHatch || pattern == ipHoneycomb || pattern == ipLateralLattice || pattern == ipLateralHoneycomb || pattern == ipConcentric ||
                                                   pattern == ipCubic || pattern == ipStars || pattern == ipAlignedRectilinear || pattern == ipLightning || pattern == ip3DHoneycomb || pattern == ipAdaptiveCubic || pattern == ipSupportCubic|| pattern == ipTriangles || pattern == ipQuarterCubic|| pattern == ipArchimedeanChords || pattern == ipHilbertCurve || pattern == ipOctagramSpiral;
     // If there is infill, enable/disable fill_multiline according to whether the pattern supports multiline infill.
+    // NOTE: single_path_mode is intentionally NOT gated here. It now lives in Others > Special mode and is a
+    // print-wide travel/seam mode (it also drives the inner-wall and inter-island seam in GCode.cpp), so it stays
+    // available even at 0% infill and for any pattern. The infill-CONNECT part only applies to line-based patterns
+    // (gated in Fill.cpp by sparse_infill_pattern); the wall / inter-island seam part applies regardless.
     if (have_infill) {
         toggle_field("fill_multiline", have_multiline_infill_pattern);
         // If the infill pattern does not support multiline fill_multiline is changed to 1.

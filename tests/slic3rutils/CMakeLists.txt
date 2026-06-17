@@ -1,4 +1,4 @@
-get_filename_component(_TEST_NAME ${CMAKE_CURRENT_LIST_DIR} NAME)
+﻿get_filename_component(_TEST_NAME ${CMAKE_CURRENT_LIST_DIR} NAME)
 add_executable(${_TEST_NAME}_tests
     ${_TEST_NAME}_tests_main.cpp
     )
@@ -11,11 +11,11 @@ set_property(TARGET ${_TEST_NAME}_tests PROPERTY FOLDER "tests")
 
 if (WIN32)
     if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
-    orcaslicer_copy_dlls(COPY_DLLS "Debug" "d" output_dlls_Debug)
+    gingerslicer_copy_dlls(COPY_DLLS "Debug" "d" output_dlls_Debug)
     elseif("${CMAKE_BUILD_TYPE}" STREQUAL "RelWithDebInfo")
-    orcaslicer_copy_dlls(COPY_DLLS "RelWithDebInfo" "" output_dlls_Release)
+    gingerslicer_copy_dlls(COPY_DLLS "RelWithDebInfo" "" output_dlls_Release)
     else()
-    orcaslicer_copy_dlls(COPY_DLLS "Release" "" output_dlls_Release)
+    gingerslicer_copy_dlls(COPY_DLLS "Release" "" output_dlls_Release)
     endif()
 endif()
 

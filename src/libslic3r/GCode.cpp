@@ -3570,6 +3570,80 @@ std::string GCode::generate_skirt(const Print &print,
     return gcode;
 }
 
+// Order islands into a short OPEN travel tour that begins at `start` (the current nozzle position).
+// Each island is described by a set of candidate points (`cand[i]`, a downsampled cloud of its
+// extrusion points) so the tour cost uses the real NEAREST APPROACH to each island, not a blurred
+// centroid (a centroid mis-orders large/elongated or interlocking islands). Greedy nearest-neighbour
+// seed picks, at each step, the unvisited island whose closest candidate is nearest to the current
+// point and enters there; a 2-opt pass over the chosen entry points then refines the open tour.
+// Islands used to print in fixed construction order, which made every layer jump back across the whole
+// part (the same long diagonal repeated on every layer). Fills `entry[i]` = the entry point chosen for
+// island i (used to orient the wall seam / look-ahead). Returns a permutation of [0, cand.size()).
+static std::vector<size_t> order_islands_tour(const std::vector<std::vector<Point>> &cand, const Point &start, std::vector<Point> &entry)
+{
+    const size_t n = cand.size();
+    entry.assign(n, start);
+    std::vector<size_t> order;
+    order.reserve(n);
+    if (n == 0)
+        return order;
+
+    auto nearest_in = [](const std::vector<Point> &pts, const Point &p, double &d2_out) -> Point {
+        double best = std::numeric_limits<double>::max();
+        Point  bp   = pts.empty() ? p : pts.front();
+        for (const Point &q : pts) {
+            double d = (q - p).cast<double>().squaredNorm();
+            if (d < best) { best = d; bp = q; }
+        }
+        d2_out = pts.empty() ? std::numeric_limits<double>::max() : best;
+        return bp;
+    };
+
+    // Greedy nearest-neighbour seed over the real candidate points.
+    std::vector<char> used(n, 0);
+    Point cur = start;
+    for (size_t k = 0; k < n; ++k) {
+        size_t best = 0;
+        double bd   = std::numeric_limits<double>::max();
+        Point  be   = cur;
+        for (size_t i = 0; i < n; ++i)
+            if (! used[i]) {
+                double d;
+                Point  e = nearest_in(cand[i], cur, d);
+                if (d < bd) { bd = d; best = i; be = e; }
+            }
+        used[best]   = 1;
+        entry[best]  = be;
+        order.push_back(best);
+        cur = be;
+    }
+
+    // 2-opt over the chosen entry points, open tour anchored at `start` (cap to bound the cost).
+    if (n > 2 && n <= 256) {
+        auto dist = [](const Point &a, const Point &b) { return std::sqrt((a - b).cast<double>().squaredNorm()); };
+        bool improved = true;
+        int  guard    = 0;
+        while (improved && guard++ < 1000) {
+            improved = false;
+            for (size_t i = 0; i + 1 < n && ! improved; ++i)
+                for (size_t j = i + 1; j < n; ++j) {
+                    const Point &A = (i == 0) ? start : entry[order[i - 1]];
+                    const Point &B = entry[order[i]];
+                    const Point &C = entry[order[j]];
+                    const bool   has_succ = j + 1 < n;
+                    const Point &D = has_succ ? entry[order[j + 1]] : C;
+                    double before = dist(A, B) + (has_succ ? dist(C, D) : 0.);
+                    double after  = dist(A, C) + (has_succ ? dist(B, D) : 0.);
+                    if (after + SCALED_EPSILON < before) {
+                        std::reverse(order.begin() + i, order.begin() + j + 1);
+                        improved = true;
+                    }
+                }
+        }
+    }
+    return order;
+}
+
 // In sequential mode, process_layer is called once per each object and its copy,
 // therefore layers will contain a single entry and single_object_instance_idx will point to the copy of the object.
 // In non-sequential mode, process_layer is called per each print_z height with all object and support layers accumulated.
@@ -4358,9 +4432,38 @@ LayerResult GCode::process_layer(
                     m_layer = layer_to_print.layer();
                     m_object_layer_over_raft = object_layer_over_raft;
                 }
-                //FIXME order islands?
                 // Sequential tool path ordering of multiple parts within the same object, aka. perimeter tracking (#5511)
-                for (ObjectByExtruder::Island &island : instance_to_print.object_by_extruder.islands) {
+                // Order the islands so the toolhead visits the nearest one next, instead of the fixed
+                // construction order (which jumped back across the whole part on every layer). The tour
+                // is seeded at the current nozzle position, so it also continues naturally across the
+                // layer change. `island_repr` is each island's centroid; `island_order` the visit order.
+                std::vector<ObjectByExtruder::Island> &islands = instance_to_print.object_by_extruder.islands;
+                // Per-island candidate point cloud (downsampled extrusion points) for the travel tour,
+                // so the order uses the real nearest approach to each island instead of a centroid.
+                std::vector<std::vector<Point>> island_cand(islands.size());
+                for (size_t i = 0; i < islands.size(); ++ i) {
+                    Points pts;
+                    for (const ObjectByExtruder::Island::Region &reg : islands[i].by_region)
+                        for (const ExtrusionEntitiesPtr *lst : { &reg.perimeters, &reg.infills })
+                            for (const ExtrusionEntity *ee : *lst)
+                                ee->collect_points(pts);
+                    // Cap to ~32 points per island by striding (keeps the tour cheap, still captures extent).
+                    const size_t cap    = 32;
+                    const size_t stride = pts.empty() ? 1 : std::max<size_t>(1, pts.size() / cap);
+                    island_cand[i].reserve(cap + 1);
+                    for (size_t k = 0; k < pts.size(); k += stride)
+                        island_cand[i].emplace_back(pts[k]);
+                    if (island_cand[i].empty())
+                        island_cand[i].emplace_back(this->last_pos());
+                }
+                std::vector<Point>        island_entry;
+                const std::vector<size_t> island_order = order_islands_tour(island_cand, this->last_pos(), island_entry);
+
+                for (size_t island_seq = 0; island_seq < island_order.size(); ++ island_seq) {
+                    ObjectByExtruder::Island &island = islands[island_order[island_seq]];
+                    // Look-ahead target for seam orientation: the entry point of the NEXT island in the tour.
+                    const Point* next_island_target = (island_seq + 1 < island_order.size()) ?
+                        &island_entry[island_order[island_seq + 1]] : nullptr;
                     const auto& by_region_specific = is_anything_overridden ? island.by_region_per_copy(by_region_per_copy_cache, static_cast<unsigned int>(instance_to_print.instance_id), extruder_id, print_wipe_extrusions != 0) : island.by_region;
                     //BBS: add brim by obj by extruder
                     if (first_layer) {
@@ -4394,7 +4497,7 @@ LayerResult GCode::process_layer(
                     };
                     {
                         // Print perimeters of regions that has is_infill_first == false
-                        gcode += this->extrude_perimeters(print, by_region_specific, first_layer, false);
+                        gcode += this->extrude_perimeters(print, by_region_specific, first_layer, false, next_island_target);
                         if (!has_wipe_tower && need_insert_timelapse_gcode_for_traditional && !has_insert_timelapse_gcode && has_infill(by_region_specific)) {
                             gcode += this->retract(false, false, LiftType::NormalLift);
 
@@ -4415,7 +4518,7 @@ LayerResult GCode::process_layer(
                         // Then print infill
                         gcode += this->extrude_infill(print, by_region_specific, false);
                         // Then print perimeters of regions that has is_infill_first == true
-                        gcode += this->extrude_perimeters(print, by_region_specific, first_layer, true);
+                        gcode += this->extrude_perimeters(print, by_region_specific, first_layer, true, next_island_target);
                     }
                     // ironing
                     gcode += this->extrude_infill(print,by_region_specific, true);
@@ -4683,7 +4786,13 @@ std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, dou
     // or, if `start_point` is specified, start the loop at point closest to it
     Point last_pos = start_point ? *start_point : this->last_pos();
     float seam_overhang = std::numeric_limits<float>::lowest();
-    if (!m_config.spiral_mode && description == "perimeter") {
+    if (start_point && description == "perimeter" && !m_config.spiral_mode) {
+        // Ginger single-path infill (single_path_mode): the caller forces the wall seam to the
+        // infill connection point so the wall ends right where the infill begins -> (near) zero
+        // wall->infill travel. Bypass the SeamPlacer entirely; the cosmetic seam position is
+        // intentionally overridden in favour of a travel-free transition (critical on pellet printers).
+        loop.split_at(*start_point, false);
+    } else if (!m_config.spiral_mode && description == "perimeter") {
         assert(m_layer != nullptr);
         m_seam_placer.place_seam(m_layer, loop, last_pos, seam_overhang);
     } else
@@ -4982,14 +5091,14 @@ std::string GCode::extrude_multi_path(ExtrusionMultiPath multipath, std::string 
     return gcode;
 }
 
-std::string GCode::extrude_entity(const ExtrusionEntity &entity, std::string description, double speed, const ExtrusionEntitiesPtr& region_perimeters)
+std::string GCode::extrude_entity(const ExtrusionEntity &entity, std::string description, double speed, const ExtrusionEntitiesPtr& region_perimeters, const Point* start_point)
 {
     if (const ExtrusionPath* path = dynamic_cast<const ExtrusionPath*>(&entity))
         return this->extrude_path(*path, description, speed);
     else if (const ExtrusionMultiPath* multipath = dynamic_cast<const ExtrusionMultiPath*>(&entity))
         return this->extrude_multi_path(*multipath, description, speed);
     else if (const ExtrusionLoop* loop = dynamic_cast<const ExtrusionLoop*>(&entity))
-        return this->extrude_loop(*loop, description, speed, region_perimeters);
+        return this->extrude_loop(*loop, description, speed, region_perimeters, start_point);
     else
         throw Slic3r::InvalidArgument("Invalid argument supplied to extrude()");
     return "";
@@ -5010,8 +5119,71 @@ std::string GCode::extrude_path(ExtrusionPath path, std::string description, dou
     return gcode;
 }
 
+// Ginger single-path infill: the connected sparse-infill path/loop has its ends ON the inner wall
+// (they are projected onto the boundary). Return the connection point ("entry") of the region's
+// sparse infill that minimizes the travel cost: distance from `from` (the arrival point) to the entry
+// PLUS, when `to` is given (the look-ahead target = where the toolhead heads after this island),
+// distance from the corresponding EXIT to that target. An open path may only be entered at an end
+// point and exits at the other end (so choosing the entry also chooses the print direction); a closed
+// loop is entered and exited at the same seam point. Forcing the wall seam onto this entry makes the
+// wall end where the infill begins (zero wall->infill travel); accounting for the exit→next target
+// orients the whole pass so the unavoidable inter-island travel is as short as possible — this is the
+// one-step look-ahead that the previous "nearest to the previous feature only" logic was missing.
+static bool infill_connection_anchor(const ExtrusionEntitiesPtr &infills, const Point &from, const Point *to, Point &out)
+{
+    // Roles whose infill we try to start exactly where the wall ends (zero wall->infill travel).
+    // Sparse (erInternalInfill, connected into one path/loop) plus the solid surfaces: internal solid,
+    // top and bottom. Top/bottom/internal-solid are MONOTONIC-ordered open paths (not loops): their
+    // monotonic distribution over the island already is a single path, so we anchor the wall seam onto
+    // the START of that ordered sequence and report its END for the next feature's seam. Bridges and
+    // ironing are excluded (special flow / finishing pass).
+    auto is_connectable = [](ExtrusionRole r) {
+        return r == erInternalInfill || r == erSolidInfill || r == erTopSolidInfill || r == erBottomSurface;
+    };
+    bool   found     = false;
+    double best_cost = std::numeric_limits<double>::max();
+    auto   consider  = [&](const Point &entry, const Point &exit) {
+        double cost = (entry - from).cast<double>().norm();
+        if (to)
+            cost += (exit - *to).cast<double>().norm();
+        if (cost < best_cost) { best_cost = cost; out = entry; found = true; }
+    };
+    std::function<void(const ExtrusionEntity*)> visit = [&](const ExtrusionEntity *ee) {
+        if (const auto *eec = dynamic_cast<const ExtrusionEntityCollection*>(ee)) {
+            // A no_sort collection of a connectable role (monotonic solid/top/bottom) is ONE ordered
+            // path printed in stored order - treat it as a unit. Its only valid entry is the sequence
+            // start (the chainer keeps no_sort order, so the wall seam must land there); the exit is the
+            // sequence end. Do NOT recurse into the leaves, or the anchor could grab a mid-sequence line
+            // end and the chainer would still begin at first_point -> a real wall->infill travel.
+            if (eec->no_sort && ! eec->entities.empty() && is_connectable(eec->entities.front()->role())) {
+                consider(eec->first_point(), eec->last_point());
+                return;
+            }
+            for (const ExtrusionEntity *c : eec->entities)
+                visit(c);
+            return;
+        }
+        if (! is_connectable(ee->role()))
+            return;
+        if (const auto *loop = dynamic_cast<const ExtrusionLoop*>(ee)) {
+            // Closed loop (connected sparse single path): entry == exit == the chosen seam point.
+            Points pts;
+            loop->collect_points(pts);
+            for (const Point &p : pts)
+                consider(p, p);
+        } else {
+            // Open path: enter at one end, exit at the other (both print directions considered).
+            consider(ee->first_point(), ee->last_point());
+            consider(ee->last_point(),  ee->first_point());
+        }
+    };
+    for (const ExtrusionEntity *ee : infills)
+        visit(ee);
+    return found;
+}
+
 // Extrude perimeters: Decide where to put seams (hide or align seams).
-std::string GCode::extrude_perimeters(const Print &print, const std::vector<ObjectByExtruder::Island::Region> &by_region, bool is_first_layer, bool is_infill_first)
+std::string GCode::extrude_perimeters(const Print &print, const std::vector<ObjectByExtruder::Island::Region> &by_region, bool is_first_layer, bool is_infill_first, const Point* next_island_target)
 {
     std::string gcode;
     for (const ObjectByExtruder::Island::Region &region : by_region)
@@ -5023,8 +5195,47 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                 : (m_config.is_infill_first == is_infill_first);
             if (!should_print) continue;
 
-            for (const ExtrusionEntity* ee : region.perimeters)
-                gcode += this->extrude_entity(*ee, "perimeter", -1., region.perimeters);
+            // Ginger single-path infill: when the sparse infill is connected into one path, force the
+            // seam of the LAST wall (the one printed right before the infill) onto the infill's
+            // connection point, so that wall ends exactly where the infill starts (no wall->infill
+            // travel). Only the last wall is forced - the other walls keep their normal cosmetic seam.
+            // The anchor is the infill point nearest to the current position, which also shortens the
+            // inevitable travel into this island.
+            const Point* anchor_ptr = nullptr;
+            Point        anchor;
+            if (m_config.single_path_mode) {
+                if (! region.infills.empty() &&
+                    infill_connection_anchor(region.infills, this->last_pos(), next_island_target, anchor)) {
+                    // Island with connectable infill: pin the last wall's seam to the infill connection so the
+                    // wall ends where the infill begins (0 wall->infill); the anchor already orients the infill
+                    // exit toward the next island (accounts for the infill being printed between wall and the
+                    // departure - a naive wall-only seam would ignore that and lengthen the travel).
+                    anchor_ptr = &anchor;
+                } else if (! region.perimeters.empty()) {
+                    // Wall-only island (no connectable infill - the separated prongs, the bulk of lightning's
+                    // long inter-island travels). Long travels degrade the pellet melt. Closest-point CHAIN
+                    // (Davide): place this island's wall seam at the perimeter point CLOSEST to where the
+                    // previous island ended (current toolhead pos) - "position the next start by the previous
+                    // end". Each island then enters at its closest approach to the one printed before it, so
+                    // the inter-island hop is the minimal curve-to-curve distance instead of a static
+                    // cosmetic-corner seam on the far side.
+                    Points pts;
+                    region.perimeters.back()->collect_points(pts);
+                    const Point from = this->last_pos();
+                    double best = std::numeric_limits<double>::max();
+                    for (const Point &p : pts) {
+                        double c = (p - from).cast<double>().squaredNorm();
+                        if (c < best) { best = c; anchor = p; }
+                    }
+                    if (! pts.empty())
+                        anchor_ptr = &anchor;
+                }
+            }
+
+            for (const ExtrusionEntity* ee : region.perimeters) {
+                const bool is_last = ee == region.perimeters.back();
+                gcode += this->extrude_entity(*ee, "perimeter", -1., region.perimeters, is_last ? anchor_ptr : nullptr);
+            }
         }
     return gcode;
 }

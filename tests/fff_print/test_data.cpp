@@ -2,6 +2,7 @@
 
 #include "libslic3r/TriangleMesh.hpp"
 #include "libslic3r/GCodeReader.hpp"
+#include "libslic3r/GCode/GCodeProcessor.hpp"
 #include "libslic3r/Config.hpp"
 #include "libslic3r/Print.hpp"
 #include "libslic3r/Format/OBJ.hpp"
@@ -282,10 +283,19 @@ void init_and_process_print(std::initializer_list<TriangleMesh> meshes, Slic3r::
 
 std::string gcode(Print & print)
 {
-	boost::filesystem::path temp = boost::filesystem::unique_path();
+	// Export under a real temp directory: GCode::export_gcode() derives the output folder from the
+	// path's parent_path() and create_directory()s it if missing. A bare unique_path() has an EMPTY
+	// parent_path(), so create_directory("") threw "cannot find the path specified" and broke every
+	// slicing test. Anchoring the temp file in temp_directory_path() gives it a valid parent.
+	boost::filesystem::path temp = boost::filesystem::temp_directory_path() /
+	                               boost::filesystem::unique_path("gingerslicer-test-%%%%-%%%%.gcode");
     print.set_status_silent();
     print.process();
-    print.export_gcode(temp.string(), nullptr, nullptr);
+    // Print::export_gcode() unconditionally writes through the result pointer
+    // (result->conflict_result = ...), so passing nullptr is a guaranteed null-deref crash. The GUI/CLI
+    // always pass a real result; mirror that here. This was the SIGSEGV that broke every full-slice test.
+    GCodeProcessorResult gcode_result;
+    print.export_gcode(temp.string(), &gcode_result, nullptr);
     std::ifstream t(temp.string());
 	std::string str((std::istreambuf_iterator<char>(t)), std::istreambuf_iterator<char>());
 	boost::nowide::remove(temp.string().c_str());
