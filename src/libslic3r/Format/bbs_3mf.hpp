@@ -222,7 +222,6 @@ struct StoreParams
     std::vector<ThumbnailData*> no_light_thumbnail_data;
     std::vector<ThumbnailData*> top_thumbnail_data;
     std::vector<ThumbnailData*> pick_thumbnail_data;
-    std::vector<ThumbnailData*> calibration_thumbnail_data;
     SaveStrategy strategy = SaveStrategy::Zip64;
     Export3mfProgressFn proFn = nullptr;
     std::vector<PlateBBoxData*> id_bboxes;

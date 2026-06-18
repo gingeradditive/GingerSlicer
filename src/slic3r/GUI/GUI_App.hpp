@@ -5,7 +5,21 @@
 #include <string>
 #include <boost/algorithm/string/split.hpp>
 #include "ImGuiWrapper.hpp"
-#include "ConfigWizard.hpp"
+struct ConfigWizard {
+    enum RunReason {
+        RR_DATA_EMPTY,
+        RR_DATA_LEGACY,
+        RR_DATA_INCOMPAT,
+        RR_USER,
+    };
+    enum StartPage {
+        SP_WELCOME,
+        SP_PRINTERS,
+        SP_FILAMENTS,
+        SP_MATERIALS,
+        SP_CUSTOM,
+    };
+};
 #include "OpenGLManager.hpp"
 #include "libslic3r/Preset.hpp"
 #include "libslic3r/PresetBundle.hpp"
@@ -60,7 +74,6 @@ class ObjectLayers;
 class Plater;
 class ParamsPanel;
 class NotificationManager;
-class Downloader;
 struct GUI_InitParams;
 class ParamsDialog;
 class ModelMallDialog;
@@ -120,7 +133,6 @@ enum CameraMenuIDs {
 
 
 class Tab;
-class ConfigWizard;
 class GizmoObjectManipulation;
 
 static wxString dots("...", wxConvUTF8);
@@ -259,8 +271,6 @@ private:
     std::string m_instance_hash_string;
 	size_t m_instance_hash_int;
 
-    std::unique_ptr<Downloader> m_downloader;
-
     //BBS
     bool m_is_closing {false};
     std::vector<std::string> need_delete_presets;   // store setting ids of preset
@@ -377,7 +387,6 @@ public:
 
     wxString transition_tridid(int trid_id);
     void            ShowUserGuide();
-    void            ShowDownNetPluginDlg();
     void            ShowUserLogin(bool show = true);
     void            ShowOnlyFilament();
     //BBS
@@ -388,7 +397,6 @@ public:
 
     std::string     handle_web_request(std::string cmd);
     void            handle_script_message(std::string msg);
-    void            request_model_download(wxString url);
     void            download_project(std::string project_id);
     void            request_project_download(std::string project_id);
     void            request_open_project(std::string project_id);
@@ -489,7 +497,6 @@ public:
     ParamsDialog*        params_dialog();
     Model&      		 model();
     NotificationManager * notification_manager();
-    Downloader*          downloader();
 
 
     std::string         m_mall_model_download_url;
@@ -576,12 +583,6 @@ public:
     // extend is stl/3mf/gcode/step etc 
     void            associate_files(std::wstring extend);
     void            disassociate_files(std::wstring extend);
-    bool            check_url_association(std::wstring url_prefix, std::wstring& reg_bin);
-    void            associate_url(std::wstring url_prefix);
-    void            disassociate_url(std::wstring url_prefix);
-
-    // URL download - PrusaSlicer gets system call to open prusaslicer:// URL which should contain address of download
-    void            start_download(std::string url);
 
     std::string     get_model_http_url(std::string country_code);
     void            check_config_updates_from_updater() { check_updates(false); }

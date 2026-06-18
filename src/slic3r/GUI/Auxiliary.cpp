@@ -21,6 +21,7 @@
 #include <wx/tokenzr.h>
 #include <wx/arrstr.h>
 #include <wx/tglbtn.h>
+#include <wx/dcgraph.h>
 
 #include <boost/log/trivial.hpp>
 

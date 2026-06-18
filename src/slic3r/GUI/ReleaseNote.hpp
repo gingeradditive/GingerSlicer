@@ -26,7 +26,7 @@
 #include <wx/hyperlink.h>
 #include <wx/richtext/richtextctrl.h>
 #include <wx/simplebook.h>
-#include "BBLStatusBarSend.hpp"
+#include "StatusBarSend.hpp"
 
 #include "GUI_Utils.hpp"
 #include "wxExtensions.hpp"
@@ -320,7 +320,7 @@ public:
     bool   m_show_access_code{ false };
     int    m_result;
     int    current_input_index {0};
-    std::shared_ptr<BBLStatusBarSend> m_status_bar;
+    std::shared_ptr<StatusBarSend> m_status_bar;
     boost::bimaps::bimap<std::string, std::string> m_models_map;
 
     void switch_input_panel(int index);

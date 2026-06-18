@@ -1,5 +1,6 @@
 #include "Exception.hpp"
 #include "Print.hpp"
+#include "AABBTreeLines.hpp"
 #include "BoundingBox.hpp"
 #include "ClipperUtils.hpp"
 #include "ElephantFootCompensation.hpp"

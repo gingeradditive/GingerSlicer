@@ -30,8 +30,6 @@
 #include "I18N.hpp"
 #include "NotificationManager.hpp"
 #include "format.hpp"
-#include "DailyTips.hpp"
-
 #include "slic3r/GUI/Gizmos/GLGizmoPainterBase.hpp"
 #include "slic3r/Utils/UndoRedo.hpp"
 
@@ -2032,7 +2030,6 @@ void GLCanvas3D::render(bool only_init)
             bottom_margin = SLIDER_BOTTOM_MARGIN * scale_factor * GCODE_VIEWER_SLIDER_SCALE;
         }
         wxGetApp().plater()->get_notification_manager()->render_notifications(*this, get_overlay_window_width(), bottom_margin, right_margin);
-        wxGetApp().plater()->get_dailytips()->render();
     }
 
     wxGetApp().imgui()->render();
@@ -2084,13 +2081,6 @@ void GLCanvas3D::render_thumbnail(ThumbnailData& thumbnail_data, unsigned int w,
         break;
     }
     }
-}
-
-void GLCanvas3D::render_calibration_thumbnail(ThumbnailData& thumbnail_data, unsigned int w, unsigned int h, const ThumbnailsParams& thumbnail_params)
-{
-    //load current plate gcode
-    m_gcode_viewer.render_calibration_thumbnail(thumbnail_data, w, h, thumbnail_params,
-        wxGetApp().plater()->get_partplate_list(), wxGetApp().get_opengl_manager());
 }
 
 //BBS
@@ -5655,7 +5645,7 @@ bool GLCanvas3D::_render_arrange_menu(float left, float right, float bottom, flo
     const bool has_lidar = wxGetApp().preset_bundle->is_bbl_vendor();
     auto                op             = current_config.option("scan_first_layer");
     if (has_lidar && op && op->getBool()) {
-        if (imgui->bbl_checkbox(_L("Avoid extrusion calibration region"), settings.avoid_extrusion_cali_region)) {
+        if (imgui->bbl_checkbox(_L("Avoid extrusion startup region"), settings.avoid_extrusion_cali_region)) {
             settings_out.avoid_extrusion_cali_region = settings.avoid_extrusion_cali_region;
             appcfg->set("arrange", avoid_extrusion_key.c_str(), settings_out.avoid_extrusion_cali_region ? "1" : "0");
             settings_changed = true;

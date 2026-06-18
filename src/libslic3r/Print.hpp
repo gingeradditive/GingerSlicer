@@ -24,7 +24,6 @@
 #include <functional>
 #include <set>
 
-#include "calib.hpp"
 
 namespace Slic3r {
 
@@ -973,11 +972,6 @@ public:
     // Return 4 wipe tower corners in the world coordinates (shifted and rotated), including the wipe tower brim.
     Points first_layer_wipe_tower_corners(bool check_wipe_tower_existance=true) const;
 
-    //SoftFever
-    CalibMode& calib_mode() { return m_calib_params.mode; }
-    const CalibMode calib_mode() const { return m_calib_params.mode; }
-    void set_calib_params(const Calib_Params& params);
-    const Calib_Params& calib_params() const { return m_calib_params; }
     Vec2d translate_to_print_space(const Vec2d &point) const;
     // scaled point
     Vec2d translate_to_print_space(const Point &point) const;
@@ -1058,9 +1052,6 @@ private:
     ConflictResultOpt m_conflict_result;
     FakeWipeTower     m_fake_wipe_tower;
     
-    //SoftFever: calibration
-    Calib_Params m_calib_params;
-
     // To allow GCode to set the Print's GCodeExport step status.
     friend class GCode;
     // Allow PrintObject to access m_mutex and m_cancel_callback.

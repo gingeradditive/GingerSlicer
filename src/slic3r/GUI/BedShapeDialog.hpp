@@ -9,10 +9,7 @@
 
 #include <libslic3r/BuildVolume.hpp>
 
-#include "Widgets/ComboBox.hpp"
-
 #include <wx/dialog.h>
-#include <wx/simplebook.h> // ORCA
 
 namespace Slic3r {
 namespace GUI {
@@ -25,20 +22,15 @@ using ConfigOptionsGroupWkp = std::weak_ptr<ConfigOptionsGroup>;
 struct BedShape
 {
     enum class PageType {
-        Rectangle,
-        Circle,
-        Custom
+        Rectangle
     };
 
     enum class Parameter {
         RectSize,
-        RectOrigin,
-        Diameter
+        RectOrigin
     };
 
     BedShape(const Pointfs& points);
-
-    bool            is_custom() { return m_build_volume.type() == BuildVolume_Type::Convex || m_build_volume.type() == BuildVolume_Type::Custom; }
 
     static void     append_option_line(ConfigOptionsGroupShp optgroup, Parameter param);
     static wxString get_name(PageType type);
@@ -54,39 +46,28 @@ private:
 
 class BedShapePanel : public wxPanel
 {
-    static const std::string NONE;
     static const std::string EMPTY_STRING;
 
 	Bed_2D*			   m_canvas;
     Pointfs            m_shape;
-    Pointfs            m_loaded_shape;
-    std::string        m_custom_texture;
-    std::string        m_custom_model;
 
 public:
-    BedShapePanel(wxWindow* parent) : wxPanel(parent, wxID_ANY), m_custom_texture(NONE), m_custom_model(NONE) {}
+    BedShapePanel(wxWindow* parent) : wxPanel(parent, wxID_ANY) {}
 
     void build_panel(const Pointfs& default_pt, const std::string& custom_texture, const std::string& custom_model);
 
     // Returns the resulting bed shape polygon. This value will be stored to the ini file.
     const Pointfs&     get_shape() const { return m_shape; }
-    const std::string& get_custom_texture() const { return (m_custom_texture != NONE) ? m_custom_texture : EMPTY_STRING; }
-    const std::string& get_custom_model() const { return (m_custom_model != NONE) ? m_custom_model : EMPTY_STRING; }
+    const std::string& get_custom_texture() const { return EMPTY_STRING; }
+    const std::string& get_custom_model() const { return EMPTY_STRING; }
 
 private:
     ConfigOptionsGroupShp	init_shape_options_page(const wxString& title);
     void	    activate_options_page(ConfigOptionsGroupShp options_group);
-    wxPanel*    init_texture_panel();
-    wxPanel*    init_model_panel();
     void		set_shape(const Pointfs& points);
     void		update_preview();
 	void		update_shape();
-	void		load_stl();
-    void		load_texture();
-    void		load_model();
 
-    wxSimplebook* m_shape_options_book;
-    ComboBox*     m_shape_combo;
 	std::vector <ConfigOptionsGroupShp>	m_optgroups;
 
     friend class BedShapeDialog;

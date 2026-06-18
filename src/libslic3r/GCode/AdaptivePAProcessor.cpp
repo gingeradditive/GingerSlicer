@@ -36,10 +36,8 @@ AdaptivePAProcessor::AdaptivePAProcessor(GCode &gcodegen, const std::vector<unsi
         // Only enable model for the tool if both PA and adaptive PA options are enabled
         if(m_config.adaptive_pressure_advance.get_at(tool) && m_config.enable_pressure_advance.get_at(tool)){
             auto interpolator = std::make_unique<AdaptivePAInterpolator>();
-            // Get calibration values from extruder
-            std::string pa_calibration_values = m_config.adaptive_pressure_advance_model.get_at(tool);
-            // Setup the model and store it in the tool-interpolation model map
-            interpolator->parseAndSetData(pa_calibration_values);
+            std::string pa_model_values = m_config.adaptive_pressure_advance_model.get_at(tool);
+            interpolator->parseAndSetData(pa_model_values);
             m_AdaptivePAInterpolators[tool] = std::move(interpolator);
         }
     }

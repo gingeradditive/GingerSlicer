@@ -14,7 +14,6 @@
 #include "BrimEarsPoint.hpp"
 #include "TriangleMesh.hpp"
 #include "CustomGCode.hpp"
-#include "calib.hpp"
 #include "enum_bitmask.hpp"
 #include "TextConfiguration.hpp"
 #include "EmbossShape.hpp"
@@ -1682,8 +1681,6 @@ public:
     bool          is_mm_painted() const;
     // Checks if any of objects is painted using the fuzzy skin painting gizmo.
     bool          is_fuzzy_skin_painted() const;
-
-    std::unique_ptr<CalibPressureAdvancePattern> calib_pa_pattern;
 
 private:
     explicit Model(int) : ObjectBase(-1)

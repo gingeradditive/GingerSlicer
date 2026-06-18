@@ -60,17 +60,12 @@
 #include "NotificationManager.hpp"
 #include "MarkdownTip.hpp"
 #include "NetworkTestDialog.hpp"
-#include "ConfigWizard.hpp"
 #include "Widgets/WebView.hpp"
-#include "DailyTips.hpp"
-
 #ifdef _WIN32
 #include <dbt.h>
 #include <shlobj.h>
 #include <shellapi.h>
 #endif // _WIN32
-#include <slic3r/GUI/CreatePresetsDialog.hpp>
-
 
 namespace Slic3r {
 namespace GUI {
@@ -97,7 +92,7 @@ public:
     wxMenu *CreatePopupMenu() override {
         wxMenu *menu = new wxMenu;
         if (wxGetApp().app_config->get("single_instance") == "false") {
-            // Only allow opening a new PrusaSlicer instance on OSX if "single_instance" is disabled,
+            // Only allow opening a new GingerSlicer instance on OSX if "single_instance" is disabled,
             // as starting new instances would interfere with the locking mechanism of "single_instance" support.
             append_menu_item(menu, wxID_ANY, _L("New Window"), _L("Open a new window"),
             [](wxCommandEvent&) { start_new_slicer(); }, "", nullptr);
@@ -214,7 +209,7 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
     wxGetApp().update_fonts(this);
 
 #ifndef __APPLE__
-    m_topbar         = new BBLTopbar(this);
+    m_topbar         = new Topbar(this);
 #else
     auto panel_topbar = new wxPanel(this, wxID_ANY);
     panel_topbar->SetBackgroundColour(wxColour(48, 38, 38));
@@ -960,11 +955,6 @@ void MainFrame::update_title()
     return;
 }
 
-void MainFrame::show_publish_button(bool show)
-{
-    // m_publish_btn->Show(show);
-    // Layout();
-}
 
 void MainFrame::update_title_colour_after_set_title()
 {
@@ -1663,16 +1653,7 @@ wxBoxSizer* MainFrame::create_side_tools()
                     p->Dismiss();
                     });
 
-                bool support_print_all = true;
-
-                const auto preset_bundle = wxGetApp().preset_bundle;
-                if (preset_bundle) {
-                    auto cfg = preset_bundle->printers.get_edited_preset().config;
-                    const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
-
-                    // Only simply print support uploading all plates
-                    support_print_all = host_type == PrintHostType::htSimplyPrint;
-                }
+                bool support_print_all = false;
 
                 p->append_button(print_plate_btn);
                 if (support_print_all) {
@@ -2018,11 +1999,6 @@ static wxMenu* generate_help_menu()
     // Open Config Folder
     append_menu_item(helpMenu, wxID_ANY, _L("Show Configuration Folder"), _L("Show Configuration Folder"),
         [](wxCommandEvent&) { Slic3r::GUI::desktop_open_datadir_folder(); });
-
-    append_menu_item(helpMenu, wxID_ANY, _L("Show Tip of the Day"), _L("Show Tip of the Day"), [](wxCommandEvent&) {
-        wxGetApp().plater()->get_dailytips()->open();
-        wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
-        });
 
     // Report a bug
     //append_menu_item(helpMenu, wxID_ANY, _L("Report Bug(TODO)"), _L("Report a bug of GingerSlicer"),
@@ -2697,118 +2673,6 @@ void MainFrame::init_menubar_as_editor()
     //m_topbar->AddDropDownMenuItem(config_item);
     m_topbar->AddDropDownSubMenu(helpMenu, _L("Help"));
 
-    // SoftFever calibrations
-
-    // Temperature
-    append_menu_item(m_topbar->GetCalibMenu(), wxID_ANY, _L("Temperature"), _L("Temperature Calibration"),
-        [this](wxCommandEvent&) {
-            if (!m_temp_calib_dlg)
-                m_temp_calib_dlg = new Temp_Calibration_Dlg((wxWindow*)this, wxID_ANY, m_plater);
-            m_temp_calib_dlg->ShowModal();
-        }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-
-    // Flow rate (with submenu)
-    auto flowrate_menu = new wxMenu();
-    append_menu_item(
-        flowrate_menu, wxID_ANY, _L("Pass 1"), _L("Flow rate test - Pass 1"),
-        [this](wxCommandEvent&) { if (m_plater) m_plater->calib_flowrate(false, 1); }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-    append_menu_item(flowrate_menu, wxID_ANY, _L("Pass 2"), _L("Flow rate test - Pass 2"),
-        [this](wxCommandEvent&) { if (m_plater) m_plater->calib_flowrate(false, 2); }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-    flowrate_menu->AppendSeparator();
-    append_menu_item(flowrate_menu, wxID_ANY, _L("YOLO (Recommended)"), _L("Orca YOLO flowrate calibration, 0.01 step"),
-        [this](wxCommandEvent&) { if (m_plater) m_plater->calib_flowrate(true, 1); }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-    append_menu_item(flowrate_menu, wxID_ANY, _L("YOLO (perfectionist version)"), _L("Orca YOLO flowrate calibration, 0.005 step"),
-        [this](wxCommandEvent&) { if (m_plater) m_plater->calib_flowrate(true, 2); }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-    m_topbar->GetCalibMenu()->AppendSubMenu(flowrate_menu, _L("Flow rate"));
-
-    // Pressure Advance
-    append_menu_item(m_topbar->GetCalibMenu(), wxID_ANY, _L("Pressure advance"), _L("Pressure advance"),
-        [this](wxCommandEvent&) {
-            if (!m_pa_calib_dlg)
-                m_pa_calib_dlg = new PA_Calibration_Dlg((wxWindow*)this, wxID_ANY, m_plater);
-            m_pa_calib_dlg->ShowModal();
-        }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-
-    // Retraction test
-    append_menu_item(m_topbar->GetCalibMenu(), wxID_ANY, _L("Retraction test"), _L("Retraction test"),
-        [this](wxCommandEvent&) {
-            if (!m_retraction_calib_dlg)
-                m_retraction_calib_dlg = new Retraction_Test_Dlg((wxWindow*)this, wxID_ANY, m_plater);
-            m_retraction_calib_dlg->ShowModal();
-        }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-
-    // Max Volumetric Speed
-    append_menu_item(m_topbar->GetCalibMenu(), wxID_ANY, _L("Max flowrate"), _L("Max flowrate"),
-        [this](wxCommandEvent&) {
-            if (!m_vol_test_dlg)
-                m_vol_test_dlg = new MaxVolumetricSpeed_Test_Dlg((wxWindow*)this, wxID_ANY, m_plater);
-            m_vol_test_dlg->ShowModal();
-        }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-
-    // Cornering (with submenu)
-    auto cornering_menu = new wxMenu();
-    append_menu_item(
-        cornering_menu, wxID_ANY, _L("Junction Deviation"), _L("Junction Deviation calibration"),
-        [this](wxCommandEvent&) {
-            if (!m_junction_deviation_calib_dlg)
-                m_junction_deviation_calib_dlg = new Junction_Deviation_Test_Dlg((wxWindow*)this, wxID_ANY, m_plater);
-            m_junction_deviation_calib_dlg->ShowModal();
-        },
-        "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-    m_topbar->GetCalibMenu()->AppendSubMenu(cornering_menu, _L("Cornering"));
-
-    // Input Shaping (with submenu)
-    auto input_shaping_menu = new wxMenu();
-    append_menu_item(
-        input_shaping_menu, wxID_ANY, _L("Input Shaping Frequency"), _L("Input Shaping Frequency"),
-        [this](wxCommandEvent&) {
-            if (!m_IS_freq_calib_dlg)
-                m_IS_freq_calib_dlg = new Input_Shaping_Freq_Test_Dlg((wxWindow*)this, wxID_ANY, m_plater);
-            m_IS_freq_calib_dlg->ShowModal();
-        },
-        "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-    append_menu_item(
-        input_shaping_menu, wxID_ANY, _L("Input Shaping Damping/zeta factor"), _L("Input Shaping Damping/zeta factor"),
-        [this](wxCommandEvent&) {
-            if (!m_IS_damp_calib_dlg)
-                m_IS_damp_calib_dlg = new Input_Shaping_Damp_Test_Dlg((wxWindow*)this, wxID_ANY, m_plater);
-            m_IS_damp_calib_dlg->ShowModal();
-        },
-        "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-    m_topbar->GetCalibMenu()->AppendSubMenu(input_shaping_menu, _L("Input Shaping"));
-
-    // VFA
-    append_menu_item(m_topbar->GetCalibMenu(), wxID_ANY, _L("VFA"), _L("VFA"),
-        [this](wxCommandEvent&) {
-            if (!m_vfa_test_dlg)
-                m_vfa_test_dlg = new VFA_Test_Dlg((wxWindow*)this, wxID_ANY, m_plater);
-            m_vfa_test_dlg->ShowModal();
-        }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-
-    // help
-    append_menu_item(m_topbar->GetCalibMenu(), wxID_ANY, _L("Tutorial"), _L("Calibration help"),
-        [this](wxCommandEvent&) {
-            std::string url = "https://github.com/SoftFever/OrcaSlicer/wiki/Calibration";
-            if (const std::string country_code = wxGetApp().app_config->get_country_code(); country_code == "CN") {
-                // Use gitee mirror for China users
-                url = "https://gitee.com/n0isyfox/Ginger-Slicer-docs/wikis/%E6%A0%A1%E5%87%86/%E6%89%93%E5%8D%B0%E5%8F%82%E6%95%B0%E6%A0%A1%E5%87%86";
-            }
-            wxLaunchDefaultBrowser(url, wxBROWSER_NEW_WINDOW);
-        }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-
 #else
     m_menubar->Append(fileMenu, wxString::Format("&%s", _L("File")));
     if (editMenu)
@@ -2818,111 +2682,6 @@ void MainFrame::init_menubar_as_editor()
     /*if (publishMenu)
         m_menubar->Append(publishMenu, wxString::Format("&%s", _L("3D Models")));*/
 
-    // SoftFever calibrations
-    auto calib_menu = new wxMenu();
-
-    // Temperature
-    append_menu_item(calib_menu, wxID_ANY, _L("Temperature"), _L("Temperature"),
-        [this](wxCommandEvent&) {
-            if (!m_temp_calib_dlg)
-                m_temp_calib_dlg = new Temp_Calibration_Dlg((wxWindow*)this, wxID_ANY, m_plater);
-            m_temp_calib_dlg->ShowModal();
-        }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-
-    // Flowrate (with submenu)
-    auto flowrate_menu = new wxMenu();
-    append_menu_item(flowrate_menu, wxID_ANY, _L("Pass 1"), _L("Flow rate test - Pass 1"),
-        [this](wxCommandEvent&) { if (m_plater) m_plater->calib_flowrate(false, 1); }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-    append_menu_item(flowrate_menu, wxID_ANY, _L("Pass 2"), _L("Flow rate test - Pass 2"),
-        [this](wxCommandEvent&) { if (m_plater) m_plater->calib_flowrate(false, 2); }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-    append_submenu(calib_menu,flowrate_menu,wxID_ANY,_L("Flow rate"),_L("Flow rate"),"",
-                   [this]() {return m_plater->is_view3D_shown();; });
-    flowrate_menu->AppendSeparator();
-    append_menu_item(flowrate_menu, wxID_ANY, _L("YOLO (Recommended)"), _L("Orca YOLO flowrate calibration, 0.01 step"),
-        [this](wxCommandEvent&) { if (m_plater) m_plater->calib_flowrate(true, 1); }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-    append_menu_item(flowrate_menu, wxID_ANY, _L("YOLO (perfectionist version)"), _L("Orca YOLO flowrate calibration, 0.005 step"),
-        [this](wxCommandEvent&) { if (m_plater) m_plater->calib_flowrate(true, 2); }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-
-    // Pressure Advance
-    append_menu_item(calib_menu, wxID_ANY, _L("Pressure advance"), _L("Pressure advance"),
-        [this](wxCommandEvent&) {
-            if (!m_pa_calib_dlg)
-                m_pa_calib_dlg = new PA_Calibration_Dlg((wxWindow*)this, wxID_ANY, m_plater);
-            m_pa_calib_dlg->ShowModal();
-        }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-
-    // Retraction test
-    append_menu_item(calib_menu, wxID_ANY, _L("Retraction test"), _L("Retraction test"),
-        [this](wxCommandEvent&) {
-            if (!m_retraction_calib_dlg)
-                m_retraction_calib_dlg = new Retraction_Test_Dlg((wxWindow*)this, wxID_ANY, m_plater);
-            m_retraction_calib_dlg->ShowModal();
-        }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-
-    // Max Volumetric Speed
-    append_menu_item(calib_menu, wxID_ANY, _L("Max flowrate"), _L("Max flowrate"),
-        [this](wxCommandEvent&) {
-            if (!m_vol_test_dlg)
-                m_vol_test_dlg = new MaxVolumetricSpeed_Test_Dlg((wxWindow*)this, wxID_ANY, m_plater);
-            m_vol_test_dlg->ShowModal();
-        }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-
-    // Cornering (with submenu)
-    auto cornering_menu = new wxMenu();
-    append_menu_item(
-        cornering_menu, wxID_ANY, _L("Junction Deviation"), _L("Junction Deviation calibration"),
-        [this](wxCommandEvent&) {
-            if (!m_junction_deviation_calib_dlg)
-                m_junction_deviation_calib_dlg = new Junction_Deviation_Test_Dlg((wxWindow*)this, wxID_ANY, m_plater);
-            m_junction_deviation_calib_dlg->ShowModal();
-        },
-        "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-    calib_menu->AppendSubMenu(cornering_menu, _L("Cornering"));
-
-    // Input Shaping (with submenu)
-    auto input_shaping_menu = new wxMenu();
-    append_menu_item(
-        input_shaping_menu, wxID_ANY, _L("Input Shaping Frequency"), _L("Input Shaping Frequency"),
-        [this](wxCommandEvent&) {
-            if (!m_IS_freq_calib_dlg)
-                m_IS_freq_calib_dlg = new Input_Shaping_Freq_Test_Dlg((wxWindow*)this, wxID_ANY, m_plater);
-            m_IS_freq_calib_dlg->ShowModal();
-        },
-        "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-    append_menu_item(
-        input_shaping_menu, wxID_ANY, _L("Input Shaping Damping/zeta factor"), _L("Input Shaping Damping/zeta factor"),
-        [this](wxCommandEvent&) {
-            if (!m_IS_damp_calib_dlg)
-                m_IS_damp_calib_dlg = new Input_Shaping_Damp_Test_Dlg((wxWindow*)this, wxID_ANY, m_plater);
-            m_IS_damp_calib_dlg->ShowModal();
-        },
-        "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-    calib_menu->AppendSubMenu(input_shaping_menu, _L("Input Shaping"));
-
-    // VFA
-    append_menu_item(calib_menu, wxID_ANY, _L("VFA"), _L("VFA"),
-        [this](wxCommandEvent&) {
-            if (!m_vfa_test_dlg)
-                m_vfa_test_dlg = new VFA_Test_Dlg((wxWindow*)this, wxID_ANY, m_plater);
-            m_vfa_test_dlg->ShowModal();
-        }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-    // help
-    append_menu_item(calib_menu, wxID_ANY, _L("Tutorial"), _L("Calibration help"),
-        [this](wxCommandEvent&) { wxLaunchDefaultBrowser("https://github.com/SoftFever/OrcaSlicer/wiki/Calibration", wxBROWSER_NEW_WINDOW); }, "", nullptr,
-        [this]() {return m_plater->is_view3D_shown();; }, this);
-    // m_menubar->Append(calib_menu,wxString::Format("&%s", _L("Calibration")));
     if (helpMenu)
         m_menubar->Append(helpMenu, wxString::Format("&%s", _L("Help")));
     SetMenuBar(m_menubar);
@@ -3077,10 +2836,6 @@ struct ConfigsOverwriteConfirmDialog : MessageDialog
 
 void MainFrame::export_config()
 {
-    ExportConfigsDialog export_configs_dlg(nullptr);
-    export_configs_dlg.ShowModal();
-    return;
-
     // Generate a cummulative configuration for the selected print, filaments and printer.
     wxDirDialog dlg(this, _L("Choose a directory"),
         from_u8(!m_last_config.IsEmpty() ? get_dir_name(m_last_config) : wxGetApp().app_config->get_last_dir()), wxDD_DEFAULT_STYLE | wxDD_DIR_MUST_EXIST);
@@ -3581,7 +3336,7 @@ void MainFrame::load_printer_url()
     wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
     wxString apikey;
     const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
-    if (cfg.has("printhost_apikey") && (host_type == htPrusaLink || host_type == htPrusaConnect))
+    if (cfg.has("printhost_apikey"))
         apikey = cfg.opt_string("printhost_apikey");
     if (!url.empty()) {
         if (!url.Lower().starts_with("http"))

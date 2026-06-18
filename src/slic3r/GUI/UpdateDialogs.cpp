@@ -17,7 +17,6 @@
 #include "GUI.hpp"
 #include "GUI_App.hpp"
 #include "I18N.hpp"
-#include "ConfigWizard.hpp"
 #include "wxExtensions.hpp"
 #include "MainFrame.hpp"
 

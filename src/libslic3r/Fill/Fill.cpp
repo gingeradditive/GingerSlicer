@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <memory>
 
+#include "../AABBTreeLines.hpp"
 #include "../ClipperUtils.hpp"
 #include "../Geometry.hpp"
 #include "../Layer.hpp"

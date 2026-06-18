@@ -391,7 +391,7 @@ protected:
     Box          m_pilebb;      // The bounding box of the merged pile.
     ItemGroup m_remaining;      // Remaining items
     ItemGroup m_items;          // allready packed items
-    std::vector<Box> m_excluded_and_extruCali_regions;  // excluded and extrusion calib regions
+    std::vector<Box> m_excluded_regions_cache;
     size_t    m_item_count = 0; // Number of all items to be packed
     ArrangeParams params;
 
@@ -713,11 +713,11 @@ public:
 
         for (auto& region : m_pconf.m_excluded_regions) {
             Box  bb = region.boundingBox();
-            m_excluded_and_extruCali_regions.emplace_back(bb);
+            m_excluded_regions_cache.emplace_back(bb);
         }
         for (auto& region : m_pconf.m_nonprefered_regions) {
             Box  bb = region.boundingBox();
-            m_excluded_and_extruCali_regions.emplace_back(bb);
+            m_excluded_regions_cache.emplace_back(bb);
         }
 
         // Set up a callback that is called just before arranging starts
