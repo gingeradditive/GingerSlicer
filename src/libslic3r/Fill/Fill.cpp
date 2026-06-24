@@ -1325,6 +1325,25 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
 			f->fill_surface_extrusion(&surface_fill.surface,
 				params,
 				m_regions[surface_fill.region_id]->fills.entities);
+
+			// === GINGER DEBUG (temporary): dump sparse-infill polylines + region boundary for the
+			// layer at Z~15.3 (D02 layer 12) so we can see the real topology (separate trees? separate
+			// surfaces? do fragments touch the inner-wall boundary?). Writes to a file we read directly.
+			if (surface_fill.params.extrusion_role == erInternalInfill && this->print_z > 15.0 && this->print_z < 15.6) {
+				Polylines sp_dbg = f->fill_surface(&surface_fill.surface, params);
+				if (FILE *fp = fopen("C:/Users/david/Downloads/sp_debug.txt", "a")) {
+					fprintf(fp, "SURFACE region=%d z=%.3f pattern=%d connect=%d npl=%d\n",
+						(int)surface_fill.region_id, (double)this->print_z,
+						(int)surface_fill.params.pattern, (int)params.connect_polygons, (int)sp_dbg.size());
+					const ExPolygon &ep = surface_fill.surface.expolygon;
+					fprintf(fp, "CONTOUR %d\n", (int)ep.contour.points.size());
+					for (const Point &p : ep.contour.points) fprintf(fp, "%.3f %.3f\n", p.x()*SCALING_FACTOR, p.y()*SCALING_FACTOR);
+					fprintf(fp, "HOLES %d\n", (int)ep.holes.size());
+					for (const Polygon &h : ep.holes) { fprintf(fp, "H %d\n", (int)h.points.size()); for (const Point &p : h.points) fprintf(fp, "%.3f %.3f\n", p.x()*SCALING_FACTOR, p.y()*SCALING_FACTOR); }
+					for (const Polyline &pl : sp_dbg) { fprintf(fp, "PL %d\n", (int)pl.points.size()); for (const Point &p : pl.points) fprintf(fp, "%.3f %.3f\n", p.x()*SCALING_FACTOR, p.y()*SCALING_FACTOR); }
+					fclose(fp);
+				}
+			}
 		}
     }
 
