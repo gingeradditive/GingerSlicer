@@ -2557,8 +2557,65 @@ void Fill::chain_or_connect_infill(Polylines &&infill_ordered, const ExPolygon &
             if (infill_ordered.size() > 1)
                 infill_ordered = chain_polylines(std::move(infill_ordered));
             append(polylines_out, std::move(infill_ordered));
-        } else
+        } else {
+            // Ginger single-path infill cleanup around connect_infill. line_w = the CONSTANT extrusion
+            // width (params.flow); lightning's `spacing` is not a reliable scale here (and at low layers
+            // a multiline stub can come out OPEN, not a closed racetrack).
+            const double line_w = (params.connect_polygons && params.flow.scaled_width() > 0)
+                                  ? double(params.flow.scaled_width()) : scale_(spacing);
+
+            // (2, BEFORE connect) OPEN closed loops that run along the inner wall, so connect_infill can
+            // stitch them into the single path via boundary arcs. multiline>=2 turns a real lightning
+            // sub-tree that REACHES the wall into a closed racetrack; connect_infill drops closed loops as
+            // standalone, leaving the sub-tree as a separate fragment reached by a travel even though it
+            // grazes the wall (the natural connection path). Cutting the loop open at its wall-nearest
+            // vertex gives two adjacent endpoints on the wall, which the boundary graph then connects.
+            if (params.connect_polygons) {
+                Lines bnd = boundary.contour.lines();
+                for (const Polygon &h : boundary.holes)
+                    append(bnd, h.lines());
+                if (! bnd.empty()) {
+                    AABBTreeLines::LinesDistancer<Line> wall(bnd);
+                    const double near_wall = 1.5 * line_w;
+                    for (Polyline &pl : infill_ordered) {
+                        if (pl.points.size() < 4 || pl.points.front() != pl.points.back())
+                            continue; // only closed loops
+                        size_t best_i = 0;
+                        double best_d = std::numeric_limits<double>::max();
+                        for (size_t k = 0; k + 1 < pl.points.size(); ++ k) {
+                            auto [d, line_idx, np] = wall.distance_from_lines_extra<false>(pl.points[k]);
+                            if (std::abs(d) < best_d) { best_d = std::abs(d); best_i = k; }
+                        }
+                        if (best_d < near_wall) {
+                            pl.points.pop_back();                                            // drop duplicated closing vertex
+                            std::rotate(pl.points.begin(), pl.points.begin() + best_i, pl.points.end()); // open at the wall-nearest vertex
+                        }
+                    }
+                }
+            }
+
+            const size_t out_start = polylines_out.size();
             connect_infill(std::move(infill_ordered), boundary, polylines_out, spacing, params);
+
+            // (1, AFTER connect) Remove tiny isolated STRAY fragments from the connector OUTPUT (open OR
+            // closed). Post-connection these are the final isolated pieces: connect_infill has already
+            // stitched everything it could, so a leftover whose whole extent is < 1.5 line widths in BOTH
+            // axes is a negligible lightning stub that would otherwise print as a separate fragment reached
+            // by a long travel (the "micro loops" on the real part - some come out OPEN, so closure can't
+            // be required). Filtering the OUTPUT (not the input) is what makes it robust: it never touches
+            // the short scanlines of line patterns that connect_infill joins into the path. Real small
+            // islands ("feet", ~8 mm) and the big interior trees (tens of mm) are kept.
+            if (params.connect_polygons && line_w > 0.) {
+                const double max_stray = 1.5 * line_w;
+                polylines_out.erase(std::remove_if(polylines_out.begin() + out_start, polylines_out.end(),
+                    [max_stray](const Polyline &pl) {
+                        if (pl.size() < 2)
+                            return true;
+                        const BoundingBox bb = pl.bounding_box();
+                        return double(std::max(bb.size().x(), bb.size().y())) < max_stray;
+                    }), polylines_out.end());
+            }
+        }
     }
 }
 
