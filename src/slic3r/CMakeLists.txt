@@ -191,9 +191,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/Jobs/ProgressIndicator.hpp
     GUI/Jobs/RotoptimizeJob.cpp
     GUI/Jobs/RotoptimizeJob.hpp
-    GUI/Jobs/SLAImportDialog.hpp
-    GUI/Jobs/SLAImportJob.cpp
-    GUI/Jobs/SLAImportJob.hpp
     GUI/Jobs/ThreadSafeQueue.hpp
     GUI/Jobs/Worker.hpp
     GUI/KBShortcutsDialog.cpp

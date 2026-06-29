@@ -257,7 +257,6 @@ public:
     void add_file();
     void add_model(bool imperial_units = false, std::string fname = "");
     void import_zip_archive();
-    void import_sl1_archive();
     void extract_config_from_project();
     void load_gcode();
     void load_gcode(const wxString& filename);
