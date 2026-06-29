@@ -94,16 +94,6 @@ WebViewPanel::WebViewPanel(wxWindow *parent)
 
     topsizer->Add(m_browser, wxSizerFlags().Expand().Proportion(1));
 
-    // Log backend information
-    /* m_browser->GetUserAgent() may lead crash
-    if (wxGetApp().get_mode() == comDevelop) {
-        wxLogMessage(wxWebView::GetBackendVersionInfo().ToString());
-        wxLogMessage("Backend: %s Version: %s", m_browser->GetClassInfo()->GetClassName(),
-            wxWebView::GetBackendVersionInfo().ToString());
-        wxLogMessage("User Agent: %s", m_browser->GetUserAgent());
-    }
-    */
-
     // Create the Tools menu
     m_tools_menu = new wxMenu();
     wxMenuItem* viewSource = m_tools_menu->Append(wxID_ANY, _L("View Source"));
@@ -242,10 +232,11 @@ void WebViewPanel::load_url(wxString& url)
 {
     this->Show();
     this->Raise();
+#if !BBL_RELEASE_TO_PUBLIC
     m_url->SetLabelText(url);
-
     if (wxGetApp().get_mode() == comDevelop)
         wxLogMessage(m_url->GetValue());
+#endif
     m_browser->LoadURL(url);
     m_browser->SetFocus();
     UpdateState();
@@ -440,27 +431,6 @@ void WebViewPanel::SendRecentList(int images)
     RunScript(wxString::Format("window.postMessage(%s)", oss.str()));
 }
 
-void WebViewPanel::SendDesignStaffpick(bool on)
-{
-    // if (on) {
-    //     get_design_staffpick(0, 60, [this](std::string body) {
-    //         if (body.empty() || body.front() != '{') {
-    //             BOOST_LOG_TRIVIAL(warning) << "get_design_staffpick failed " + body;
-    //             return;
-    //         }
-    //         CallAfter([this, body] {
-    //             auto body2 = from_u8(body);
-    //             body2.insert(1, "\"command\": \"modelmall_model_advise_get\", ");
-    //             RunScript(wxString::Format("window.postMessage(%s)", body2));
-    //         });
-    //     });
-    // } else {
-    //     std::string body2 = "{\"total\":0, \"hits\":[]}";
-    //     body2.insert(1, "\"command\": \"modelmall_model_advise_get\", ");
-    //     RunScript(wxString::Format("window.postMessage(%s)", body2));
-    // }
-}
-
 void WebViewPanel::OpenModelDetail(std::string id)
 {
     std::string url;
@@ -477,45 +447,14 @@ void WebViewPanel::OpenModelDetail(std::string id)
     }
 }
 
-void WebViewPanel::SendLoginInfo()
-{
-    // BambuLab user login removed
-}
-
 void WebViewPanel::ShowNetpluginTip()
 {
-    // Install Network Plugin
-    //std::string NP_Installed = wxGetApp().app_config->get("installed_networking");
-    bool        bValid       = true; // network plugin no longer used
-
-    int nShow = 0;
-    if (!bValid) nShow = 1;
-
-    BOOST_LOG_TRIVIAL(info) << __FUNCTION__<< boost::format(": bValid=%1%, nShow=%2%")%bValid %nShow;
-
     json m_Res           = json::object();
     m_Res["command"]     = "network_plugin_installtip";
     m_Res["sequence_id"] = "10001";
-    m_Res["show"]        = nShow;
+    m_Res["show"]        = 0;
 
-    wxString strJS = wxString::Format("window.postMessage(%s)", m_Res.dump(-1, ' ', false, json::error_handler_t::ignore));
-
-    RunScript(strJS);
-}
-
-void WebViewPanel::get_design_staffpick(int offset, int limit, std::function<void(std::string)> callback)
-{
-    // auto host = wxGetApp().get_http_url(wxGetApp().app_config->get_country_code(), "v1/design-service/design/staffpick");
-    // std::string url = (boost::format("%1%/?offset=%2%&limit=%3%") % host % offset % limit).str();
-
-    // Http http = Http::get(url);
-    // http.header("accept", "application/json")
-    //     .header("Content-Type", "application/json")
-    //     .on_complete([this, callback](std::string body, unsigned status) { callback(body); })
-    //     .on_error([this, callback](std::string body, std::string error, unsigned status) {
-    //         callback(body);
-    //     })
-    //     .perform();
+    RunScript(wxString::Format("window.postMessage(%s)", m_Res.dump(-1, ' ', false, json::error_handler_t::ignore)));
 }
 
 int WebViewPanel::get_model_mall_detail_url(std::string *url, std::string id)
