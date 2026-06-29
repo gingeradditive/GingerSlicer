@@ -508,6 +508,10 @@ if (MSVC AND "${CMAKE_SIZEOF_VOID_P}" STREQUAL "4") # 32 bit MSVC workaround
     target_compile_definitions(libslic3r_cgal PRIVATE CGAL_DO_NOT_USE_MPZF)
 endif ()
 
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    target_compile_options(libslic3r_cgal PRIVATE -Wno-maybe-uninitialized)
+endif ()
+
 encoding_check(libslic3r)
 
 target_compile_definitions(libslic3r PUBLIC -DUSE_TBB -DTBB_USE_CAPTURED_EXCEPTION=0)
