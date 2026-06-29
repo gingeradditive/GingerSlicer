@@ -32,7 +32,6 @@
 #include <boost/filesystem/operations.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/nowide/cstdio.hpp>
-#include "I18N.hpp"
 //#include "RemovableDriveManager.hpp"
 
 #include "slic3r/GUI/Plater.hpp"

@@ -13,7 +13,6 @@
 #include <boost/log/trivial.hpp>
 
 #include <libslic3r/MTUtils.hpp>
-#include <libslic3r/I18N.hpp>
 
 //! macro used to mark string used at localization,
 //! return same string

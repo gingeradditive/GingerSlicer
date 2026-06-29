@@ -8,7 +8,6 @@
 #include "slic3r/GUI/Plater.hpp"
 #include "slic3r/GUI/MsgDialog.hpp"
 #include "slic3r/GUI/format.hpp"
-#include "slic3r/GUI/I18N.hpp"
 #include "slic3r/GUI/CameraUtils.hpp"
 #include "slic3r/GUI/Jobs/EmbossJob.hpp"
 #include "slic3r/GUI/Jobs/CreateFontNameImageJob.hpp"

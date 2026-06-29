@@ -12,7 +12,6 @@
 
 #include <boost/algorithm/string.hpp>
 
-#include "I18N.hpp"
 
 #include <wx/wupdlock.h>
 

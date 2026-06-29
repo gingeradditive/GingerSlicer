@@ -7,14 +7,6 @@
 #include "format.hpp"
 #include "libslic3r_version.h"
 
-// Localization headers: include libslic3r version first so everything in this file
-// uses the slic3r/GUI version (the macros will take precedence over the functions).
-// Also, there is a check that the former is not included from slic3r module.
-// This is the only place where we want to allow that, so define an override macro.
-#define SLIC3R_ALLOW_LIBSLIC3R_I18N_IN_SLIC3R
-#include "libslic3r/I18N.hpp"
-#undef SLIC3R_ALLOW_LIBSLIC3R_I18N_IN_SLIC3R
-#include "slic3r/GUI/I18N.hpp"
 
 #include <algorithm>
 #include <iterator>
@@ -59,7 +51,6 @@
 
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/Model.hpp"
-#include "libslic3r/I18N.hpp"
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/Thread.hpp"
 #include "libslic3r/miniz_extension.hpp"
@@ -545,8 +536,6 @@ wxString file_wildcards(FileType file_type, const std::string &custom_extension)
         }
     return GUI::format_wxstr("%s (%s)|%s", data.title, title, mask);
 }
-
-static std::string libslic3r_translate_callback(const char *s) { return wxGetTranslation(wxString(s, wxConvUTF8)).utf8_str().data(); }
 
 #ifdef WIN32
 #if !wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3)
@@ -1634,9 +1623,6 @@ bool GUI_App::on_init_inner()
 #endif // !wxVERSION_EQUAL_OR_GREATER_THAN
     register_win32_device_notification_event();
 #endif // WIN32
-
-    // Let the libslic3r know the callback, which will translate messages on demand.
-    Slic3r::I18N::set_translate_callback(libslic3r_translate_callback);
 
     BOOST_LOG_TRIVIAL(info) << "create the main window";
     mainframe = new MainFrame();

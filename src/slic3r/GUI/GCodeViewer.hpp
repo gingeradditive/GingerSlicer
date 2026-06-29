@@ -6,7 +6,6 @@
 #include "libslic3r/GCode/ThumbnailData.hpp"
 #include "IMSlider.hpp"
 #include "GLModel.hpp"
-#include "I18N.hpp"
 
 #include <boost/iostreams/device/mapped_file.hpp>
 

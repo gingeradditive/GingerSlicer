@@ -26,7 +26,6 @@
 #include "libslic3r_version.h"
 #include "slic3r/GUI/GUI.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
-#include "slic3r/GUI/I18N.hpp"
 #include "slic3r/GUI/UpdateDialogs.hpp"
 #include "slic3r/GUI/Plater.hpp"
 #include "slic3r/GUI/format.hpp"

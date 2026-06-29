@@ -4,7 +4,6 @@
 #include "MainFrame.hpp"
 #include "Plater.hpp"
 #include "MsgDialog.hpp"
-#include "I18N.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include "Widgets/SwitchButton.hpp"
 #include "ReleaseNote.hpp"

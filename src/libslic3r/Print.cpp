@@ -7,7 +7,6 @@
 #include "Extruder.hpp"
 #include "Flow.hpp"
 #include "Geometry/ConvexHull.hpp"
-#include "I18N.hpp"
 #include "ShortestPath.hpp"
 #include "Thread.hpp"
 #include "Time.hpp"

@@ -4,7 +4,6 @@
 
 #include "ClipperUtils.hpp"
 #include "ElephantFootCompensation.hpp"
-#include "I18N.hpp"
 #include "Layer.hpp"
 #include "MultiMaterialSegmentation.hpp"
 #include "Print.hpp"

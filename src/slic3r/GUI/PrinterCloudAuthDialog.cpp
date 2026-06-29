@@ -14,7 +14,6 @@
 #include <nlohmann/json.hpp>
 #include "MainFrame.hpp"
 #include <boost/dll.hpp>
-#include <slic3r/GUI/I18N.hpp>
 
 #include <sstream>
 #include <slic3r/GUI/Widgets/WebView.hpp>

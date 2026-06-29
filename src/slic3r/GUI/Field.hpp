@@ -10,7 +10,6 @@
 #include <cstdint>
 #include <functional>
 #include <boost/any.hpp>
-#include "I18N.hpp"
 
 #include <wx/colourdata.h>
 #include <wx/spinctrl.h>

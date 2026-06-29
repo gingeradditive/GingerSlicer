@@ -4,7 +4,6 @@
 #include "ImGuiWrapper.hpp"
 #include "GUI_App.hpp"
 #include "MainFrame.hpp"
-#include "I18N.hpp"
 #include "Plater.hpp"
 
 #include <boost/algorithm/string/predicate.hpp>

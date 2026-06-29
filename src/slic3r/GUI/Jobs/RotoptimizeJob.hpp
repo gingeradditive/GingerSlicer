@@ -5,7 +5,6 @@
 
 #include "libslic3r/SLA/Rotfinder.hpp"
 #include "libslic3r/PrintConfig.hpp"
-#include "slic3r/GUI/I18N.hpp"
 
 namespace Slic3r {
 

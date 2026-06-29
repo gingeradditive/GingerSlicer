@@ -16,7 +16,6 @@
 
 #include "GUI_App.hpp"
 #include "GUI_Utils.hpp"
-#include "I18N.hpp"
 #include "MainFrame.hpp"
 #include "MsgDialog.hpp"
 #include "OpenGLManager.hpp"

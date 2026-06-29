@@ -5,7 +5,6 @@
 #include "Plater.hpp"
 #include "GLCanvas3D.hpp"
 #include "Event.hpp"
-#include "I18N.hpp"
 #include "Jobs/ProgressIndicator.hpp"
 #include <libslic3r/ObjectID.hpp>
 #include <libslic3r/Technologies.hpp>

@@ -4,7 +4,6 @@
 #include "format.hpp"
 #include "ClipperUtils.hpp"
 #include "Fill/FillBase.hpp"
-#include "I18N.hpp"
 #include "Layer.hpp"
 #include "MinimumSpanningTree.hpp"
 #include "Print.hpp"

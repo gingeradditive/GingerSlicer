@@ -10,7 +10,6 @@
 #include "GUI.hpp"
 #include "GUI_App.hpp"
 #include "GUI_ObjectList.hpp"
-#include "I18N.hpp"
 #include "GUI_Utils.hpp"
 #include "Plater.hpp"
 #include "BitmapComboBox.hpp"

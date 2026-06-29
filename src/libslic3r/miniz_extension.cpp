@@ -6,7 +6,6 @@
 #include "boost/nowide/cstdio.hpp"
 #endif
 
-#include "I18N.hpp"
 
 //! macro used to mark string used at localization,
 //! return same string

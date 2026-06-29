@@ -35,7 +35,6 @@
 #include "Format/3mf.hpp"
 
 // Transtltion
-#include "I18N.hpp"
 
 // ModelIO support
 #ifdef __APPLE__

@@ -5,7 +5,6 @@
 #include "ClipperUtils.hpp"
 #include "ElephantFootCompensation.hpp"
 #include "Geometry.hpp"
-#include "I18N.hpp"
 #include "Layer.hpp"
 #include "MutablePolygon.hpp"
 #include "PrintConfig.hpp"

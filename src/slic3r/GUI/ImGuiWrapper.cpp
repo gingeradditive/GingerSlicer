@@ -32,7 +32,6 @@
 
 #include "3DScene.hpp"
 #include "GUI.hpp"
-#include "I18N.hpp"
 #include "Search.hpp"
 #include "BitmapCache.hpp"
 #include "GUI_App.hpp"

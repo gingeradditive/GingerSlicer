@@ -2,7 +2,6 @@
 
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/format.hpp"
-#include "libslic3r/I18N.hpp"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/log/trivial.hpp>

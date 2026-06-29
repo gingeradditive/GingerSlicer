@@ -3,7 +3,6 @@
 #include "Polygon.hpp"
 #include "PrintConfig.hpp"
 #include "libslic3r.h"
-#include "I18N.hpp"
 #include "GCode.hpp"
 #include "Exception.hpp"
 #include "ExtrusionEntity.hpp"

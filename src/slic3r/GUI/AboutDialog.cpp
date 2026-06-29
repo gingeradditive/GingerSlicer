@@ -1,5 +1,4 @@
 #include "AboutDialog.hpp"
-#include "I18N.hpp"
 
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/Color.hpp"

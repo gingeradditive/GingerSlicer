@@ -1,5 +1,4 @@
 #include "AuxiliaryDialog.hpp"
-#include "I18N.hpp"
 #include "GUI_AuxiliaryList.hpp"
 
 #include "libslic3r/Utils.hpp"

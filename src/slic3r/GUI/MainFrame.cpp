@@ -34,7 +34,6 @@
 #include "Mouse3DController.hpp"
 //#include "RemovableDriveManager.hpp"
 #include "InstanceCheck.hpp"
-#include "I18N.hpp"
 #include "GLCanvas3D.hpp"
 #include "Plater.hpp"
 #include "WebViewDialog.hpp"

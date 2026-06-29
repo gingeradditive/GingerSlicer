@@ -3,7 +3,6 @@
 #include "GUI.hpp"
 #include "BitmapCache.hpp"
 #include <wx/dcgraph.h>
-#include <slic3r/GUI/I18N.hpp>
 
 
 namespace Slic3r { namespace GUI {

@@ -22,7 +22,6 @@
 #include "SupportCommon.hpp"
 #include "TriangleMeshSlicer.hpp"
 #include "TreeSupport.hpp"
-#include "I18N.hpp"
 
 #include <cassert>
 #include <chrono>

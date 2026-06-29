@@ -1,7 +1,6 @@
 #ifndef slic3r_ModelMall_hpp_
 #define slic3r_ModelMall_hpp_
 
-#include "I18N.hpp"
 
 #include <wx/font.h>
 #include <wx/colour.h>

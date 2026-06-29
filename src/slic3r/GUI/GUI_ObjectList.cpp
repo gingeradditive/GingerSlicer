@@ -4,7 +4,6 @@
 #include "GUI_Factories.hpp"
 //#include "GUI_ObjectLayers.hpp"
 #include "GUI_App.hpp"
-#include "I18N.hpp"
 #include "Plater.hpp"
 #include "BitmapComboBox.hpp"
 #include "MainFrame.hpp"

@@ -24,7 +24,6 @@
 #include "libslic3r/GCode/ThumbnailData.hpp"
 #include "libslic3r/Utils.hpp"
 
-#include "I18N.hpp"
 #include "GUI_App.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/PresetBundle.hpp"

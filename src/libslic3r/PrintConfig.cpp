@@ -1,7 +1,6 @@
 #include "PrintConfig.hpp"
 #include "ClipperUtils.hpp"
 #include "Config.hpp"
-#include "I18N.hpp"
 #include "format.hpp"
 
 #include "GCode/Thumbnails.hpp"

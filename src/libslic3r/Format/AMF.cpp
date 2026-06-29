@@ -12,7 +12,6 @@
 #include "../GCode.hpp"
 #include "../PrintConfig.hpp"
 #include "../Utils.hpp"
-#include "../I18N.hpp"
 #include "../Geometry.hpp"
 #include "../CustomGCode.hpp"
 #include "../LocalesUtils.hpp"

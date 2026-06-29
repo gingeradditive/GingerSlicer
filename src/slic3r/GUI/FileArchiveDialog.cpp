@@ -1,6 +1,5 @@
 #include "FileArchiveDialog.hpp"
 
-#include "I18N.hpp"
 #include "GUI_App.hpp"
 #include "GUI.hpp"
 #include "MainFrame.hpp"

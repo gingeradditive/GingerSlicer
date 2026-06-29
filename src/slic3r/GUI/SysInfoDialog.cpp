@@ -1,5 +1,4 @@
 #include "SysInfoDialog.hpp"
-#include "I18N.hpp"
 #include "3DScene.hpp"
 #include "GUI.hpp"
 #include "../Utils/UndoRedo.hpp"

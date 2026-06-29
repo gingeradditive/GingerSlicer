@@ -3,7 +3,6 @@
 #include "wx/dcgraph.h"
 #include "wx/aui/framemanager.h"
 #include "wx/display.h"
-#include "I18N.hpp"
 #include "GUI_App.hpp"
 #include "GUI.hpp"
 #include "wxExtensions.hpp"

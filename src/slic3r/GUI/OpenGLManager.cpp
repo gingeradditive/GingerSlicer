@@ -3,7 +3,6 @@
 
 #include "GUI.hpp"
 #include "GUI_Utils.hpp"
-#include "I18N.hpp"
 #include "3DScene.hpp"
 
 #include "libslic3r/Platform.hpp"
