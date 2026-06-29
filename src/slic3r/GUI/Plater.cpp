@@ -96,7 +96,6 @@
 #include "Jobs/PlaterWorker.hpp"
 #include "Jobs/BoostThreadWorker.hpp"
 #include "BackgroundSlicingProcess.hpp"
-#include "PublishDialog.hpp"
 #include "ModelMall.hpp"
 #include "../Utils/ASCIIFolding.hpp"
 #include "../Utils/FixModelByWin10.hpp"
@@ -168,7 +167,6 @@ wxDEFINE_EVENT(EVT_EXPORT_BEGAN,                    wxCommandEvent);
 wxDEFINE_EVENT(EVT_EXPORT_FINISHED,                 wxCommandEvent);
 wxDEFINE_EVENT(EVT_IMPORT_MODEL_ID,                 wxCommandEvent);
 wxDEFINE_EVENT(EVT_DOWNLOAD_PROJECT,                wxCommandEvent);
-wxDEFINE_EVENT(EVT_PUBLISH,                         wxCommandEvent);
 wxDEFINE_EVENT(EVT_OPEN_PLATESETTINGSDIALOG,        wxCommandEvent);
 // BBS: backup & restore
 wxDEFINE_EVENT(EVT_RESTORE_PROJECT,                 wxCommandEvent);
@@ -1981,8 +1979,6 @@ struct Plater::priv
 
     MenuFactory menus;
 
-    PublishDialog *m_publish_dlg = nullptr;
-
     // Data
     Slic3r::DynamicPrintConfig *config;        // FIXME: leak?
     Slic3r::Print               fff_print;
@@ -2011,7 +2007,6 @@ struct Plater::priv
     bool m_ignore_event{false};
     bool m_slice_all{false};
     bool m_is_slicing {false};
-    bool m_is_publishing {false};
     int m_is_RightClickInLeftUI{-1};
     int m_cur_slice_plate;
     //BBS: m_slice_all in .gcode.3mf file case, set true when slice all
@@ -2329,7 +2324,6 @@ struct Plater::priv
     void on_action_open_project(SimpleEvent&);
     void on_action_slice_plate(SimpleEvent&);
     void on_action_slice_all(SimpleEvent&);
-    void on_action_publish(wxCommandEvent &evt);
     void on_action_print_plate(SimpleEvent&);
     void on_action_print_all(SimpleEvent&);
     void on_action_export_gcode(SimpleEvent&);
@@ -2342,8 +2336,6 @@ struct Plater::priv
     void on_3dcanvas_mouse_dragging_finished(SimpleEvent&);
 
     //void show_action_buttons(const bool is_ready_to_slice) const;
-    bool show_publish_dlg(bool show = true);
-    void update_publish_dialog_status(wxString &msg, int percent = -1);
     void on_action_print_plate_from_sdcard(SimpleEvent&);
 
     void on_tab_selection_changing(wxBookCtrlEvent&);
@@ -2562,7 +2554,6 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     background_process.set_export_began_event(EVT_EXPORT_BEGAN);
     background_process.set_export_finished_event(EVT_EXPORT_FINISHED);
     this->q->Bind(EVT_SLICING_UPDATE, &priv::on_slicing_update, this);
-    this->q->Bind(EVT_PUBLISH, &priv::on_action_publish, this);
     this->q->Bind(EVT_REPAIR_MODEL, &priv::on_repair_model, this);
     this->q->Bind(EVT_FILAMENT_COLOR_CHANGED, &priv::on_filament_color_changed, this);
     this->q->Bind(EVT_PREVIEW_ONLY_MODE_HINT, &priv::show_preview_only_hint, this);
@@ -6653,10 +6644,6 @@ void Plater::priv::on_process_completed(SlicingProcessCompletedEvent &evt)
         ready_to_slice = true;
         //this->main_frame->update_slice_print_status(MainFrame::eEventSliceUpdate, true, true);
 
-        //BBS
-        if (m_is_publishing) {
-            m_publish_dlg->cancel();
-        }
     } else {
         if((ready_to_slice) || (wxGetApp().get_mode() == comSimple)) {
             //this means the current plate is not the slicing plate
@@ -6688,32 +6675,11 @@ void Plater::priv::on_process_completed(SlicingProcessCompletedEvent &evt)
     exporting_status = ExportingStatus::NOT_EXPORTING;
 
 
-    // BBS stop publishing if error occur
-    //if (m_is_publishing) {
-    //    GCodeProcessorResult *gcode_result = background_process.get_current_gcode_result();
-    //    m_publish_dlg->UpdateStatus(_L("Error occurred during slicing"), -1, false);
-    //    // if toolpath is outside
-    //    if (!gcode_result || gcode_result->toolpath_outside) {
-    //        m_is_publishing = false;
-    //    }
-    //}
-
-
     if (is_finished)
     {
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(":finished, reload print soon");
         m_is_slicing = false;
         this->preview->reload_print(false);
-        /* BBS if in publishing progress */
-        if (m_is_publishing) {
-            if (m_publish_dlg && !m_publish_dlg->was_cancelled()) {
-                if (m_publish_dlg->IsShown()) {
-                    q->publish_project();
-                } else {
-                    m_is_publishing = false;
-                }
-            }
-        }
         q->SetDropTarget(new PlaterDropTarget(*main_frame, *q));
     }
     else
@@ -6732,13 +6698,6 @@ void Plater::priv::on_process_completed(SlicingProcessCompletedEvent &evt)
         //not the last plate
         update_fff_scene_only_shells();
         q->Thaw();
-        if (m_is_publishing) {
-            if (m_publish_dlg && !m_publish_dlg->was_cancelled()) {
-                wxString msg = wxString::Format(_L("Slicing Plate %d"), m_cur_slice_plate + 1);
-                int percent  = 70 * m_cur_slice_plate / partplate_list.get_plate_count();
-                m_publish_dlg->UpdateStatus(msg, percent, false);
-            }
-        }
     }
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(", exit.");
 }
@@ -6824,39 +6783,12 @@ void Plater::priv::on_action_slice_all(SimpleEvent&)
         //select plate
         q->select_plate(m_cur_slice_plate);
         q->reslice();
-        if (!m_is_publishing)
-            q->select_view_3D("Preview");
+        q->select_view_3D("Preview");
         //BBS: wish to select all plates stats item
         preview->get_canvas3d()->_update_select_plate_toolbar_stats_item(true);
     }
 }
 
-void Plater::priv::on_action_publish(wxCommandEvent &event)
-{
-    if (q != nullptr) {
-        if (event.GetInt() == EVT_PUBLISHING_START) {
-            // update by background slicing process
-            if (process_completed_with_error >= 0) {
-                wxString msg = _L("Please resolve the slicing errors and publish again.");
-                this->m_publish_dlg->UpdateStatus(msg, false);
-                return;
-            }
-
-            m_is_publishing = true;
-            // if slicing is ready publish project, else slicing first
-            if (partplate_list.is_all_slice_results_valid()) {
-                q->publish_project();
-            } else {
-                BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << ":received slice project in background event\n";
-                SimpleEvent evt = SimpleEvent(EVT_GLTOOLBAR_SLICE_ALL);
-                this->on_action_slice_all(evt);
-            }
-        } else {
-            m_is_publishing = false;
-            show_publish_dlg(false);
-        }
-    }
-}
 
 void Plater::priv::on_action_print_plate(SimpleEvent&)
 {
@@ -7639,30 +7571,6 @@ bool Plater::priv::can_reload_from_disk() const
     return !paths.empty();
 }
 
-void Plater::priv::update_publish_dialog_status(wxString &msg, int percent)
-{
-    if (m_publish_dlg)
-        m_publish_dlg->UpdateStatus(msg, percent);
-}
-
-bool Plater::priv::show_publish_dlg(bool show)
-{
-    if (q != nullptr) { BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << ":recevied publish event\n"; }
-
-    if (!m_publish_dlg) m_publish_dlg = new PublishDialog(q);
-    if (show) {
-        m_publish_dlg->reset();
-        m_publish_dlg->start_slicing();
-        //m_publish_dlg->Show();
-        m_publish_dlg->ShowModal();
-    } else {
-        m_publish_dlg->EndModal(wxID_OK);
-        //cancel the slicing
-        if (this->background_process.running())
-            this->background_process.stop();
-    }
-    return true;
-}
 
 //BBS: add bed exclude area
 void Plater::priv::set_bed_shape(const Pointfs& shape, const Pointfs& exclude_areas, const double printable_height, const std::string& custom_texture, const std::string& custom_model, bool force_as_custom)
@@ -10921,12 +10829,6 @@ int Plater::export_3mf(const boost::filesystem::path& output_path, SaveStrategy 
     return ret;
 }
 
-void Plater::publish_project()
-{
-    return;
-}
-
-
 void Plater::reload_from_disk()
 {
     p->reload_from_disk();
@@ -12779,11 +12681,6 @@ void Plater::show_object_info()
     info_manifold = "<Error>" + info_manifold + "</Error>";
     info_text += into_u8(info_manifold);
     notify_manager->bbl_show_objectsinfo_notification(info_text, is_windows10()&&(non_manifold_edges > 0), !(p->current_panel == p->view3D));
-}
-
-bool Plater::show_publish_dialog(bool show)
-{
-    return p->show_publish_dlg(show);
 }
 
 void Plater::post_process_string_object_exception(StringObjectException &err)

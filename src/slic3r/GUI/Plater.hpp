@@ -92,12 +92,8 @@ public:
 class Plater;
 enum class ActionButtonType : int;
 
-#define EVT_PUBLISHING_START        1
-#define EVT_PUBLISHING_STOP         2
-
 //BBS: add EVT_SLICING_UPDATE declare here
 wxDECLARE_EVENT(EVT_SLICING_UPDATE, Slic3r::SlicingStatusEvent);
-wxDECLARE_EVENT(EVT_PUBLISH,        wxCommandEvent);
 wxDECLARE_EVENT(EVT_OPEN_PLATESETTINGSDIALOG,        wxCommandEvent);
 wxDECLARE_EVENT(EVT_REPAIR_MODEL,        wxCommandEvent);
 wxDECLARE_EVENT(EVT_FILAMENT_COLOR_CHANGED,        wxCommandEvent);
@@ -405,9 +401,6 @@ public:
     // BBS: backup
     int export_3mf(const boost::filesystem::path& output_path = boost::filesystem::path(), SaveStrategy strategy = SaveStrategy::Default, int export_plate_idx = -1, Export3mfProgressFn proFn = nullptr);
 
-    //BBS
-    void publish_project();
-
     void reload_from_disk();
     void replace_with_stl();
     void reload_all_from_disk();
@@ -593,8 +586,6 @@ public:
     void update_slicing_context_to_current_partplate();
     //BBS: show object info
     void show_object_info();
-    //BBS
-    bool show_publish_dialog(bool show = true);
     //BBS: post process string object exception strings by warning types
     void post_process_string_object_exception(StringObjectException &err);
 
