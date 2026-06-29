@@ -297,8 +297,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/UnsavedChangesDialog.hpp
     GUI/UpdateDialogs.cpp
     GUI/UpdateDialogs.hpp
-    GUI/UserNotification.cpp
-    GUI/UserNotification.hpp
     GUI/WebViewDialog.cpp
     GUI/WebViewDialog.hpp
     GUI/Widgets/AxisCtrlButton.cpp

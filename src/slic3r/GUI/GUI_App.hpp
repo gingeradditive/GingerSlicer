@@ -23,7 +23,6 @@ struct ConfigWizard {
 #include "OpenGLManager.hpp"
 #include "libslic3r/Preset.hpp"
 #include "libslic3r/PresetBundle.hpp"
-#include "slic3r/GUI/UserNotification.hpp"
 #include "slic3r/GUI/WebViewDialog.hpp"
 #include "../Utils/PrintHost.hpp"
 
@@ -55,6 +54,11 @@ class wxBookCtrlBase;
 class Notebook;
 
 namespace Slic3r {
+
+enum class UserNotificationStyle {
+    UNS_NORMAL,
+    UNS_WARNING_CONFIRM,
+};
 
 class AppConfig;
 class PresetBundle;
