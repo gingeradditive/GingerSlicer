@@ -381,21 +381,6 @@ static std::string generate_system_info_json()
     // identify duplicate entries.
     std::string unique_id = get_unique_id();
 
-    // Get system language.
-    std::string sys_language = "Unknown"; // important to init, see the __APPLE__ block.
-    #ifndef __APPLE__
-        // Following apparently does not work on macOS.
-        const wxLanguage lang_system = wxLanguage(wxLocale::GetSystemLanguage());
-        if (lang_system != wxLANGUAGE_UNKNOWN)
-            sys_language = wxLocale::GetLanguageInfo(lang_system)->CanonicalName.ToUTF8().data();
-    #else // __APPLE__
-        CFLocaleRef cflocale = CFLocaleCopyCurrent();
-        CFStringRef value = (CFStringRef)CFLocaleGetValue(cflocale, kCFLocaleLanguageCode);
-        char temp[10] = "";
-        CFStringGetCString(value, temp, 10, kCFStringEncodingUTF8);
-        sys_language = temp;
-        CFRelease(cflocale);
-    #endif
     // Build a property tree with all the information.
     namespace pt = boost::property_tree;
 
@@ -434,8 +419,7 @@ static std::string generate_system_info_json()
     #endif
     );
 #endif // __WXGTK__
-    data_node.put("SystemLanguage", sys_language);
-    data_node.put("TranslationLanguage: ", wxGetApp().current_language_code_safe());
+    data_node.put("SystemLanguage", "en");
 
 
     pt::ptree hw_node;

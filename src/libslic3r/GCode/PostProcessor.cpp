@@ -191,7 +191,6 @@ namespace Slic3r {
 //! macro used to mark string used at localization,
 //! return same string
 #define L(s) (s)
-#define _(s) Slic3r::I18N::translate(s)
 
 // BBS
 void gcode_add_line_number(const std::string& path, const DynamicPrintConfig& config)

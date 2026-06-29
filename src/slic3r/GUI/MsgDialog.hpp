@@ -289,11 +289,11 @@ protected:
 private:
 	// these functions may be overridden to provide different defaults for the
 	// default button labels (this is used by wxGTK)
-	virtual wxString GetDefaultYesLabel() const { return wxGetTranslation("Yes"); }
-	virtual wxString GetDefaultNoLabel() const { return wxGetTranslation("No"); }
-	virtual wxString GetDefaultOKLabel() const { return wxGetTranslation("OK"); }
-	virtual wxString GetDefaultCancelLabel() const { return wxGetTranslation("Cancel"); }
-	virtual wxString GetDefaultHelpLabel() const { return wxGetTranslation("Help"); }
+	virtual wxString GetDefaultYesLabel() const { return "Yes"; }
+	virtual wxString GetDefaultNoLabel() const { return "No"; }
+	virtual wxString GetDefaultOKLabel() const { return "OK"; }
+	virtual wxString GetDefaultCancelLabel() const { return "Cancel"; }
+	virtual wxString GetDefaultHelpLabel() const { return "Help"; }
 
 	// labels for the buttons, initially empty meaning that the defaults should
 	// be used, use GetYes/No/OK/CancelLabel() to access them

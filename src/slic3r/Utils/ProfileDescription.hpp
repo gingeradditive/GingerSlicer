@@ -1,6 +1,5 @@
 #include <wx/string.h>
 #ifndef _L
-#define _L(s) Slic3r::I18N::translate(s)
 #endif
 
 namespace ProfileDescrption {

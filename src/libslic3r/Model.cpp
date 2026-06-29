@@ -41,7 +41,6 @@
 #include "Format/ModelIO.hpp"
 #endif
 
-#define _L(s) Slic3r::I18N::translate(s)
 
 namespace Slic3r {
 const std::vector<std::string> CONST_FILAMENTS = {

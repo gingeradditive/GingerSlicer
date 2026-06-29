@@ -39,8 +39,6 @@ public:
 		this->reset();
 	}
 
-	std::string get_language_code();
-
 	// Clear and reset to defaults.
 	void 			   	reset();
 	// Override missing or keys with their defaults.

@@ -117,20 +117,11 @@
 #include "Config.hpp"
 #include "enum_bitmask.hpp"
 #include "format.hpp"
-namespace Slic3r {
-namespace I18N {
-    typedef std::string (*translate_fn_type)(const char*);
-    extern translate_fn_type translate_fn;
-    inline void set_translate_callback(translate_fn_type fn) { translate_fn = fn; }
-    inline std::string translate(const std::string &s) { return (translate_fn == nullptr) ? s : (*translate_fn)(s.c_str()); }
-    inline std::string translate(const char *ptr) { return (translate_fn == nullptr) ? std::string(ptr) : (*translate_fn)(ptr); }
-} // namespace I18N
-} // namespace Slic3r
-
 namespace {
-    [[maybe_unused]] const char* L(const char* s)    { return s; }
+    [[maybe_unused]] const char* L(const char* s)           { return s; }
     [[maybe_unused]] const char* L_CONTEXT(const char* s, const char*) { return s; }
-    [[maybe_unused]] std::string _u8L(const char* s) { return Slic3r::I18N::translate(s); }
+    [[maybe_unused]] std::string _u8L(const char* s)        { return s; }
+    [[maybe_unused]] std::string _u8L(const std::string& s) { return s; }
 }
 #include "MultiPoint.hpp"
 #include "Point.hpp"

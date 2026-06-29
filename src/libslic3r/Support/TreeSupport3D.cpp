@@ -50,7 +50,6 @@
 #endif // TREE_SUPPORT_ORGANIC_NUDGE_NEW
 
 #ifndef _L
-#define _L(s) Slic3r::I18N::translate(s)
 #endif
 
  //#define TREESUPPORT_DEBUG_SVG

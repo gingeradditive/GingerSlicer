@@ -6,7 +6,6 @@
 #include <boost/algorithm/string/predicate.hpp>
 
 // Mark string for localization and translate.
-#define L(s) Slic3r::I18N::translate(s)
 
 namespace Slic3r {
 

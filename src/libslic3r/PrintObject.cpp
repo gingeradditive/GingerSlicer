@@ -39,7 +39,6 @@ using namespace std::literals;
 
 //! macro used to mark string used at localization,
 //! return same string
-#define L(s) Slic3r::I18N::translate(s)
 
 // #define PRINT_OBJECT_TIMING
 

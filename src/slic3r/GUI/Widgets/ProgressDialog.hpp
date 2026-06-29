@@ -90,9 +90,9 @@ protected:
     void SetMaximum(int maximum);
     // Return the labels to use for showing the elapsed/estimated/remaining
     // times respectively.
-    static wxString GetElapsedLabel() { return wxGetTranslation("Elapsed time:"); }
-    static wxString GetEstimatedLabel() { return wxGetTranslation("Estimated time:"); }
-    static wxString GetRemainingLabel() { return wxGetTranslation("Remaining time:"); }
+    static wxString GetElapsedLabel() { return wxString("Elapsed time:"); }
+    static wxString GetEstimatedLabel() { return wxString("Estimated time:"); }
+    static wxString GetRemainingLabel() { return wxString("Remaining time:"); }
 
     // Similar to wxWindow::HasFlag() but tests for a presence of a wxPD_XXX
     // flag in our (separate) flags instead of using m_windowStyle.

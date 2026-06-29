@@ -16,7 +16,6 @@
 #endif
 
 //Translation
-#define _L(s) Slic3r::I18N::translate(s)
 
 namespace Slic3r {
 
