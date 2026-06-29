@@ -661,7 +661,6 @@ PlaterPresetComboBox::PlaterPresetComboBox(wxWindow *parent, Preset::Type preset
 
         edit_btn->Bind(wxEVT_BUTTON, [this](wxCommandEvent)
             {
-                // In a case of a physical printer, for its editing open PhysicalPrinterDialog
                 if (m_type == Preset::TYPE_PRINTER
 #ifdef __linux__
                     // To edit extruder color from the sidebar
