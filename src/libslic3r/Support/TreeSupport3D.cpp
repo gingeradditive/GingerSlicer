@@ -3492,7 +3492,7 @@ static void generate_support_areas(Print &print, TreeSupport* tree_support, cons
     #endif // TREESUPPORT_DEBUG_SVG
 
             // ### Propagate the influence areas downwards. This is an inherently serial operation.
-            print.set_status(60, _L("Generating support"));
+            print.set_status(60, "Generating support");
             create_layer_pathing(volumes, config, move_bounds, throw_on_cancel);
             auto t_path = std::chrono::high_resolution_clock::now();
 
@@ -3548,7 +3548,7 @@ static void generate_support_areas(Print &print, TreeSupport* tree_support, cons
         });
 
         // Don't fill in the tree supports, make them hollow with just a single sheath line.
-        print.set_status(69, _L("Generating support"));
+        print.set_status(69, "Generating support");
         generate_support_toolpaths(print_object.support_layers(), print_object.config(), support_params, print_object.slicing_parameters(),
             raft_layers, bottom_contacts, top_contacts, intermediate_layers, interface_layers, base_interface_layers);
         

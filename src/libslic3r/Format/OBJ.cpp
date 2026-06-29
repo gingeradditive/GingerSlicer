@@ -28,7 +28,7 @@ bool load_obj(const char *path, TriangleMesh *meshptr, ObjInfo& obj_info, std::s
     ObjParser::MtlData mtl_data;
     if (! ObjParser::objparse(path, data)) {
         BOOST_LOG_TRIVIAL(error) << "load_obj: failed to parse " << path;
-        message = _L("load_obj: failed to parse");
+        message = "load_obj: failed to parse";
         return false;
     }
     bool exist_mtl = false;
@@ -55,7 +55,7 @@ bool load_obj(const char *path, TriangleMesh *meshptr, ObjInfo& obj_info, std::s
             if (boost::filesystem::exists(mtl_name_is_path ? mtl_abs_path : mtl_path)) {
                 if (!ObjParser::mtlparse(_mtl_path, mtl_data)) {
                     BOOST_LOG_TRIVIAL(error) << "load_obj:load_mtl: failed to parse " << _mtl_path;
-                    message = _L("load mtl in obj: failed to parse");
+                    message = "load mtl in obj: failed to parse";
                     return false;
                 }
             }
@@ -75,12 +75,12 @@ bool load_obj(const char *path, TriangleMesh *meshptr, ObjInfo& obj_info, std::s
             if (num_face_vertices > 4) {
                 // Non-triangular and non-quad faces are not supported as of now.
                 BOOST_LOG_TRIVIAL(error) << "load_obj: failed to parse " << path << ". The file contains polygons with more than 4 vertices.";
-                message = _L("The file contains polygons with more than 4 vertices.");
+                message = "The file contains polygons with more than 4 vertices.";
                 return false;
             } else if (num_face_vertices < 3) {
                 // Non-triangular and non-quad faces are not supported as of now.
                 BOOST_LOG_TRIVIAL(error) << "load_obj: failed to parse " << path << ". The file contains polygons with less than 2 vertices.";
-                message = _L("The file contains polygons with less than 2 vertices.");
+                message = "The file contains polygons with less than 2 vertices.";
                 return false;
             }
             if (num_face_vertices == 4)
@@ -122,7 +122,7 @@ bool load_obj(const char *path, TriangleMesh *meshptr, ObjInfo& obj_info, std::s
                     assert(cnt < OBJ_VERTEX_LENGTH);
                     if (vertex.coordIdx < 0 || vertex.coordIdx >= int(its.vertices.size())) {
                         BOOST_LOG_TRIVIAL(error) << "load_obj: failed to parse " << path << ". The file contains invalid vertex index.";
-                        message = _L("The file contains invalid vertex index.");
+                        message = "The file contains invalid vertex index.";
                         return false;
                     }
                     indices[cnt] = vertex.coordIdx;
@@ -198,7 +198,7 @@ bool load_obj(const char *path, TriangleMesh *meshptr, ObjInfo& obj_info, std::s
     *meshptr = TriangleMesh(std::move(its));
     if (meshptr->empty()) {
         BOOST_LOG_TRIVIAL(error) << "load_obj: This OBJ file couldn't be read because it's empty. " << path;
-        message = _L("This OBJ file couldn't be read because it's empty.");
+        message = "This OBJ file couldn't be read because it's empty.";
         return false;
     }
     if (meshptr->volume() < 0)
