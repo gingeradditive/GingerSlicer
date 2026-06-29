@@ -15,7 +15,9 @@
 #include "wx/filesys.h"
 #include "wx/fs_arc.h"
 #include "wx/fs_mem.h"
+#include <wx/dialog.h>
 #include <wx/panel.h>
+#include <wx/sizer.h>
 #include <wx/tbarbase.h>
 #include "wx/textctrl.h"
 #include <wx/timer.h>
