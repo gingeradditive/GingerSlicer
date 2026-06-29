@@ -515,7 +515,7 @@ Gizmo tagli avanzati: piano cut customizzabile con rotation, connettori cut con 
 ## 🟢 167 GUI/Gizmos/GLGizmoAssembly
 Gizmo assembly per montaggio multi-volume: eredita da `GLGizmoMeasure` (picking facce/spigoli), mode selector face-face/point-point, gestisce undo/redo enter/leave. Feature BBS per assemblaggio componenti 3D. Implementazione minimale stub.
 
-## 168 GUI/Gizmos/GLGizmoBase
+## 🟢 168 GUI/Gizmos/GLGizmoBase
 Classe base di tutti i gizmo OpenGL: grabber system (enabled/dragging/color), raycasting per picking, state machine (Off/On), ImGui rendering window. ~400 righe header. Assoluto core per interazione 3D. Indispensabile.
 
 ## 🟢 169 GUI/Gizmos/GLGizmoBrimEars
