@@ -6,8 +6,6 @@
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/Model.hpp"
 #include "libslic3r/GCode/GCodeProcessor.hpp"
-#include "WipeTowerDialog.hpp"
-
 #include "Search.hpp"
 #include "OG_CustomCtrl.hpp"
 #include "Widgets/SwitchButton.hpp"

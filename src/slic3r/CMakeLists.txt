@@ -259,8 +259,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/Project.hpp
     GUI/PublishDialog.cpp
     GUI/PublishDialog.hpp
-    GUI/RammingChart.cpp
-    GUI/RammingChart.hpp
     GUI/RecenterDialog.cpp
     GUI/RecenterDialog.hpp
     GUI/ReleaseNote.cpp
@@ -365,7 +363,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/Widgets/TextInput.hpp
     GUI/Widgets/WebView.cpp
     GUI/Widgets/WebView.hpp
-    GUI/WipeTowerDialog.cpp
     GUI/wxExtensions.cpp
     GUI/wxExtensions.hpp
     pchheader.cpp
