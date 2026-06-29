@@ -153,8 +153,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/GUI_Utils.hpp
     GUI/HintNotification.cpp
     GUI/HintNotification.hpp
-    GUI/HttpServer.cpp
-    GUI/HttpServer.hpp
     GUI/I18N.cpp
     GUI/I18N.hpp
     GUI/IconManager.cpp
@@ -183,8 +181,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/Jobs/Job.hpp
     GUI/Jobs/NotificationProgressIndicator.cpp
     GUI/Jobs/NotificationProgressIndicator.hpp
-    GUI/Jobs/OAuthJob.cpp
-    GUI/Jobs/OAuthJob.hpp
     GUI/Jobs/OrientJob.cpp
     GUI/Jobs/OrientJob.hpp
     GUI/Jobs/PlaterWorker.hpp
@@ -213,8 +209,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/Notebook.hpp
     GUI/NotificationManager.cpp
     GUI/NotificationManager.hpp
-    GUI/OAuthDialog.cpp
-    GUI/OAuthDialog.hpp
     GUI/ObjColorDialog.cpp
     GUI/ObjColorDialog.hpp
     GUI/ObjectDataViewModel.cpp
