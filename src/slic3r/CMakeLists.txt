@@ -251,8 +251,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/PrintHostDialogs.hpp
     GUI/PrivacyUpdateDialog.cpp
     GUI/PrivacyUpdateDialog.hpp
-    GUI/ProgressStatusBar.cpp
-    GUI/ProgressStatusBar.hpp
     GUI/Project.cpp
     GUI/ProjectDirtyStateManager.cpp
     GUI/ProjectDirtyStateManager.hpp

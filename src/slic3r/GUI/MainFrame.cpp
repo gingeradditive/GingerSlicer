@@ -26,7 +26,6 @@
 #include "libslic3r/PresetBundle.hpp"
 
 #include "Tab.hpp"
-#include "ProgressStatusBar.hpp"
 #include "3DScene.hpp"
 #include "ParamsDialog.hpp"
 #include "PrintHostDialogs.hpp"
