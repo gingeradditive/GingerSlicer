@@ -28,7 +28,7 @@ jobs:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.force_release != true }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -54,7 +54,7 @@ jobs:
     if: ${{ always() && ((github.ref == 'refs/heads/main' && needs.check_profiles.result == 'success') || (github.event_name == 'workflow_dispatch' && (needs.check_profiles.result == 'success' || inputs.force_release == true))) }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up GitHub CLI
         run: |
