@@ -1132,7 +1132,7 @@ static const SweepParamEntry s_sweep_params[] = {
 };
 
 Param_Sweep_Dlg::Param_Sweep_Dlg(wxWindow* parent, wxWindowID id, Plater* plater)
-    : DPIDialog(parent, id, _L("Parameter sweep"), wxDefaultPosition, parent->FromDIP(wxSize(-1, 320)), wxDEFAULT_DIALOG_STYLE), m_plater(plater)
+    : DPIDialog(parent, id, _L("Parameter tuning (per-layer sweep)"), wxDefaultPosition, parent->FromDIP(wxSize(-1, 320)), wxDEFAULT_DIALOG_STYLE), m_plater(plater)
 {
     SetBackgroundColour(*wxWHITE);
     SetForegroundColour(wxColour("#363636"));
