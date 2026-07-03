@@ -1888,7 +1888,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
         m_spiral_vase = make_unique<SpiralVase>(print.config());
 
     if (print.config().max_volumetric_extrusion_rate_slope.value > 0){
-    		m_pressure_equalizer = make_unique<PressureEqualizer>(print.config());
+    		m_pressure_equalizer = make_unique<PressureEqualizer>(print.config(), &print.calib_params());
     		m_enable_extrusion_role_markers = (bool)m_pressure_equalizer;
     } else
 	    m_enable_extrusion_role_markers = false;
@@ -3857,6 +3857,22 @@ LayerResult GCode::process_layer(
         }
         case CalibMode::Calib_Junction_Deviation: {
             gcode += writer().set_junction_deviation(print.calib_params().start + ((print.calib_params().end)-(print.calib_params().start)) * (m_layer_index) / (m_layer_count));
+            break;
+        }
+        case CalibMode::Calib_Param_Sweep: {
+            // Generic layer-by-layer parameter sweep. ERS parameters (slope, decel slope,
+            // min rate, ramp profile) are swept inside the PressureEqualizer post-processor;
+            // here we handle the parameters applied through the G-code writer config.
+            const Calib_Params &cp = print.calib_params();
+            if (cp.sweep_param == "retraction_length" || cp.sweep_param == "retraction_speed" ||
+                cp.sweep_param == "deretraction_speed" || cp.sweep_param == "retract_restart_extra") {
+                const double value = calib_sweep_value_for_layer(cp, m_layer_index);
+                DynamicConfig _cfg;
+                _cfg.set_key_value(cp.sweep_param, new ConfigOptionFloats{value});
+                writer().config.apply(_cfg);
+                sprintf(buf, "; Calib_Param_Sweep: layer: %d, %s: %g\n", m_layer_index, cp.sweep_param.c_str(), value);
+                gcode += buf;
+            }
             break;
         }
     }

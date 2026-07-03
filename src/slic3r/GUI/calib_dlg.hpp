@@ -168,7 +168,7 @@ public:
     Junction_Deviation_Test_Dlg(wxWindow* parent, wxWindowID id, Plater* plater);
     ~Junction_Deviation_Test_Dlg();
     void on_dpi_changed(const wxRect& suggested_rect) override;
-    
+
 protected:
     virtual void on_start(wxCommandEvent& event);
     Calib_Params m_params;
@@ -176,6 +176,26 @@ protected:
     RadioGroup* m_rbModel;
     TextInput* m_tiJDStart;
     TextInput* m_tiJDEnd;
+    Plater* m_plater;
+};
+
+// Generic layer-by-layer parameter sweep on the current project (no test model is loaded).
+class Param_Sweep_Dlg : public DPIDialog
+{
+public:
+    Param_Sweep_Dlg(wxWindow* parent, wxWindowID id, Plater* plater);
+    ~Param_Sweep_Dlg();
+    void on_dpi_changed(const wxRect& suggested_rect) override;
+
+protected:
+    virtual void on_start(wxCommandEvent& event);
+    virtual void on_param_changed(wxCommandEvent& event);
+    Calib_Params m_params;
+
+    ComboBox* m_cbParam;
+    TextInput* m_tiStart;
+    TextInput* m_tiEnd;
+    TextInput* m_tiStep;
     Plater* m_plater;
 };
 }} // namespace Slic3r::GUI

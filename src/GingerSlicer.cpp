@@ -4725,6 +4725,35 @@ int CLI::run(int argc, char **argv)
             bool pre_check = (plate_to_slice == 0)?true:false;
             bool finished = false;
 
+            // Optional layer-by-layer parameter sweep for calibration: --sweep "parameter:start:end:step"
+            Calib_Params sweep_calib_params;
+            if (const ConfigOptionString *sweep_opt = m_config.option<ConfigOptionString>("sweep");
+                sweep_opt != nullptr && !sweep_opt->value.empty()) {
+                const std::string &sweep_str = sweep_opt->value;
+                const size_t p1 = sweep_str.find(':');
+                const size_t p2 = (p1 == std::string::npos) ? std::string::npos : sweep_str.find(':', p1 + 1);
+                const size_t p3 = (p2 == std::string::npos) ? std::string::npos : sweep_str.find(':', p2 + 1);
+                bool valid = (p3 != std::string::npos) && (p1 > 0);
+                if (valid) {
+                    try {
+                        sweep_calib_params.sweep_param = sweep_str.substr(0, p1);
+                        sweep_calib_params.start       = std::stod(sweep_str.substr(p1 + 1, p2 - p1 - 1));
+                        sweep_calib_params.end         = std::stod(sweep_str.substr(p2 + 1, p3 - p2 - 1));
+                        sweep_calib_params.step        = std::stod(sweep_str.substr(p3 + 1));
+                        sweep_calib_params.mode        = CalibMode::Calib_Param_Sweep;
+                    } catch (...) {
+                        valid = false;
+                    }
+                }
+                if (!valid || sweep_calib_params.step <= 0) {
+                    BOOST_LOG_TRIVIAL(error) << "invalid --sweep value, expected \"parameter:start:end:step\" with step > 0, got: " << sweep_str << std::endl;
+                    record_exit_reson(outfile_dir, CLI_INVALID_PARAMS, 0, cli_errors[CLI_INVALID_PARAMS], sliced_info);
+                    flush_and_exit(CLI_INVALID_PARAMS);
+                }
+                BOOST_LOG_TRIVIAL(info) << boost::format("parameter sweep enabled: %1% from %2% to %3%, step %4% per layer")
+                    % sweep_calib_params.sweep_param % sweep_calib_params.start % sweep_calib_params.end % sweep_calib_params.step;
+            }
+
             /*if (opt_key == "export_gcode" && printer_technology == ptSLA) {
                 boost::nowide::cerr << "error: cannot export G-code for an FFF configuration" << std::endl;
                 record_exit_reson(outfile_dir, 1, 0, cli_errors[1], sliced_info);
@@ -4895,6 +4924,8 @@ int CLI::run(int argc, char **argv)
                         new_print_config.apply(*part_plate->config());
                         new_print_config.apply(m_extra_config, true);
                         print->apply(model, new_print_config);
+                        if (print_fff != nullptr && sweep_calib_params.mode == CalibMode::Calib_Param_Sweep)
+                            print_fff->set_calib_params(sweep_calib_params);
                         BOOST_LOG_TRIVIAL(info) << boost::format("set no_check to %1%:")%no_check;
                         print->set_no_check_flag(no_check);//BBS
                         StringObjectException warning;

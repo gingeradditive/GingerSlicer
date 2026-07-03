@@ -8171,6 +8171,17 @@ CLIMiscConfigDef::CLIMiscConfigDef()
     def->cli_params = "\"filament1.json;filament2.json;...\"";
     def->set_default_value(new ConfigOptionStrings());
 
+    def = this->add("sweep", coString);
+    def->label = L("Parameter sweep");
+    def->tooltip = L("Layer-by-layer parameter sweep for calibration, format \"parameter:start:end:step\". "
+                     "The value starts at 'start', changes by 'step' at every layer and holds once 'end' is reached. "
+                     "Supported parameters: retraction_length, retraction_speed, deretraction_speed, retract_restart_extra, "
+                     "max_volumetric_extrusion_rate_slope, pellet_ers_deceleration_slope, pellet_ers_min_rate, "
+                     "pellet_ers_ramp_profile (0=linear 1=sqrt 2=exponential).");
+    def->cli = "sweep";
+    def->cli_params = "\"parameter:start:end:step\"";
+    def->set_default_value(new ConfigOptionString(""));
+
     def = this->add("skip_objects", coInts);
     def->label = L("Skip Objects");
     def->tooltip = L("Skip some objects in this print.");

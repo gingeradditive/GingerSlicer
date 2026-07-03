@@ -1,7 +1,9 @@
 #include <iostream>
 #include <memory.h>
 #include <cstring>
+#include <cstdio>
 #include <cfloat>
+#include <cmath>
 #include <algorithm>
 
 #include "../libslic3r.h"
@@ -10,6 +12,7 @@
 #include "../GCode.hpp"
 
 #include "PressureEqualizer.hpp"
+#include "../calib.hpp"
 #include "fast_float/fast_float.h"
 #include "GCodeWriter.hpp"
 
@@ -31,7 +34,7 @@ static constexpr int max_look_back_limit = 128;
 // lines where some extruder pressure will remain (so we should equalize between these small travels)
 static constexpr long max_ignored_gap_between_extruding_segments = 3;
 
-PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config) : m_use_relative_e_distances(config.use_relative_e_distances.value)
+PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config, const Calib_Params *calib_params) : m_use_relative_e_distances(config.use_relative_e_distances.value)
 {
     // Preallocate some data, so that output_buffer.data() will return an empty string.
     output_buffer.assign(32, 0);
@@ -68,6 +71,21 @@ PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config) : m_use_
         m_pellet_ers_ramp_profile = config.pellet_ers_ramp_profile.value;
         m_pellet_ers_deceleration_slope = float(config.pellet_ers_deceleration_slope.value) * 60.f * 60.f; // mm³/s² → mm³/min²
         m_pellet_ers_min_rate = float(config.pellet_ers_min_rate.value) * 60.f; // mm³/s → mm³/min
+        if (calib_params != nullptr && calib_params->mode == CalibMode::Calib_Param_Sweep) {
+            if (calib_params->sweep_param == "max_volumetric_extrusion_rate_slope")
+                m_sweep_param = SweepParam::Slope;
+            else if (calib_params->sweep_param == "pellet_ers_deceleration_slope")
+                m_sweep_param = SweepParam::DecelSlope;
+            else if (calib_params->sweep_param == "pellet_ers_min_rate")
+                m_sweep_param = SweepParam::MinRate;
+            else if (calib_params->sweep_param == "pellet_ers_ramp_profile")
+                m_sweep_param = SweepParam::RampProfile;
+            if (m_sweep_param != SweepParam::None) {
+                m_sweep_start = float(calib_params->start);
+                m_sweep_end   = float(calib_params->end);
+                m_sweep_step  = float(calib_params->step);
+            }
+        }
     }
 
     for (ExtrusionRateSlope &extrusion_rate_slope : m_max_volumetric_extrusion_rate_slopes) {
@@ -288,12 +306,100 @@ long PressureEqualizer::advance_segment_beyond_small_gap(const long idx_orig)
      return idx_orig;
 }
 
+PressureEqualizer::SweepSnapshot PressureEqualizer::snapshot_sweep_params() const
+{
+    return { m_max_volumetric_extrusion_rate_slope_positive,
+             m_max_volumetric_extrusion_rate_slope_negative,
+             m_pellet_ers_deceleration_slope,
+             m_pellet_ers_min_rate,
+             m_pellet_ers_ramp_profile };
+}
+
+void PressureEqualizer::restore_sweep_params(const SweepSnapshot &params)
+{
+    m_max_volumetric_extrusion_rate_slope_positive = params.slope_positive;
+    m_max_volumetric_extrusion_rate_slope_negative = params.slope_negative;
+    m_pellet_ers_deceleration_slope                = params.decel_slope;
+    m_pellet_ers_min_rate                          = params.min_rate;
+    m_pellet_ers_ramp_profile                      = params.ramp_profile;
+    for (ExtrusionRateSlope &extrusion_rate_slope : m_max_volumetric_extrusion_rate_slopes) {
+        extrusion_rate_slope.negative = params.slope_negative;
+        extrusion_rate_slope.positive = params.slope_positive;
+    }
+    // Don't regulate the pressure before and after ironing.
+    for (const ExtrusionRole er : {ExtrusionRole::erIroning}) {
+        m_max_volumetric_extrusion_rate_slopes[size_t(er)].negative = 0;
+        m_max_volumetric_extrusion_rate_slopes[size_t(er)].positive = 0;
+    }
+}
+
+void PressureEqualizer::apply_param_sweep()
+{
+    if (m_sweep_param == SweepParam::None)
+        return;
+    // Sweep from start towards end, changing by step at every layer, then hold at end.
+    const float dir   = (m_sweep_end >= m_sweep_start) ? 1.f : -1.f;
+    float       value = m_sweep_start + dir * std::abs(m_sweep_step) * float(m_sweep_layer_idx);
+    value = std::clamp(value,
+                       std::min(m_sweep_start, m_sweep_end),
+                       std::max(m_sweep_start, m_sweep_end));
+
+    SweepSnapshot params = snapshot_sweep_params();
+    const char *param_name = "";
+    char value_str[32];
+    snprintf(value_str, sizeof(value_str), "%.3f", double(value));
+    switch (m_sweep_param) {
+    case SweepParam::Slope:
+        // Guard against degenerate values: a zero slope means "unlimited" elsewhere in
+        // this class and would divide by zero in the ramp length computations.
+        value = std::max(value, 0.1f);
+        params.slope_positive = value * 60.f * 60.f; // mm³/s² → mm³/min²
+        params.slope_negative = value * 60.f * 60.f;
+        param_name = "slope";
+        break;
+    case SweepParam::DecelSlope:
+        value = std::max(value, 0.1f);
+        params.decel_slope = value * 60.f * 60.f;
+        param_name = "decel_slope";
+        break;
+    case SweepParam::MinRate:
+        value = std::max(value, 0.1f);
+        params.min_rate = value * 60.f; // mm³/s → mm³/min
+        param_name = "min_rate";
+        break;
+    case SweepParam::RampProfile: {
+        // Discrete sweep: 0 = linear, 1 = sqrt, 2 = exponential.
+        const int profile_idx = std::clamp(int(std::lround(value)), 0, 2);
+        params.ramp_profile = PelletERSRampProfile(profile_idx);
+        param_name = "ramp_profile";
+        const char *profile_names[] = {"linear", "sqrt", "exponential"};
+        snprintf(value_str, sizeof(value_str), "%s", profile_names[profile_idx]);
+        break;
+    }
+    default:
+        return;
+    }
+    restore_sweep_params(params);
+
+    char buf[96];
+    snprintf(buf, sizeof(buf), ";_ERS_CALIB layer=%zu %s=%s", m_sweep_layer_idx, param_name, value_str);
+    m_sweep_comment_next = buf;
+}
+
 LayerResult PressureEqualizer::process_layer(LayerResult &&input)
 {
     const bool   is_first_layer       = m_layer_results.empty();
     const size_t next_layer_first_idx = m_gcode_lines.size();
 
+    // The lines pending output belong to the previously processed layer: remember the
+    // parameters and the sweep comment that were active when it was processed.
+    const SweepSnapshot params_for_output = snapshot_sweep_params();
+    const std::string sweep_comment_for_output = std::move(m_sweep_comment_next);
+    m_sweep_comment_next.clear();
+
     if (!input.nop_layer_result) {
+        this->apply_param_sweep();
+        ++m_sweep_layer_idx;
         this->process_layer(input.gcode);
         input.gcode.clear(); // GCode is already processed, so it isn't needed to store it.
         m_layer_results.emplace(new LayerResult(input));
@@ -306,11 +412,19 @@ LayerResult PressureEqualizer::process_layer(LayerResult &&input)
     LayerResult *prev_layer_result = m_layer_results.front();
     m_layer_results.pop();
 
+    // Output the previous layer with the parameters it was processed with.
+    const SweepSnapshot params_current = snapshot_sweep_params();
+    restore_sweep_params(params_for_output);
+
     output_buffer_length      = 0;
     output_buffer_prev_length = 0;
+    if (!sweep_comment_for_output.empty())
+        push_to_output(sweep_comment_for_output, true);
     for (size_t line_idx = 0; line_idx < next_layer_first_idx; ++line_idx)
         output_gcode_line(line_idx);
     m_gcode_lines.erase(m_gcode_lines.begin(), m_gcode_lines.begin() + int(next_layer_first_idx));
+
+    restore_sweep_params(params_current);
 
     if (output_buffer_length > 0)
         prev_layer_result->gcode = std::string(output_buffer.data());
@@ -1323,8 +1437,12 @@ void PressureEqualizer::push_line_to_output(const size_t line_idx, float new_fee
     // Orca: sanity check, 1 mm/s is the minimum feedrate.
     if (new_feedrate < 60)
         new_feedrate = 60;
-    // Quantize speed changes to a minimum of 1mm/sec, to reduce gcode volume for trivial speed changes.
-    new_feedrate = std::round(new_feedrate / 60.0) * 60.0;
+    // Quantize speed changes to reduce gcode volume for trivial speed changes.
+    // Upstream Orca rounds to 1 mm/s, but with the large bead cross-sections of pellet
+    // extruders (several mm²) 1 mm/s of speed is worth several mm³/s of flow — enough to
+    // overshoot the filament max volumetric speed cap and distort the ERS ramps.
+    // Quantize to 0.1 mm/s instead.
+    new_feedrate = std::round(new_feedrate / 6.0) * 6.0;
     const GCodeLine &line = m_gcode_lines[line_idx];
     // Add ERS debug comment when line was modified by pressure equalizer
     const bool add_ers_comment = m_pellet_ers_mode && (line.modified || ers_tag != nullptr);

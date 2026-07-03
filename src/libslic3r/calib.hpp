@@ -1,5 +1,7 @@
 #pragma once
 #include <string>
+#include <algorithm>
+#include <cmath>
 #define calib_pressure_advance_dd
 
 #include "GCode.hpp"
@@ -24,7 +26,8 @@ enum class CalibMode : int {
     Calib_Retraction_tower,
     Calib_Input_shaping_freq,
     Calib_Input_shaping_damp,
-    Calib_Junction_Deviation
+    Calib_Junction_Deviation,
+    Calib_Param_Sweep
 };
 
 struct Calib_Params
@@ -37,9 +40,20 @@ struct Calib_Params
     int test_model;
     std::vector<double> accelerations;
     std::vector<double> speeds;
+    // Calib_Param_Sweep: config key of the parameter varied layer by layer
+    std::string sweep_param;
 
     CalibMode mode;
 };
+
+// Calib_Param_Sweep: value of the swept parameter at a given layer index.
+// Starts at `start`, changes by `step` at every layer towards `end`, then holds.
+inline double calib_sweep_value_for_layer(const Calib_Params &params, int layer_idx)
+{
+    const double dir   = (params.end >= params.start) ? 1.0 : -1.0;
+    const double value = params.start + dir * std::abs(params.step) * std::max(0, layer_idx);
+    return std::clamp(value, std::min(params.start, params.end), std::max(params.start, params.end));
+}
 
 struct DrawBoxOptArgs
 {

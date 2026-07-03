@@ -244,12 +244,12 @@ void BBLTopbar::Init(wxFrame* parent)
     wxBitmap redo_inactive_bitmap = create_scaled_bitmap("topbar_redo_inactive", nullptr, TOPBAR_ICON_SIZE);
     m_redo_item->SetDisabledBitmap(redo_inactive_bitmap);
 
-    //this->AddSpacer(FromDIP(10));
+    this->AddSpacer(FromDIP(10));
 
-    //wxBitmap calib_bitmap          = create_scaled_bitmap("calib_sf", nullptr, TOPBAR_ICON_SIZE);
-    //wxBitmap calib_bitmap_inactive = create_scaled_bitmap("calib_sf_inactive", nullptr, TOPBAR_ICON_SIZE);
-    //m_calib_item                   = this->AddTool(ID_CALIB, _L("Calibration"), calib_bitmap);
-    //m_calib_item->SetDisabledBitmap(calib_bitmap_inactive);
+    wxBitmap calib_bitmap          = create_scaled_bitmap("calib_sf", nullptr, TOPBAR_ICON_SIZE);
+    wxBitmap calib_bitmap_inactive = create_scaled_bitmap("calib_sf_inactive", nullptr, TOPBAR_ICON_SIZE);
+    m_calib_item                   = this->AddTool(ID_CALIB, _L("Calibration"), calib_bitmap);
+    m_calib_item->SetDisabledBitmap(calib_bitmap_inactive);
 
     this->AddSpacer(FromDIP(10));
     this->AddStretchSpacer(1);

@@ -9,6 +9,7 @@
 namespace Slic3r {
 
 struct LayerResult;
+struct Calib_Params;
 
 class GCodeG1Formatter;
 
@@ -21,7 +22,7 @@ class PressureEqualizer
 {
 public:
     PressureEqualizer() = delete;
-    explicit PressureEqualizer(const Slic3r::GCodeConfig &config);
+    explicit PressureEqualizer(const Slic3r::GCodeConfig &config, const Calib_Params *calib_params = nullptr);
     ~PressureEqualizer() = default;
 
     // Process a next batch of G-code lines.
@@ -97,6 +98,41 @@ private:
     float                          m_pellet_ers_deceleration_slope { 0.f };
     // Minimum volumetric rate at ramp boundaries (mm³/min, converted from mm³/s at init)
     float                          m_pellet_ers_min_rate { 30.f }; // 0.5 mm³/s * 60
+
+    // Parameter sweep (CalibMode::Calib_Param_Sweep): which ERS parameter is varied
+    // layer by layer from sweep_start towards sweep_end, changing by sweep_step at
+    // every layer. Values are in user units (mm³/s² for slopes, mm³/s for min rate,
+    // 0/1/2 = linear/sqrt/exponential for the ramp profile).
+    enum class SweepParam {
+        None,        // sweep disabled or handled elsewhere
+        Slope,       // max_volumetric_extrusion_rate_slope
+        DecelSlope,  // pellet_ers_deceleration_slope
+        MinRate,     // pellet_ers_min_rate
+        RampProfile, // pellet_ers_ramp_profile
+    };
+    SweepParam                     m_sweep_param { SweepParam::None };
+    float                          m_sweep_start { 0.f };
+    float                          m_sweep_end { 0.f };
+    float                          m_sweep_step { 0.f };
+    // Index of the next layer to be processed (counts non-nop layers).
+    size_t                         m_sweep_layer_idx { 0 };
+    // Sweep comment for the last processed layer, emitted when that layer is output.
+    std::string                    m_sweep_comment_next;
+
+    // Snapshot of the ERS parameters the sweep can modify. Needed because the output
+    // of layer N-1 happens while layer N is being processed: the output pass must run
+    // with the parameters that were active when N-1 was processed.
+    struct SweepSnapshot {
+        float                slope_positive;
+        float                slope_negative;
+        float                decel_slope;
+        float                min_rate;
+        PelletERSRampProfile ramp_profile;
+    };
+    SweepSnapshot snapshot_sweep_params() const;
+    void          restore_sweep_params(const SweepSnapshot &params);
+    // Apply the sweep value for m_sweep_layer_idx and compose the G-code comment.
+    void          apply_param_sweep();
 
     // Indicate if extrude set speed block was opened using the tag ";_EXTRUDE_SET_SPEED"
     // or not (not opened, or it was closed using the tag ";_EXTRUDE_END").

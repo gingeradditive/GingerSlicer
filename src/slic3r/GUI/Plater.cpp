@@ -9908,6 +9908,15 @@ void Plater::calib_junction_deviation(const Calib_Params& params)
     p->background_process.fff_print()->set_calib_params(params);
 }
 
+void Plater::calib_param_sweep(const Calib_Params& params)
+{
+    // Generic layer-by-layer parameter sweep: applied to the objects currently on the
+    // plate, no test model is loaded and no config is forced.
+    p->background_process.fff_print()->set_calib_params(params);
+    // Invalidate any existing slicing result so the sweep is applied on the next slice.
+    p->background_process.reset();
+}
+
 BuildVolume_Type Plater::get_build_volume_type() const { return p->bed.get_build_volume_type(); }
 
 void Plater::import_zip_archive()
