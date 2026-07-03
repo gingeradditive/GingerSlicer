@@ -3,6 +3,7 @@
 
 #include <boost/log/trivial.hpp>
 #include <cfloat>
+#include <set>
 
 namespace Slic3r {
 
@@ -283,8 +284,20 @@ static t_config_option_keys print_config_diffs(
 //BBS: add plate index
 static t_config_option_keys full_print_config_diffs(const DynamicPrintConfig &current_full_config, const DynamicPrintConfig &new_full_config, int plate_index)
 {
+    // Printer host connection settings have no influence on the generated G-code.
+    // Ginger: the sidebar "Connection" selector writes print_host into the printer preset,
+    // so these keys end up in the full config; without this filter any IP change would
+    // invalidate psGCodeExport, discarding the sliced G-code and its print statistics
+    // (breaking e.g. the output filename template right before an upload).
+    static const std::set<std::string> host_options_ignore = {
+        "print_host", "print_host_webui", "printhost_apikey", "printhost_authorization_type",
+        "printhost_cafile", "printhost_password", "printhost_port", "printhost_ssl_ignore_revoke",
+        "printhost_user"
+    };
     t_config_option_keys full_config_diff;
     for (const t_config_option_key &opt_key : new_full_config.keys()) {
+        if (host_options_ignore.find(opt_key) != host_options_ignore.end())
+            continue;
         const ConfigOption *opt_old = current_full_config.option(opt_key);
         const ConfigOption *opt_new = new_full_config.option(opt_key);
         if (opt_old == nullptr || *opt_new != *opt_old) {
