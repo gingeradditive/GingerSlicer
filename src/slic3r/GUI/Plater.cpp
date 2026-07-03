@@ -9912,9 +9912,11 @@ void Plater::calib_param_sweep(const Calib_Params& params)
 {
     // Generic layer-by-layer parameter sweep: applied to the objects currently on the
     // plate, no test model is loaded and no config is forced.
+    // set_calib_params() invalidates the G-code export step of the print; here we mirror
+    // that on the UI side so the plate goes back to the "needs slicing" state.
     p->background_process.fff_print()->set_calib_params(params);
-    // Invalidate any existing slicing result so the sweep is applied on the next slice.
-    p->background_process.reset();
+    p->background_process.get_current_plate()->update_slice_result_valid_state(false);
+    p->main_frame->update_slice_print_status(MainFrame::eEventPlateUpdate, true);
 }
 
 BuildVolume_Type Plater::get_build_volume_type() const { return p->bed.get_build_volume_type(); }

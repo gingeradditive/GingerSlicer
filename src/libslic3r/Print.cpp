@@ -209,7 +209,21 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
         "filament_retraction_distances_when_cut"
     };
 
-    static std::unordered_set<std::string> steps_ignore;
+    static std::unordered_set<std::string> steps_ignore = {
+        // Printer host connection settings have no influence on the generated G-code:
+        // changing the printer IP from the sidebar must not invalidate the sliced print,
+        // otherwise printing right after the change fails (the print statistics needed by
+        // the output filename template are discarded together with the G-code).
+        "print_host",
+        "print_host_webui",
+        "printhost_apikey",
+        "printhost_authorization_type",
+        "printhost_cafile",
+        "printhost_password",
+        "printhost_port",
+        "printhost_ssl_ignore_revoke",
+        "printhost_user"
+    };
 
     std::vector<PrintStep> steps;
     std::vector<PrintObjectStep> osteps;
@@ -366,6 +380,14 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
 }
 
 void Print::set_calib_params(const Calib_Params& params) {
+    // The calibration parameters are applied during G-code generation and are not part
+    // of the config diff: invalidate the export step explicitly, otherwise a print whose
+    // steps are all done would keep its previous G-code and the calibration would not
+    // take effect until something else invalidates it.
+    {
+        std::scoped_lock<std::mutex> lock(this->state_mutex());
+        this->invalidate_step(psGCodeExport);
+    }
     m_calib_params = params;
     m_calib_params.mode = params.mode;
 }
