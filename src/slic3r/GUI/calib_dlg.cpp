@@ -1129,6 +1129,9 @@ static const SweepParamEntry s_sweep_params[] = {
     {"pellet_ers_deceleration_slope",        "ERS deceleration slope (mm3/s2)",               5,   40, 0.5},
     {"pellet_ers_min_rate",                  "ERS minimum flow rate (mm3/s)",                 0.2, 3,  0.05},
     {"pellet_ers_ramp_profile",              "ERS ramp profile (0=linear 1=sqrt 2=exp)",      0,   2,  1},
+    {"pellet_ers_rampup_flow",               "ERS ramp-up flow (%)",                          100, 160, 1},
+    {"pellet_ers_rampdown_flow",             "ERS ramp-down flow (%)",                        100, 40,  1},
+    {"pellet_ers_pressure_tau",              "ERS pressure time constant (s)",                0,   0.5, 0.005},
 };
 
 Param_Sweep_Dlg::Param_Sweep_Dlg(wxWindow* parent, wxWindowID id, Plater* plater)
@@ -1252,6 +1255,28 @@ void Param_Sweep_Dlg::on_start(wxCommandEvent& event) {
         MessageDialog msg_dlg(nullptr, _L("Please input valid values:\nstep > 0\nstart != end"), wxEmptyString, wxICON_WARNING | wxOK);
         msg_dlg.ShowModal();
         return;
+    }
+
+    // Refuse configurations where the sweep would silently have no effect.
+    {
+        const std::string key = s_sweep_params[sel].key;
+        const bool is_ers_param = key == "max_volumetric_extrusion_rate_slope" || key == "pellet_ers_deceleration_slope" ||
+                                  key == "pellet_ers_min_rate" || key == "pellet_ers_ramp_profile" ||
+                                  key == "pellet_ers_rampup_flow" || key == "pellet_ers_rampdown_flow" ||
+                                  key == "pellet_ers_pressure_tau";
+        if (is_ers_param) {
+            const DynamicPrintConfig &print_cfg = wxGetApp().preset_bundle->prints.get_edited_preset().config;
+            wxString warn;
+            if (print_cfg.option<ConfigOptionFloat>("max_volumetric_extrusion_rate_slope")->value <= 0)
+                warn = _L("'Extrusion rate smoothing' is 0: the ERS post-processor is disabled and this sweep would have no effect.\nSet a smoothing slope > 0 first.");
+            else if (key != "max_volumetric_extrusion_rate_slope" && !print_cfg.opt_bool("pellet_ers_mode"))
+                warn = _L("'Pellet extruder mode' is disabled: this parameter only affects Pellet ERS mode and the sweep would have no effect.\nEnable pellet ERS mode first.");
+            if (!warn.empty()) {
+                MessageDialog msg_dlg(nullptr, warn, wxEmptyString, wxICON_WARNING | wxOK);
+                msg_dlg.ShowModal();
+                return;
+            }
+        }
     }
 
     m_params.sweep_param = s_sweep_params[sel].key;

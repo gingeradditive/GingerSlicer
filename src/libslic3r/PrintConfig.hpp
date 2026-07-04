@@ -1198,6 +1198,9 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionEnum<PelletERSRampProfile>, pellet_ers_ramp_profile))
     ((ConfigOptionFloat,              pellet_ers_deceleration_slope))
     ((ConfigOptionFloat,              pellet_ers_min_rate))
+    ((ConfigOptionPercent,            pellet_ers_rampup_flow))
+    ((ConfigOptionPercent,            pellet_ers_rampdown_flow))
+    ((ConfigOptionFloat,              pellet_ers_pressure_tau))
 
     
     ((ConfigOptionPercents,            retract_before_wipe))

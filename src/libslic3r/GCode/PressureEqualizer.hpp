@@ -66,8 +66,18 @@ private:
         float negative;
     };
     ExtrusionRateSlope              m_max_volumetric_extrusion_rate_slopes[size_t(ExtrusionRole::erCount)];
+    // Effective slopes (mm³/min²) actually used by the passes: derived from the raw
+    // configured values by apply_effective_slopes() (deceleration substitution on the
+    // negative side and ramp-profile peak correction, both pellet mode only).
     float                           m_max_volumetric_extrusion_rate_slope_positive;
     float                           m_max_volumetric_extrusion_rate_slope_negative;
+    // Raw configured slopes (mm³/min²), kept for the sweep and for re-deriving the
+    // effective values when a swept parameter changes.
+    float                           m_slope_positive_raw { 0.f };
+    float                           m_slope_negative_raw { 0.f };
+    // Derive the effective slopes + per-role table from the raw values, the deceleration
+    // slope and the ramp profile.
+    void                            apply_effective_slopes();
 
     // Configuration extracted from config.
     // Area of the crossestion of each filament. Necessary to calculate the volumetric flow rate.
@@ -98,17 +108,31 @@ private:
     float                          m_pellet_ers_deceleration_slope { 0.f };
     // Minimum volumetric rate at ramp boundaries (mm³/min, converted from mm³/s at init)
     float                          m_pellet_ers_min_rate { 30.f }; // 0.5 mm³/s * 60
+    // Flow compensation factors applied to the extruded amount (E) inside ramp zones.
+    // The feedrate ramp alone only redistributes the pressure mismatch along the path:
+    // during ramp-up part of the material charges the melt reservoir (under-extruded bead),
+    // during ramp-down the reservoir discharges into the bead (over-extruded).
+    // 1.0 = no compensation. Applied only with relative E distances.
+    float                          m_pellet_ers_rampup_flow { 1.f };
+    float                          m_pellet_ers_rampdown_flow { 1.f };
+    // Time constant τ of the melt pressure reservoir (seconds, 0 = disabled).
+    // Primary flow compensation: E_scale = 1 ± τ·slope/Q computed per segment;
+    // the rampup/rampdown flow factors act as an additional trim on top of it.
+    float                          m_pellet_ers_pressure_tau { 0.f };
 
     // Parameter sweep (CalibMode::Calib_Param_Sweep): which ERS parameter is varied
     // layer by layer from sweep_start towards sweep_end, changing by sweep_step at
     // every layer. Values are in user units (mm³/s² for slopes, mm³/s for min rate,
     // 0/1/2 = linear/sqrt/exponential for the ramp profile).
     enum class SweepParam {
-        None,        // sweep disabled or handled elsewhere
-        Slope,       // max_volumetric_extrusion_rate_slope
-        DecelSlope,  // pellet_ers_deceleration_slope
-        MinRate,     // pellet_ers_min_rate
-        RampProfile, // pellet_ers_ramp_profile
+        None,         // sweep disabled or handled elsewhere
+        Slope,        // max_volumetric_extrusion_rate_slope
+        DecelSlope,   // pellet_ers_deceleration_slope
+        MinRate,      // pellet_ers_min_rate
+        RampProfile,  // pellet_ers_ramp_profile
+        RampupFlow,   // pellet_ers_rampup_flow (%)
+        RampdownFlow, // pellet_ers_rampdown_flow (%)
+        PressureTau,  // pellet_ers_pressure_tau (s)
     };
     SweepParam                     m_sweep_param { SweepParam::None };
     float                          m_sweep_start { 0.f };
@@ -123,11 +147,14 @@ private:
     // of layer N-1 happens while layer N is being processed: the output pass must run
     // with the parameters that were active when N-1 was processed.
     struct SweepSnapshot {
-        float                slope_positive;
-        float                slope_negative;
-        float                decel_slope;
-        float                min_rate;
+        float                slope_positive;   // raw, mm³/min²
+        float                slope_negative;   // raw, mm³/min²
+        float                decel_slope;      // raw, mm³/min²
+        float                min_rate;         // mm³/min
         PelletERSRampProfile ramp_profile;
+        float                rampup_flow;      // factor, 1.0 = off
+        float                rampdown_flow;    // factor, 1.0 = off
+        float                pressure_tau;     // seconds, 0 = off
     };
     SweepSnapshot snapshot_sweep_params() const;
     void          restore_sweep_params(const SweepSnapshot &params);

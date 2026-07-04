@@ -62,15 +62,23 @@ PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config, const Ca
     // Slope of the volumetric rate, changing from 20mm/s to 60mm/s over 2 seconds: (5.4-1.8)*60*60/2=60*60*1.8 = 6480 mm^3/min^2 = 1.8 mm^3/s^2
     
     if(config.max_volumetric_extrusion_rate_slope.value > 0){
-		m_max_volumetric_extrusion_rate_slope_positive = float(config.max_volumetric_extrusion_rate_slope.value) * 60.f * 60.f;
-    	m_max_volumetric_extrusion_rate_slope_negative = float(config.max_volumetric_extrusion_rate_slope.value) * 60.f * 60.f;
+        m_slope_positive_raw = float(config.max_volumetric_extrusion_rate_slope.value) * 60.f * 60.f;
+        m_slope_negative_raw = float(config.max_volumetric_extrusion_rate_slope.value) * 60.f * 60.f;
     	m_max_segment_length = float(config.max_volumetric_extrusion_rate_slope_segment_length.value);
         m_extrusion_rate_smoothing_external_perimeter_only = bool(config.extrusion_rate_smoothing_external_perimeter_only.value);
         m_pellet_ers_mode = bool(config.pellet_ers_mode.value);
-        m_pellet_ers_travel_threshold = float(config.pellet_ers_travel_threshold_mm.value);
+        // Floor at 0.05 mm: with threshold 0, contiguous polylines (travel_mm=0, e.g. the
+        // scarf-seam split of a loop) would otherwise trigger a full ramp-down/ramp-up
+        // cycle across a zero-length gap, plunging the flow far below the minimum rate.
+        m_pellet_ers_travel_threshold = std::max(float(config.pellet_ers_travel_threshold_mm.value), 0.05f);
         m_pellet_ers_ramp_profile = config.pellet_ers_ramp_profile.value;
         m_pellet_ers_deceleration_slope = float(config.pellet_ers_deceleration_slope.value) * 60.f * 60.f; // mm³/s² → mm³/min²
         m_pellet_ers_min_rate = float(config.pellet_ers_min_rate.value) * 60.f; // mm³/s → mm³/min
+        if (m_pellet_ers_mode) {
+            m_pellet_ers_rampup_flow   = float(config.pellet_ers_rampup_flow.value) * 0.01f;   // % → factor
+            m_pellet_ers_rampdown_flow = float(config.pellet_ers_rampdown_flow.value) * 0.01f; // % → factor
+            m_pellet_ers_pressure_tau  = float(config.pellet_ers_pressure_tau.value);          // seconds
+        }
         if (calib_params != nullptr && calib_params->mode == CalibMode::Calib_Param_Sweep) {
             if (calib_params->sweep_param == "max_volumetric_extrusion_rate_slope")
                 m_sweep_param = SweepParam::Slope;
@@ -80,6 +88,12 @@ PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config, const Ca
                 m_sweep_param = SweepParam::MinRate;
             else if (calib_params->sweep_param == "pellet_ers_ramp_profile")
                 m_sweep_param = SweepParam::RampProfile;
+            else if (calib_params->sweep_param == "pellet_ers_rampup_flow")
+                m_sweep_param = SweepParam::RampupFlow;
+            else if (calib_params->sweep_param == "pellet_ers_rampdown_flow")
+                m_sweep_param = SweepParam::RampdownFlow;
+            else if (calib_params->sweep_param == "pellet_ers_pressure_tau")
+                m_sweep_param = SweepParam::PressureTau;
             if (m_sweep_param != SweepParam::None) {
                 m_sweep_start = float(calib_params->start);
                 m_sweep_end   = float(calib_params->end);
@@ -88,16 +102,7 @@ PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config, const Ca
         }
     }
 
-    for (ExtrusionRateSlope &extrusion_rate_slope : m_max_volumetric_extrusion_rate_slopes) {
-        extrusion_rate_slope.negative = m_max_volumetric_extrusion_rate_slope_negative;
-        extrusion_rate_slope.positive = m_max_volumetric_extrusion_rate_slope_positive;
-    }
-    
-	// Don't regulate the pressure before and after ironing.
-    for (const ExtrusionRole er : {ExtrusionRole::erIroning}) {
-        m_max_volumetric_extrusion_rate_slopes[size_t(er)].negative = 0;
-        m_max_volumetric_extrusion_rate_slopes[size_t(er)].positive = 0;
-    }
+    apply_effective_slopes();
 
     opened_extrude_set_speed_block = false;
 
@@ -306,31 +311,62 @@ long PressureEqualizer::advance_segment_beyond_small_gap(const long idx_orig)
      return idx_orig;
 }
 
-PressureEqualizer::SweepSnapshot PressureEqualizer::snapshot_sweep_params() const
+void PressureEqualizer::apply_effective_slopes()
 {
-    return { m_max_volumetric_extrusion_rate_slope_positive,
-             m_max_volumetric_extrusion_rate_slope_negative,
-             m_pellet_ers_deceleration_slope,
-             m_pellet_ers_min_rate,
-             m_pellet_ers_ramp_profile };
-}
+    // Ramp profile peak correction (pellet mode): the ramp length is computed for a
+    // constant dQ/dt (the Sqrt law). Linear and Exponential redistribute the same ramp
+    // with local peaks of ~2x / ~3x the average — divide the effective slope so the
+    // instantaneous flow acceleration never exceeds the configured mm³/s² value.
+    float divisor = 1.f;
+    if (m_pellet_ers_mode) {
+        if (m_pellet_ers_ramp_profile == PelletERSRampProfile::Linear)
+            divisor = 2.f;
+        else if (m_pellet_ers_ramp_profile == PelletERSRampProfile::Exponential)
+            divisor = 3.f;
+    }
+    // Pellet mode: the deceleration slope (when set) applies to ALL negative transitions,
+    // not only to the boundary ramp-downs — the pressure release asymmetry is a property
+    // of the screw, not of the travels.
+    float negative_raw = m_slope_negative_raw;
+    if (m_pellet_ers_mode && m_pellet_ers_deceleration_slope > 0.f)
+        negative_raw = m_pellet_ers_deceleration_slope;
 
-void PressureEqualizer::restore_sweep_params(const SweepSnapshot &params)
-{
-    m_max_volumetric_extrusion_rate_slope_positive = params.slope_positive;
-    m_max_volumetric_extrusion_rate_slope_negative = params.slope_negative;
-    m_pellet_ers_deceleration_slope                = params.decel_slope;
-    m_pellet_ers_min_rate                          = params.min_rate;
-    m_pellet_ers_ramp_profile                      = params.ramp_profile;
+    m_max_volumetric_extrusion_rate_slope_positive = m_slope_positive_raw / divisor;
+    m_max_volumetric_extrusion_rate_slope_negative = negative_raw / divisor;
     for (ExtrusionRateSlope &extrusion_rate_slope : m_max_volumetric_extrusion_rate_slopes) {
-        extrusion_rate_slope.negative = params.slope_negative;
-        extrusion_rate_slope.positive = params.slope_positive;
+        extrusion_rate_slope.negative = m_max_volumetric_extrusion_rate_slope_negative;
+        extrusion_rate_slope.positive = m_max_volumetric_extrusion_rate_slope_positive;
     }
     // Don't regulate the pressure before and after ironing.
     for (const ExtrusionRole er : {ExtrusionRole::erIroning}) {
         m_max_volumetric_extrusion_rate_slopes[size_t(er)].negative = 0;
         m_max_volumetric_extrusion_rate_slopes[size_t(er)].positive = 0;
     }
+}
+
+PressureEqualizer::SweepSnapshot PressureEqualizer::snapshot_sweep_params() const
+{
+    return { m_slope_positive_raw,
+             m_slope_negative_raw,
+             m_pellet_ers_deceleration_slope,
+             m_pellet_ers_min_rate,
+             m_pellet_ers_ramp_profile,
+             m_pellet_ers_rampup_flow,
+             m_pellet_ers_rampdown_flow,
+             m_pellet_ers_pressure_tau };
+}
+
+void PressureEqualizer::restore_sweep_params(const SweepSnapshot &params)
+{
+    m_slope_positive_raw            = params.slope_positive;
+    m_slope_negative_raw            = params.slope_negative;
+    m_pellet_ers_deceleration_slope = params.decel_slope;
+    m_pellet_ers_min_rate           = params.min_rate;
+    m_pellet_ers_ramp_profile       = params.ramp_profile;
+    m_pellet_ers_rampup_flow        = params.rampup_flow;
+    m_pellet_ers_rampdown_flow      = params.rampdown_flow;
+    m_pellet_ers_pressure_tau       = params.pressure_tau;
+    apply_effective_slopes();
 }
 
 void PressureEqualizer::apply_param_sweep()
@@ -376,6 +412,24 @@ void PressureEqualizer::apply_param_sweep()
         snprintf(value_str, sizeof(value_str), "%s", profile_names[profile_idx]);
         break;
     }
+    case SweepParam::RampupFlow:
+        value = std::clamp(value, 10.f, 300.f); // %
+        params.rampup_flow = value * 0.01f;
+        param_name = "rampup_flow";
+        snprintf(value_str, sizeof(value_str), "%.1f%%", double(value));
+        break;
+    case SweepParam::RampdownFlow:
+        value = std::clamp(value, 10.f, 300.f); // %
+        params.rampdown_flow = value * 0.01f;
+        param_name = "rampdown_flow";
+        snprintf(value_str, sizeof(value_str), "%.1f%%", double(value));
+        break;
+    case SweepParam::PressureTau:
+        value = std::clamp(value, 0.f, 10.f); // seconds
+        params.pressure_tau = value;
+        param_name = "pressure_tau";
+        snprintf(value_str, sizeof(value_str), "%.3fs", double(value));
+        break;
     default:
         return;
     }
@@ -403,6 +457,19 @@ LayerResult PressureEqualizer::process_layer(LayerResult &&input)
         this->process_layer(input.gcode);
         input.gcode.clear(); // GCode is already processed, so it isn't needed to store it.
         m_layer_results.emplace(new LayerResult(input));
+    } else if (m_pellet_ers_mode && !m_gcode_lines.empty()) {
+        // End of print: the pending lines are the last layer and no further call will
+        // re-process them. Every other layer gets its final ramp-down for free when the
+        // NEXT layer is processed (the pending buffer is re-scanned with the next
+        // polyline's travel distance available); the very last polyline of the print
+        // would otherwise stop at full flow, leaving the screw pressurized.
+        long last_e = long(m_gcode_lines.size()) - 1;
+        while (last_e >= 0 && !m_gcode_lines[last_e].extruding())
+            --last_e;
+        if (last_e >= 0) {
+            m_gcode_lines[last_e].travel_after_polyline = std::numeric_limits<float>::max();
+            adjust_volumetric_rate(0, size_t(last_e), false, true);
+        }
     }
 
     if (is_first_layer) // Buffer previous input result and output NOP.
@@ -1278,12 +1345,14 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
                     float feedrate = line.feedrate();
                     if (feedrate <= 0.f || dist <= 0.f)
                         continue;
-                    line.volumetric_extrusion_rate_start = rate_prec;
+                    // Use std::min to preserve stricter limits already set by the
+                    // backward/forward passes (mirrors the ramp-down handling below).
+                    line.volumetric_extrusion_rate_start = std::min(rate_prec, line.volumetric_extrusion_rate_start);
                     // rate_end = sqrt(rate_start^2 + 2 * slope * vol * dist / F)
                     float rate_end = sqrtf(rate_prec * rate_prec
                         + 2.f * ramp_slope * line.volumetric_extrusion_rate * dist / feedrate);
                     rate_end = std::min(rate_end, ramp_target);
-                    line.volumetric_extrusion_rate_end = rate_end;
+                    line.volumetric_extrusion_rate_end = std::min(rate_end, line.volumetric_extrusion_rate_end);
                     line.max_volumetric_extrusion_rate_slope_positive = ramp_slope;
                     line.modified = true;
                     line.pellet_ramp = true;
@@ -1298,18 +1367,15 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
         if (last_line.travel_after_polyline < m_pellet_ers_travel_threshold) {
             // No boundary ramp-down needed
         } else if (last_line.adjustable_flow) {
-            // Find the negative slope for the last line's extrusion role.
-            // Use the dedicated deceleration slope if configured, otherwise the role-based slope.
+            // Find the negative slope for the last line's extrusion role. The per-role
+            // table already embodies the dedicated deceleration slope (when configured)
+            // and the ramp-profile peak correction — see apply_effective_slopes().
             float ramp_slope = 0.f;
-            if (m_pellet_ers_deceleration_slope > 0.f) {
-                ramp_slope = m_pellet_ers_deceleration_slope;
-            } else {
-                for (size_t iRole = 1; iRole < size_t(ExtrusionRole::erCount); ++iRole) {
-                    if (m_max_volumetric_extrusion_rate_slopes[iRole].negative > 0 &&
-                        last_line.extrusion_role == ExtrusionRole(iRole)) {
-                        ramp_slope = m_max_volumetric_extrusion_rate_slopes[iRole].negative;
-                        break;
-                    }
+            for (size_t iRole = 1; iRole < size_t(ExtrusionRole::erCount); ++iRole) {
+                if (m_max_volumetric_extrusion_rate_slopes[iRole].negative > 0 &&
+                    last_line.extrusion_role == ExtrusionRole(iRole)) {
+                    ramp_slope = m_max_volumetric_extrusion_rate_slopes[iRole].negative;
+                    break;
                 }
             }
             if (ramp_slope > 0.f) {
@@ -1463,11 +1529,47 @@ void PressureEqualizer::push_line_to_output(const size_t line_idx, float new_fee
         feedrate_formatter.emit_string(std::string(EXTERNAL_PERIMETER_TAG.data(), EXTERNAL_PERIMETER_TAG.length()));
     push_to_output(feedrate_formatter);
 
+    // Ramp flow compensation (pellet mode, relative E only): the feedrate ramp keeps the
+    // nominal E per mm, so the bead is under-extruded during ramp-up (material charges
+    // the melt reservoir) and over-extruded during ramp-down (the reservoir discharges).
+    // Primary compensation: first-order reservoir model, E_scale = 1 ± τ·(dQ/dt)/Q,
+    // computed per segment so it adapts to the slope and to the position along the ramp
+    // (stronger near the minimum rate). The rampup/rampdown flow percentages act as an
+    // empirical trim on top for what the linear model does not capture.
+    float flow_scale = 1.f;
+    if (m_pellet_ers_mode && m_use_relative_e_distances && ers_tag != nullptr) {
+        const bool is_rampup   = strcmp(ers_tag, ";_ERS_RAMPUP") == 0;
+        const bool is_rampdown = strcmp(ers_tag, ";_ERS_RAMPDOWN") == 0;
+        if (is_rampup || is_rampdown) {
+            if (m_pellet_ers_pressure_tau > 0.f) {
+                const float de   = line.pos_end[3] - line.pos_start[3]; // filament mm (relative)
+                const float dist = line.dist_xyz();
+                if (de > 0.f && dist > 1e-6f && new_feedrate > 0.f) {
+                    // Volumetric flow of this segment (mm³/s).
+                    const float q = de * m_filament_crossections[line.extruder_id] / dist * (new_feedrate / 60.f);
+                    // Effective slope driving this ramp (mm³/min² → mm³/s²).
+                    float slope = is_rampup ? line.max_volumetric_extrusion_rate_slope_positive
+                                            : line.max_volumetric_extrusion_rate_slope_negative;
+                    if (slope <= 0.f)
+                        slope = is_rampup ? m_max_volumetric_extrusion_rate_slope_positive
+                                          : m_max_volumetric_extrusion_rate_slope_negative;
+                    slope /= 3600.f;
+                    if (q > 1e-3f && slope > 0.f)
+                        flow_scale = 1.f + (is_rampup ? 1.f : -1.f) * m_pellet_ers_pressure_tau * slope / q;
+                }
+            }
+            // Empirical trim on top of the model (default 100% = no trim).
+            flow_scale *= is_rampup ? m_pellet_ers_rampup_flow : m_pellet_ers_rampdown_flow;
+            // Safety clamp: near the minimum rate the model can demand extreme factors.
+            flow_scale = std::clamp(flow_scale, 0.05f, 4.f);
+        }
+    }
+
     GCodeG1Formatter extrusion_formatter;
     for (size_t axis_idx = 0; axis_idx < 3; ++axis_idx)
         if (line.pos_provided[axis_idx])
             extrusion_formatter.emit_axis(char('X' + axis_idx), line.pos_end[axis_idx], GCodeFormatter::XYZF_EXPORT_DIGITS);
-    extrusion_formatter.emit_axis('E', m_use_relative_e_distances ? (line.pos_end[3] - line.pos_start[3]) : line.pos_end[3], GCodeFormatter::E_EXPORT_DIGITS);
+    extrusion_formatter.emit_axis('E', m_use_relative_e_distances ? (line.pos_end[3] - line.pos_start[3]) * flow_scale : line.pos_end[3], GCodeFormatter::E_EXPORT_DIGITS);
 
     if (comment != nullptr)
         extrusion_formatter.emit_string(std::string(comment));

@@ -69,13 +69,43 @@ GingerSlicer. Each entry points to the primary source file when applicable.
 
 - **Ramp profile** (`pellet_ers_ramp_profile`, enum `PelletERSRampProfile`)
   — Interpolation curve used to bridge the volumetric flow between current
-  and target rate. Values: `Linear`, `Sqrt`, others. `Sqrt` smooths the
-  high-rate end where the screw is more responsive.
+  and target rate. Values: `Linear`, `Sqrt`, `Exponential`. **Sqrt is the
+  only slope-exact profile** (constant dQ/dt equal to the configured slope —
+  the kinematic law). Linear/Exponential concentrate the slope locally, so
+  `apply_effective_slopes()` divides their effective slope by 2 / 3 to keep
+  the instantaneous peak bounded (Linear is exact after the correction;
+  Exponential still overshoots ~2.5x in space-parametrization — prefer Sqrt).
+  In the parameter sweep the profile is addressed numerically:
+  0=linear, 1=sqrt, 2=exponential.
 
 - **Deceleration slope** (`pellet_ers_deceleration_slope`) — Independent
-  slope for ramp-**down** transitions. `0` means use the same value as the
-  main slope. Allows asymmetric build-up vs release behavior (the screw
-  pressurizes slower than it depressurizes).
+  slope for **all negative flow transitions** in pellet mode (boundary
+  ramp-downs AND internal decelerations — overhangs, slower features, width
+  changes). `0` means use the same value as the main slope. The
+  pressurize/release asymmetry is a property of the screw, not of travels.
+  Applied via `apply_effective_slopes()` into the per-role slope table.
+
+- **Pressure time constant** (`pellet_ers_pressure_tau`, seconds) — τ of
+  the first-order melt-reservoir model (τ = R·C: nozzle resistance × melt
+  compressibility). Primary ramp flow compensation: the extruded amount in
+  every `;_ERS_RAMPUP`/`;_ERS_RAMPDOWN` segment is scaled by
+  `1 ± τ·slope/Q(x)` — the slicer-side equivalent of the ORNL BAAM
+  feedforward lead filter and of firmware pressure advance, but for screw
+  dynamics. Adapts automatically to the configured slope and to the
+  position along the ramp (stronger near min rate). Calibrate ONCE per
+  nozzle (sweep); stays valid for any slope. BAAM reference: τ ≈ 0.06–0.09 s
+  on a large-nozzle machine; expect more on small nozzles (R ∝ ~1/r⁴).
+  0 = disabled. Theory: `docs/ginger/EXTRUSION_DYNAMICS.md`.
+
+- **Ramp flow trim** (`pellet_ers_rampup_flow` /
+  `pellet_ers_rampdown_flow`, %) — Empirical multipliers applied on top of
+  the τ compensation inside the ramp zones (with τ = 0 they act alone as a
+  constant-percentage compensation). They absorb what the linear model does
+  not capture: shear-thinning τ(Q), screw feed non-linearity. The feedrate
+  ramp alone only redistributes the pressure mismatch — under-extrusion at
+  path start / over-extrusion at path end, the classic bad-seam signature
+  even with stringing solved. Both sweepable. Requires relative E.
+  100% = no trim.
 
 - **Min rate** (`pellet_ers_min_rate`) — Floor of the ramp in mm³/min. The
   ramp never goes below this even at the boundary of a travel; prevents the
@@ -92,6 +122,68 @@ GingerSlicer. Each entry points to the primary source file when applicable.
 - **`travel_before_polyline` / `travel_after_polyline`** — Per-line metadata
   in `GCodeLine` storing the travel distance immediately preceding/following
   the line. Drives the threshold check for whether a ramp must be inserted.
+
+- **ERS G-code tags** — Debug comments emitted by the PressureEqualizer on
+  every line it touches: `;_ERS_RAMPUP`, `;_ERS_RAMPDOWN`, `;_ERS_STEADY`
+  (zone of the ramp), `;_ERS_CALIB layer=N param=value` (active sweep value,
+  one per layer). Grep these to analyze ramps without the GUI.
+
+- **Feedrate quantization** — `push_line_to_output` rounds every re-emitted
+  feedrate to **0.1 mm/s** (was 1 mm/s upstream). With pellet bead
+  cross-sections (~3.8 mm² at 3.2×1.3) 1 mm/s of speed is ~1.9 mm³/s of
+  flow — enough to overshoot `filament_max_volumetric_speed` and to
+  staircase the ERS ramps. Historical bug: walls printed at alternating
+  150/151.89 mm³/s because 39.5 mm/s was rounded up to 40.
+
+- **`POLYLINE_START` / `POLYLINE_END` markers** — Comments emitted by
+  `GCode::_extrude()` when `pellet_ers_mode` is enabled. They delimit each
+  continuous extrusion polyline and carry `travel_mm=` so the
+  PressureEqualizer can detect segments and decide ramp-up/ramp-down without
+  re-deriving travel distances.
+
+---
+
+## Calibration (parameter sweep)
+
+- **Parameter sweep** (`CalibMode::Calib_Param_Sweep`) — The only calibration
+  exposed in the Ginger UI (menu **Calibration → Parameter tuning (per-layer
+  sweep)**). Varies ONE parameter layer by layer on the objects currently on
+  the plate (no test model is loaded): `value(layer) = start + step × layer`,
+  clamped at `end`, direction inferred from start/end. Dialog:
+  `Param_Sweep_Dlg` in `src/slic3r/GUI/calib_dlg.cpp`;
+  plumbing: `Calib_Params::sweep_param` in `src/libslic3r/calib.hpp`.
+
+- **Sweepable parameters** — Two application paths:
+  - retraction group (`retraction_length`, `retraction_speed`,
+    `deretraction_speed`, `retract_restart_extra`): applied per layer to the
+    G-code writer in `GCode.cpp` `_layer_change` (like the stock retraction
+    tower); comment `; Calib_Param_Sweep: layer: N, key: value`.
+  - ERS group (`max_volumetric_extrusion_rate_slope`,
+    `pellet_ers_deceleration_slope`, `pellet_ers_min_rate`,
+    `pellet_ers_ramp_profile`, `pellet_ers_rampup_flow`,
+    `pellet_ers_rampdown_flow`, `pellet_ers_pressure_tau`): applied inside
+    the PressureEqualizer
+    (ctor takes `const Calib_Params*`); comment `;_ERS_CALIB`.
+    Requires `max_volumetric_extrusion_rate_slope > 0` (otherwise the
+    PressureEqualizer is never instantiated). The pellet-only parameters
+    (decel slope, min rate, ramp profile) additionally require
+    `pellet_ers_mode = 1` to have any effect.
+
+- **CLI sweep** — `--sweep "parameter:start:end:step"` together with
+  `--slice N`. Example:
+  `Ginger-Slicer.exe --slice 2 --sweep "pellet_ers_deceleration_slope:5:40:0.5" --outputdir out project.3mf`.
+  Parsed in `GingerSlicer.cpp` (slice branch) → `Print::set_calib_params`.
+  Fully headless: grep `;_ERS_CALIB` in the output for the layer→value map.
+
+- **Sweep lifecycle** — `Print::set_calib_params` invalidates `psGCodeExport`
+  so the next slice regenerates G-code. Loading new files resets the calib
+  mode to `Calib_None` (SoftFever legacy in `Plater::priv::load_files`):
+  load objects FIRST, then set the sweep. The sweep is NOT saved in the 3MF.
+
+- **One-layer output buffering** — The PressureEqualizer emits layer N−1
+  while processing layer N. The sweep keeps a `SweepSnapshot` of the
+  parameters each layer was processed with, so the output pass and the
+  `;_ERS_CALIB` comment always match the ramps actually generated.
 
 ---
 
@@ -141,6 +233,18 @@ GingerSlicer. Each entry points to the primary source file when applicable.
 - **`PrintObjectSlice.cpp`** — Where 3D mesh becomes per-layer 2D
   `ExPolygon`s. Entry point for any future feature-size pre-check based on
   Minkowski erosion.
+
+- **Host options vs invalidation** — The Ginger sidebar "Connection"
+  selector writes `print_host` into the **printer preset** (stock Orca keeps
+  it in the separate physical-printer config). `Print::apply` has TWO
+  invalidation paths: `print_diff` (routed through
+  `invalidate_state_by_config_options`, per-option granularity) and
+  `full_config_diff` (`PrintApply.cpp`, ANY changed key invalidates
+  `psGCodeExport`). The 9 `print_host`/`printhost_*` keys are excluded from
+  both, otherwise changing the printer IP would silently discard the sliced
+  G-code and its print statistics — breaking the output filename template
+  (`{filament_type[initial_tool]}` → "Non-integer index" error) right before
+  an upload.
 
 ---
 

@@ -4,7 +4,39 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-OrcaSlicer is an open-source 3D slicer application forked from Bambu Studio, built using C++ with wxWidgets for the GUI and CMake as the build system. The project uses a modular architecture with separate libraries for core slicing functionality, GUI components, and platform-specific code.
+GingerSlicer is Ginger Additive's pellet-focused fork of OrcaSlicer (itself forked from Bambu Studio), built using C++ with wxWidgets for the GUI and CMake as the build system. The project uses a modular architecture with separate libraries for core slicing functionality, GUI components, and platform-specific code.
+
+## GingerSlicer specifics (pellet fork)
+
+- **Domain glossary**: `docs/ginger/GLOSSARY.md` — read it before touching pellet ERS,
+  multiline infill, volume-based cooling, profiles/OTA or the calibration sweep.
+  Keep it updated when those areas change.
+- **Pellet ERS** lives in `src/libslic3r/GCode/PressureEqualizer.cpp` (tags
+  `;_ERS_RAMPUP/RAMPDOWN/STEADY`). Feedrates re-emitted by the PressureEqualizer are
+  quantized to 0.1 mm/s (NOT 1 mm/s as upstream Orca): pellet beads are several mm²,
+  so 1 mm/s of speed is mm³/s-scale flow error.
+- **Calibration**: the only exposed calibration is "Parameter tuning (per-layer sweep)"
+  (`CalibMode::Calib_Param_Sweep`, dialog `Param_Sweep_Dlg`). The stock filament
+  calibrations (temp tower, flow rate, PA, VFA…) are removed from the menu but their
+  code remains. Load objects BEFORE setting a sweep (`load_files` resets calib mode).
+- **Headless slicing for testing** (works, use it to verify slicing changes without GUI):
+  ```
+  build/src/Release/Ginger-Slicer.exe --slice <plate|0> --outputdir <dir> project.3mf
+  build/src/Release/Ginger-Slicer.exe --slice 2 --sweep "pellet_ers_deceleration_slope:5:40:0.5" --outputdir out project.3mf
+  ```
+  The project 3MF must embed its settings (save the project from the GUI). Output:
+  `<dir>/plate_N.gcode`. CLI help does not print (GUI subsystem); logs go to stderr.
+  Ginger pellet profiles use `filament_diameter = 1.12838` → filament cross-section is
+  exactly 1 mm², so ΔE in mm equals extruded volume in mm³ (handy for G-code analysis).
+- **Windows build gotcha**: incremental builds fail at link with `LNK1104` if
+  Ginger-Slicer.exe is running (dll locked) — check the process first. When chaining
+  `cmake --build ... | tail`, the pipeline exit code is tail's, not the build's:
+  verify the `.dll ->` line or the absence of `LNK` errors in the output.
+- **Invalidation gotcha**: `Print::apply` has two invalidation paths — per-option
+  `print_diff` → `invalidate_state_by_config_options` (Print.cpp) and blanket
+  `full_config_diff` → `psGCodeExport` (PrintApply.cpp). Options that must not
+  invalidate the sliced G-code (e.g. `print_host`/`printhost_*`) must be excluded
+  from BOTH.
 
 ## Build Commands
 

@@ -9914,8 +9914,12 @@ void Plater::calib_param_sweep(const Calib_Params& params)
     // plate, no test model is loaded and no config is forced.
     // set_calib_params() invalidates the G-code export step of the print; here we mirror
     // that on the UI side so the plate goes back to the "needs slicing" state.
-    p->background_process.fff_print()->set_calib_params(params);
-    p->background_process.get_current_plate()->update_slice_result_valid_state(false);
+    Print     *print = p->background_process.fff_print();
+    PartPlate *plate = p->background_process.get_current_plate();
+    if (print == nullptr || plate == nullptr)
+        return;
+    print->set_calib_params(params);
+    plate->update_slice_result_valid_state(false);
     p->main_frame->update_slice_print_status(MainFrame::eEventPlateUpdate, true);
 }
 
