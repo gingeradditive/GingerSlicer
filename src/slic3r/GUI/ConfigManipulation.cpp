@@ -586,6 +586,8 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     // print-wide travel/seam mode (it also drives the inner-wall and inter-island seam in GCode.cpp), so it stays
     // available even at 0% infill and for any pattern. The infill-CONNECT part only applies to line-based patterns
     // (gated in Fill.cpp by sparse_infill_pattern); the wall / inter-island seam part applies regardless.
+    // Its sub-option (rib connectors between wall loops) only makes sense with single_path_mode on.
+    toggle_field("single_path_wall_ribs", config->opt_bool("single_path_mode"));
     if (have_infill) {
         toggle_field("fill_multiline", have_multiline_infill_pattern);
         // If the infill pattern does not support multiline fill_multiline is changed to 1.

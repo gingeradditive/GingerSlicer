@@ -7,12 +7,14 @@
 #include "libslic3r/Preset.hpp"
 #include "libslic3r/Format/bbs_3mf.hpp"
 
+#include <cstdlib>
 #include <iostream>
 #include <fstream>
 #include <map>
 #include <sstream>
 #include <boost/filesystem.hpp>
 #include <boost/nowide/cstdio.hpp>
+#include <boost/nowide/fstream.hpp>
 
 #include "test_data.hpp"
 
@@ -490,6 +492,101 @@ SCENARIO("Single path: lightning fill_multiline=2", "[.][SinglePathLightning]") 
         THEN("lightning single-path does not retrace over its own lines (no out-and-back doubled extrusion)") {
             CAPTURE(spikes);
             CHECK(spikes == 0);
+        }
+    }
+}
+
+// Ginger single_path_wall_ribs probe: re-slice the real part with rib connectors enabled, so the
+// wall loops of each island are merged into one continuous loop (extrude_perimeters +
+// splice_wall_loops). Verifies the walls do not retrace over themselves (the rib is two touching
+// staggered beads, never a doubled centerline) and reports the travel breakdown - the number to
+// watch is Outer wall -> Outer wall, which the ribs are meant to collapse. Dumps the g-code to
+// the temp dir for external analysis.
+SCENARIO("Single path: wall rib connectors", "[.][SinglePathRibs]") {
+    // The default guard fixture has single-loop islands (ribs are a geometric no-op there);
+    // point GINGER_RIBS_3MF at a project whose islands have holes (e.g. D1-P002) to see the
+    // ribs act. Env var must be set in the shell that launches the test exe.
+    const char*       env  = std::getenv("GINGER_RIBS_3MF");
+    const std::string path = env != nullptr ? std::string(env) : std::string(TEST_DATA_DIR) + "/single_path_guard.3mf";
+    if (! boost::filesystem::exists(path)) {
+        WARN("fixture " + path + " not present; skipping wall-ribs probe");
+        return;
+    }
+    GIVEN("the real part re-configured with single_path_mode + single_path_wall_ribs") {
+        DynamicPrintConfig        config;
+        ConfigSubstitutionContext ctx(ForwardCompatibilitySubstitutionRule::Enable);
+        PlateDataPtrs             plate_data;
+        std::vector<Preset*>      project_presets;
+        LoadStrategy strategy = LoadStrategy::AddDefaultInstances | LoadStrategy::LoadModel | LoadStrategy::LoadConfig;
+        Model model = Model::read_from_file(path, &config, &ctx, strategy, &plate_data, &project_presets);
+        REQUIRE(! model.objects.empty());
+
+        config.set_key_value("single_path_mode",      new ConfigOptionBool(true));
+        // GINGER_RIBS_OFF=1 gives the A/B baseline: single_path seam chain alone, no ribs.
+        config.set_key_value("single_path_wall_ribs", new ConfigOptionBool(std::getenv("GINGER_RIBS_OFF") == nullptr));
+        config.set_key_value("gcode_comments",        new ConfigOptionBool(true));
+        config.normalize_fdm();
+
+        Print print;
+        print.apply(model, config);
+        std::string gcode = Slic3r::Test::gcode(print);
+        REQUIRE(! gcode.empty());
+
+        {
+            const auto dump = boost::filesystem::temp_directory_path() / "singlepath_ribs.gcode";
+            boost::nowide::ofstream f(dump.string(), std::ios::binary);
+            f << gcode;
+            WARN("g-code dumped to " + dump.string());
+        }
+
+        struct Acc { size_t count = 0; double sum = 0.; double max = 0.;
+                     void add(double mm) { ++count; sum += mm; max = std::max(max, mm); } };
+        std::map<std::string, Acc> by_transition;
+        std::string cur_type, last_extruded_type;
+        bool   pending_travel    = false;
+        double pending_travel_mm = 0.;
+        // Out-and-back detector on the WALL types: a rib is two parallel beads staggered by one
+        // line width - a doubled centerline (reversal > 174.9 deg between two >= 5mm legs) would
+        // mean the splice retraced, the hard no-go on pellet.
+        bool   have_prev_dir = false;
+        double prev_dx = 0., prev_dy = 0., prev_len = 0.;
+        size_t wall_spikes = 0;
+        GCodeReader reader;
+        reader.parse_buffer(gcode, [&](GCodeReader& self, const GCodeReader::GCodeLine& line) {
+            const std::string_view c = line.comment();
+            if (c.rfind("TYPE:", 0) == 0) { cur_type = std::string(c.substr(5)); have_prev_dir = false; return; }
+            if (line.travel() && line.dist_XY(self) > 1.0f) {
+                pending_travel = true; pending_travel_mm = line.dist_XY(self);
+                have_prev_dir = false;
+            } else if (line.extruding(self)) {
+                if (pending_travel && ! last_extruded_type.empty())
+                    by_transition[last_extruded_type + " -> " + cur_type].add(pending_travel_mm);
+                pending_travel = false; last_extruded_type = cur_type;
+                if (cur_type == "Outer wall" || cur_type == "Inner wall") {
+                    const double dx = line.new_X(self) - self.x(), dy = line.new_Y(self) - self.y();
+                    const double len = std::sqrt(dx * dx + dy * dy);
+                    if (len > 0.001) {
+                        if (have_prev_dir && len >= 5.0 && prev_len >= 5.0) {
+                            const double dot = (dx * prev_dx + dy * prev_dy) / (len * prev_len);
+                            if (dot < -0.996) ++ wall_spikes;
+                        }
+                        prev_dx = dx; prev_dy = dy; prev_len = len; have_prev_dir = true;
+                    }
+                } else have_prev_dir = false;
+            }
+        });
+
+        {
+            std::ostringstream os;
+            os << "WALL RIBS single_path travel breakdown (travels > 1mm, by ;TYPE: transition):\n";
+            for (const auto& kv : by_transition)
+                os << "  " << kv.first << ": count=" << kv.second.count
+                   << " total=" << (long) (kv.second.sum + 0.5) << "mm max=" << kv.second.max << "mm\n";
+            WARN(os.str());
+        }
+        THEN("merged walls do not retrace over their own beads (rib = two staggered beads, no doubled centerline)") {
+            CAPTURE(wall_spikes);
+            CHECK(wall_spikes == 0);
         }
     }
 }

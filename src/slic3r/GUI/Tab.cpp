@@ -2417,6 +2417,7 @@ optgroup->append_single_option_line("skirt_loops", "others_settings_skirt#loops"
         optgroup->append_single_option_line("spiral_finishing_flow_ratio", "others_settings_special_mode#spiral-finishing-flow-ratio");
 
         optgroup->append_single_option_line("single_path_mode", "others_settings_special_mode#single-path");
+        optgroup->append_single_option_line("single_path_wall_ribs", "others_settings_special_mode#single-path");
 
         optgroup->append_single_option_line("timelapse_type", "others_settings_special_mode#timelapse");
 

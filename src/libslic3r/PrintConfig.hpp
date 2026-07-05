@@ -1022,6 +1022,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloatOrPercent,                infill_combination_max_layer_height))
     ((ConfigOptionInt,                  fill_multiline))
     ((ConfigOptionBool,                 single_path_mode))
+    ((ConfigOptionBool,                 single_path_wall_ribs))
     // Ironing options
     ((ConfigOptionEnum<IroningType>, ironing_type))
     ((ConfigOptionEnum<InfillPattern>, ironing_pattern))

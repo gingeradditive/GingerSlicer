@@ -15,6 +15,7 @@ add_executable(${_TEST_NAME}_tests
 	test_skirt_brim.cpp
 	test_support_material.cpp
 	test_trianglemesh.cpp
+	test_wall_ribs.cpp
 	)
 target_link_libraries(${_TEST_NAME}_tests test_common libslic3r OpenSSL::Crypto)
 if (WIN32)

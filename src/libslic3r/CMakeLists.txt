@@ -451,6 +451,8 @@ set(lisbslic3r_sources
     Utils.hpp
     VariableWidth.cpp
     VariableWidth.hpp
+    WallRibs.cpp
+    WallRibs.hpp
     Zipper.cpp
     Zipper.hpp
 )

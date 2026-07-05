@@ -2439,6 +2439,19 @@ void PrintConfigDef::init_fff_params()
     def->mode       = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
+    // Ginger: rib connectors between the wall loops of an island (single_path_mode sub-option).
+    def             = this->add("single_path_wall_ribs", coBool);
+    def->label      = L("Wall rib connectors");
+    def->category   = L("Others");
+    def->tooltip    = L("Merge all wall loops of an island (outer wall and hole walls) into one continuous "
+                        "extrusion path by adding short rib connectors at their closest approach: two touching "
+                        "beads side by side, like a thin internal rib. Eliminates the travel moves between the "
+                        "outer wall and each hole wall at the cost of a small amount of extra material, and adds "
+                        "stiffness. Only walls printed as closed loops with the same role and width are merged. "
+                        "Requires Single path mode.");
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("sparse_infill_pattern", coEnum);
     def->label = L("Sparse infill pattern");
     def->category = L("Strength");

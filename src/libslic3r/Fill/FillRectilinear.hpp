@@ -53,6 +53,7 @@ public:
     ~FillMonotonic() override = default;
     Polylines fill_surface(const Surface *surface, const FillParams &params) override;
 	bool no_sort() const override { return true; }
+    bool reversible_when_connected() const override { return true; }
 };
 
 class FillMonotonicLine : public FillRectilinear
@@ -62,6 +63,7 @@ public:
     ~FillMonotonicLine() override = default;
     Polylines fill_surface(const Surface *surface, const FillParams &params) override;
     bool no_sort() const override { return true; }
+    bool reversible_when_connected() const override { return true; }
 };
 
 class FillGrid : public FillRectilinear
@@ -171,6 +173,7 @@ public:
     ~FillMonotonicLines() override = default;
     Polylines fill_surface(const Surface *surface, const FillParams &params) override;
     bool no_sort() const override { return true; }
+    bool reversible_when_connected() const override { return true; }
 };
 
 //Orca: Replaced with FillMonotonicLines, inheriting from FillRectilinear

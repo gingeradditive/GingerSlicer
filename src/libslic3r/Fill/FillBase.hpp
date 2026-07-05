@@ -162,6 +162,14 @@ public:
     // Do not sort the fill lines to optimize the print head path?
     virtual bool no_sort() const { return false; }
 
+    // Ginger single-path: whether a connected fill (params.connect_polygons) may drop no_sort so the
+    // G-code chainer can reorder the surface's paths by proximity and enter them from either end.
+    // True for the monotonic fillers: with connect_polygons a surface is one continuous serpentine
+    // (or a few chunks) whose reversal is still monotonic, and keeping no_sort would force entry at
+    // the fixed first end - up to a full region-length approach travel. False by default; concentric
+    // keeps its outer-to-inner ring order.
+    virtual bool reversible_when_connected() const { return false; }
+
     virtual bool is_self_crossing() = 0;
 
     // Return true if infill has a consistent pattern between layers.

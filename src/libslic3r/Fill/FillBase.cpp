@@ -163,7 +163,13 @@ void Fill::fill_surface_extrusion(const Surface* surface, const FillParams& para
         ExtrusionEntityCollection* eec = nullptr;
         out.push_back(eec = new ExtrusionEntityCollection());
         // Only concentric fills are not sorted.
-        eec->no_sort = this->no_sort();
+        // Ginger single-path: a connected fill (connect_polygons, single_path_mode) is one continuous
+        // path per surface, so for the monotonic fillers there is no line order left to protect and
+        // no_sort would only make the collection non-reversible: the chainer would be forced to enter
+        // solid/top/bottom at its fixed first end, paying up to a full region-length approach travel
+        // (measured 320mm on the real part), and every following surface would start from the wrong
+        // side in cascade. Concentric keeps no_sort (ring order must stay outer-to-inner).
+        eec->no_sort = this->no_sort() && ! (params.connect_polygons && this->reversible_when_connected());
         // ORCA: special flag for flow rate calibration
         auto is_flow_calib = params.extrusion_role == erTopSolidInfill && this->print_object_config->has("calib_flowrate_topinfill_special_order") &&
                              this->print_object_config->option("calib_flowrate_topinfill_special_order")->getBool();
@@ -2570,7 +2576,11 @@ void Fill::chain_or_connect_infill(Polylines &&infill_ordered, const ExPolygon &
             // standalone, leaving the sub-tree as a separate fragment reached by a travel even though it
             // grazes the wall (the natural connection path). Cutting the loop open at its wall-nearest
             // vertex gives two adjacent endpoints on the wall, which the boundary graph then connects.
-            if (params.connect_polygons) {
+            // Only when there is at least one OTHER polyline to stitch to: a closed loop that is alone
+            // (e.g. the single spliced loop of the trapezoidal multiline pipeline) is already a perfect
+            // travel-free single path with a free seam - opening it would drop one loop segment and give
+            // back an open path (connect_infill never re-closes a self-loop), strictly worse.
+            if (params.connect_polygons && infill_ordered.size() > 1) {
                 Lines bnd = boundary.contour.lines();
                 for (const Polygon &h : boundary.holes)
                     append(bnd, h.lines());
