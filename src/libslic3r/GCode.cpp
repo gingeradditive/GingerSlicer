@@ -24,6 +24,7 @@
 #include "GCode/ExtrusionProcessor.hpp"
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <chrono>
 #include <iostream>
@@ -5241,8 +5242,10 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
             ExtrusionEntitiesPtr                        rib_perimeters;
             std::vector<std::unique_ptr<ExtrusionLoop>> rib_owned;
             const ExtrusionEntitiesPtr*                 perimeters = &region.perimeters;
+            // Even a single-loop island can carry a plan: a foundation buttress STUB spliced
+            // into its wall (one-key merge), so the gate is on the plans, not the loop count.
             if (single_path && m_config.single_path_wall_ribs && m_layer != nullptr &&
-                ! m_layer->wall_ribs.empty() && region.perimeters.size() > 1) {
+                ! m_layer->wall_ribs.empty() && ! region.perimeters.empty()) {
                 const std::vector<WallRibMerge> &merges = m_layer->wall_ribs;
                 std::vector<int> merge_of(region.perimeters.size(), -1);
                 std::vector<int> matched(merges.size(), 0);
@@ -5267,6 +5270,9 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                     // extruder-override splits; the corridor would then stay unfilled, so warn).
                     if (size_t(matched[m]) != merges[m].loop_keys.size()) {
                         BOOST_LOG_TRIVIAL(warning) << "single_path_wall_ribs: planned merge only partially matched, printing loops separately";
+                        if (std::getenv("GINGER_RIBS_DEBUG") != nullptr)
+                            std::fprintf(stderr, "[RIBSTAT] gcode z=%.2f merge %zu/%zu keys matched -> DROPPED at emission\n",
+                                         m_layer != nullptr ? m_layer->print_z : -1., size_t(matched[m]), merges[m].loop_keys.size());
                         for (size_t i = 0; i < merge_of.size(); ++ i)
                             if (merge_of[i] == int(m))
                                 merge_of[i] = -1;

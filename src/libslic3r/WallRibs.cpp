@@ -193,8 +193,10 @@ static Polygon splice_one(const Polygon &a, const PolyPos &p, const Polygon &b_i
 
 } // namespace
 
-// Support test against the previous layer: a rib may only stand on yesterday's rib corridor,
-// on a wall bead, or on solid fill - never over sparse infill or bare air inside the outline.
+// Support test against the previous layer. A rib STANDS on yesterday's rib corridor, a wall
+// bead or solid fill; where it cannot stand, the planner may still place it with a FOUNDATION
+// BUTTRESS below (params.can_found decides - see plan_wall_ribs), so this tester only answers
+// the "stands right now" question.
 class SupportTester
 {
 public:
@@ -280,6 +282,8 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
     if (stagger <= 0)
         return false;
 
+    WallRibStats *st = params.stats;
+
     // Mergeable = enough perimeter to host a cut of one stagger without eating the loop.
     std::vector<size_t> candidates;
     for (size_t i = 0; i < loops.size(); ++ i) {
@@ -287,6 +291,10 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
             candidates.emplace_back(i);
         else
             unmerged.emplace_back(i);
+    }
+    if (st != nullptr) {
+        st->loops_in       += candidates.size();
+        st->drop_too_short += loops.size() - candidates.size();
     }
     if (candidates.size() < 2) {
         unmerged.clear();
@@ -308,15 +316,16 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
     out.loop_keys.emplace_back(loops[seed].points.front());
 
     // A position is printable when the link is short enough, does not extrude across another
-    // wall/hole, and RESTS on the previous layer (rib column, wall bead or solid below).
+    // wall/hole, and RESTS on the previous layer (rib column, wall bead or solid below) - or
+    // at least has sparse below everywhere, in which case a foundation pad makes it legal.
     const SupportTester support(params.support, 0.55 * double(stagger));
 
     // Prim: repeatedly splice in the loop closest to the growing walk, so the total rib
-    // length is (greedily) minimal and hole-to-hole ribs come out naturally. A candidate whose
-    // best link is too long, crosses another wall, hangs in the air, or would drag its column
-    // sideways beyond the drift budget stays unmerged (the single-path seam chain covers it
-    // with a short travel - strictly better than a giant rib through the part or a staircase
-    // in the air).
+    // length is (greedily) minimal and hole-to-hole ribs come out naturally. Every loop is
+    // MEANT to be connected (that is the whole point of the feature: one single path per
+    // island, like a manual micro-cut in CAD would give); a candidate stays unmerged only
+    // when its every link would be longer than the user cap, cross another wall, or hang
+    // over true void where not even a foundation can be built.
     while (! remaining.empty()) {
         double  best_dist = std::numeric_limits<double>::max();
         size_t  best_pos  = 0;
@@ -333,6 +342,8 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
         }
         if (best_dist > double(params.max_link_length)) {
             // Everything left is farther than the cap (Prim: best_dist only grows).
+            if (st != nullptr)
+                st->drop_prim_far += remaining.size();
             for (size_t i : remaining)
                 unmerged.emplace_back(i);
             break;
@@ -340,41 +351,32 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
 
         const Polygon &loop = loops[remaining[best_pos]];
 
-        bool    accepted = false;
-        PolyPos use_p, use_q;
-        auto try_pair = [&](const PolyPos &p, const PolyPos &q) {
-            if (accepted)
-                return;
-            if ((p.pt - q.pt).cast<double>().norm() > double(params.max_link_length))
-                return;
-            if (link_crosses_obstacles(p.pt, q.pt, params.obstacles, stagger))
-                return;
-            if (! support.link_supported(p.pt, q.pt, 0.5 * double(stagger)))
-                return;
-            use_p    = p;
-            use_q    = q;
-            accepted = true;
-        };
+        // Candidate positions in preference order: the column anchor (Z-aligned rib, prints on
+        // yesterday's rib), the closest approach (cheapest rib), then a scan around the loop
+        // nearest-gap-first. The FIRST candidate whose link rests on the previous layer wins;
+        // when none does, the first candidate with at least sparse below everywhere is taken
+        // anyway and a FOUNDATION pad is requested for the layer below (a new founded column
+        // starts there). Only length and obstacle crossing are hard rejections, so a loop stays
+        // unmerged only over true void, past the user cap, or when every link would cross a wall.
+        struct CandPos { PolyPos p, q; bool is_anchor; };
+        std::vector<CandPos> cands;
 
-        // 1) Z alignment: if a previous-layer rib sits between (nearly) the same two curves,
-        // reuse its position so the column stacks. If the column exists but following it would
-        // exceed the per-layer drift budget, the column ENDS here (no sideways staircase, no
-        // relocated replacement - the seam chain covers this hole with a short travel).
-        bool column_over_budget = false;
+        // 1) Column anchor: a previous-layer rib between (nearly) these same two curves. The
+        // anchor must sit in THIS pair's gap - about halfway between both curves. Anything
+        // looser matches the anchor of a NEIGHBOURING column whenever this loop's own column
+        // is missing, and that used to lock the loop out of merging forever (the wrong anchor
+        // kept "existing", kept being over the drift budget, and kept vetoing every fallback).
         if (prev_anchors != nullptr) {
             double       best_score  = std::numeric_limits<double>::max();
             PolyPos      anch_p, anch_q;
             const Point *used_anchor = nullptr;
             for (const Point &anchor : *prev_anchors) {
                 PolyPos pa, qa;
-                const double da = project_onto(merged, anchor, pa);
-                const double db = project_onto(loop, anchor, qa);
-                // The anchor must sit in THIS gap (near both curves), not across the part.
+                const double da  = project_onto(merged, anchor, pa);
+                const double db  = project_onto(loop, anchor, qa);
                 const double gap = (pa.pt - qa.pt).cast<double>().norm();
-                if (da + db > gap + 2. * double(stagger))
-                    continue;
-                if (gap > best_dist + 2. * double(stagger))
-                    continue; // too much worse than the optimal link - geometry moved away
+                if (da > 0.5 * gap + 2. * double(stagger) || db > 0.5 * gap + 2. * double(stagger))
+                    continue; // not the anchor of this pair's gap
                 if (gap < best_score) {
                     best_score  = gap;
                     anch_p      = pa;
@@ -382,48 +384,96 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
                     used_anchor = &anchor;
                 }
             }
-            if (used_anchor != nullptr) {
-                const Point new_mid = (anch_p.pt + anch_q.pt) / 2;
-                if ((new_mid - *used_anchor).cast<double>().norm() > double(params.max_drift))
-                    column_over_budget = true;
-                else
-                    try_pair(anch_p, anch_q);
+            // A column that would have to drift beyond the per-layer budget is NOT followed
+            // (no sideways staircase); the rib relocates through the candidates below instead,
+            // ending the old column but keeping the loop connected.
+            if (used_anchor != nullptr &&
+                ((anch_p.pt + anch_q.pt) / 2 - *used_anchor).cast<double>().norm() <= double(params.max_drift))
+                cands.push_back({ anch_p, anch_q, true });
+        }
+        // 2) The optimal closest approach.
+        cands.push_back({ best_p, best_q, false });
+        // 3) Scan around the loop. Step of at most one stagger: an existing corridor below has
+        // a walkable window of about one stagger along the loop, and the scan must not be able
+        // to miss it (that is how columns used to die on annulus sections).
+        {
+            const double step = std::max(loop.length() / 96., double(stagger));
+            struct ScanPos { double gap; PolyPos p, q; };
+            std::vector<ScanPos> scan;
+            PolyPos cursor { 0, loop.points.front() };
+            for (double walked = 0.; walked < loop.length() - step * 0.5; walked += step) {
+                if (walked > 0.)
+                    cursor = walk_along(loop, cursor, step, true);
+                PolyPos      pm;
+                const double gap = project_onto(merged, cursor.pt, pm);
+                if (gap <= double(params.max_link_length))
+                    scan.push_back({ gap, pm, cursor });
             }
+            std::sort(scan.begin(), scan.end(), [](const ScanPos &l, const ScanPos &r) { return l.gap < r.gap; });
+            for (const ScanPos &s : scan)
+                cands.push_back({ s.p, s.q, false });
         }
 
-        if (! column_over_budget) {
-            // 2) The optimal closest approach (a NEW column - the support test decides whether
-            // this spot can host one, e.g. over the bottom shells of a freshly appeared hole).
-            try_pair(best_p, best_q);
-            // 3) Scan the gap: sample positions around the loop, project them onto the walk and
-            // try them nearest-first - actively LOOKING for a supported spot instead of giving
-            // up because the single optimal one hangs over sparse.
-            if (! accepted) {
-                const double step = std::max(loop.length() / 48., 2. * double(stagger));
-                struct ScanPos { double gap; PolyPos p, q; };
-                std::vector<ScanPos> scan;
-                PolyPos cursor { 0, loop.points.front() };
-                for (double walked = 0.; walked < loop.length() - step * 0.5; walked += step) {
-                    if (walked > 0.)
-                        cursor = walk_along(loop, cursor, step, true);
-                    PolyPos      pm;
-                    const double gap = project_onto(merged, cursor.pt, pm);
-                    if (gap <= double(params.max_link_length))
-                        scan.push_back({ gap, pm, cursor });
-                }
-                std::sort(scan.begin(), scan.end(), [](const ScanPos &l, const ScanPos &r) { return l.gap < r.gap; });
-                for (const ScanPos &s : scan) {
-                    try_pair(s.p, s.q);
-                    if (accepted)
-                        break;
-                }
+        bool    accepted = false, via_anchor = false, need_foundation = false;
+        bool    have_fallback = false;
+        size_t  rej_long = 0, rej_obstacle = 0, rej_void = 0;
+        PolyPos use_p, use_q;
+        CandPos fallback {};
+        for (const CandPos &c : cands) {
+            if ((c.p.pt - c.q.pt).cast<double>().norm() > double(params.max_link_length)) {
+                ++ rej_long;
+                continue;
             }
+            if (link_crosses_obstacles(c.p.pt, c.q.pt, params.obstacles, stagger)) {
+                ++ rej_obstacle;
+                continue;
+            }
+            const double step = 0.5 * double(stagger);
+            if (support.link_supported(c.p.pt, c.q.pt, step)) {
+                use_p      = c.p;
+                use_q      = c.q;
+                via_anchor = c.is_anchor;
+                accepted   = true;
+                break;
+            }
+            // Keep looking for a genuinely supported spot, but remember the first candidate a
+            // foundation buttress could carry (once found, later candidates only matter if
+            // supported - the buttress dry-run is not free).
+            if (! have_fallback) {
+                if (params.can_found && params.can_found(c.p.pt, c.q.pt)) {
+                    fallback      = c;
+                    have_fallback = true;
+                } else
+                    ++ rej_void;
+            }
+        }
+        if (! accepted && have_fallback) {
+            use_p           = fallback.p;
+            use_q           = fallback.q;
+            via_anchor      = fallback.is_anchor;
+            need_foundation = true;
+            accepted        = true;
         }
 
         if (! accepted) {
+            if (st != nullptr) {
+                if (rej_void > 0)
+                    ++ st->drop_unsupported;   // true void below every position
+                else if (rej_obstacle > 0)
+                    ++ st->drop_obstacle;
+                else
+                    ++ st->drop_prim_far;
+            }
             unmerged.emplace_back(remaining[best_pos]);
             remaining.erase(remaining.begin() + best_pos);
             continue;
+        }
+        if (st != nullptr) {
+            ++ st->spliced;
+            if (via_anchor)
+                ++ st->anchor_reused;
+            if (need_foundation)
+                ++ st->founded;
         }
 
         out.loop_keys.emplace_back(loop.points.front());
@@ -441,6 +491,10 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
             for (Polygon &e : offset(quad, float(params.corridor_offset)))
                 out.corridors.emplace_back(std::move(e));
         }
+        // A rib standing on nothing reports its first link: the caller grows the foundation
+        // buttress under it (out-and-back wall stubs shrinking layer by layer downward).
+        if (need_foundation)
+            out.founded_links.emplace_back(joint.a_exit, joint.b_enter);
         out.anchors.emplace_back((joint.a_exit + joint.b_enter) / 2);
     }
 
@@ -460,6 +514,47 @@ bool splice_wall_loops(const Polygons &loops, coord_t stagger, Polygon &merged, 
         return false;
     merged = std::move(plan.merged);
     return true;
+}
+
+bool splice_wall_stub(Polygon &walk, const Point &base_hint, const Point &tip, coord_t stagger, Polygon &quad_out)
+{
+    if (stagger <= 0 || walk.size() < 3 || walk.length() <= 4. * double(stagger))
+        return false;
+    PolyPos u;
+    project_onto(walk, base_hint, u);
+    // A stub shorter than one bead has melted back into the wall - nothing to print.
+    if ((tip - u.pt).cast<double>().norm() <= double(stagger))
+        return false;
+    const PolyPos v = walk_along(walk, u, double(stagger), true);
+    // Out-bead u->tip and back-bead tip2->v, separated by the cut vector (one stagger along
+    // the wall) - the same touching staggered pair a rib is made of, no doubled centerline.
+    const Point tip2 = tip + (v.pt - u.pt);
+    Points pts;
+    pts.reserve(walk.size() + 4);
+    append_dedup(pts, v.pt);
+    for (size_t i = (v.seg + 1) % walk.size(); ; i = (i + 1) % walk.size()) {
+        append_dedup(pts, walk[i]);
+        if (i == u.seg)
+            break;
+    }
+    append_dedup(pts, u.pt);
+    append_dedup(pts, tip);
+    append_dedup(pts, tip2);
+    Polygon stubbed(std::move(pts));
+    if (stubbed.size() > 1 && (stubbed.points.back() - stubbed.points.front()).cast<double>().squaredNorm() <= double(SCALED_EPSILON) * double(SCALED_EPSILON))
+        stubbed.points.pop_back();
+    if (stubbed.size() < 3)
+        return false;
+    quad_out = Polygon({ u.pt, tip, tip2, v.pt });
+    quad_out.make_counter_clockwise();
+    walk = std::move(stubbed);
+    return true;
+}
+
+bool wall_rib_link_supported(const Point &a, const Point &b, coord_t stagger, const WallRibSupport &support)
+{
+    const SupportTester tester(&support, 0.55 * double(stagger));
+    return tester.link_supported(a, b, 0.5 * double(stagger));
 }
 
 } // namespace Slic3r

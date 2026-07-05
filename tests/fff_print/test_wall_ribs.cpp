@@ -203,7 +203,7 @@ TEST_CASE("WallRibs: a link that would cross another wall is rejected", "[WallRi
     REQUIRE_FALSE(plan_wall_ribs({ outer, hole }, params, nullptr, plan, unmerged));
 }
 
-TEST_CASE("WallRibs: drift beyond the budget ends the column instead of staircasing", "[WallRibs]")
+TEST_CASE("WallRibs: drift beyond the budget relocates the rib instead of staircasing or giving up", "[WallRibs]")
 {
     const coord_t lw = scale_(3.2);
     Polygon outer = square_ccw(0., 0., 100.);
@@ -218,22 +218,47 @@ TEST_CASE("WallRibs: drift beyond the budget ends the column instead of staircas
     std::vector<size_t> unmerged;
     REQUIRE(plan_wall_ribs({ outer, hole }, params, nullptr, plan1, unmerged));
 
-    // Next layer the geometry rotates hard: following the old anchor would need a ~20mm jump.
+    // Next layer the geometry rotates hard: following the old anchor would need a jump far
+    // beyond the drift budget. The old column must NOT be clamp-followed (no staircase), but
+    // the loop MUST still be connected - the rib relocates and a fresh column starts there.
     Polygon outer2 = outer, hole2 = hole;
     outer2.rotate(0.35); // ~20 deg about origin: the gap positions move by tens of mm
     hole2.rotate(0.35);
     Points prev = plan1.anchors;
     WallRibMerge plan2;
-    const bool ok = plan_wall_ribs({ outer2, hole2 }, params, &prev, plan2, unmerged);
-    if (ok) {
-        // If a rib was still placed, it must NOT be a clamped-anchor staircase: either it reused
-        // a genuinely close anchor or it started fresh - never a mid-air step near the old spot.
-        for (const Point &a : plan2.anchors) {
-            const double d = (a - plan1.anchors.front()).cast<double>().norm();
-            INFO("anchor moved " << unscale<double>(coord_t(d)) << " mm");
-            REQUIRE((d <= double(params.max_drift) + SCALED_EPSILON || d > 10. * double(lw)));
-        }
-    }
+    REQUIRE(plan_wall_ribs({ outer2, hole2 }, params, &prev, plan2, unmerged));
+    REQUIRE(unmerged.empty());
+    REQUIRE(plan2.anchors.size() == 1);
+    const double d = (plan2.anchors.front() - plan1.anchors.front()).cast<double>().norm();
+    INFO("anchor moved " << unscale<double>(coord_t(d)) << " mm");
+    // A true relocation, not a budget-sized step pretending the column continued.
+    REQUIRE(d > double(params.max_drift));
+    require_no_coincident_segments(plan2.merged, lw);
+}
+
+TEST_CASE("WallRibs: a neighbouring column's anchor cannot lock a loop out of merging", "[WallRibs]")
+{
+    // prev_anchors holds ONLY an anchor lying on the outer wall far from the hole's gap
+    // (e.g. the surviving column of some other feature while this hole's own column is gone).
+    // That anchor is not in this pair's gap, so it must be ignored - the hole merges at its
+    // optimal position. The old guards matched it, saw a drift over budget and dropped the
+    // hole outright, every layer, forever.
+    const coord_t lw = scale_(3.2);
+    Polygon outer = square_ccw(0., 0., 100.);
+    Polygon hole  = square_ccw(0., 0., 20.);
+    hole.reverse();
+
+    WallRibParams params;
+    params.stagger         = lw;
+    params.corridor_offset = coord_t(scale_(1.6));
+    params.max_drift       = coord_t(scale_(1.5));
+    Points prev { Point::new_scale(100., 50.) }; // on the outer wall, nowhere near the gap mid
+    WallRibMerge        plan;
+    std::vector<size_t> unmerged;
+    REQUIRE(plan_wall_ribs({ outer, hole }, params, &prev, plan, unmerged));
+    REQUIRE(unmerged.empty());
+    REQUIRE(plan.loop_keys.size() == 2);
+    require_no_coincident_segments(plan.merged, lw);
 }
 
 TEST_CASE("WallRibs: support test - rib only where the previous layer has material", "[WallRibs]")
@@ -261,7 +286,8 @@ TEST_CASE("WallRibs: support test - rib only where the previous layer has materi
     REQUIRE_FALSE(plan_wall_ribs({ outer, hole }, params, nullptr, plan, unmerged));
 
     // A solid pad below ONLY on the right side gap: the scan must find it and put the rib there,
-    // even though other positions are geometrically equivalent.
+    // even though other positions are geometrically equivalent. Standing on real solid, the rib
+    // must not ask for a foundation.
     solid.emplace_back(ExPolygon(square_ccw(80., 0., 22.)));
     REQUIRE(plan_wall_ribs({ outer, hole }, params, nullptr, plan, unmerged));
     REQUIRE(plan.anchors.size() == 1);
@@ -269,10 +295,98 @@ TEST_CASE("WallRibs: support test - rib only where the previous layer has materi
     INFO("anchor at " << unscale<double>(anchor.x()) << "," << unscale<double>(anchor.y()));
     REQUIRE(unscale<double>(anchor.x()) > 55.);              // in the right-side gap
     REQUIRE(std::abs(unscale<double>(anchor.y())) < 25.);    // on the pad, not far away
+    REQUIRE(plan.founded_links.empty());
     require_no_coincident_segments(plan.merged, lw);
 
     // First layer: everything sits on the bed, no constraint.
     solid.clear();
     support.first_layer = true;
     REQUIRE(plan_wall_ribs({ outer, hole }, params, nullptr, plan, unmerged));
+}
+
+TEST_CASE("WallRibs: a rib on nothing is placed only when a foundation buttress is possible", "[WallRibs]")
+{
+    const coord_t lw = scale_(3.2);
+    Polygon outer = square_ccw(0., 0., 100.);
+    Polygon hole  = square_ccw(0., 0., 60.);
+    hole.reverse();
+
+    WallRibParams params;
+    params.stagger         = lw;
+    params.corridor_offset = coord_t(scale_(1.6));
+    WallRibSupport support; // not first layer, nothing below at all
+    Polygons   no_corridors;
+    Polygons   no_walls;
+    ExPolygons no_solid;
+    support.prev_corridors = &no_corridors;
+    support.prev_walls     = &no_walls;
+    support.prev_solid     = &no_solid;
+    params.support         = &support;
+
+    WallRibMerge        plan;
+    std::vector<size_t> unmerged;
+    // No way to found anything (no can_found callback): refuse rather than print in the air.
+    REQUIRE_FALSE(plan_wall_ribs({ outer, hole }, params, nullptr, plan, unmerged));
+
+    // The caller can grow a foundation buttress below (wall stubs shrinking layer by layer,
+    // lightning-style): the rib is placed and its link is reported for founding - never in
+    // the air, never dropped.
+    params.can_found = [](const Point &, const Point &) { return true; };
+    REQUIRE(plan_wall_ribs({ outer, hole }, params, nullptr, plan, unmerged));
+    REQUIRE(plan.loop_keys.size() == 2);
+    REQUIRE(plan.founded_links.size() == 1);
+    require_no_coincident_segments(plan.merged, lw);
+}
+
+TEST_CASE("WallRibs: a column standing on its own corridor continues without a foundation", "[WallRibs]")
+{
+    const coord_t lw = scale_(3.2);
+    Polygon outer = square_ccw(0., 0., 100.);
+    Polygon hole  = square_ccw(0., 0., 60.);
+    hole.reverse();
+
+    WallRibParams params;
+    params.stagger         = lw;
+    params.corridor_offset = coord_t(scale_(1.6));
+    params.max_drift       = coord_t(scale_(1.5));
+    WallRibMerge        plan1;
+    std::vector<size_t> unmerged;
+    REQUIRE(plan_wall_ribs({ outer, hole }, params, nullptr, plan1, unmerged)); // layer N: unconstrained
+    REQUIRE(plan1.anchors.size() == 1);
+    REQUIRE(! plan1.corridors.empty());
+
+    // Layer N+1: the ONLY material below is yesterday's rib corridor. The column must continue
+    // exactly there (anchor reuse, drift within budget) and needs no foundation - this is the
+    // self-standing rib column that carries itself through hundreds of sparse layers.
+    WallRibSupport support;
+    Polygons   no_walls;
+    ExPolygons no_solid;
+    support.prev_corridors = &plan1.corridors;
+    support.prev_walls     = &no_walls;
+    support.prev_solid     = &no_solid;
+    params.support         = &support;
+    WallRibMerge plan2;
+    REQUIRE(plan_wall_ribs({ outer, hole }, params, &plan1.anchors, plan2, unmerged));
+    REQUIRE(plan2.anchors.size() == 1);
+    const double drift = (plan2.anchors.front() - plan1.anchors.front()).cast<double>().norm();
+    INFO("column drift: " << unscale<double>(coord_t(drift)) << " mm");
+    REQUIRE(drift <= double(params.max_drift) + SCALED_EPSILON);
+    REQUIRE(plan2.founded_links.empty());
+}
+
+TEST_CASE("WallRibs: a foundation stub is part of the wall and never retraces", "[WallRibs]")
+{
+    const coord_t lw = scale_(3.2);
+    Polygon walk = square_ccw(0., 0., 50.);
+    const double before = walk.length();
+    Polygon quad;
+    // Stub riding the right edge, tip 30mm out: the walk gains the out-and-back bead pair.
+    REQUIRE(splice_wall_stub(walk, Point::new_scale(50., 0.), Point::new_scale(80., 0.), lw, quad));
+    REQUIRE(walk.length() > before + 2. * scale_(25.));
+    REQUIRE(std::abs(quad.area()) > 0.);
+    require_no_coincident_segments(walk, lw);
+
+    // A stub shorter than one bead has melted back into the wall: nothing to print.
+    Polygon walk2 = square_ccw(0., 0., 50.);
+    REQUIRE_FALSE(splice_wall_stub(walk2, Point::new_scale(50., 0.), Point::new_scale(52., 0.), lw, quad));
 }

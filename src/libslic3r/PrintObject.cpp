@@ -21,6 +21,8 @@
 #include "Format/STL.hpp"
 #include "format.hpp"
 
+#include <cstdio>
+#include <cstdlib>
 #include <float.h>
 #include <oneapi/tbb/blocked_range.h>
 #include <oneapi/tbb/concurrent_vector.h>
@@ -541,6 +543,173 @@ void PrintObject::prepare_infill()
     this->set_done(posPrepareInfill);
 }
 
+// Ginger single_path_wall_ribs: dry-run (materialize=false) or grow (materialize=true) the
+// foundation BUTTRESS of one rib link. The rib at `rib_layer` spans `link_a` (on the walk) to
+// `link_b` (on the spliced loop) but stands on nothing - with a big nozzle the sparse infill
+// is far too coarse to catch it, and one solidified pad below would itself bridge over air.
+// Instead, on each layer below, ONE of the two walls grows an out-and-back stub of the same
+// staggered bead pair (part of the wall, printed in the wall phase, zero travel) whose tip
+// pulls back by the self-support step per layer: a lightning-style branch leaning on the
+// wall, needing no material under the gap at all - it works even over true void. The chain
+// ends when the stub melts back into its wall, rests on real material of the layer below it,
+// or reaches the bed. Returns false when neither wall carries the buttress down (wall not
+// continuing, or a stub would cross another wall).
+static bool build_rib_buttress(Layer *rib_layer, const Point &link_a, const Point &link_b,
+                               float width, bool materialize)
+{
+    const coord_t stagger = coord_t(scale_(width));
+
+    // Segment crossing any wall of the layer, endpoint contacts excluded (the stub
+    // legitimately starts ON its wall) - the planner's obstacle rule.
+    auto crosses_walls = [stagger](const Point &a, const Point &b, const Polygons &walls) {
+        const Line link(a, b);
+        Point      hit;
+        for (const Polygon &wall : walls)
+            for (const Line &edge : wall.lines())
+                if (link.intersection(edge, &hit)
+                    && (hit - a).cast<double>().norm() > double(stagger)
+                    && (hit - b).cast<double>().norm() > double(stagger))
+                    return true;
+        return false;
+    };
+
+    auto try_side = [&](const Point &from, const Point &toward, bool mutate) -> bool {
+        const Vec2d  whole = (toward - from).cast<double>();
+        const double gap   = whole.norm();
+        if (gap <= 2. * double(stagger))
+            return true; // the loops nearly touch: the rib hangs off both walls as it is
+        const Vec2d dir  = whole / gap;
+        double      len  = gap;
+        Point       base = from;
+        for (Layer *below = rib_layer->lower_layer; below != nullptr; below = below->lower_layer) {
+            // Lightning-style regression: a bead may overhang the one below it by about half
+            // its width, so the stub tip pulls back by that much on every layer going down.
+            len -= 0.5 * double(stagger);
+            if (len <= double(stagger))
+                return true; // melted back into the wall: the buttress rests on the wall itself
+            // The stub rides the wall nearest to the base. Search what this layer will EMIT:
+            // merged rib walks first, then plain loops not consumed by any merge.
+            Polygons             walls;
+            WallRibMerge        *ride_merge = nullptr;
+            const ExtrusionLoop *ride_loop  = nullptr;
+            Point                foot;
+            double               best = std::numeric_limits<double>::max();
+            for (WallRibMerge &m : below->wall_ribs) {
+                const Point  pr = m.merged.point_projection(base);
+                const double d  = (pr - base).cast<double>().norm();
+                if (d < best) {
+                    best       = d;
+                    foot       = pr;
+                    ride_merge = &m;
+                    ride_loop  = nullptr;
+                }
+            }
+            for (LayerRegion *layerm : below->regions())
+                for (const ExtrusionEntity *island_ee : layerm->perimeters.entities)
+                    if (const auto *island = dynamic_cast<const ExtrusionEntityCollection *>(island_ee))
+                        for (const ExtrusionEntity *ee : island->entities)
+                            if (const auto *loop = dynamic_cast<const ExtrusionLoop *>(ee)) {
+                                walls.emplace_back(loop->polygon());
+                                // Multi-path loops (overhang splits) cannot ride a stub: the
+                                // emitted merge would flatten their per-segment flow.
+                                if (loop->paths.size() != 1)
+                                    continue;
+                                bool        consumed = false;
+                                const Point fp       = loop->first_point();
+                                for (const WallRibMerge &m : below->wall_ribs)
+                                    for (const Point &key : m.loop_keys)
+                                        if (key == fp) {
+                                            consumed = true;
+                                            break;
+                                        }
+                                if (consumed)
+                                    continue;
+                                const Point  pr = walls.back().point_projection(base);
+                                const double d  = (pr - base).cast<double>().norm();
+                                if (d < best) {
+                                    best       = d;
+                                    foot       = pr;
+                                    ride_loop  = loop;
+                                    ride_merge = nullptr;
+                                }
+                            }
+            if (best > double(stagger))
+                return false; // no wall continues under the base: this side cannot carry it
+            const Point tip = foot + (dir * len).cast<coord_t>();
+            if (crosses_walls(foot, tip, walls))
+                return false; // the stub would extrude across another wall down here
+            // A stub resting on real material of the layer below it ends the chain.
+            bool grounded = below->lower_layer == nullptr; // prints on the bed
+            if (! grounded) {
+                Layer     *under = below->lower_layer;
+                Polygons   under_walls;
+                Polygons   under_corridors;
+                ExPolygons under_solid;
+                for (const WallRibMerge &m : under->wall_ribs)
+                    append(under_corridors, m.corridors);
+                for (LayerRegion *um : under->regions()) {
+                    for (const ExtrusionEntity *island_ee : um->perimeters.entities)
+                        if (const auto *island = dynamic_cast<const ExtrusionEntityCollection *>(island_ee))
+                            for (const ExtrusionEntity *ee : island->entities)
+                                if (const auto *loop = dynamic_cast<const ExtrusionLoop *>(ee))
+                                    under_walls.emplace_back(loop->polygon());
+                    for (const Surface &s : um->fill_surfaces.surfaces)
+                        if (s.is_solid())
+                            under_solid.emplace_back(s.expolygon);
+                }
+                WallRibSupport under_support;
+                under_support.prev_corridors = &under_corridors;
+                under_support.prev_walls     = &under_walls;
+                under_support.prev_solid     = &under_solid;
+                grounded = wall_rib_link_supported(foot, tip, stagger, under_support);
+            }
+            if (mutate) {
+                Polygon  quad;
+                Polygon  fresh;
+                Polygon *walk = ride_merge != nullptr ? &ride_merge->merged : nullptr;
+                if (walk == nullptr) {
+                    fresh = ride_loop->polygon();
+                    walk  = &fresh;
+                }
+                if (! splice_wall_stub(*walk, foot, tip, stagger, quad))
+                    return false;
+                if (ride_merge != nullptr) {
+                    ride_merge->corridors.emplace_back(quad);
+                } else {
+                    WallRibMerge stub_merge;
+                    stub_merge.loop_keys.emplace_back(ride_loop->polygon().points.front());
+                    stub_merge.merged = std::move(*walk);
+                    stub_merge.corridors.emplace_back(quad);
+                    below->wall_ribs.emplace_back(std::move(stub_merge));
+                }
+                // Nothing may be extruded across the stub: carve its footprint out of this
+                // layer's fill (final by now; its own rib corridors were carved earlier).
+                const Polygons carve = offset(quad, float(scale_(0.5 * width)));
+                for (LayerRegion *layerm : below->regions()) {
+                    Surfaces out;
+                    out.reserve(layerm->fill_surfaces.surfaces.size());
+                    for (const Surface &s : layerm->fill_surfaces.surfaces)
+                        for (ExPolygon &e : diff_ex(s.expolygon, carve))
+                            out.emplace_back(Surface(s, std::move(e)));
+                    layerm->fill_surfaces.surfaces = std::move(out);
+                }
+            }
+            if (grounded)
+                return true;
+            base = foot;
+        }
+        return true; // walked out at the bottom of the object: the last stub sat on the bed
+    };
+
+    // One wall is enough to carry the buttress down (the walk side is tried first, then the
+    // spliced loop's side); a side is fully dry-run before anything is mutated on it.
+    if (try_side(link_a, link_b, false))
+        return ! materialize || try_side(link_a, link_b, true);
+    if (try_side(link_b, link_a, false))
+        return ! materialize || try_side(link_b, link_a, true);
+    return false;
+}
+
 // Ginger single_path_wall_ribs. For every layer (sequential, bottom-up), the closed wall loops
 // of each island are planned into ONE walk with rib connectors (plan_wall_ribs, Prim over the
 // loops). Running here - instead of at G-code time - buys the two properties the ribs need:
@@ -566,15 +735,22 @@ void PrintObject::generate_wall_ribs()
     if (! enabled)
         return;
     BOOST_LOG_TRIVIAL(debug) << "Planning wall ribs - start";
+    // GINGER_RIBS_DEBUG=1: per-layer census of what the planner did with every wall loop
+    // (spliced / dropped and why) on stderr - the tool for "why is this hole not connected".
+    const bool ribs_debug = std::getenv("GINGER_RIBS_DEBUG") != nullptr;
 
     Points     prev_anchors;
     Polygons   prev_corridors;
     Polygons   prev_walls;
     ExPolygons prev_solid;
+    size_t     layer_idx = 0;
     for (Layer *layer : m_layers) {
+        ++ layer_idx;
         m_print->throw_if_canceled();
         Points   layer_anchors;
         Polygons corridors;
+        WallRibStats lstat;
+        size_t l_islands = 0, l_loops = 0, l_multipath = 0, l_group_single = 0;
         // What the previous layer offers to stand on. Collected for EVERY layer (also rib-less
         // ones) so the next layer's support test always sees the real material below.
         WallRibSupport support;
@@ -603,6 +779,7 @@ void PrintObject::generate_wall_ribs()
                 const auto *island = dynamic_cast<const ExtrusionEntityCollection*>(island_ee);
                 if (island == nullptr || island->entities.size() < 2)
                     continue;
+                ++ l_islands;
                 // Group the island's mergeable loops by role/flow, mirroring extrude_perimeters.
                 // ALL of the island's loops (multi-path overhang loops included) also go into the
                 // obstacle set: a rib link must never extrude across another wall or hole.
@@ -617,9 +794,12 @@ void PrintObject::generate_wall_ribs()
                 Polygons              obstacles;
                 for (const ExtrusionEntity *ee : island->entities)
                     if (const auto *loop = dynamic_cast<const ExtrusionLoop*>(ee)) {
+                        ++ l_loops;
                         obstacles.emplace_back(loop->polygon());
-                        if (loop->paths.size() != 1)
+                        if (loop->paths.size() != 1) {
+                            ++ l_multipath;
                             continue;
+                        }
                         const ExtrusionPath &pth = loop->paths.front();
                         RibGroup *g = nullptr;
                         for (RibGroup &gg : groups)
@@ -635,8 +815,10 @@ void PrintObject::generate_wall_ribs()
                         g->loops.emplace_back(loop->polygon());
                     }
                 for (RibGroup &group : groups) {
-                    if (group.loops.size() < 2)
+                    if (group.loops.size() < 2) {
+                        l_group_single += group.loops.size();
                         continue;
+                    }
                     WallRibParams params;
                     params.stagger         = coord_t(scale_(group.width));
                     // Corridor = rib quad expanded by exactly the bead half width: the fill sits
@@ -650,12 +832,21 @@ void PrintObject::generate_wall_ribs()
                     params.max_drift       = std::min(coord_t(scale_(0.5 * group.width)), coord_t(scale_(layer->height)));
                     params.obstacles       = &obstacles;
                     params.support         = &support;
+                    params.stats           = &lstat;
+                    // A rib standing on nothing is legal if a foundation buttress can be grown
+                    // for it on the layers below (dry-run here, materialized after acceptance).
+                    params.can_found       = [layer, w = group.width](const Point &a, const Point &b) {
+                        return build_rib_buttress(layer, a, b, w, false);
+                    };
                     WallRibMerge        merge;
                     std::vector<size_t> unmerged;
                     if (plan_wall_ribs(group.loops, params,
                                        prev_anchors.empty() ? nullptr : &prev_anchors, merge, unmerged)) {
                         append(corridors, merge.corridors);
                         append(layer_anchors, merge.anchors);
+                        for (const auto &link : merge.founded_links)
+                            if (! build_rib_buttress(layer, link.first, link.second, group.width, true))
+                                BOOST_LOG_TRIVIAL(warning) << "single_path_wall_ribs: foundation buttress failed to materialize at z=" << layer->print_z;
                         layer->wall_ribs.emplace_back(std::move(merge));
                     }
                 }
@@ -672,6 +863,15 @@ void PrintObject::generate_wall_ribs()
                 layerm->fill_surfaces.surfaces = std::move(out);
             }
         }
+        if (ribs_debug && l_islands > 0)
+            std::fprintf(stderr,
+                         "[RIBSTAT] layer=%zu z=%.2f islands=%zu loops=%zu multipath=%zu group_single=%zu"
+                         " candidates=%zu spliced=%zu anchor_reused=%zu founded=%zu"
+                         " drop[too_short=%zu prim_far=%zu obstacle=%zu unsupported=%zu]\n",
+                         layer_idx, layer->print_z, l_islands, l_loops, l_multipath, l_group_single,
+                         lstat.loops_in, lstat.spliced, lstat.anchor_reused, lstat.founded,
+                         lstat.drop_too_short, lstat.drop_prim_far,
+                         lstat.drop_obstacle, lstat.drop_unsupported);
         prev_anchors   = std::move(layer_anchors);
         prev_corridors = std::move(corridors);
         prev_walls     = std::move(layer_walls);
