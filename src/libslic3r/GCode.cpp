@@ -5229,84 +5229,68 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
             // the wall is just chained by proximity like the others.
             const bool hook_infill = single_path && ! is_infill_first && ! region.infills.empty();
 
-            // Ginger single_path_wall_ribs: merge the island's closed wall loops into ONE loop by
-            // splicing rib connectors (two touching staggered beads) at the closest approach - the
-            // automated version of cutting a micro slit in CAD to weld a hole wall to the outer wall.
-            // Only single-path loops with identical role/flow are merged (overhang-split multi-path
-            // loops keep their own speeds and are printed separately); each merged group is emitted
-            // at the position of its LAST member so the wall order and the "last wall hooks onto the
-            // infill" seam semantics are preserved.
+            // Ginger single_path_wall_ribs: the island's closed wall loops were PLANNED into one
+            // walk with rib connectors back in PrintObject::generate_wall_ribs (which also carved
+            // the rib corridors out of the fill surfaces and anchored each rib to the previous
+            // layer so the columns are self-standing). Here we only consume the stored plan: a
+            // merge applies when ALL its loop keys (source loop first points - the island holds
+            // pointers to the very same ExtrusionLoop objects) are present in this region; the
+            // merged loop inherits the role/flow of its source loops and is emitted at the LAST
+            // member's position so the wall order and the "last wall hooks onto the infill" seam
+            // semantics are preserved. Unmatched entities print as usual.
             ExtrusionEntitiesPtr                        rib_perimeters;
             std::vector<std::unique_ptr<ExtrusionLoop>> rib_owned;
             const ExtrusionEntitiesPtr*                 perimeters = &region.perimeters;
-            if (single_path && m_config.single_path_wall_ribs && region.perimeters.size() > 1) {
-                struct RibGroup {
-                    ExtrusionRole        role;
-                    float                width;
-                    float                height;
-                    double               mm3_per_mm;
-                    std::vector<size_t>  members;       // indices into region.perimeters
-                    std::vector<size_t>  keep_separate; // members splice_wall_loops could not merge
-                    ExtrusionLoop*       merged  = nullptr;
-                    size_t               emit_at = 0;   // position of the last actually-merged member
-                };
-                std::vector<RibGroup> groups;
-                std::vector<int>      group_of(region.perimeters.size(), -1);
-                for (size_t i = 0; i < region.perimeters.size(); ++ i)
-                    if (const auto *loop = dynamic_cast<const ExtrusionLoop*>(region.perimeters[i]);
-                        loop != nullptr && loop->paths.size() == 1) {
-                        const ExtrusionPath &pth = loop->paths.front();
-                        int g = -1;
-                        for (size_t k = 0; k < groups.size(); ++ k)
-                            if (groups[k].role == pth.role() && groups[k].width == pth.width &&
-                                groups[k].height == pth.height && groups[k].mm3_per_mm == pth.mm3_per_mm) {
-                                g = int(k);
+            if (single_path && m_config.single_path_wall_ribs && m_layer != nullptr &&
+                ! m_layer->wall_ribs.empty() && region.perimeters.size() > 1) {
+                const std::vector<WallRibMerge> &merges = m_layer->wall_ribs;
+                std::vector<int> merge_of(region.perimeters.size(), -1);
+                std::vector<int> matched(merges.size(), 0);
+                std::vector<int> emit_at(merges.size(), -1);
+                for (size_t i = 0; i < region.perimeters.size(); ++ i) {
+                    const Point fp = region.perimeters[i]->first_point();
+                    for (size_t m = 0; m < merges.size() && merge_of[i] < 0; ++ m)
+                        for (const Point &key : merges[m].loop_keys)
+                            if (key == fp) {
+                                merge_of[i] = int(m);
+                                ++ matched[m];
+                                emit_at[m] = int(i);
                                 break;
                             }
-                        if (g < 0) {
-                            groups.push_back({ pth.role(), pth.width, pth.height, pth.mm3_per_mm, {}, {}, nullptr });
-                            g = int(groups.size()) - 1;
-                        }
-                        groups[g].members.emplace_back(i);
-                        group_of[i] = g;
-                    }
+                }
                 bool merged_any = false;
-                for (RibGroup &group : groups) {
-                    if (group.members.size() < 2)
+                std::vector<ExtrusionLoop*> merged_loop(merges.size(), nullptr);
+                for (size_t m = 0; m < merges.size(); ++ m) {
+                    if (matched[m] == 0)
                         continue;
-                    Polygons loops;
-                    loops.reserve(group.members.size());
-                    for (size_t i : group.members)
-                        loops.emplace_back(static_cast<const ExtrusionLoop*>(region.perimeters[i])->polygon());
-                    Polygon             merged;
-                    std::vector<size_t> unmerged;
-                    if (splice_wall_loops(loops, coord_t(scale_(group.width)), merged, unmerged)) {
-                        for (size_t k : unmerged)
-                            group.keep_separate.emplace_back(group.members[k]);
-                        for (size_t i : group.members)
-                            if (std::find(group.keep_separate.begin(), group.keep_separate.end(), i) == group.keep_separate.end())
-                                group.emit_at = i; // members are in increasing order -> ends at the last merged one
-                        ExtrusionPath path(group.role, group.mm3_per_mm, group.width, group.height);
-                        path.polyline.points = std::move(merged.points);
-                        path.polyline.points.emplace_back(path.polyline.points.front());
-                        rib_owned.emplace_back(std::make_unique<ExtrusionLoop>(std::move(path)));
-                        group.merged = rib_owned.back().get();
-                        merged_any   = true;
+                    // Use the plan only when every source loop is here (guards against island or
+                    // extruder-override splits; the corridor would then stay unfilled, so warn).
+                    if (size_t(matched[m]) != merges[m].loop_keys.size()) {
+                        BOOST_LOG_TRIVIAL(warning) << "single_path_wall_ribs: planned merge only partially matched, printing loops separately";
+                        for (size_t i = 0; i < merge_of.size(); ++ i)
+                            if (merge_of[i] == int(m))
+                                merge_of[i] = -1;
+                        continue;
                     }
+                    const auto *proto = dynamic_cast<const ExtrusionLoop*>(region.perimeters[emit_at[m]]);
+                    if (proto == nullptr || proto->paths.empty())
+                        continue;
+                    const ExtrusionPath &pth = proto->paths.front();
+                    ExtrusionPath path(pth.role(), pth.mm3_per_mm, pth.width, pth.height);
+                    path.polyline.points = merges[m].merged.points;
+                    path.polyline.points.emplace_back(path.polyline.points.front());
+                    rib_owned.emplace_back(std::make_unique<ExtrusionLoop>(std::move(path)));
+                    merged_loop[m] = rib_owned.back().get();
+                    merged_any     = true;
                 }
                 if (merged_any) {
                     rib_perimeters.reserve(region.perimeters.size());
                     for (size_t i = 0; i < region.perimeters.size(); ++ i) {
-                        const int g = group_of[i];
-                        if (g < 0 || groups[g].merged == nullptr) {
+                        const int m = merge_of[i];
+                        if (m < 0 || merged_loop[m] == nullptr)
                             rib_perimeters.emplace_back(region.perimeters[i]);
-                            continue;
-                        }
-                        const RibGroup &group = groups[g];
-                        if (std::find(group.keep_separate.begin(), group.keep_separate.end(), i) != group.keep_separate.end())
-                            rib_perimeters.emplace_back(region.perimeters[i]);
-                        else if (i == group.emit_at)
-                            rib_perimeters.emplace_back(group.merged);
+                        else if (int(i) == emit_at[m])
+                            rib_perimeters.emplace_back(merged_loop[m]);
                         // other merged members: consumed by the merged loop, emit nothing
                     }
                     perimeters = &rib_perimeters;

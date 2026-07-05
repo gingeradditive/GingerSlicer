@@ -11,6 +11,7 @@
 #include <iostream>
 #include <fstream>
 #include <map>
+#include <set>
 #include <sstream>
 #include <boost/filesystem.hpp>
 #include <boost/nowide/cstdio.hpp>
@@ -587,6 +588,67 @@ SCENARIO("Single path: wall rib connectors", "[.][SinglePathRibs]") {
         THEN("merged walls do not retrace over their own beads (rib = two staggered beads, no doubled centerline)") {
             CAPTURE(wall_spikes);
             CHECK(wall_spikes == 0);
+        }
+        // Air check: no wall segment >= 8mm may hang in the air - every sampled point must be
+        // within reach of SOME extrusion of the previous layer (grid hash). This is exactly the
+        // failure Davide caught on the first rib reslices (ribs printed over sparse infill).
+        THEN("no wall segment is extruded in the air (unsupported by the previous layer)") {
+            constexpr double cell = 2.0, reach = 2.5, min_len = 8.0;
+            struct GridPair { std::set<std::pair<long,long>> prev, cur; };
+            GridPair    grid;
+            std::string type;
+            double x = 0., y = 0.;
+            bool   seen = false;
+            int    layer = 0, air = 0;
+            std::istringstream in(gcode);
+            std::string line;
+            auto mark = [&](double px, double py) { grid.cur.insert({ long(std::floor(px / cell)), long(std::floor(py / cell)) }); };
+            auto covered = [&](double px, double py) {
+                const long cx = long(std::floor(px / cell)), cy = long(std::floor(py / cell));
+                for (long i = -2; i <= 2; ++ i)
+                    for (long j = -2; j <= 2; ++ j)
+                        if (grid.prev.count({ cx + i, cy + j }))
+                            return true;
+                return false;
+            };
+            while (std::getline(in, line)) {
+                if (line.rfind(";LAYER_CHANGE", 0) == 0) {
+                    grid.prev.swap(grid.cur);
+                    grid.cur.clear();
+                    ++ layer;
+                    continue;
+                }
+                if (line.rfind(";TYPE:", 0) == 0) { type = line.substr(6); continue; }
+                if (line.rfind("G1 ", 0) != 0 && line.rfind("G0 ", 0) != 0) continue;
+                double nx = x, ny = y; bool hasE = false;
+                for (size_t pos = 3; pos < line.size();) {
+                    const char c = line[pos];
+                    if (c == ';') break;
+                    size_t end = line.find(' ', pos);
+                    if (end == std::string::npos) end = line.size();
+                    if (c == 'X') nx = atof(line.c_str() + pos + 1);
+                    else if (c == 'Y') ny = atof(line.c_str() + pos + 1);
+                    else if (c == 'E' && atof(line.c_str() + pos + 1) > 0.) hasE = true;
+                    pos = end + 1;
+                }
+                if (hasE && seen) {
+                    const double dx = nx - x, dy = ny - y, d = std::sqrt(dx * dx + dy * dy);
+                    const int steps = int(d / cell) + 1;
+                    for (int s = 0; s <= steps; ++ s) mark(x + dx * s / steps, y + dy * s / steps);
+                    if (layer > 1 && d >= min_len && (type == "Outer wall" || type == "Inner wall")) {
+                        const int pts = int(d / reach) + 2;
+                        int run = 0, maxrun = 0;
+                        for (int s = 0; s <= pts; ++ s) {
+                            if (! covered(x + dx * s / pts, y + dy * s / pts)) maxrun = std::max(maxrun, ++ run);
+                            else run = 0;
+                        }
+                        if (maxrun > 2) ++ air;
+                    }
+                }
+                x = nx; y = ny; seen = true;
+            }
+            CAPTURE(air);
+            CHECK(air == 0);
         }
     }
 }

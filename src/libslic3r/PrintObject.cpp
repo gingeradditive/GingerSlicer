@@ -519,6 +519,11 @@ void PrintObject::prepare_infill()
     this->combine_infill();
     m_print->throw_if_canceled();
 
+    // Ginger single_path_wall_ribs: plan the wall rib merges and carve their corridors out of
+    // the final fill surfaces (must run last, when fill_surfaces are final).
+    this->generate_wall_ribs();
+    m_print->throw_if_canceled();
+
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
     for (size_t region_id = 0; region_id < this->num_printing_regions(); ++ region_id) {
         for (const Layer *layer : m_layers) {
@@ -534,6 +539,145 @@ void PrintObject::prepare_infill()
 #endif /* SLIC3R_DEBUG_SLICE_PROCESSING */
 
     this->set_done(posPrepareInfill);
+}
+
+// Ginger single_path_wall_ribs. For every layer (sequential, bottom-up), the closed wall loops
+// of each island are planned into ONE walk with rib connectors (plan_wall_ribs, Prim over the
+// loops). Running here - instead of at G-code time - buys the two properties the ribs need:
+//  - the rib CORRIDORS are subtracted from the layer's fill surfaces, so sparse/solid/top/bottom
+//    never extrude across the rib beads (the rib itself fills the slot);
+//  - each rib is anchored to the PREVIOUS layer's rib position when the local geometry still
+//    allows it, so the rib columns stack and are self-standing instead of landing on air over
+//    sparse infill.
+// The grouping (per island, per role/width/flow, single-path closed loops only) MIRRORS the one
+// in GCode::extrude_perimeters, which consumes the stored plan by matching loop first points.
+void PrintObject::generate_wall_ribs()
+{
+    for (Layer *layer : m_layers)
+        layer->wall_ribs.clear();
+    bool enabled = false;
+    for (size_t region_id = 0; region_id < this->num_printing_regions(); ++ region_id) {
+        const PrintRegionConfig &cfg = this->printing_region(region_id).config();
+        if (cfg.single_path_mode && cfg.single_path_wall_ribs) {
+            enabled = true;
+            break;
+        }
+    }
+    if (! enabled)
+        return;
+    BOOST_LOG_TRIVIAL(debug) << "Planning wall ribs - start";
+
+    Points     prev_anchors;
+    Polygons   prev_corridors;
+    Polygons   prev_walls;
+    ExPolygons prev_solid;
+    for (Layer *layer : m_layers) {
+        m_print->throw_if_canceled();
+        Points   layer_anchors;
+        Polygons corridors;
+        // What the previous layer offers to stand on. Collected for EVERY layer (also rib-less
+        // ones) so the next layer's support test always sees the real material below.
+        WallRibSupport support;
+        support.first_layer    = layer->lower_layer == nullptr;
+        support.prev_corridors = &prev_corridors;
+        support.prev_walls     = &prev_walls;
+        support.prev_solid     = &prev_solid;
+        Polygons   layer_walls;
+        ExPolygons layer_solid;
+        for (LayerRegion *layerm : layer->regions()) {
+            for (const ExtrusionEntity *island_ee : layerm->perimeters.entities)
+                if (const auto *island = dynamic_cast<const ExtrusionEntityCollection*>(island_ee))
+                    for (const ExtrusionEntity *ee : island->entities)
+                        if (const auto *loop = dynamic_cast<const ExtrusionLoop*>(ee))
+                            layer_walls.emplace_back(loop->polygon());
+            for (const Surface &s : layerm->fill_surfaces.surfaces)
+                if (s.is_solid())
+                    layer_solid.emplace_back(s.expolygon);
+        }
+        for (LayerRegion *layerm : layer->regions()) {
+            const PrintRegionConfig &cfg = layerm->region().config();
+            if (! (cfg.single_path_mode && cfg.single_path_wall_ribs))
+                continue;
+            // One collection per island inside LayerRegion::perimeters.
+            for (const ExtrusionEntity *island_ee : layerm->perimeters.entities) {
+                const auto *island = dynamic_cast<const ExtrusionEntityCollection*>(island_ee);
+                if (island == nullptr || island->entities.size() < 2)
+                    continue;
+                // Group the island's mergeable loops by role/flow, mirroring extrude_perimeters.
+                // ALL of the island's loops (multi-path overhang loops included) also go into the
+                // obstacle set: a rib link must never extrude across another wall or hole.
+                struct RibGroup {
+                    ExtrusionRole role;
+                    float         width;
+                    float         height;
+                    double        mm3_per_mm;
+                    Polygons      loops;
+                };
+                std::vector<RibGroup> groups;
+                Polygons              obstacles;
+                for (const ExtrusionEntity *ee : island->entities)
+                    if (const auto *loop = dynamic_cast<const ExtrusionLoop*>(ee)) {
+                        obstacles.emplace_back(loop->polygon());
+                        if (loop->paths.size() != 1)
+                            continue;
+                        const ExtrusionPath &pth = loop->paths.front();
+                        RibGroup *g = nullptr;
+                        for (RibGroup &gg : groups)
+                            if (gg.role == pth.role() && gg.width == pth.width &&
+                                gg.height == pth.height && gg.mm3_per_mm == pth.mm3_per_mm) {
+                                g = &gg;
+                                break;
+                            }
+                        if (g == nullptr) {
+                            groups.push_back({ pth.role(), pth.width, pth.height, pth.mm3_per_mm, {} });
+                            g = &groups.back();
+                        }
+                        g->loops.emplace_back(loop->polygon());
+                    }
+                for (RibGroup &group : groups) {
+                    if (group.loops.size() < 2)
+                        continue;
+                    WallRibParams params;
+                    params.stagger         = coord_t(scale_(group.width));
+                    // Corridor = rib quad expanded by exactly the bead half width: the fill sits
+                    // flush against the rib flanks and fuses with them (no gap strips on bottom
+                    // and top surfaces).
+                    params.corridor_offset = coord_t(scale_(0.5 * group.width));
+                    // A rib longer than this is worse than the short travel it replaces.
+                    params.max_link_length = coord_t(scale_(cfg.single_path_wall_rib_max_length.value));
+                    // Per-layer column drift budget: about 45 deg of lean, whichever of half a
+                    // bead / one layer height is smaller.
+                    params.max_drift       = std::min(coord_t(scale_(0.5 * group.width)), coord_t(scale_(layer->height)));
+                    params.obstacles       = &obstacles;
+                    params.support         = &support;
+                    WallRibMerge        merge;
+                    std::vector<size_t> unmerged;
+                    if (plan_wall_ribs(group.loops, params,
+                                       prev_anchors.empty() ? nullptr : &prev_anchors, merge, unmerged)) {
+                        append(corridors, merge.corridors);
+                        append(layer_anchors, merge.anchors);
+                        layer->wall_ribs.emplace_back(std::move(merge));
+                    }
+                }
+            }
+        }
+        if (! corridors.empty()) {
+            // Carve the rib corridors out of every region's fill surfaces of this layer.
+            for (LayerRegion *layerm : layer->regions()) {
+                Surfaces out;
+                out.reserve(layerm->fill_surfaces.surfaces.size());
+                for (const Surface &s : layerm->fill_surfaces.surfaces)
+                    for (ExPolygon &e : diff_ex(s.expolygon, corridors))
+                        out.emplace_back(Surface(s, std::move(e)));
+                layerm->fill_surfaces.surfaces = std::move(out);
+            }
+        }
+        prev_anchors   = std::move(layer_anchors);
+        prev_corridors = std::move(corridors);
+        prev_walls     = std::move(layer_walls);
+        prev_solid     = std::move(layer_solid);
+    }
+    BOOST_LOG_TRIVIAL(debug) << "Planning wall ribs - end";
 }
 
 void PrintObject::infill()

@@ -516,6 +516,10 @@ private:
     void clip_fill_surfaces();
     void discover_horizontal_shells();
     void combine_infill();
+    // Ginger single_path_wall_ribs: plan the per-layer wall rib merges (sequential bottom-up so
+    // each rib column is anchored to the previous layer = self-standing) and subtract the rib
+    // corridors from the fill surfaces so no infill/top/bottom is extruded across the ribs.
+    void generate_wall_ribs();
     void _generate_support_material();
     std::pair<FillAdaptive::OctreePtr, FillAdaptive::OctreePtr> prepare_adaptive_infill_data(
         const std::vector<std::pair<const Surface*, float>>& surfaces_w_bottom_z) const;

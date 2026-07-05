@@ -2452,6 +2452,18 @@ void PrintConfigDef::init_fff_params()
     def->mode       = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
+    def             = this->add("single_path_wall_rib_max_length", coFloat);
+    def->label      = L("Wall rib max length");
+    def->category   = L("Others");
+    def->tooltip    = L("Maximum length of a wall rib connector. Wall loops farther apart than this are not "
+                        "merged: a very long rib would cross half the part (and everything below it), while "
+                        "the travel it replaces is already minimized by Single path mode. Keep it in the range "
+                        "of a sensible structural rib.");
+    def->sidetext   = L("mm");
+    def->min        = 0;
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(20.));
+
     def = this->add("sparse_infill_pattern", coEnum);
     def->label = L("Sparse infill pattern");
     def->category = L("Strength");
