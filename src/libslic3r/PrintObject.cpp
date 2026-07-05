@@ -684,7 +684,9 @@ static bool build_rib_buttress(Layer *rib_layer, const Point &link_a, const Poin
                 }
                 // Nothing may be extruded across the stub: carve its footprint out of this
                 // layer's fill (final by now; its own rib corridors were carved earlier).
-                const Polygons carve = offset(quad, float(scale_(0.5 * width)));
+                // A quarter bead less than the beads' true footprint, so the surrounding
+                // fill fuses into the stub flanks instead of leaving a jagged gap.
+                const Polygons carve = offset(quad, float(scale_(0.25 * width)));
                 for (LayerRegion *layerm : below->regions()) {
                     Surfaces out;
                     out.reserve(layerm->fill_surfaces.surfaces.size());
@@ -749,6 +751,7 @@ void PrintObject::generate_wall_ribs()
         m_print->throw_if_canceled();
         Points   layer_anchors;
         Polygons corridors;
+        Polygons carve;
         WallRibStats lstat;
         size_t l_islands = 0, l_loops = 0, l_multipath = 0, l_group_single = 0;
         // What the previous layer offers to stand on. Collected for EVERY layer (also rib-less
@@ -821,9 +824,9 @@ void PrintObject::generate_wall_ribs()
                     }
                     WallRibParams params;
                     params.stagger         = coord_t(scale_(group.width));
-                    // Corridor = rib quad expanded by exactly the bead half width: the fill sits
-                    // flush against the rib flanks and fuses with them (no gap strips on bottom
-                    // and top surfaces).
+                    // Corridor = rib quad expanded by the bead half width = the beads' true
+                    // footprint (used as column support below); the fill is carved a quarter
+                    // bead tighter than this, so it fuses into the rib flanks.
                     params.corridor_offset = coord_t(scale_(0.5 * group.width));
                     // A rib longer than this is worse than the short travel it replaces.
                     params.max_link_length = coord_t(scale_(cfg.single_path_wall_rib_max_length.value));
@@ -843,6 +846,11 @@ void PrintObject::generate_wall_ribs()
                     if (plan_wall_ribs(group.loops, params,
                                        prev_anchors.empty() ? nullptr : &prev_anchors, merge, unmerged)) {
                         append(corridors, merge.corridors);
+                        // The fill is carved a quarter bead LESS than the full corridor, so
+                        // its lines run into the rib flanks and fuse with them - carving
+                        // flush left jagged gaps along the rib in bottom/top skins.
+                        for (Polygon &e : offset(merge.corridors, -float(scale_(0.25 * group.width))))
+                            carve.emplace_back(std::move(e));
                         append(layer_anchors, merge.anchors);
                         for (const auto &link : merge.founded_links)
                             if (! build_rib_buttress(layer, link.first, link.second, group.width, true))
@@ -852,13 +860,14 @@ void PrintObject::generate_wall_ribs()
                 }
             }
         }
-        if (! corridors.empty()) {
-            // Carve the rib corridors out of every region's fill surfaces of this layer.
+        if (! carve.empty()) {
+            // Carve the rib footprints out of every region's fill surfaces of this layer
+            // (the shrunk variant: the full corridors stay in the plan for column support).
             for (LayerRegion *layerm : layer->regions()) {
                 Surfaces out;
                 out.reserve(layerm->fill_surfaces.surfaces.size());
                 for (const Surface &s : layerm->fill_surfaces.surfaces)
-                    for (ExPolygon &e : diff_ex(s.expolygon, corridors))
+                    for (ExPolygon &e : diff_ex(s.expolygon, carve))
                         out.emplace_back(Surface(s, std::move(e)));
                 layerm->fill_surfaces.surfaces = std::move(out);
             }
@@ -867,11 +876,13 @@ void PrintObject::generate_wall_ribs()
             std::fprintf(stderr,
                          "[RIBSTAT] layer=%zu z=%.2f islands=%zu loops=%zu multipath=%zu group_single=%zu"
                          " candidates=%zu spliced=%zu anchor_reused=%zu founded=%zu"
-                         " drop[too_short=%zu prim_far=%zu obstacle=%zu unsupported=%zu]\n",
+                         " drop[too_short=%zu prim_far=%zu obstacle=%zu unsupported=%zu] a0=(%.1f,%.1f)\n",
                          layer_idx, layer->print_z, l_islands, l_loops, l_multipath, l_group_single,
                          lstat.loops_in, lstat.spliced, lstat.anchor_reused, lstat.founded,
                          lstat.drop_too_short, lstat.drop_prim_far,
-                         lstat.drop_obstacle, lstat.drop_unsupported);
+                         lstat.drop_obstacle, lstat.drop_unsupported,
+                         layer_anchors.empty() ? 0. : unscale<double>(layer_anchors.front().x()),
+                         layer_anchors.empty() ? 0. : unscale<double>(layer_anchors.front().y()));
         prev_anchors   = std::move(layer_anchors);
         prev_corridors = std::move(corridors);
         prev_walls     = std::move(layer_walls);

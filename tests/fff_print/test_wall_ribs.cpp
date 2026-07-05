@@ -44,6 +44,16 @@ static Polygon square_ccw(double cx, double cy, double half)
                      Point::new_scale(cx + half, cy + half), Point::new_scale(cx - half, cy + half) });
 }
 
+static Polygon circle_ccw(double cx, double cy, double r)
+{
+    Points pts;
+    for (int i = 0; i < 32; ++ i) {
+        const double a = 2. * PI * i / 32.;
+        pts.emplace_back(Point::new_scale(cx + r * std::cos(a), cy + r * std::sin(a)));
+    }
+    return Polygon(pts);
+}
+
 TEST_CASE("WallRibs: annulus (outer + one hole) becomes one closed walk", "[WallRibs]")
 {
     const coord_t lw = scale_(3.2);
@@ -372,6 +382,73 @@ TEST_CASE("WallRibs: a column standing on its own corridor continues without a f
     INFO("column drift: " << unscale<double>(coord_t(drift)) << " mm");
     REQUIRE(drift <= double(params.max_drift) + SCALED_EPSILON);
     REQUIRE(plan2.founded_links.empty());
+}
+
+TEST_CASE("WallRibs: on smooth walls the rib straddles its connection axis symmetrically", "[WallRibs]")
+{
+    // A round boss ring, like the real screw bosses: the two link beads must sit at +/- half
+    // a bead around the connection axis. The old one-sided cut put one bead ON the axis and
+    // the other a full bead off it - the rib attached visibly eccentric to the hole.
+    const coord_t lw = scale_(3.2);
+    Polygon outer = circle_ccw(0., 0., 80.);
+    Polygon hole  = circle_ccw(0., 0., 50.);
+    hole.reverse();
+
+    WallRibParams params;
+    params.stagger         = lw;
+    params.corridor_offset = coord_t(scale_(1.6));
+    WallRibMerge        plan;
+    std::vector<size_t> unmerged;
+    REQUIRE(plan_wall_ribs({ outer, hole }, params, nullptr, plan, unmerged));
+    REQUIRE(plan.anchors.size() == 1);
+
+    Points mids;
+    for (const Line &l : plan.merged.lines()) {
+        if (l.length() < scale_(25.))
+            continue; // the links cross the 30mm ring gap; wall fragments lie on one loop only
+        const bool a_outer = (outer.point_projection(l.a) - l.a).cast<double>().norm() < scale_(0.1);
+        const bool b_outer = (outer.point_projection(l.b) - l.b).cast<double>().norm() < scale_(0.1);
+        const bool a_hole  = (hole.point_projection(l.a) - l.a).cast<double>().norm() < scale_(0.1);
+        const bool b_hole  = (hole.point_projection(l.b) - l.b).cast<double>().norm() < scale_(0.1);
+        if ((a_outer && b_hole) || (a_hole && b_outer))
+            mids.emplace_back((l.a + l.b) / 2);
+    }
+    REQUIRE(mids.size() == 2);
+    const Point  mean = (mids[0] + mids[1]) / 2;
+    const double ecc  = (mean - plan.anchors.front()).cast<double>().norm();
+    INFO("rib eccentricity vs connection axis: " << unscale<double>(coord_t(ecc)) << " mm");
+    REQUIRE(ecc < 0.25 * double(lw)); // was ~half a bead with the one-sided cut
+    require_no_coincident_segments(plan.merged, lw);
+}
+
+TEST_CASE("WallRibs: a column on stationary geometry does not creep sideways", "[WallRibs]")
+{
+    const coord_t lw = scale_(3.2);
+    Polygon outer = square_ccw(0., 0., 100.);
+    Polygon hole  = square_ccw(0., 0., 60.);
+    hole.reverse();
+
+    WallRibParams params;
+    params.stagger         = lw;
+    params.corridor_offset = coord_t(scale_(1.6));
+    params.max_drift       = coord_t(scale_(1.5));
+    std::vector<size_t> unmerged;
+    WallRibMerge plan;
+    REQUIRE(plan_wall_ribs({ outer, hole }, params, nullptr, plan, unmerged));
+    const Point a0 = plan.anchors.front();
+    // Ten identical layers: the anchor must stay put. The old joint-based anchor fed the cut
+    // offset back into the next layer's projection and migrated half a bead sideways EVERY
+    // layer - a 45-degree dashed staircase across dead-vertical walls.
+    Points prev = plan.anchors;
+    for (int i = 0; i < 10; ++ i) {
+        WallRibMerge next;
+        REQUIRE(plan_wall_ribs({ outer, hole }, params, &prev, next, unmerged));
+        REQUIRE(next.anchors.size() == 1);
+        prev = next.anchors;
+    }
+    const double creep = (prev.front() - a0).cast<double>().norm();
+    INFO("total creep over 10 layers: " << unscale<double>(coord_t(creep)) << " mm");
+    REQUIRE(creep < scale_(0.5)); // was ~16mm with the joint-based anchor
 }
 
 TEST_CASE("WallRibs: a foundation stub is part of the wall and never retraces", "[WallRibs]")

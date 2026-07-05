@@ -50,8 +50,8 @@ struct WallRibMerge
     // One anchor per rib (midpoint of the first link); the next layer reuses these positions
     // so the rib columns stack.
     Points   anchors;
-    // Links of ribs that start a NEW column with nothing to stand on (walk-side point, loop-
-    // side point of the first link). The caller grows a FOUNDATION BUTTRESS under each: on
+    // Connection axes of ribs that start a NEW column with nothing to stand on (walk-side
+    // attach point, loop-side attach point). The caller grows a FOUNDATION BUTTRESS under each: on
     // the layers below, one of the two walls gets an out-and-back stub of the same staggered
     // bead pair (part of the wall itself), shrinking by the self-support step per layer -
     // a lightning-style branch leaning on the wall, so the first rib never prints in the air.

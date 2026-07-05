@@ -140,27 +140,57 @@ static Polygon splice_one(const Polygon &a, const PolyPos &p, const Polygon &b_i
     // short u->v stretch is the cut), leaves over link1 at u and returns to v over link2.
     // Cut on B = (w, e): the walk ENTERS B at e, runs forward around to w (cut = w->e),
     // link1 targets e and link2 leaves from w.
+    // The cuts are CENTERED on the attach points (half a stagger each side), so the two link
+    // beads STRADDLE the p-q connection axis symmetrically - a one-sided cut put one bead on
+    // the axis and the second a full bead off it, and the rib read as eccentric against the
+    // hole it connects. Only when the centered pair comes out corner-degenerate (attach point
+    // on a sharp corner, links nearly touching) fall back to the off-center placements and
+    // pick the best-separated combination.
     struct CutA { PolyPos u, v; };
     struct CutB { PolyPos w, e; };
-    const CutA cut_a[2] = { { p, walk_along(a, p, double(stagger), true) },                       // cut after p
+    const double h = 0.5 * double(stagger);
+    const CutA cut_a[3] = { { walk_along(a, p, h, false), walk_along(a, p, h, true) },            // centered on p
+                            { p, walk_along(a, p, double(stagger), true) },                       // cut after p
                             { walk_along(a, p, double(stagger), false), p } };                    // cut before p
-    const CutB cut_b[2] = { { walk_along(b, q, double(stagger), false), q },                      // cut before q
+    const CutB cut_b[3] = { { walk_along(b, q, h, false), walk_along(b, q, h, true) },            // centered on q
+                            { walk_along(b, q, double(stagger), false), q },                      // cut before q
                             { q, walk_along(b, q, double(stagger), true) } };                     // cut after q
 
-    int    best_i = 0, best_j = 0;
-    double best_score = -1.;
-    for (int i = 0; i < 2; ++ i)
-        for (int j = 0; j < 2; ++ j) {
-            // Crossing or corner-degenerate link pairs come out with ~0 separation; two clean
-            // parallel staggered links score ~stagger.
-            const double score = segment_distance(Line(cut_a[i].u.pt, cut_b[j].e.pt),
-                                                  Line(cut_b[j].w.pt, cut_a[i].v.pt));
-            if (score > best_score) {
-                best_score = score;
-                best_i = i;
-                best_j = j;
-            }
-        }
+    // Crossing or corner-degenerate link pairs come out with ~0 separation; two clean
+    // parallel staggered links score ~stagger. Among the cleanly separated placements take
+    // the most CENTERED one (least eccentric), separation only breaks ties; only when no
+    // placement is clean (sharp-corner attach) fall back to the best-separated one.
+    int best_i = -1, best_j = -1;
+    {
+        const double clean     = 0.8 * double(stagger);
+        const double off_of[3] = { 0., h, h };
+        double       sep[3][3];
+        for (int i = 0; i < 3; ++ i)
+            for (int j = 0; j < 3; ++ j)
+                sep[i][j] = segment_distance(Line(cut_a[i].u.pt, cut_b[j].e.pt),
+                                             Line(cut_b[j].w.pt, cut_a[i].v.pt));
+        double best_off = std::numeric_limits<double>::max();
+        double best_sep = -1.;
+        for (int i = 0; i < 3; ++ i)
+            for (int j = 0; j < 3; ++ j)
+                if (sep[i][j] >= clean) {
+                    const double off = off_of[i] + off_of[j];
+                    if (off < best_off || (off == best_off && sep[i][j] > best_sep)) {
+                        best_off = off;
+                        best_sep = sep[i][j];
+                        best_i   = i;
+                        best_j   = j;
+                    }
+                }
+        if (best_i < 0)
+            for (int i = 0; i < 3; ++ i)
+                for (int j = 0; j < 3; ++ j)
+                    if (sep[i][j] > best_sep) {
+                        best_sep = sep[i][j];
+                        best_i   = i;
+                        best_j   = j;
+                    }
+    }
     const CutA &ca = cut_a[best_i];
     const CutB &cb = cut_b[best_j];
     joint = { ca.u.pt, cb.e.pt, cb.w.pt, ca.v.pt };
@@ -327,26 +357,72 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
     // when its every link would be longer than the user cap, cross another wall, or hang
     // over true void where not even a foundation can be built.
     while (! remaining.empty()) {
-        double  best_dist = std::numeric_limits<double>::max();
-        size_t  best_pos  = 0;
-        PolyPos best_p, best_q;
-        for (size_t k = 0; k < remaining.size(); ++ k) {
-            PolyPos on_merged, on_loop;
-            double  d = closest_approach(merged, loops[remaining[k]], on_merged, on_loop);
-            if (d < best_dist) {
-                best_dist = d;
-                best_pos  = k;
-                best_p    = on_merged;
-                best_q    = on_loop;
+        // COLUMN CONTINUITY outranks nearest-first: if a previous-layer anchor sits mid-gap
+        // between the walk and one of the remaining loops (within the drift budget), splice
+        // THAT loop next at that position. Pure Prim order can flip between layers when
+        // distances are close; a flipped order changes the walk, the anchors stop matching
+        // pairwise and a healthy column relocates for no reason - costing a fresh buttress
+        // and an ugly jump (the flange rib that moved at layer 5).
+        size_t  best_pos   = 0;
+        bool    via_column = false;
+        PolyPos anch_p, anch_q;
+        if (prev_anchors != nullptr) {
+            double best_gap = std::numeric_limits<double>::max();
+            for (size_t k = 0; k < remaining.size(); ++ k) {
+                const Polygon &cand = loops[remaining[k]];
+                for (const Point &anchor : *prev_anchors) {
+                    PolyPos pa, qa;
+                    const double da  = project_onto(merged, anchor, pa);
+                    const double db  = project_onto(cand, anchor, qa);
+                    const double gap = (pa.pt - qa.pt).cast<double>().norm();
+                    // The anchor must sit in THIS pair's gap - about halfway between both
+                    // curves. Anything looser matches the anchor of a NEIGHBOURING column
+                    // whenever this loop's own column is missing, and that used to lock the
+                    // loop out of merging forever.
+                    if (da > 0.5 * gap + 2. * double(stagger) || db > 0.5 * gap + 2. * double(stagger))
+                        continue;
+                    // A column that would have to drift beyond the per-layer budget is NOT
+                    // followed (no sideways staircase); the loop can still relocate below.
+                    if (((pa.pt + qa.pt) / 2 - anchor).cast<double>().norm() > double(params.max_drift))
+                        continue;
+                    if (gap > double(params.max_link_length))
+                        continue;
+                    if (gap < best_gap) {
+                        best_gap   = gap;
+                        best_pos   = k;
+                        anch_p     = pa;
+                        anch_q     = qa;
+                        via_column = true;
+                    }
+                }
             }
         }
-        if (best_dist > double(params.max_link_length)) {
-            // Everything left is farther than the cap (Prim: best_dist only grows).
-            if (st != nullptr)
-                st->drop_prim_far += remaining.size();
-            for (size_t i : remaining)
-                unmerged.emplace_back(i);
-            break;
+
+        // No column to continue: plain Prim, the loop closest to the growing walk.
+        double  best_dist = std::numeric_limits<double>::max();
+        PolyPos best_p, best_q;
+        if (via_column) {
+            best_dist = closest_approach(merged, loops[remaining[best_pos]], best_p, best_q);
+        } else {
+            for (size_t k = 0; k < remaining.size(); ++ k) {
+                PolyPos on_merged, on_loop;
+                double  d = closest_approach(merged, loops[remaining[k]], on_merged, on_loop);
+                if (d < best_dist) {
+                    best_dist = d;
+                    best_pos  = k;
+                    best_p    = on_merged;
+                    best_q    = on_loop;
+                }
+            }
+            if (best_dist > double(params.max_link_length)) {
+                // Everything left is farther than the cap (Prim: best_dist only grows), and
+                // none of it continues a column.
+                if (st != nullptr)
+                    st->drop_prim_far += remaining.size();
+                for (size_t i : remaining)
+                    unmerged.emplace_back(i);
+                break;
+            }
         }
 
         const Polygon &loop = loops[remaining[best_pos]];
@@ -354,44 +430,13 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
         // Candidate positions in preference order: the column anchor (Z-aligned rib, prints on
         // yesterday's rib), the closest approach (cheapest rib), then a scan around the loop
         // nearest-gap-first. The FIRST candidate whose link rests on the previous layer wins;
-        // when none does, the first candidate with at least sparse below everywhere is taken
-        // anyway and a FOUNDATION pad is requested for the layer below (a new founded column
-        // starts there). Only length and obstacle crossing are hard rejections, so a loop stays
-        // unmerged only over true void, past the user cap, or when every link would cross a wall.
+        // when none does, the first candidate whose foundation buttress can be grown is taken.
+        // Only length and obstacle crossing are hard rejections, so a loop stays unmerged only
+        // over true void, past the user cap, or when every link would cross a wall.
         struct CandPos { PolyPos p, q; bool is_anchor; };
         std::vector<CandPos> cands;
-
-        // 1) Column anchor: a previous-layer rib between (nearly) these same two curves. The
-        // anchor must sit in THIS pair's gap - about halfway between both curves. Anything
-        // looser matches the anchor of a NEIGHBOURING column whenever this loop's own column
-        // is missing, and that used to lock the loop out of merging forever (the wrong anchor
-        // kept "existing", kept being over the drift budget, and kept vetoing every fallback).
-        if (prev_anchors != nullptr) {
-            double       best_score  = std::numeric_limits<double>::max();
-            PolyPos      anch_p, anch_q;
-            const Point *used_anchor = nullptr;
-            for (const Point &anchor : *prev_anchors) {
-                PolyPos pa, qa;
-                const double da  = project_onto(merged, anchor, pa);
-                const double db  = project_onto(loop, anchor, qa);
-                const double gap = (pa.pt - qa.pt).cast<double>().norm();
-                if (da > 0.5 * gap + 2. * double(stagger) || db > 0.5 * gap + 2. * double(stagger))
-                    continue; // not the anchor of this pair's gap
-                if (gap < best_score) {
-                    best_score  = gap;
-                    anch_p      = pa;
-                    anch_q      = qa;
-                    used_anchor = &anchor;
-                }
-            }
-            // A column that would have to drift beyond the per-layer budget is NOT followed
-            // (no sideways staircase); the rib relocates through the candidates below instead,
-            // ending the old column but keeping the loop connected.
-            if (used_anchor != nullptr &&
-                ((anch_p.pt + anch_q.pt) / 2 - *used_anchor).cast<double>().norm() <= double(params.max_drift))
-                cands.push_back({ anch_p, anch_q, true });
-        }
-        // 2) The optimal closest approach.
+        if (via_column)
+            cands.push_back({ anch_p, anch_q, true });
         cands.push_back({ best_p, best_q, false });
         // 3) Scan around the loop. Step of at most one stagger: an existing corridor below has
         // a walkable window of about one stagger along the loop, and the scan must not be able
@@ -491,11 +536,18 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
             for (Polygon &e : offset(quad, float(params.corridor_offset)))
                 out.corridors.emplace_back(std::move(e));
         }
-        // A rib standing on nothing reports its first link: the caller grows the foundation
-        // buttress under it (out-and-back wall stubs shrinking layer by layer downward).
+        // A rib standing on nothing reports its CONNECTION AXIS (the attach pair, i.e. the
+        // centerline the two beads straddle): the caller grows the foundation buttress under
+        // it, whose stubs straddle the same axis - stacked exactly under the rib beads.
         if (need_foundation)
-            out.founded_links.emplace_back(joint.a_exit, joint.b_enter);
-        out.anchors.emplace_back((joint.a_exit + joint.b_enter) / 2);
+            out.founded_links.emplace_back(use_p.pt, use_q.pt);
+        // The column anchor is the midpoint of the ATTACH pair, not of the cut link: the cut
+        // shifts one link end by up to a stagger to whichever side scores best, and anchoring
+        // on that made the column creep half a bead sideways EVERY layer (a 45-degree dashed
+        // staircase across dead-vertical walls). The attach midpoint is the fixed point of
+        // next layer's projections, so a column on stationary geometry stays truly vertical;
+        // the cut may wobble around it, the corridor covers that.
+        out.anchors.emplace_back((use_p.pt + use_q.pt) / 2);
     }
 
     if (merged.size() < 3 || out.loop_keys.size() < 2)
@@ -520,15 +572,20 @@ bool splice_wall_stub(Polygon &walk, const Point &base_hint, const Point &tip, c
 {
     if (stagger <= 0 || walk.size() < 3 || walk.length() <= 4. * double(stagger))
         return false;
-    PolyPos u;
-    project_onto(walk, base_hint, u);
+    PolyPos axis;
+    project_onto(walk, base_hint, axis);
     // A stub shorter than one bead has melted back into the wall - nothing to print.
-    if ((tip - u.pt).cast<double>().norm() <= double(stagger))
+    if ((tip - axis.pt).cast<double>().norm() <= double(stagger))
         return false;
-    const PolyPos v = walk_along(walk, u, double(stagger), true);
-    // Out-bead u->tip and back-bead tip2->v, separated by the cut vector (one stagger along
-    // the wall) - the same touching staggered pair a rib is made of, no doubled centerline.
-    const Point tip2 = tip + (v.pt - u.pt);
+    // Cut centered on the base axis, tips straddling the axis tip: the stub's two beads sit
+    // symmetrically about the rib axis above (same geometry as the rib pair itself), so the
+    // buttress stacks directly under the rib beads - the same touching staggered pair, no
+    // doubled centerline.
+    const PolyPos u = walk_along(walk, axis, 0.5 * double(stagger), false);
+    const PolyPos v = walk_along(walk, axis, 0.5 * double(stagger), true);
+    const Point   cv    = v.pt - u.pt;
+    const Point   tip_a = tip - cv / 2;
+    const Point   tip_b = tip + cv / 2;
     Points pts;
     pts.reserve(walk.size() + 4);
     append_dedup(pts, v.pt);
@@ -538,14 +595,14 @@ bool splice_wall_stub(Polygon &walk, const Point &base_hint, const Point &tip, c
             break;
     }
     append_dedup(pts, u.pt);
-    append_dedup(pts, tip);
-    append_dedup(pts, tip2);
+    append_dedup(pts, tip_a);
+    append_dedup(pts, tip_b);
     Polygon stubbed(std::move(pts));
     if (stubbed.size() > 1 && (stubbed.points.back() - stubbed.points.front()).cast<double>().squaredNorm() <= double(SCALED_EPSILON) * double(SCALED_EPSILON))
         stubbed.points.pop_back();
     if (stubbed.size() < 3)
         return false;
-    quad_out = Polygon({ u.pt, tip, tip2, v.pt });
+    quad_out = Polygon({ u.pt, tip_a, tip_b, v.pt });
     quad_out.make_counter_clockwise();
     walk = std::move(stubbed);
     return true;
