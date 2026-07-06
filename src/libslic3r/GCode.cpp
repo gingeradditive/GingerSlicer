@@ -5138,33 +5138,22 @@ std::string GCode::extrude_path(ExtrusionPath path, std::string description, dou
 }
 
 // Ginger single-path infill: the connected sparse-infill path/loop has its ends ON the inner wall
-// (they are projected onto the boundary). Return the connection point ("entry") of the region's
-// sparse infill that minimizes the travel cost: distance from `from` (the arrival point) to the entry
-// PLUS, when `to` is given (the look-ahead target = where the toolhead heads after this island),
-// distance from the corresponding EXIT to that target. An open path may only be entered at an end
-// point and exits at the other end (so choosing the entry also chooses the print direction); a closed
-// loop is entered and exited at the same seam point. Forcing the wall seam onto this entry makes the
-// wall end where the infill begins (zero wall->infill travel); accounting for the exit→next target
-// orients the whole pass so the unavoidable inter-island travel is as short as possible — this is the
-// one-step look-ahead that the previous "nearest to the previous feature only" logic was missing.
-static bool infill_connection_anchor(const ExtrusionEntitiesPtr &infills, const Point &from, const Point *to, Point &out)
+// (they are projected onto the boundary). An open path may only be entered at an end point and exits
+// at the other end (so choosing the entry also chooses the print direction); a closed loop is entered
+// and exited at the same seam point; the travel cost of a candidate is |entry - from| plus, with a
+// look-ahead target `to` (= where the toolhead heads after this island), |exit - to|.
+// infill_connection_anchor() returns the cheapest ENTRY (to pin the wall seam on it -> zero
+// wall->infill travel); infill_connection_min_cost() returns just the cost, to price a prospective
+// wall seam position (rib anchor choice) without committing to it.
+//
+// Enumerate every permissible (entry, exit) connection pair of the region's infill and feed it to
+// `consider`. Roles whose infill can be hooked: sparse (erInternalInfill, connected into one
+// path/loop) plus the solid surfaces (internal solid, top, bottom). Bridges and ironing are excluded
+// (special flow / finishing pass).
+static void for_each_infill_connection_candidate(const ExtrusionEntitiesPtr &infills, const std::function<void(const Point &entry, const Point &exit)> &consider)
 {
-    // Roles whose infill we try to start exactly where the wall ends (zero wall->infill travel).
-    // Sparse (erInternalInfill, connected into one path/loop) plus the solid surfaces: internal solid,
-    // top and bottom. Top/bottom/internal-solid are MONOTONIC-ordered open paths (not loops): their
-    // monotonic distribution over the island already is a single path, so we anchor the wall seam onto
-    // the START of that ordered sequence and report its END for the next feature's seam. Bridges and
-    // ironing are excluded (special flow / finishing pass).
     auto is_connectable = [](ExtrusionRole r) {
         return r == erInternalInfill || r == erSolidInfill || r == erTopSolidInfill || r == erBottomSurface;
-    };
-    bool   found     = false;
-    double best_cost = std::numeric_limits<double>::max();
-    auto   consider  = [&](const Point &entry, const Point &exit) {
-        double cost = (entry - from).cast<double>().norm();
-        if (to)
-            cost += (exit - *to).cast<double>().norm();
-        if (cost < best_cost) { best_cost = cost; out = entry; found = true; }
     };
     std::function<void(const ExtrusionEntity*)> visit = [&](const ExtrusionEntity *ee) {
         if (const auto *eec = dynamic_cast<const ExtrusionEntityCollection*>(ee)) {
@@ -5197,6 +5186,33 @@ static bool infill_connection_anchor(const ExtrusionEntitiesPtr &infills, const 
     };
     for (const ExtrusionEntity *ee : infills)
         visit(ee);
+}
+
+static bool infill_connection_anchor(const ExtrusionEntitiesPtr &infills, const Point &from, const Point *to, Point &out)
+{
+    bool   found     = false;
+    double best_cost = std::numeric_limits<double>::max();
+    for_each_infill_connection_candidate(infills, [&](const Point &entry, const Point &exit) {
+        double cost = (entry - from).cast<double>().norm();
+        if (to)
+            cost += (exit - *to).cast<double>().norm();
+        if (cost < best_cost) { best_cost = cost; out = entry; found = true; }
+    });
+    return found;
+}
+
+// Cheapest infill hook when the wall exits at `from`: min over the candidates of |entry - from|
+// (+ |exit - to| with a look-ahead target). Used to PRICE a seam position without committing to it.
+static bool infill_connection_min_cost(const ExtrusionEntitiesPtr &infills, const Point &from, const Point *to, double &cost_out)
+{
+    bool found = false;
+    cost_out   = std::numeric_limits<double>::max();
+    for_each_infill_connection_candidate(infills, [&](const Point &entry, const Point &exit) {
+        double cost = (entry - from).cast<double>().norm();
+        if (to)
+            cost += (exit - *to).cast<double>().norm();
+        if (cost < cost_out) { cost_out = cost; found = true; }
+    });
     return found;
 }
 
@@ -5319,18 +5335,30 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                     // The merged loop is entered and left mid-link, where the start/stop scar is
                     // swallowed between the rib's two touching beads instead of sitting on a
                     // visible wall - and since rib columns are vertical, the seam column hides
-                    // with them. The rib nearest to the head keeps the chain travel short. This
-                    // outranks the infill hook below: the infill anchor is then computed from
-                    // this exit, so the infill still starts right next to the rib corridor.
+                    // with them. This outranks the infill hook below (the seam MUST sit in a rib);
+                    // the infill is then chained from this seam by extrude_infill.
+                    //
+                    // Rib choice: the merged loop is closed, so it is entered AND left at the seam -
+                    // the seam prices the whole chain, not just the approach. Cost of a rib anchor =
+                    // |head -> rib| + the cheapest infill hook from that rib (entry plus, with a
+                    // look-ahead target, exit -> next island), or the straight |rib -> next island|
+                    // when no infill follows. Picking merely the rib nearest the head paid the
+                    // head->infill diagonal twice on the real part (+37% total travel: approach a
+                    // near rib, then cross the whole island to a far infill entry).
                     if (rib_it != rib_anchors_of.end()) {
                         const Points &anchors = *rib_it->second;
                         const Point   cur     = this->last_pos();
-                        seam = anchors.front();
-                        double best = (seam - cur).cast<double>().squaredNorm();
+                        const bool    chain   = is_last && hook_infill;
+                        double best = std::numeric_limits<double>::max();
                         for (const Point &a : anchors) {
-                            const double d = (a - cur).cast<double>().squaredNorm();
-                            if (d < best) {
-                                best = d;
+                            double cost = (a - cur).cast<double>().norm();
+                            double hook;
+                            if (chain && infill_connection_min_cost(region.infills, a, next_island_target, hook))
+                                cost += hook;
+                            else if (is_last && next_island_target != nullptr)
+                                cost += (*next_island_target - a).cast<double>().norm();
+                            if (cost < best) {
+                                best = cost;
                                 seam = a;
                             }
                         }

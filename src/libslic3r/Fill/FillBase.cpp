@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <cstdlib>
 #include <numeric>
 
 #include <cmath>
@@ -1822,8 +1823,13 @@ static inline void single_path_append_arc(Points &dst, const Points &contour, si
 // previous wall ended -> no wall->infill travel. Finally Hierholzer's algorithm extracts maximal trails;
 // every trail is one travel-free path (components with more than two odd-degree vertices decompose into
 // several trails gracefully).
-static void connect_infill_single_path(Polylines &&infill_ordered, const BoundaryInfillGraph &graph, const double spacing, Polylines &polylines_out)
+static void connect_infill_single_path(Polylines &&infill_ordered, const BoundaryInfillGraph &graph, const double spacing, Polylines &polylines_out, const bool final_emission)
 {
+    // Cost of one OPEN trail, measured in closed pieces (see count_trails below). For the final
+    // emission an open trail's two fixed ends each force a long, arrival-independent travel, so it
+    // is worth up to (open_trail_cost - 1) extra closed loops to avoid one. Intermediate multiline
+    // rows are re-closed by connect-before-multiply anyway: keep the plain trail count there (1).
+    const size_t open_trail_cost = final_emission ? 4 : 1;
     const std::vector<ContourIntersectionPoint> &cps = graph.map_infill_end_point_to_boundary;
     const size_t n_fragments = infill_ordered.size();
     const size_t n_vertices  = 2 * n_fragments;
@@ -2017,10 +2023,19 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                             ++ odd;
                 return odd;
             };
-            // True cost of a selection: number of extrusion trails = sum over components of
-            // max(1, odd_vertices / 2). Travel moves between trails = trails - 1. Note that splitting
-            // a component CAN reduce the trail count when it splits the odd vertices as well.
-            auto count_trails = [&contour_vertices, &gap_degree, &component_labels]() -> size_t {
+            // Cost of a selection, in TRAVEL terms at G-code export. A component with all degrees
+            // even comes out as ONE CLOSED loop: the exporter enters it wherever the toolhead
+            // happens to arrive (free seam), so it costs one short hop. A component with 2k odd
+            // vertices comes out as k OPEN trails whose two fixed ends the toolhead must reach and
+            // leave EXACTLY there, wherever the construction dropped them - on the real part those
+            // forced approaches were 60-290mm each, repeated identically on every layer. An open
+            // trail is therefore priced as `open_trail_cost` closed pieces: the selection prefers
+            // splitting into a couple of closed loops over one open trail (e.g. a RING region can
+            // only close as two stacked serpentine cycles), but does not shatter the surface into
+            // arbitrarily many pieces. Note that splitting a component CAN reduce the cost when it
+            // splits the odd vertices as well (releasing the one bridge gap between the two ends of
+            // an open ring trail turns it into two closed loops).
+            auto count_trails = [&contour_vertices, &gap_degree, &component_labels, open_trail_cost]() -> size_t {
                 std::vector<int> comp;
                 size_t n_comp = component_labels(comp);
                 if (n_comp == 0)
@@ -2030,10 +2045,10 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     for (size_t v : cv)
                         if ((gap_degree[v] % 2) == 0)
                             ++ odd[size_t(comp[v])];
-                size_t trails = 0;
+                size_t cost = 0;
                 for (size_t o : odd)
-                    trails += std::max<size_t>(1, o / 2);
-                return trails;
+                    cost += o == 0 ? size_t(1) : open_trail_cost * (o / 2);
+                return cost;
             };
             auto toggle_gap = [&contour_vertices, &gap_taken, &take_gap, &release_gap](size_t c, size_t k) {
                 gap_taken[c][k] ? release_gap(c, k) : take_gap(c, k);
@@ -2129,6 +2144,178 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     break;
                 toggle_range(best_c, best_first, best_len);
             }
+
+            // Pass 3a: the flips above minimize the trail / defect COUNT, but they leave the surviving
+            // defects wherever the search stopped, and every defect pair still costs one travel move
+            // (a virtual edge below) whose LENGTH nobody optimized - measured on the real part, those
+            // were 60-290mm jumps at a fixed, arrival-independent spot. Two mitigations, both pure
+            // extrusion (no travel, no re-extrusion):
+            //
+            // (a) free-run closure: when two defects are joined by a run of consecutive FREE gaps, take
+            //     the whole run. The run's interior vertices gain degree 2 (parity kept), the two ends
+            //     gain 1 each -> both defects resolved, and every component the run touches merges into
+            //     one, so the trail count can only drop. The run is extruded along the inner wall like
+            //     any other gap. Shortest runs first; a run longer than a quarter of its contour is
+            //     rejected (a near-full wall-hug is worse than the travel it saves). The flip search
+            //     above can miss these: its candidate list is capped and a blocked gap inside a range
+            //     silently breaks a flip.
+            //
+            // (b) defect sliding: pair the remaining defects like the virtual pairing below will
+            //     (greedy nearest, per component) and walk them toward each other one gap at a time.
+            //     Toggling a single gap flips the parity of exactly its two end vertices, i.e. it
+            //     moves the defect to the adjacent vertex. Taking an untaken gap only ever merges
+            //     components (always safe); releasing a taken gap may disconnect the serpentine, so
+            //     that step is validated with count_trails() and rolled back when it hurts. A blocked
+            //     gap stops the walk. Sliding does not remove the final travel move, but it shrinks
+            //     it - and once the two ends are within stitch range, run_trail below closes the
+            //     trail into a LOOP whose seam the G-code generator places freely (that is the real
+            //     prize: a closed sparse path is entered wherever the toolhead happens to arrive).
+            if (final_emission) {
+            size_t sp_runs_closed = 0, sp_slide_steps = 0;
+            for (;;) {
+                size_t best_c = 0, best_first = 0, best_len = 0;
+                double best_cost = std::numeric_limits<double>::max();
+                for (size_t c = 0; c < contour_vertices.size(); ++ c) {
+                    const std::vector<size_t> &cv = contour_vertices[c];
+                    const size_t m = cv.size();
+                    if (m < 2)
+                        continue;
+                    const double max_run = 0.25 * graph.boundary_params[c].back();
+                    std::vector<size_t> defects;
+                    for (size_t k = 0; k < m; ++ k)
+                        if ((gap_degree[cv[k]] % 2) == 0)
+                            defects.emplace_back(k);
+                    for (size_t a = 0; a + 1 < defects.size(); ++ a)
+                        for (size_t b = a + 1; b < defects.size(); ++ b)
+                            for (int dir = 0; dir < 2; ++ dir) {
+                                const size_t from = dir ? defects[b] : defects[a];
+                                const size_t to   = dir ? defects[a] : defects[b];
+                                const size_t len  = (to + m - from) % m;
+                                if (len == 0 || len >= m)
+                                    continue;
+                                const double cost = gap_length(c, cv[from], cv[to]);
+                                if (cost > max_run || cost >= best_cost)
+                                    continue;
+                                bool free_run = true;
+                                for (size_t l = 0; l < len && free_run; ++ l) {
+                                    const size_t k = (from + l) % m;
+                                    free_run = ! gap_taken[c][k] && ! gap_blocked[c][k];
+                                }
+                                if (free_run) {
+                                    best_cost = cost; best_c = c; best_first = from; best_len = len;
+                                }
+                            }
+                }
+                if (best_len == 0)
+                    break;
+                const size_t m = contour_vertices[best_c].size();
+                for (size_t l = 0; l < best_len; ++ l)
+                    take_gap(best_c, (best_first + l) % m);
+                ++ sp_runs_closed;
+            }
+            {
+                std::vector<int> comp;
+                component_labels(comp);
+                constexpr size_t no_pos = std::numeric_limits<size_t>::max();
+                // vertex -> its position along its contour (index into contour_vertices[c]).
+                std::vector<std::pair<size_t, size_t>> vpos(n_vertices, { no_pos, 0 });
+                for (size_t c = 0; c < contour_vertices.size(); ++ c)
+                    for (size_t k = 0; k < contour_vertices[c].size(); ++ k)
+                        vpos[contour_vertices[c][k]] = { c, k };
+                auto defect_point = [&graph, &cps](size_t v) -> const Point& {
+                    return graph.boundary[cps[v].contour_idx][cps[v].point_idx];
+                };
+                std::vector<std::vector<size_t>> defects_by_comp;
+                for (const std::vector<size_t> &cv : contour_vertices)
+                    for (size_t v : cv)
+                        if ((gap_degree[v] % 2) == 0) {
+                            if (defects_by_comp.size() <= size_t(comp[v]))
+                                defects_by_comp.resize(size_t(comp[v]) + 1);
+                            defects_by_comp[size_t(comp[v])].emplace_back(v);
+                        }
+                for (std::vector<size_t> &defs : defects_by_comp)
+                    while (defs.size() >= 2) {
+                        // Nearest pair first, mirroring the virtual pairing of pass 3b.
+                        size_t bi = 0, bj = 1;
+                        double bd = std::numeric_limits<double>::max();
+                        for (size_t i = 0; i < defs.size(); ++ i)
+                            for (size_t j = i + 1; j < defs.size(); ++ j) {
+                                const double d = (defect_point(defs[j]) - defect_point(defs[i])).cast<double>().squaredNorm();
+                                if (d < bd) { bd = d; bi = i; bj = j; }
+                            }
+                        size_t va = defs[bi], vb = defs[bj];
+                        defs.erase(defs.begin() + bj);
+                        defs.erase(defs.begin() + bi);
+                        bool closed = false;
+                        for (int who = 0; who < 2 && ! closed; ++ who) {
+                            size_t self  = who ? vb : va;
+                            size_t other = who ? va : vb;
+                            for (int guard2 = 0; guard2 < 512; ++ guard2) {
+                                const auto [c, k] = vpos[self];
+                                if (c == no_pos)
+                                    break;
+                                const std::vector<size_t> &cv = contour_vertices[c];
+                                const size_t m = cv.size();
+                                if (m < 2)
+                                    break;
+                                const double d_cur = (defect_point(other) - defect_point(self)).cast<double>().norm();
+                                size_t best_gap = no_pos, best_to = 0;
+                                double best_d   = d_cur;
+                                for (int dir = 0; dir < 2; ++ dir) {
+                                    const size_t gk = dir ? (k + m - 1) % m : k;
+                                    const size_t vt = dir ? cv[(k + m - 1) % m] : cv[(k + 1) % m];
+                                    if (vt == self || gap_blocked[c][gk])
+                                        continue;
+                                    const double d = (defect_point(other) - defect_point(vt)).cast<double>().norm();
+                                    if (d < best_d - SCALED_EPSILON) { best_d = d; best_gap = gk; best_to = vt; }
+                                }
+                                if (best_gap == no_pos)
+                                    break;
+                                const bool   releases      = gap_taken[c][best_gap] != 0;
+                                const size_t trails_before = releases ? count_trails() : 0;
+                                const size_t odds_before   = count_odd();
+                                toggle_gap(c, best_gap);
+                                if (releases && count_trails() > trails_before) {
+                                    toggle_gap(c, best_gap); // roll back: it would split the serpentine
+                                    break;
+                                }
+                                ++ sp_slide_steps;
+                                if (count_odd() + 2 <= odds_before) {
+                                    // Stepped onto another defect: both resolved, the trail closed here.
+                                    closed = true;
+                                    break;
+                                }
+                                self = best_to;
+                            }
+                        }
+                    }
+            }
+            if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr) {
+                std::fprintf(stderr, "[SPCLOSE] runs_closed=%zu slide_steps=%zu odds_left=%zu\n",
+                             sp_runs_closed, sp_slide_steps, count_odd());
+                for (const std::vector<size_t> &cv : contour_vertices)
+                    for (size_t v : cv)
+                        if ((gap_degree[v] % 2) == 0) {
+                            const Point &p = graph.boundary[cps[v].contour_idx][cps[v].point_idx];
+                            std::fprintf(stderr, "[SPDEFECT] v=%zu contour=%zu at (%.1f, %.1f) gap_taken(prev,next)=(%d,%d) gap_blocked(prev,next)=(%d,%d)\n",
+                                         v, cps[v].contour_idx, p.x() * SCALING_FACTOR, p.y() * SCALING_FACTOR,
+                                         [&]{ const auto pr = std::find(contour_vertices[cps[v].contour_idx].begin(), contour_vertices[cps[v].contour_idx].end(), v);
+                                              const size_t k = size_t(pr - contour_vertices[cps[v].contour_idx].begin());
+                                              const size_t m = contour_vertices[cps[v].contour_idx].size();
+                                              return int(gap_taken[cps[v].contour_idx][(k + m - 1) % m]); }(),
+                                         [&]{ const auto pr = std::find(contour_vertices[cps[v].contour_idx].begin(), contour_vertices[cps[v].contour_idx].end(), v);
+                                              const size_t k = size_t(pr - contour_vertices[cps[v].contour_idx].begin());
+                                              return int(gap_taken[cps[v].contour_idx][k]); }(),
+                                         [&]{ const auto pr = std::find(contour_vertices[cps[v].contour_idx].begin(), contour_vertices[cps[v].contour_idx].end(), v);
+                                              const size_t k = size_t(pr - contour_vertices[cps[v].contour_idx].begin());
+                                              const size_t m = contour_vertices[cps[v].contour_idx].size();
+                                              return int(gap_blocked[cps[v].contour_idx][(k + m - 1) % m]); }(),
+                                         [&]{ const auto pr = std::find(contour_vertices[cps[v].contour_idx].begin(), contour_vertices[cps[v].contour_idx].end(), v);
+                                              const size_t k = size_t(pr - contour_vertices[cps[v].contour_idx].begin());
+                                              return int(gap_blocked[cps[v].contour_idx][k]); }());
+                        }
+            }
+            } // if (final_emission)
         }
 
         // Pass 3b: Euler augmentation. The stack-based Hierholzer below is only valid on Eulerian
@@ -2210,7 +2397,12 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
         auto vertex_point = [&graph, &cps](size_t v) -> const Point& {
             return graph.boundary[cps[v].contour_idx][cps[v].point_idx];
         };
-        auto run_trail = [&adjacency, &edges, &cps, &graph, &infill_ordered, &polylines_out, &next_unused, &vertex_point](size_t start) {
+        // Mouth-stitch limit for nearly-closed trails: ends this close get joined by one extruded
+        // segment so the trail is emitted as a closed loop (seam freely placeable at export). A few
+        // line spacings covers ends facing each other across a hole / rib corridor, which the defect
+        // sliding above brings together but can never merge exactly (different contours).
+        const double stitch_max = final_emission ? 2.5 * scale_(spacing) : 0.;
+        auto run_trail = [&adjacency, &edges, &cps, &graph, &infill_ordered, &polylines_out, &next_unused, &vertex_point, stitch_max](size_t start) {
             std::vector<std::pair<size_t, int>> stack, trail; // (vertex, edge used to arrive)
             stack.emplace_back(start, -1);
             while (! stack.empty()) {
@@ -2259,6 +2451,22 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 pieces.back().points.insert(pieces.back().points.end(), pieces.front().points.begin() + 1, pieces.front().points.end());
                 pieces.front() = std::move(pieces.back());
                 pieces.pop_back();
+            }
+            // Close a nearly-closed piece: extrude one short segment across the mouth so the polyline
+            // is closed and gets emitted as an ExtrusionLoop downstream - the G-code generator then
+            // starts this whole trail wherever the toolhead arrives (a fixed pair of open ends was the
+            // single biggest source of long, arrival-independent travels on the real part).
+            if (stitch_max > 0.) {
+                const bool sp_debug = ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr;
+                for (Polyline &piece : pieces)
+                    if (piece.size() > 2 && piece.points.front() != piece.points.back()) {
+                        const double mouth = (piece.points.back() - piece.points.front()).cast<double>().norm();
+                        if (mouth <= stitch_max)
+                            piece.points.emplace_back(piece.points.front());
+                        else if (sp_debug)
+                            std::fprintf(stderr, "[SPOPEN] mouth=%.1fmm len=%.1fmm\n",
+                                         mouth * SCALING_FACTOR, piece.length() * SCALING_FACTOR);
+                    }
             }
             append(polylines_out, std::move(pieces));
         };
@@ -2328,7 +2536,7 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
     if (params.connect_polygons) {
         // Cura-style single-path infill: dedicated Eulerian-trail connector, replaces the greedy
         // anchor-based machinery below entirely.
-        connect_infill_single_path(std::move(infill_ordered), graph, spacing, polylines_out);
+        connect_infill_single_path(std::move(infill_ordered), graph, spacing, polylines_out, ! params.multiline_intermediate);
         return;
     }
 

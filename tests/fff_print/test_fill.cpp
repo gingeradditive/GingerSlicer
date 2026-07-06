@@ -379,6 +379,69 @@ TEST_CASE("Fill: single_path_mode single path", "[Fill]") {
         require_no_overlapping_parallel_segments(paths, filler->spacing);
     }
 
+    // Ginger: trail closure (free-run closure + defect sliding + mouth stitching in the Euler
+    // connector). A region with a hole chops every scanline onto two contours; the Euler trail used
+    // to come out OPEN with its two ends at a fixed, arrival-independent spot - on the real part
+    // that cost a 60-290mm travel INTO the region on every layer, regardless of where the toolhead
+    // came from. The connector must now emit closed loops (seam freely placeable at G-code export);
+    // whatever legitimately stays open must have a mouth wider than the stitch limit (2.5 line
+    // spacings), or the stitch pass would have closed it.
+    SECTION("Ring 200x200 with 100x100 hole, multiline 1 (trail closure)") {
+        Slic3r::Points square { Point::new_scale(0,0), Point::new_scale(200,0), Point::new_scale(200,200), Point::new_scale(0,200) };
+        Slic3r::Points hole   { Point::new_scale(50,50), Point::new_scale(50,150), Point::new_scale(150,150), Point::new_scale(150,50) };
+        Slic3r::ExPolygon expolygon(square);
+        expolygon.holes.emplace_back(Slic3r::Polygon(hole)); // CW ring -> hole
+        FillParams params1 = fill_params;
+        params1.multiline  = 1;
+        for (size_t layer_id : { 0, 1 }) {
+            DYNAMIC_SECTION("ring layer " << layer_id) {
+                auto filler = make_filler(layer_id);
+                filler->bounding_box = get_extents(expolygon.contour);
+                Slic3r::Surface surface(stInternal, expolygon);
+                Slic3r::Polylines paths = filler->fill_surface(&surface, params1);
+                CAPTURE(paths.size());
+                REQUIRE(! paths.empty());
+                require_no_retraced_segments(paths);
+                require_no_overlapping_parallel_segments(paths, filler->spacing);
+                size_t n_open = 0;
+                for (const Polyline &pl : paths)
+                    if (! pl.is_closed())
+                        ++ n_open;
+                CAPTURE(n_open);
+                REQUIRE(n_open == 0); // the ring is fully closable: closed loops only, free seam
+            }
+        }
+    }
+
+    SECTION("Offset hole + notch, multiline 1 (open trails only with a wide mouth)") {
+        // Deliberately awkward region (hole off-center, concave notch): closure is not guaranteed
+        // here, but the invariant is - an emitted OPEN path means the stitch pass judged its mouth
+        // wider than the limit, so no path may end with a small, silently-unstitched mouth.
+        Slic3r::Points outline { Point::new_scale(0,0), Point::new_scale(200,0), Point::new_scale(200,80),
+                                 Point::new_scale(120,80), Point::new_scale(120,110), Point::new_scale(200,110),
+                                 Point::new_scale(200,200), Point::new_scale(0,200) };
+        Slic3r::Points hole    { Point::new_scale(30,60), Point::new_scale(30,140), Point::new_scale(80,140), Point::new_scale(80,60) };
+        Slic3r::ExPolygon expolygon{ Slic3r::Polygon(outline) };
+        expolygon.holes.emplace_back(Slic3r::Polygon(hole));
+        FillParams params1 = fill_params;
+        params1.multiline  = 1;
+        auto filler = make_filler(0);
+        filler->bounding_box = get_extents(expolygon.contour);
+        Slic3r::Surface surface(stInternal, expolygon);
+        Slic3r::Polylines paths = filler->fill_surface(&surface, params1);
+        CAPTURE(paths.size());
+        REQUIRE(! paths.empty());
+        require_no_retraced_segments(paths);
+        require_no_overlapping_parallel_segments(paths, filler->spacing);
+        const double stitch_max = 2.5 * scale_(filler->spacing);
+        for (const Polyline &pl : paths)
+            if (! pl.is_closed()) {
+                const double mouth = (pl.points.back() - pl.points.front()).cast<double>().norm();
+                CAPTURE(mouth * SCALING_FACTOR);
+                CHECK(mouth > stitch_max);
+            }
+    }
+
     SECTION("Square 200x200, multiline 3 (odd: centerline spliced with the ring)") {
         // With an odd multiline the centerline itself is extruded: it must stay CLOSED so the splice
         // merges it with the offset ring walls into one closed loop (-> ExtrusionLoop -> free seam).

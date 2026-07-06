@@ -56,6 +56,12 @@ struct FillParams
     int   multiline{1};
     // Connect infill lines along the inner wall into a single continuous path (Cura-style).
     bool        connect_polygons { false };
+    // Ginger single-path: this connect_infill call produces INTERMEDIATE rows for the multiline
+    // pipeline (connect-before-multiply dilates and re-closes them afterwards), not the final
+    // emitted path. The Euler connector then keeps the plain minimize-the-trail-count objective
+    // and skips defect sliding / mouth stitching; for a FINAL emission it instead prefers a few
+    // CLOSED loops (free seam at G-code export) over one open trail with fixed ends.
+    bool        multiline_intermediate { false };
 
     // Length of an infill anchor along the perimeter.
     // 1000mm is roughly the maximum length line that fits into a 32bit coord_t.
