@@ -5241,6 +5241,9 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
             // semantics are preserved. Unmatched entities print as usual.
             ExtrusionEntitiesPtr                        rib_perimeters;
             std::vector<std::unique_ptr<ExtrusionLoop>> rib_owned;
+            // Rib anchors of each emitted merged loop (axis midpoints, one per rib): used
+            // below to pin the loop's SEAM inside a rib.
+            std::map<const ExtrusionEntity*, const Points*> rib_anchors_of;
             const ExtrusionEntitiesPtr*                 perimeters = &region.perimeters;
             // Even a single-loop island can carry a plan: a foundation buttress STUB spliced
             // into its wall (one-key merge), so the gate is on the plans, not the loop count.
@@ -5287,6 +5290,8 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                     path.polyline.points.emplace_back(path.polyline.points.front());
                     rib_owned.emplace_back(std::make_unique<ExtrusionLoop>(std::move(path)));
                     merged_loop[m] = rib_owned.back().get();
+                    if (! merges[m].anchors.empty())
+                        rib_anchors_of[merged_loop[m]] = &merges[m].anchors;
                     merged_any     = true;
                 }
                 if (merged_any) {
@@ -5309,6 +5314,28 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                 Point                  seam;
                 const Point*           seam_ptr = nullptr;
                 if (single_path) {
+                    const auto rib_it = rib_anchors_of.find(ee);
+                    // Ginger wall ribs: hide the SEAM inside a rib (Davide's "punto strategico").
+                    // The merged loop is entered and left mid-link, where the start/stop scar is
+                    // swallowed between the rib's two touching beads instead of sitting on a
+                    // visible wall - and since rib columns are vertical, the seam column hides
+                    // with them. The rib nearest to the head keeps the chain travel short. This
+                    // outranks the infill hook below: the infill anchor is then computed from
+                    // this exit, so the infill still starts right next to the rib corridor.
+                    if (rib_it != rib_anchors_of.end()) {
+                        const Points &anchors = *rib_it->second;
+                        const Point   cur     = this->last_pos();
+                        seam = anchors.front();
+                        double best = (seam - cur).cast<double>().squaredNorm();
+                        for (const Point &a : anchors) {
+                            const double d = (a - cur).cast<double>().squaredNorm();
+                            if (d < best) {
+                                best = d;
+                                seam = a;
+                            }
+                        }
+                        seam_ptr = &seam;
+                    } else
                     // The infill anchor is computed HERE (right before the last wall), so it uses the
                     // real toolhead position AFTER the preceding walls, not a stale pre-walls position;
                     // it picks the infill entry nearest that position (and, with a look-ahead target,
