@@ -1944,11 +1944,12 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             gap_taken[c].assign(contour_vertices[c].size(), 0);
             gap_edge[c].assign(contour_vertices[c].size(), std::numeric_limits<size_t>::max());
         }
-        auto take_gap = [&contour_vertices, &gap_taken, &gap_edge, &gap_degree, &edges, &add_edge, &gap_blocked](size_t c, size_t k) {
-            if (gap_blocked[c][k])
+        auto take_gap = [&contour_vertices, &gap_taken, &gap_edge, &gap_degree, &edges, &add_edge, &gap_blocked](size_t c, size_t k, bool force_blocked = false) {
+            if (gap_blocked[c][k] && ! force_blocked)
                 // Re-extrusion of a coincident fragment - this gap may never be selected. Callers
                 // (the initial phase and the sector flips) just leave a defect here; the repair
                 // machinery and the Euler augmentation handle it like any other deleted gap.
+                // force_blocked is the trail-closure LAST RESORT only (pass 3a (c) below).
                 return;
             const std::vector<size_t> &cv = contour_vertices[c];
             size_t v1 = cv[k];
@@ -2289,6 +2290,54 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                             }
                         }
                     }
+            }
+
+            // (c) LAST RESORT: the surviving pairs sit with a short BLOCKED arc between them. On the
+            // real part these are the top-ring layers: the multiline racetrack hugs the wall, so the
+            // boundary arc between the trail's two ends runs parallel to the hug beads and the
+            // re-extrusion guard forbids it - neither the free runs nor the sliding can bridge it,
+            // and the 3-metre trail stays open with a 30-80mm mouth that costs a ~250mm fixed-end
+            // arrival travel on EVERY layer. Take the short blocked run anyway: a hard-capped sliver
+            // of overlapped bead against the wall is the price of a closed loop with a free seam.
+            // Still restricted to runs whose gaps are all untaken (never extrude a gap twice).
+            for (;;) {
+                const double max_blocked_run = 25. * scale_(spacing);
+                size_t best_c = 0, best_first = 0, best_len = 0;
+                double best_cost = std::numeric_limits<double>::max();
+                for (size_t c = 0; c < contour_vertices.size(); ++ c) {
+                    const std::vector<size_t> &cv = contour_vertices[c];
+                    const size_t m = cv.size();
+                    if (m < 2)
+                        continue;
+                    std::vector<size_t> defects;
+                    for (size_t k = 0; k < m; ++ k)
+                        if ((gap_degree[cv[k]] % 2) == 0)
+                            defects.emplace_back(k);
+                    for (size_t a = 0; a + 1 < defects.size(); ++ a)
+                        for (size_t b = a + 1; b < defects.size(); ++ b)
+                            for (int dir = 0; dir < 2; ++ dir) {
+                                const size_t from = dir ? defects[b] : defects[a];
+                                const size_t to   = dir ? defects[a] : defects[b];
+                                const size_t len  = (to + m - from) % m;
+                                if (len == 0 || len >= m)
+                                    continue;
+                                const double cost = gap_length(c, cv[from], cv[to]);
+                                if (cost > max_blocked_run || cost >= best_cost)
+                                    continue;
+                                bool untaken = true;
+                                for (size_t l = 0; l < len && untaken; ++ l)
+                                    untaken = ! gap_taken[c][(from + l) % m];
+                                if (untaken) {
+                                    best_cost = cost; best_c = c; best_first = from; best_len = len;
+                                }
+                            }
+                }
+                if (best_len == 0)
+                    break;
+                const size_t m = contour_vertices[best_c].size();
+                for (size_t l = 0; l < best_len; ++ l)
+                    take_gap(best_c, (best_first + l) % m, /* force_blocked */ true);
+                ++ sp_runs_closed;
             }
             if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr) {
                 std::fprintf(stderr, "[SPCLOSE] runs_closed=%zu slide_steps=%zu odds_left=%zu\n",
