@@ -5301,10 +5301,61 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                     if (proto == nullptr || proto->paths.empty())
                         continue;
                     const ExtrusionPath &pth = proto->paths.front();
-                    ExtrusionPath path(pth.role(), pth.mm3_per_mm, pth.width, pth.height);
-                    path.polyline.points = merges[m].merged.points;
-                    path.polyline.points.emplace_back(path.polyline.points.front());
-                    rib_owned.emplace_back(std::make_unique<ExtrusionLoop>(std::move(path)));
+                    // Flow-preserving re-emission: Arachne may have split a source loop into
+                    // variable-width paths (the wall thickens where two rings approach - measured
+                    // 3.2->4.3mm); flattening the merged walk to one uniform flow would underextrude
+                    // those stretches by up to a third. Attribute every merged segment back to the
+                    // nearest source path (within ~half a bead) and inherit its width/flow; segments
+                    // near no source path are the rib links and use the nominal group flow. Runs of
+                    // equal attribution collapse into one ExtrusionPath, so the common all-uniform
+                    // case still emits the single path it always did.
+                    Lines                              src_lines;
+                    std::vector<const ExtrusionPath *> src_owner;
+                    for (size_t i = 0; i < region.perimeters.size(); ++ i)
+                        if (merge_of[i] == int(m))
+                            if (const auto *sl = dynamic_cast<const ExtrusionLoop*>(region.perimeters[i]))
+                                for (const ExtrusionPath &p : sl->paths)
+                                    for (size_t j = 1; j < p.polyline.points.size(); ++ j) {
+                                        src_lines.emplace_back(p.polyline.points[j - 1], p.polyline.points[j]);
+                                        src_owner.emplace_back(&p);
+                                    }
+                    Points closed = merges[m].merged.points;
+                    closed.emplace_back(closed.front());
+                    auto merged = std::make_unique<ExtrusionLoop>();
+                    if (! src_lines.empty()) {
+                        AABBTreeLines::LinesDistancer<Line> src_dist(src_lines);
+                        const double tol = 0.6 * scale_(double(pth.width));
+                        const ExtrusionPath *cur_attr = nullptr;
+                        ExtrusionPath       *cur_path = nullptr;
+                        auto start_path = [&](const ExtrusionPath *attr, const Point &pt) {
+                            merged->paths.emplace_back(attr != nullptr ? attr->role() : pth.role(),
+                                                       attr != nullptr ? attr->mm3_per_mm : pth.mm3_per_mm,
+                                                       attr != nullptr ? attr->width : pth.width,
+                                                       attr != nullptr ? attr->height : pth.height);
+                            cur_path = &merged->paths.back();
+                            cur_path->polyline.points.emplace_back(pt);
+                            cur_attr = attr;
+                        };
+                        for (size_t j = 1; j < closed.size(); ++ j) {
+                            const Point mid((closed[j - 1] + closed[j]) / 2);
+                            auto [d, line_idx, np] = src_dist.distance_from_lines_extra<false>(mid);
+                            const ExtrusionPath *attr = std::abs(d) <= tol ? src_owner[size_t(line_idx)] : nullptr;
+                            const bool same = cur_path != nullptr &&
+                                (attr == cur_attr ||
+                                 (attr != nullptr && cur_attr != nullptr &&
+                                  attr->role() == cur_attr->role() && attr->width == cur_attr->width &&
+                                  attr->height == cur_attr->height && attr->mm3_per_mm == cur_attr->mm3_per_mm));
+                            if (! same)
+                                start_path(attr, closed[j - 1]);
+                            cur_path->polyline.points.emplace_back(closed[j]);
+                        }
+                    }
+                    if (merged->paths.empty()) {
+                        ExtrusionPath path(pth.role(), pth.mm3_per_mm, pth.width, pth.height);
+                        path.polyline.points = std::move(closed);
+                        merged->paths.emplace_back(std::move(path));
+                    }
+                    rib_owned.emplace_back(std::move(merged));
                     merged_loop[m] = rib_owned.back().get();
                     if (! merges[m].anchors.empty())
                         rib_anchors_of[merged_loop[m]] = &merges[m].anchors;

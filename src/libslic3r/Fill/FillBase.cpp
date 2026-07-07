@@ -145,6 +145,23 @@ void Fill::fill_surface_extrusion(const Surface* surface, const FillParams& para
     }
     catch (InfillFailedException&) {}
 
+    // Ginger single-path (pellet): drop a surface whose whole fill is shorter than 2.5 line widths.
+    // Sliver surfaces (0.3-6mm crescents where a sloped face meets the wall) each cost a dedicated
+    // 25-150mm travel and a start/stop blob, and a sub-bead-length extrusion never forms anyway
+    // ("non verranno mai") - skipping them entirely beats printing them badly. 2.5 widths of fill
+    // is roughly a 26mm^2 patch: cosmetically invisible, structurally nothing.
+    if (params.connect_polygons && params.flow.scaled_width() > 0) {
+        double total = 0.;
+        for (const Polyline &pl : polylines)
+            total += pl.length();
+        for (const ThickPolyline &pl : thick_polylines)
+            total += pl.length();
+        if (total > 0. && total < 2.5 * double(params.flow.scaled_width())) {
+            polylines.clear();
+            thick_polylines.clear();
+        }
+    }
+
     if (!polylines.empty() || !thick_polylines.empty()) {
         // calculate actual flow from spacing (which might have been adjusted by the infill
         // pattern generator)
@@ -1823,13 +1840,14 @@ static inline void single_path_append_arc(Points &dst, const Points &contour, si
 // previous wall ended -> no wall->infill travel. Finally Hierholzer's algorithm extracts maximal trails;
 // every trail is one travel-free path (components with more than two odd-degree vertices decompose into
 // several trails gracefully).
-static void connect_infill_single_path(Polylines &&infill_ordered, const BoundaryInfillGraph &graph, const double spacing, Polylines &polylines_out, const bool final_emission, const double line_w)
+static void connect_infill_single_path(Polylines &&infill_ordered, const BoundaryInfillGraph &graph, const double spacing, Polylines &polylines_out, const bool final_emission, const double line_w, const double anchor_max)
 {
     // Cost of one OPEN trail, measured in closed pieces (see count_trails below). For the final
     // emission an open trail's two fixed ends each force a long, arrival-independent travel, so it
     // is worth up to (open_trail_cost - 1) extra closed loops to avoid one. Intermediate multiline
     // rows are re-closed by connect-before-multiply anyway: keep the plain trail count there (1).
-    // `line_w` is the reliable extrusion width in scaled units (lightning's `spacing` is not).
+    // `line_w` is the reliable extrusion width in scaled units (lightning's `spacing` is not);
+    // `anchor_max` (scaled) is the user's material-generosity knob for closure overlap.
     const size_t open_trail_cost = final_emission ? 4 : 1;
     const std::vector<ContourIntersectionPoint> &cps = graph.map_infill_end_point_to_boundary;
     const size_t n_fragments = infill_ordered.size();
@@ -2182,7 +2200,11 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     const size_t m = cv.size();
                     if (m < 2)
                         continue;
-                    const double max_run = 0.25 * graph.boundary_params[c].back();
+                    // Free runs hug the wall with clean (non-overlapped) bead; a quarter contour is
+                    // the conservative default, the user's anchor length raises it (unlimited for
+                    // Davide: the wall-hug connection IS the desired behaviour, material is not a
+                    // concern on these prints).
+                    const double max_run = std::max(0.25 * graph.boundary_params[c].back(), anchor_max);
                     std::vector<size_t> defects;
                     for (size_t k = 0; k < m; ++ k)
                         if ((gap_degree[cv[k]] % 2) == 0)
@@ -2305,7 +2327,10 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             // (force_blocked). Guards: the forced overlapped-bead length is hard-capped, and the
             // toggle is reverted unless the defect pair is resolved without raising the cost.
             for (;;) {
-                const double max_blocked_take = 25. * line_w;
+                // Overlap budget for the forced blocked stretches: at least 25 line widths, and
+                // beyond that whatever the user's infill-anchor length allows (Davide runs it
+                // unlimited: closing the trail into a loop outranks material use on pellet).
+                const double max_blocked_take = std::max(25. * line_w, anchor_max);
                 bool applied = false;
                 // Candidate arcs, shortest first, so the rewiring stays local.
                 struct Arc3c { size_t c, first, len; double cost; };
@@ -2613,7 +2638,8 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
         // Cura-style single-path infill: dedicated Eulerian-trail connector, replaces the greedy
         // anchor-based machinery below entirely.
         connect_infill_single_path(std::move(infill_ordered), graph, spacing, polylines_out, ! params.multiline_intermediate,
-                                   params.flow.scaled_width() > 0 ? double(params.flow.scaled_width()) : scale_(spacing));
+                                   params.flow.scaled_width() > 0 ? double(params.flow.scaled_width()) : scale_(spacing),
+                                   double(scale_(params.anchor_length_max)));
         return;
     }
 
@@ -2861,29 +2887,98 @@ void Fill::chain_or_connect_infill(Polylines &&infill_ordered, const ExPolygon &
             // standalone, leaving the sub-tree as a separate fragment reached by a travel even though it
             // grazes the wall (the natural connection path). Cutting the loop open at its wall-nearest
             // vertex gives two adjacent endpoints on the wall, which the boundary graph then connects.
-            // Only when there is at least one OTHER polyline to stitch to: a closed loop that is alone
-            // (e.g. the single spliced loop of the trapezoidal multiline pipeline) is already a perfect
-            // travel-free single path with a free seam - opening it would drop one loop segment and give
-            // back an open path (connect_infill never re-closes a self-loop), strictly worse.
-            if (params.connect_polygons && infill_ordered.size() > 1) {
+            // This applies to a LONE racetrack too: its cut ends project onto the boundary and the Euler
+            // connector re-closes the trail through the wall arc, so the loop comes back closed WITH a
+            // wall anchor (two approach beads + the arc). A lone tree in the band between two walls used
+            // to float unanchored, reached by a ~100-150mm travel on 55 consecutive layers of the real
+            // part. (An old guard skipped lone loops because the pre-closure connector could not re-close
+            // a self-loop; the closure passes made that obsolete.)
+            if (params.connect_polygons && ! infill_ordered.empty()) {
                 Lines bnd = boundary.contour.lines();
                 for (const Polygon &h : boundary.holes)
                     append(bnd, h.lines());
                 if (! bnd.empty()) {
                     AABBTreeLines::LinesDistancer<Line> wall(bnd);
-                    const double near_wall = 1.5 * line_w;
+                    // Cut radius: racetracks within the user's infill-anchor reach of the wall are
+                    // opened so the connector can weld them into the walk via boundary arcs - the
+                    // approach from the cut vertex to the wall is EXTRUDED (an anchor bead), which
+                    // on pellet printers beats the travel it replaces (a lone tree pocket 20-30mm
+                    // off the wall used to stay a separate island reached by a 160mm travel).
+                    // The radius honours the user's anchor setting AS IS - Davide sets it unlimited
+                    // and explicitly does not care about material use ("preferiamo estrudere"); an
+                    // earlier 12-line-width sanity cap silently overrode it and made identical
+                    // islands weld on some layers and travel on others.
+                    const double near_wall = std::max(1.5 * line_w, double(scale_(params.anchor_length_max)));
+                    const bool sp_cut_debug = ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr;
                     for (Polyline &pl : infill_ordered) {
-                        if (pl.points.size() < 4 || pl.points.front() != pl.points.back())
-                            continue; // only closed loops
+                        if (pl.points.size() < 4 || pl.points.front() != pl.points.back()) {
+                            // OPEN fragment (multiline stub, tree arm): the boundary-graph projection
+                            // radius is EPSILON, so an end that does not lie exactly ON the wall makes
+                            // the whole fragment unconnectable (standalone -> its own travel). Extend
+                            // each floating end with a straight anchor bead to its nearest wall point,
+                            // within the user's anchor reach: the end then projects and the connector
+                            // welds the fragment into the walk.
+                            if (pl.points.size() >= 2 && pl.points.front() != pl.points.back()) {
+                                int extended = 0;
+                                for (int side = 0; side < 2; ++ side) {
+                                    const Point &end = side ? pl.points.back() : pl.points.front();
+                                    auto [d, li, np] = wall.distance_from_lines_extra<false>(end);
+                                    if (std::abs(d) <= double(SCALED_EPSILON) || std::abs(d) >= near_wall)
+                                        continue;
+                                    const Point anchor(coord_t(std::round(np.x())), coord_t(std::round(np.y())));
+                                    if (anchor == (side ? pl.points.front() : pl.points.back()))
+                                        continue; // degenerate: both ends onto the same wall point
+                                    if (side)
+                                        pl.points.emplace_back(anchor);
+                                    else
+                                        pl.points.insert(pl.points.begin(), anchor);
+                                    ++ extended;
+                                }
+                                if (sp_cut_debug)
+                                    std::fprintf(stderr, "[SPCUT] open n=%zu at (%.1f,%.1f) len=%.1f extended=%d\n",
+                                                 pl.points.size(), pl.points.front().x() * SCALING_FACTOR,
+                                                 pl.points.front().y() * SCALING_FACTOR, pl.length() * SCALING_FACTOR, extended);
+                            }
+                            continue;
+                        }
                         size_t best_i = 0;
                         double best_d = std::numeric_limits<double>::max();
                         for (size_t k = 0; k + 1 < pl.points.size(); ++ k) {
                             auto [d, line_idx, np] = wall.distance_from_lines_extra<false>(pl.points[k]);
                             if (std::abs(d) < best_d) { best_d = std::abs(d); best_i = k; }
                         }
-                        if (best_d < near_wall) {
-                            pl.points.pop_back();                                            // drop duplicated closing vertex
-                            std::rotate(pl.points.begin(), pl.points.begin() + best_i, pl.points.end()); // open at the wall-nearest vertex
+                        // A LONE loop that already hugs the wall (the single spliced loop of the
+                        // trapezoidal pipeline) is a perfect closed path with a free seam: leave it.
+                        // Cut a lone loop only when it floats AWAY from the wall and needs the
+                        // anchor; with company, cut whenever within reach so the weld can happen.
+                        const bool lone = infill_ordered.size() == 1;
+                        if (sp_cut_debug)
+                            std::fprintf(stderr, "[SPCUT] loop n=%zu at (%.1f,%.1f) len=%.1f best_d=%.1f near_wall=%.1f lone=%d -> %s\n",
+                                         pl.points.size(), pl.points.front().x() * SCALING_FACTOR, pl.points.front().y() * SCALING_FACTOR,
+                                         pl.length() * SCALING_FACTOR, best_d * SCALING_FACTOR, near_wall * SCALING_FACTOR, int(lone),
+                                         (best_d < near_wall && (! lone || best_d > 1.5 * line_w)) ? "CUT" : "keep");
+                        if (best_d < near_wall && (! lone || best_d > 1.5 * line_w)) {
+                            const size_t n   = pl.points.size() - 1; // closed: last == first
+                            const Point  p_a = pl.points[best_i];
+                            const Point  p_b = pl.points[(best_i + n - 1) % n];
+                            // The graph projection radius is EPSILON: an end that merely comes NEAR
+                            // the wall never enters the boundary graph. EXTEND both cut ends with a
+                            // straight approach bead to their nearest wall points, so they lie ON
+                            // the contour and the connector can weld the tree into the walk - this
+                            // is the anchor Davide asks for ("lo sparse si ancora al wall"); a tree
+                            // floating mid-band used to stay a separate island reached by a travel.
+                            auto [da, ia, npa] = wall.distance_from_lines_extra<false>(p_a);
+                            auto [db, ib, npb] = wall.distance_from_lines_extra<false>(p_b);
+                            const Point a_a(coord_t(std::round(npa.x())), coord_t(std::round(npa.y())));
+                            const Point a_b(coord_t(std::round(npb.x())), coord_t(std::round(npb.y())));
+                            if (a_a != a_b) {
+                                pl.points.pop_back();                                            // drop duplicated closing vertex
+                                std::rotate(pl.points.begin(), pl.points.begin() + best_i, pl.points.end()); // open at the wall-nearest vertex
+                                if ((p_a - a_a).cast<double>().squaredNorm() > double(SCALED_EPSILON) * double(SCALED_EPSILON))
+                                    pl.points.insert(pl.points.begin(), a_a);
+                                if ((p_b - a_b).cast<double>().squaredNorm() > double(SCALED_EPSILON) * double(SCALED_EPSILON))
+                                    pl.points.emplace_back(a_b);
+                            }
                         }
                     }
                 }

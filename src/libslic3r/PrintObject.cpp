@@ -799,11 +799,30 @@ void PrintObject::generate_wall_ribs()
                     if (const auto *loop = dynamic_cast<const ExtrusionLoop*>(ee)) {
                         ++ l_loops;
                         obstacles.emplace_back(loop->polygon());
-                        if (loop->paths.size() != 1) {
+                        if (loop->paths.empty())
+                            continue;
+                        // A loop segmented into several paths is still one CLOSED wall: Arachne
+                        // splits a loop into variable-width paths where the wall thickens (measured
+                        // 3.2->4.3->3.2mm where two rings approach on the real part), and the speed
+                        // classifier splits without changing flow. Skipping every multi-path loop
+                        // dropped the whole island's merge on exactly those layers: two separate
+                        // walls plus a travel where the ribs exist to guarantee a single path, and
+                        // the rib columns broke vertically. Loops merge as long as their segments
+                        // share the ROLE and HEIGHT; the merged walk is re-emitted with per-segment
+                        // flow preserved (see the flow-preserving split in GCode::extrude_perimeters),
+                        // so variable widths survive the merge. Only mixed-role loops (true overhang
+                        // flow changes) stay unmerged.
+                        const ExtrusionPath &pth = loop->paths.front();
+                        bool uniform = true;
+                        for (const ExtrusionPath &p : loop->paths)
+                            if (p.role() != pth.role() || p.height != pth.height) {
+                                uniform = false;
+                                break;
+                            }
+                        if (! uniform) {
                             ++ l_multipath;
                             continue;
                         }
-                        const ExtrusionPath &pth = loop->paths.front();
                         RibGroup *g = nullptr;
                         for (RibGroup &gg : groups)
                             if (gg.role == pth.role() && gg.width == pth.width &&
@@ -883,7 +902,11 @@ void PrintObject::generate_wall_ribs()
                          lstat.drop_obstacle, lstat.drop_unsupported,
                          layer_anchors.empty() ? 0. : unscale<double>(layer_anchors.front().x()),
                          layer_anchors.empty() ? 0. : unscale<double>(layer_anchors.front().y()));
-        prev_anchors   = std::move(layer_anchors);
+        // Carry the anchors over layers that planned no ribs (single-loop islands, transition
+        // layers): the next ribbed layer must re-plant its columns on the SAME verticals, not
+        // wherever a fresh plan lands - a 1-2 layer merge gap used to reset the columns sideways.
+        if (! layer_anchors.empty())
+            prev_anchors = std::move(layer_anchors);
         prev_corridors = std::move(corridors);
         prev_walls     = std::move(layer_walls);
         prev_solid     = std::move(layer_solid);
