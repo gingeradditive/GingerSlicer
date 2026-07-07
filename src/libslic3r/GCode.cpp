@@ -5389,6 +5389,185 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
     return gcode;
 }
 
+// Ginger single-path infill router (single_path_mode): print the island's infill as ONE spatial
+// chain instead of feature-grouped blocks. Units = the individual continuous paths/loops (sortable
+// collections are flattened, no_sort collections stay atomic), routed greedy nearest-entry, plus
+// LOOP SUSPENSION: while a closed loop (connected sparse) is being laid down and it passes within
+// `touch` of another unprinted unit (a solid divider, a pocket of sparse behind it, a top patch),
+// the loop is interrupted right there, the touching cluster is printed (chained on by touch), the
+// head returns to the interruption point and the loop is completed. Without this, the big ring
+// loop is finished first and the head then travels back across the island to the pocket it passed
+// right next to (measured on the real part: 263mm + 49mm at Z=652 for a pocket the loop touches).
+std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions, const char *extrusion_name)
+{
+    std::string gcode;
+    struct Unit {
+        const ExtrusionEntity *ee;
+        const ExtrusionLoop   *loop;   // != nullptr for closed loops (free entry anywhere)
+        bool                   atomic; // no_sort collection: stored order, entered at first_point
+        bool                   done;
+    };
+    std::vector<Unit> units;
+    std::function<void(const ExtrusionEntity *)> flatten = [&](const ExtrusionEntity *e) {
+        if (const auto *c = dynamic_cast<const ExtrusionEntityCollection *>(e)) {
+            if (c->entities.empty())
+                return;
+            if (c->no_sort)
+                units.push_back({ e, nullptr, true, false });
+            else
+                for (const ExtrusionEntity *ch : c->entities)
+                    flatten(ch);
+            return;
+        }
+        units.push_back({ e, dynamic_cast<const ExtrusionLoop *>(e), false, false });
+    };
+    for (const ExtrusionEntity *ee : extrusions)
+        flatten(ee);
+
+    // Entry cost of a unit from `from`: loops may be entered anywhere (free seam), open paths at
+    // either end, atomic collections only at their stored front.
+    auto entry_cost = [](const Unit &u, const Point &from) -> double {
+        if (u.loop != nullptr) {
+            double best = std::numeric_limits<double>::max();
+            for (const ExtrusionPath &p : u.loop->paths)
+                for (const Point &pt : p.polyline.points)
+                    best = std::min(best, (pt - from).cast<double>().norm());
+            return best;
+        }
+        if (u.atomic)
+            return (u.ee->first_point() - from).cast<double>().norm();
+        return std::min((u.ee->first_point() - from).cast<double>().norm(),
+                        (u.ee->last_point()  - from).cast<double>().norm());
+    };
+
+    // Emit one unit from the current position; open paths pick the nearer end (reversed owned copy,
+    // the shared print data is never mutated), loops split at the current position inside
+    // extrude_loop, atomic collections print in stored order.
+    auto emit_unit = [this, &gcode, extrusion_name](Unit &u) {
+        u.done = true;
+        if (u.atomic) {
+            const auto *eec = static_cast<const ExtrusionEntityCollection *>(u.ee);
+            for (const ExtrusionEntity *ee : eec->chained_path_from(this->last_pos()).entities)
+                gcode += this->extrude_entity(*ee, extrusion_name);
+            return;
+        }
+        const Point cur = this->last_pos();
+        if (u.loop == nullptr && u.ee->can_reverse() &&
+            (u.ee->last_point() - cur).cast<double>().squaredNorm() <
+            (u.ee->first_point() - cur).cast<double>().squaredNorm()) {
+            std::unique_ptr<ExtrusionEntity> rev(u.ee->clone());
+            rev->reverse();
+            gcode += this->extrude_entity(*rev, extrusion_name);
+        } else
+            gcode += this->extrude_entity(*u.ee, extrusion_name);
+    };
+
+    // Print every unit reachable from the current position through a chain of touches (each hop
+    // <= touch). Loops inside a cluster print whole - no nested suspension, bounded complexity.
+    auto route_cluster = [&units, &entry_cost, &emit_unit, this](double touch) {
+        for (;;) {
+            const Point cur  = this->last_pos();
+            Unit       *best = nullptr;
+            double      bd   = touch;
+            for (Unit &u : units)
+                if (! u.done) {
+                    const double d = entry_cost(u, cur);
+                    if (d <= bd) { bd = d; best = &u; }
+                }
+            if (best == nullptr)
+                return;
+            emit_unit(*best);
+        }
+    };
+
+    for (;;) {
+        const Point cur  = this->last_pos();
+        Unit       *best = nullptr;
+        double      bd   = std::numeric_limits<double>::max();
+        for (Unit &u : units)
+            if (! u.done) {
+                const double d = entry_cost(u, cur);
+                if (d < bd) { bd = d; best = &u; }
+            }
+        if (best == nullptr)
+            break;
+        if (best->loop == nullptr || best->loop->paths.size() != 1) {
+            emit_unit(*best);
+            continue;
+        }
+        // Closed single-path loop: look for suspension opportunities before committing to it.
+        best->done = true;
+        const ExtrusionPath &proto = best->loop->paths.front();
+        const double         touch = 4. * scale_(double(proto.width));
+        // Rotate a copy of the loop so it starts at the point nearest the head (free seam).
+        ExtrusionLoop lp = *best->loop;
+        lp.split_at(cur, false);
+        const Polyline &poly = lp.paths.front().polyline;
+        // Contacts: for every unprinted unit, the loop vertex nearest to one of its entries.
+        struct Contact { size_t idx; Unit *unit; };
+        std::vector<Contact> contacts;
+        if (poly.size() >= 3)
+            for (Unit &u : units)
+                if (! u.done) {
+                    Points entries;
+                    if (u.loop != nullptr) {
+                        Points pts;
+                        u.ee->collect_points(pts);
+                        const size_t stride = std::max<size_t>(1, pts.size() / 64);
+                        for (size_t k = 0; k < pts.size(); k += stride)
+                            entries.emplace_back(pts[k]);
+                    } else if (u.atomic)
+                        entries.emplace_back(u.ee->first_point());
+                    else {
+                        entries.emplace_back(u.ee->first_point());
+                        entries.emplace_back(u.ee->last_point());
+                    }
+                    double bdist = touch;
+                    size_t bidx  = std::numeric_limits<size_t>::max();
+                    for (size_t i = 0; i < poly.size(); ++ i)
+                        for (const Point &e : entries) {
+                            const double d = (poly.points[i] - e).cast<double>().norm();
+                            if (d < bdist) { bdist = d; bidx = i; }
+                        }
+                    if (bidx != std::numeric_limits<size_t>::max())
+                        contacts.push_back({ bidx, &u });
+                }
+        if (contacts.empty()) {
+            // No neighbour to interleave: print the loop whole (identical to the plain path,
+            // including seam gap clipping and wipe handling).
+            gcode += this->extrude_entity(*best->ee, extrusion_name);
+            continue;
+        }
+        std::sort(contacts.begin(), contacts.end(), [](const Contact &l, const Contact &r) { return l.idx < r.idx; });
+        // Walk the loop as arcs, suspending at each contact; the final arc carries the seam gap.
+        auto emit_arc = [&](size_t i_from, size_t i_to, bool clip_tail) {
+            if (i_to <= i_from)
+                return;
+            ExtrusionPath arc(proto.role(), proto.mm3_per_mm, proto.width, proto.height);
+            arc.polyline.points.assign(poly.points.begin() + i_from, poly.points.begin() + i_to + 1);
+            if (clip_tail && m_enable_loop_clipping) {
+                const double seam_gap = scale_(m_config.seam_gap.get_abs_value(EXTRUDER_CONFIG(nozzle_diameter)));
+                if (arc.polyline.length() > 2. * seam_gap)
+                    arc.polyline.clip_end(seam_gap);
+            }
+            if (arc.polyline.size() >= 2)
+                gcode += this->extrude_path(arc, extrusion_name);
+        };
+        size_t seg_start = 0;
+        for (const Contact &c : contacts) {
+            if (c.unit->done)
+                continue; // consumed by an earlier cluster
+            if (c.idx > seg_start)
+                emit_arc(seg_start, c.idx, false);
+            seg_start = c.idx; // the loop resumes right where it was suspended
+            emit_unit(*c.unit);
+            route_cluster(touch);
+        }
+        emit_arc(seg_start, poly.size() - 1, true);
+    }
+    return gcode;
+}
+
 // Chain the paths hierarchically by a greedy algorithm to minimize a travel distance.
 std::string GCode::extrude_infill(const Print &print, const std::vector<ObjectByExtruder::Island::Region> &by_region, bool ironing)
 {
@@ -5404,6 +5583,13 @@ std::string GCode::extrude_infill(const Print &print, const std::vector<ObjectBy
                     extrusions.emplace_back(ee);
             if (! extrusions.empty()) {
                 m_config.apply(print.get_print_region(&region - &by_region.front()).config());
+                if (m_config.single_path_mode && ! ironing) {
+                    // Ginger single-path: spatial routing with loop suspension replaces the
+                    // per-collection chaining (which printed feature-grouped blocks and then
+                    // travelled back across the island for pockets the sparse loop had touched).
+                    gcode += this->extrude_infill_routed(extrusions, extrusion_name);
+                    continue;
+                }
                 chain_and_reorder_extrusion_entities(extrusions, &m_last_pos);
                 for (const ExtrusionEntity *fill : extrusions) {
                     auto *eec = dynamic_cast<const ExtrusionEntityCollection*>(fill);

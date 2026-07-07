@@ -1823,12 +1823,13 @@ static inline void single_path_append_arc(Points &dst, const Points &contour, si
 // previous wall ended -> no wall->infill travel. Finally Hierholzer's algorithm extracts maximal trails;
 // every trail is one travel-free path (components with more than two odd-degree vertices decompose into
 // several trails gracefully).
-static void connect_infill_single_path(Polylines &&infill_ordered, const BoundaryInfillGraph &graph, const double spacing, Polylines &polylines_out, const bool final_emission)
+static void connect_infill_single_path(Polylines &&infill_ordered, const BoundaryInfillGraph &graph, const double spacing, Polylines &polylines_out, const bool final_emission, const double line_w)
 {
     // Cost of one OPEN trail, measured in closed pieces (see count_trails below). For the final
     // emission an open trail's two fixed ends each force a long, arrival-independent travel, so it
     // is worth up to (open_trail_cost - 1) extra closed loops to avoid one. Intermediate multiline
     // rows are re-closed by connect-before-multiply anyway: keep the plain trail count there (1).
+    // `line_w` is the reliable extrusion width in scaled units (lightning's `spacing` is not).
     const size_t open_trail_cost = final_emission ? 4 : 1;
     const std::vector<ContourIntersectionPoint> &cps = graph.map_infill_end_point_to_boundary;
     const size_t n_fragments = infill_ordered.size();
@@ -2292,18 +2293,23 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     }
             }
 
-            // (c) LAST RESORT: the surviving pairs sit with a short BLOCKED arc between them. On the
-            // real part these are the top-ring layers: the multiline racetrack hugs the wall, so the
-            // boundary arc between the trail's two ends runs parallel to the hug beads and the
-            // re-extrusion guard forbids it - neither the free runs nor the sliding can bridge it,
-            // and the 3-metre trail stays open with a 30-80mm mouth that costs a ~250mm fixed-end
-            // arrival travel on EVERY layer. Take the short blocked run anyway: a hard-capped sliver
-            // of overlapped bead against the wall is the price of a closed loop with a free seam.
-            // Still restricted to runs whose gaps are all untaken (never extrude a gap twice).
+            // (c) LAST RESORT: the surviving pairs sit behind arcs the earlier passes cannot use -
+            // BLOCKED gaps (the arc runs parallel to a racetrack hugging the wall: taking it is a
+            // stretch of overlapped bead) and/or TAKEN gaps (already serving as serpentine links).
+            // On the real part these are the top-ring layers, whose 3-metre trails stay open with a
+            // 30-140mm mouth that costs a ~250mm fixed-end arrival travel on EVERY layer. Fix by
+            // TOGGLING a whole arc between the two defects: a range toggle flips the parity of
+            // exactly its two boundary vertices (both defects -> both resolved), releasing the taken
+            // gaps inside (the serpentine re-routes; under the seam-free cost splitting into CLOSED
+            // pieces is acceptable) and taking the untaken ones, including short blocked stretches
+            // (force_blocked). Guards: the forced overlapped-bead length is hard-capped, and the
+            // toggle is reverted unless the defect pair is resolved without raising the cost.
             for (;;) {
-                const double max_blocked_run = 25. * scale_(spacing);
-                size_t best_c = 0, best_first = 0, best_len = 0;
-                double best_cost = std::numeric_limits<double>::max();
+                const double max_blocked_take = 25. * line_w;
+                bool applied = false;
+                // Candidate arcs, shortest first, so the rewiring stays local.
+                struct Arc3c { size_t c, first, len; double cost; };
+                std::vector<Arc3c> cand;
                 for (size_t c = 0; c < contour_vertices.size(); ++ c) {
                     const std::vector<size_t> &cv = contour_vertices[c];
                     const size_t m = cv.size();
@@ -2321,23 +2327,44 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                 const size_t len  = (to + m - from) % m;
                                 if (len == 0 || len >= m)
                                     continue;
-                                const double cost = gap_length(c, cv[from], cv[to]);
-                                if (cost > max_blocked_run || cost >= best_cost)
-                                    continue;
-                                bool untaken = true;
-                                for (size_t l = 0; l < len && untaken; ++ l)
-                                    untaken = ! gap_taken[c][(from + l) % m];
-                                if (untaken) {
-                                    best_cost = cost; best_c = c; best_first = from; best_len = len;
+                                double blocked_take = 0.;
+                                for (size_t l = 0; l < len; ++ l) {
+                                    const size_t k = (from + l) % m;
+                                    if (gap_blocked[c][k] && ! gap_taken[c][k])
+                                        blocked_take += gap_length(c, cv[k], cv[(k + 1) % m]);
                                 }
+                                if (blocked_take <= max_blocked_take)
+                                    cand.push_back({ c, from, len, gap_length(c, cv[from], cv[to]) });
                             }
                 }
-                if (best_len == 0)
+                std::sort(cand.begin(), cand.end(), [](const Arc3c &l, const Arc3c &r) { return l.cost < r.cost; });
+                for (const Arc3c &a : cand) {
+                    const std::vector<size_t> &cv = contour_vertices[a.c];
+                    const size_t m = cv.size();
+                    // The defect pair may already be resolved by a previous toggle.
+                    if ((gap_degree[cv[a.first]] % 2) != 0 || (gap_degree[cv[(a.first + a.len) % m]] % 2) != 0)
+                        continue;
+                    const size_t trails_before = count_trails();
+                    const size_t odds_before   = count_odd();
+                    auto flip_range = [&]() {
+                        for (size_t l = 0; l < a.len; ++ l) {
+                            const size_t k = (a.first + l) % m;
+                            if (gap_taken[a.c][k])
+                                release_gap(a.c, k);
+                            else
+                                take_gap(a.c, k, /* force_blocked */ true);
+                        }
+                    };
+                    flip_range();
+                    if (count_odd() + 2 <= odds_before && count_trails() <= trails_before) {
+                        ++ sp_runs_closed;
+                        applied = true;
+                        break;
+                    }
+                    flip_range(); // revert
+                }
+                if (! applied)
                     break;
-                const size_t m = contour_vertices[best_c].size();
-                for (size_t l = 0; l < best_len; ++ l)
-                    take_gap(best_c, (best_first + l) % m, /* force_blocked */ true);
-                ++ sp_runs_closed;
             }
             if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr) {
                 std::fprintf(stderr, "[SPCLOSE] runs_closed=%zu slide_steps=%zu odds_left=%zu\n",
@@ -2450,7 +2477,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
         // segment so the trail is emitted as a closed loop (seam freely placeable at export). A few
         // line spacings covers ends facing each other across a hole / rib corridor, which the defect
         // sliding above brings together but can never merge exactly (different contours).
-        const double stitch_max = final_emission ? 2.5 * scale_(spacing) : 0.;
+        const double stitch_max = final_emission ? 2.5 * line_w : 0.;
         auto run_trail = [&adjacency, &edges, &cps, &graph, &infill_ordered, &polylines_out, &next_unused, &vertex_point, stitch_max](size_t start) {
             std::vector<std::pair<size_t, int>> stack, trail; // (vertex, edge used to arrive)
             stack.emplace_back(start, -1);
@@ -2585,7 +2612,8 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
     if (params.connect_polygons) {
         // Cura-style single-path infill: dedicated Eulerian-trail connector, replaces the greedy
         // anchor-based machinery below entirely.
-        connect_infill_single_path(std::move(infill_ordered), graph, spacing, polylines_out, ! params.multiline_intermediate);
+        connect_infill_single_path(std::move(infill_ordered), graph, spacing, polylines_out, ! params.multiline_intermediate,
+                                   params.flow.scaled_width() > 0 ? double(params.flow.scaled_width()) : scale_(spacing));
         return;
     }
 
