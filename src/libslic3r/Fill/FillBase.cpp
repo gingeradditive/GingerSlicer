@@ -1840,7 +1840,7 @@ static inline void single_path_append_arc(Points &dst, const Points &contour, si
 // previous wall ended -> no wall->infill travel. Finally Hierholzer's algorithm extracts maximal trails;
 // every trail is one travel-free path (components with more than two odd-degree vertices decompose into
 // several trails gracefully).
-static void connect_infill_single_path(Polylines &&infill_ordered, const BoundaryInfillGraph &graph, const double spacing, Polylines &polylines_out, const bool final_emission, const double line_w, const double anchor_max)
+static void connect_infill_single_path(Polylines &&infill_ordered, const BoundaryInfillGraph &graph, const double spacing, Polylines &polylines_out, const bool final_emission, const double line_w, const double anchor_max, const bool wall_lining = false)
 {
     // Cost of one OPEN trail, measured in closed pieces (see count_trails below). For the final
     // emission an open trail's two fixed ends each force a long, arrival-independent travel, so it
@@ -2085,17 +2085,38 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     for (size_t k = 0; k < contour_vertices[c].size(); k += 2)
                         if (k + 1 < contour_vertices[c].size() || (contour_vertices[c].size() % 2) == 0)
                             take_gap(c, k);
+            // Extruded wall coverage of one contour's current phase (taken gap length).
+            auto contour_coverage = [&contour_vertices, &gap_taken, &gap_length](size_t c) -> double {
+                const std::vector<size_t> &cv = contour_vertices[c];
+                double cov = 0.;
+                for (size_t k = 0; k < cv.size(); ++ k)
+                    if (gap_taken[c][k])
+                        cov += gap_length(c, cv[k], cv[(k + 1) % cv.size()]);
+                return cov;
+            };
             // Greedy per-contour phase swap (toggle all gaps of one contour) while it helps.
+            // WALL LINING (final lightning emission): the two phases of a contour often cost the
+            // same in trails - e.g. a lone tree rooted on the wall gives one phase with two tiny
+            // arcs and one with the whole wall hug. Demand-driven lightning leaves whole bands of
+            // layers with such lone trees, and the tiny-arc phase drops the inner lining bead
+            // ("second wall") that every high-demand layer has: banding on the inner surface and
+            // no rail carrying the walk to the wall seam (rib). On ties, prefer the phase that
+            // covers MORE wall - material is explicitly not a concern (pellet printing).
             {
                 size_t trails = count_trails();
                 for (size_t c = 0; c < contour_vertices.size(); ++ c) {
                     const size_t m = contour_vertices[c].size();
                     if (m < 2)
                         continue;
+                    const size_t odds_before = wall_lining ? count_odd() : 0;
+                    const double cov_before  = wall_lining ? contour_coverage(c) : 0.;
                     toggle_range(c, 0, m);
                     size_t trails_swapped = count_trails();
                     if (trails_swapped < trails)
                         trails = trails_swapped;
+                    else if (wall_lining && final_emission && trails_swapped == trails &&
+                             count_odd() == odds_before && contour_coverage(c) > cov_before)
+                        ; // equal cost, more wall covered: keep the lining phase
                     else
                         toggle_range(c, 0, m); // revert
                 }
@@ -2639,7 +2660,8 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
         // anchor-based machinery below entirely.
         connect_infill_single_path(std::move(infill_ordered), graph, spacing, polylines_out, ! params.multiline_intermediate,
                                    params.flow.scaled_width() > 0 ? double(params.flow.scaled_width()) : scale_(spacing),
-                                   double(scale_(params.anchor_length_max)));
+                                   double(scale_(params.anchor_length_max)),
+                                   params.sparse_wall_lining);
         return;
     }
 
@@ -2910,6 +2932,34 @@ void Fill::chain_or_connect_infill(Polylines &&infill_ordered, const ExPolygon &
                     // islands weld on some layers and travel on others.
                     const double near_wall = std::max(1.5 * line_w, double(scale_(params.anchor_length_max)));
                     const bool sp_cut_debug = ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr;
+                    // An endpoint shared by two or more open fragments is an interior JUNCTION of one
+                    // tree (lightning fragments split at branch points): the fragments already chain
+                    // there, so the junction needs no anchor. Extending it gave every sharing fragment
+                    // its own bead to the SAME nearest wall point - coincident mandatory edges the
+                    // Euler trail was then FORCED to extrude twice (out-and-back full-flow spikes,
+                    // ~200 on the real part). Only a UNIQUE floating end is a true dead end that
+                    // needs the approach bead to enter the boundary graph.
+                    std::map<Point, int> open_end_count;
+                    for (const Polyline &pl : infill_ordered)
+                        if (pl.points.size() >= 2 && pl.points.front() != pl.points.back()) {
+                            ++ open_end_count[pl.points.front()];
+                            ++ open_end_count[pl.points.back()];
+                        }
+                    if (sp_cut_debug) {
+                        BoundingBox bb = get_extents(boundary.contour);
+                        std::fprintf(stderr, "[SPCUT] z=%.2f call frags=%zu contour_pts=%zu holes=%zu bbox=(%.1f,%.1f)-(%.1f,%.1f)\n",
+                                     this->z, infill_ordered.size(), boundary.contour.points.size(), boundary.holes.size(),
+                                     bb.min.x() * SCALING_FACTOR, bb.min.y() * SCALING_FACTOR,
+                                     bb.max.x() * SCALING_FACTOR, bb.max.y() * SCALING_FACTOR);
+                        if (const char *zenv = ::getenv("GINGER_SPCUT_Z"); zenv != nullptr && std::abs(this->z - atof(zenv)) < 0.7)
+                            for (const Polygon &h : boundary.holes) {
+                                BoundingBox hb = get_extents(h);
+                                std::fprintf(stderr, "[SPCUT] z=%.2f   hole n=%zu bbox=(%.1f,%.1f)-(%.1f,%.1f)\n",
+                                             this->z, h.points.size(),
+                                             hb.min.x() * SCALING_FACTOR, hb.min.y() * SCALING_FACTOR,
+                                             hb.max.x() * SCALING_FACTOR, hb.max.y() * SCALING_FACTOR);
+                            }
+                    }
                     for (Polyline &pl : infill_ordered) {
                         if (pl.points.size() < 4 || pl.points.front() != pl.points.back()) {
                             // OPEN fragment (multiline stub, tree arm): the boundary-graph projection
@@ -2919,10 +2969,16 @@ void Fill::chain_or_connect_infill(Polylines &&infill_ordered, const ExPolygon &
                             // within the user's anchor reach: the end then projects and the connector
                             // welds the fragment into the walk.
                             if (pl.points.size() >= 2 && pl.points.front() != pl.points.back()) {
-                                int extended = 0;
+                                const Point orig_front = pl.points.front();
+                                const Point orig_back  = pl.points.back();
+                                int    extended  = 0;
+                                double dbg_d[2]  = { -1., -1. };
                                 for (int side = 0; side < 2; ++ side) {
                                     const Point &end = side ? pl.points.back() : pl.points.front();
+                                    if (auto it = open_end_count.find(end); it != open_end_count.end() && it->second > 1)
+                                        continue; // interior junction: fragments chain here, a bead would print twice
                                     auto [d, li, np] = wall.distance_from_lines_extra<false>(end);
+                                    dbg_d[side] = std::abs(d);
                                     if (std::abs(d) <= double(SCALED_EPSILON) || std::abs(d) >= near_wall)
                                         continue;
                                     const Point anchor(coord_t(std::round(np.x())), coord_t(std::round(np.y())));
@@ -2935,9 +2991,11 @@ void Fill::chain_or_connect_infill(Polylines &&infill_ordered, const ExPolygon &
                                     ++ extended;
                                 }
                                 if (sp_cut_debug)
-                                    std::fprintf(stderr, "[SPCUT] open n=%zu at (%.1f,%.1f) len=%.1f extended=%d\n",
-                                                 pl.points.size(), pl.points.front().x() * SCALING_FACTOR,
-                                                 pl.points.front().y() * SCALING_FACTOR, pl.length() * SCALING_FACTOR, extended);
+                                    std::fprintf(stderr, "[SPCUT] z=%.2f open n=%zu ends (%.1f,%.1f)d=%.1f (%.1f,%.1f)d=%.1f len=%.1f extended=%d\n",
+                                                 this->z, pl.points.size(),
+                                                 orig_front.x() * SCALING_FACTOR, orig_front.y() * SCALING_FACTOR, dbg_d[0] * SCALING_FACTOR,
+                                                 orig_back.x() * SCALING_FACTOR, orig_back.y() * SCALING_FACTOR, dbg_d[1] * SCALING_FACTOR,
+                                                 pl.length() * SCALING_FACTOR, extended);
                             }
                             continue;
                         }
@@ -2952,11 +3010,12 @@ void Fill::chain_or_connect_infill(Polylines &&infill_ordered, const ExPolygon &
                         // Cut a lone loop only when it floats AWAY from the wall and needs the
                         // anchor; with company, cut whenever within reach so the weld can happen.
                         const bool lone = infill_ordered.size() == 1;
-                        if (sp_cut_debug)
-                            std::fprintf(stderr, "[SPCUT] loop n=%zu at (%.1f,%.1f) len=%.1f best_d=%.1f near_wall=%.1f lone=%d -> %s\n",
-                                         pl.points.size(), pl.points.front().x() * SCALING_FACTOR, pl.points.front().y() * SCALING_FACTOR,
-                                         pl.length() * SCALING_FACTOR, best_d * SCALING_FACTOR, near_wall * SCALING_FACTOR, int(lone),
-                                         (best_d < near_wall && (! lone || best_d > 1.5 * line_w)) ? "CUT" : "keep");
+                        if (sp_cut_debug) {
+                            const char *verdict = (best_d < near_wall && (! lone || best_d > 1.5 * line_w)) ? "CUT" : "keep";
+                            std::fprintf(stderr, "[SPCUT] z=%.2f loop n=%zu at (%.1f,%.1f) len=%.1f best_d=%.1f near_wall=%.1f lone=%d -> %s\n",
+                                         this->z, pl.points.size(), pl.points.front().x() * SCALING_FACTOR, pl.points.front().y() * SCALING_FACTOR,
+                                         pl.length() * SCALING_FACTOR, best_d * SCALING_FACTOR, near_wall * SCALING_FACTOR, lone ? 1 : 0, verdict);
+                        }
                         if (best_d < near_wall && (! lone || best_d > 1.5 * line_w)) {
                             const size_t n   = pl.points.size() - 1; // closed: last == first
                             const Point  p_a = pl.points[best_i];

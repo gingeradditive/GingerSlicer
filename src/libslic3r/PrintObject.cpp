@@ -741,7 +741,7 @@ void PrintObject::generate_wall_ribs()
     // (spliced / dropped and why) on stderr - the tool for "why is this hole not connected".
     const bool ribs_debug = std::getenv("GINGER_RIBS_DEBUG") != nullptr;
 
-    Points     prev_anchors;
+    std::vector<std::pair<Point, Point>> prev_links;
     Polygons   prev_corridors;
     Polygons   prev_walls;
     ExPolygons prev_solid;
@@ -750,6 +750,7 @@ void PrintObject::generate_wall_ribs()
         ++ layer_idx;
         m_print->throw_if_canceled();
         Points   layer_anchors;
+        std::vector<std::pair<Point, Point>> layer_links;
         Polygons corridors;
         Polygons carve;
         WallRibStats lstat;
@@ -863,7 +864,7 @@ void PrintObject::generate_wall_ribs()
                     WallRibMerge        merge;
                     std::vector<size_t> unmerged;
                     if (plan_wall_ribs(group.loops, params,
-                                       prev_anchors.empty() ? nullptr : &prev_anchors, merge, unmerged)) {
+                                       prev_links.empty() ? nullptr : &prev_links, merge, unmerged)) {
                         append(corridors, merge.corridors);
                         // The fill is carved a quarter bead LESS than the full corridor, so
                         // its lines run into the rib flanks and fuse with them - carving
@@ -871,6 +872,7 @@ void PrintObject::generate_wall_ribs()
                         for (Polygon &e : offset(merge.corridors, -float(scale_(0.25 * group.width))))
                             carve.emplace_back(std::move(e));
                         append(layer_anchors, merge.anchors);
+                        append(layer_links, merge.links);
                         for (const auto &link : merge.founded_links)
                             if (! build_rib_buttress(layer, link.first, link.second, group.width, true))
                                 BOOST_LOG_TRIVIAL(warning) << "single_path_wall_ribs: foundation buttress failed to materialize at z=" << layer->print_z;
@@ -905,8 +907,8 @@ void PrintObject::generate_wall_ribs()
         // Carry the anchors over layers that planned no ribs (single-loop islands, transition
         // layers): the next ribbed layer must re-plant its columns on the SAME verticals, not
         // wherever a fresh plan lands - a 1-2 layer merge gap used to reset the columns sideways.
-        if (! layer_anchors.empty())
-            prev_anchors = std::move(layer_anchors);
+        if (! layer_links.empty())
+            prev_links = std::move(layer_links);
         prev_corridors = std::move(corridors);
         prev_walls     = std::move(layer_walls);
         prev_solid     = std::move(layer_solid);

@@ -166,7 +166,7 @@ TEST_CASE("WallRibs: plan produces corridors covering the links and stable ancho
         return p;
     };
     WallRibMerge plan2;
-    Points       prev = plan1.anchors;
+    auto         prev = plan1.links;
     REQUIRE(plan_wall_ribs({ jitter(outer, 1.5, -1.0), jitter(hole, 1.5, -1.0) }, params, &prev, plan2, unmerged));
     REQUIRE(plan2.anchors.size() == 1);
     const double drift = (plan2.anchors.front() - plan1.anchors.front()).cast<double>().norm();
@@ -234,7 +234,7 @@ TEST_CASE("WallRibs: drift beyond the budget relocates the rib instead of stairc
     Polygon outer2 = outer, hole2 = hole;
     outer2.rotate(0.35); // ~20 deg about origin: the gap positions move by tens of mm
     hole2.rotate(0.35);
-    Points prev = plan1.anchors;
+    auto prev = plan1.links;
     WallRibMerge plan2;
     REQUIRE(plan_wall_ribs({ outer2, hole2 }, params, &prev, plan2, unmerged));
     REQUIRE(unmerged.empty());
@@ -262,7 +262,8 @@ TEST_CASE("WallRibs: a neighbouring column's anchor cannot lock a loop out of me
     params.stagger         = lw;
     params.corridor_offset = coord_t(scale_(1.6));
     params.max_drift       = coord_t(scale_(1.5));
-    Points prev { Point::new_scale(100., 50.) }; // on the outer wall, nowhere near the gap mid
+    // A foreign column's LINK, both endpoints on the outer wall, nowhere near this pair's gap.
+    std::vector<std::pair<Point, Point>> prev { { Point::new_scale(100., 50.), Point::new_scale(100., 46.8) } };
     WallRibMerge        plan;
     std::vector<size_t> unmerged;
     REQUIRE(plan_wall_ribs({ outer, hole }, params, &prev, plan, unmerged));
@@ -376,7 +377,7 @@ TEST_CASE("WallRibs: a column standing on its own corridor continues without a f
     support.prev_solid     = &no_solid;
     params.support         = &support;
     WallRibMerge plan2;
-    REQUIRE(plan_wall_ribs({ outer, hole }, params, &plan1.anchors, plan2, unmerged));
+    REQUIRE(plan_wall_ribs({ outer, hole }, params, &plan1.links, plan2, unmerged));
     REQUIRE(plan2.anchors.size() == 1);
     const double drift = (plan2.anchors.front() - plan1.anchors.front()).cast<double>().norm();
     INFO("column drift: " << unscale<double>(coord_t(drift)) << " mm");
@@ -439,14 +440,16 @@ TEST_CASE("WallRibs: a column on stationary geometry does not creep sideways", "
     // Ten identical layers: the anchor must stay put. The old joint-based anchor fed the cut
     // offset back into the next layer's projection and migrated half a bead sideways EVERY
     // layer - a 45-degree dashed staircase across dead-vertical walls.
-    Points prev = plan.anchors;
+    auto  prev        = plan.links;
+    Point last_anchor = plan.anchors.front();
     for (int i = 0; i < 10; ++ i) {
         WallRibMerge next;
         REQUIRE(plan_wall_ribs({ outer, hole }, params, &prev, next, unmerged));
         REQUIRE(next.anchors.size() == 1);
-        prev = next.anchors;
+        prev        = next.links;
+        last_anchor = next.anchors.front();
     }
-    const double creep = (prev.front() - a0).cast<double>().norm();
+    const double creep = (last_anchor - a0).cast<double>().norm();
     INFO("total creep over 10 layers: " << unscale<double>(coord_t(creep)) << " mm");
     REQUIRE(creep < scale_(0.5)); // was ~16mm with the joint-based anchor
 }

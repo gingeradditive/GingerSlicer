@@ -50,6 +50,13 @@ struct WallRibMerge
     // One anchor per rib (midpoint of the first link); the next layer reuses these positions
     // so the rib columns stack.
     Points   anchors;
+    // One attach pair per rib (walk-side point, loop-side point) - the PHYSICAL link. The next
+    // layer's column-reuse test reprojects these endpoints onto its own loops: the column
+    // continues while both land within the overlap tolerance (rib beads stacked with enough
+    // overlap to stand), which is immune to the polygon-discretization noise that made the
+    // old mid-gap projection test kill healthy columns (drift ~1.4-2mm measured on identical
+    // walls at resolution 0.05).
+    std::vector<std::pair<Point, Point>> links;
     // Connection axes of ribs that start a NEW column with nothing to stand on (walk-side
     // attach point, loop-side attach point). The caller grows a FOUNDATION BUTTRESS under each: on
     // the layers below, one of the two walls gets an out-and-back stub of the same staggered
@@ -126,17 +133,20 @@ struct WallRibParams
 };
 
 // Plan the merge of `loops` (centerline polygons of one island's wall loops, same role/flow).
-// `prev_anchors` (optional) biases each rib to the previous layer's position when the local
-// geometry still allows it (self-standing columns). Placement cascade per loop: column anchor,
-// then the closest approach, then a scan around the loop - first at SUPPORTED positions (rib
-// stands on yesterday's rib/wall/solid); when none exists, the first position whose foundation
-// buttress `can_found` grants is taken and reported in `founded_links` for the caller to grow.
-// Only loops that are too short to host a cut, farther than max_link_length, whose every link
-// would cross another wall, or for which no buttress is possible either, are reported in
-// `unmerged` (indices into `loops`) and left out. Returns false when fewer than two loops end
-// up merged.
+// `prev_links` (optional, the previous layer's rib attach pairs) keeps each rib on the previous
+// layer's position while the local geometry still allows it (self-standing columns): a column
+// continues when BOTH endpoints of yesterday's link reproject onto today's loops within the
+// bead-overlap tolerance. Placement cascade per loop: column link, then (when a column just
+// died) positions near the dead column, then the closest approach and a scan around the loop -
+// first at SUPPORTED positions (rib stands on yesterday's rib/wall/solid); when none exists,
+// the first position whose foundation buttress `can_found` grants is taken and reported in
+// `founded_links` for the caller to grow. Only loops that are too short to host a cut, farther
+// than max_link_length, whose every link would cross another wall, or for which no buttress is
+// possible either, are reported in `unmerged` (indices into `loops`) and left out. Returns
+// false when fewer than two loops end up merged.
 bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
-                    const Points *prev_anchors, WallRibMerge &out, std::vector<size_t> &unmerged);
+                    const std::vector<std::pair<Point, Point>> *prev_links,
+                    WallRibMerge &out, std::vector<size_t> &unmerged);
 
 // Geometry-only convenience wrapper (unit tests): merge and return just the walk.
 bool splice_wall_loops(const Polygons &loops, coord_t stagger, Polygon &merged, std::vector<size_t> &unmerged);

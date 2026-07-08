@@ -304,7 +304,8 @@ static bool link_crosses_obstacles(const Point &a, const Point &b, const Polygon
 }
 
 bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
-                    const Points *prev_anchors, WallRibMerge &out, std::vector<size_t> &unmerged)
+                    const std::vector<std::pair<Point, Point>> *prev_links,
+                    WallRibMerge &out, std::vector<size_t> &unmerged)
 {
     const coord_t stagger = params.stagger;
     out = WallRibMerge{};
@@ -357,42 +358,45 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
     // when its every link would be longer than the user cap, cross another wall, or hang
     // over true void where not even a foundation can be built.
     while (! remaining.empty()) {
-        // COLUMN CONTINUITY outranks nearest-first: if a previous-layer anchor sits mid-gap
-        // between the walk and one of the remaining loops (within the drift budget), splice
-        // THAT loop next at that position. Pure Prim order can flip between layers when
-        // distances are close; a flipped order changes the walk, the anchors stop matching
-        // pairwise and a healthy column relocates for no reason - costing a fresh buttress
-        // and an ugly jump (the flange rib that moved at layer 5).
+        // COLUMN CONTINUITY outranks nearest-first: reproject the PHYSICAL link of the
+        // previous layer (its two attach points) onto the walk and each remaining loop; the
+        // column continues when both endpoints land within the bead-overlap tolerance, i.e.
+        // today's rib bead still stacks on yesterday's with enough overlap to stand (~half a
+        // bead = the 45-degree lean limit). Endpoints sit ON the walls, so their nearest-point
+        // reprojection is well conditioned; the old test projected the MID-GAP anchor onto
+        // both curves and compared midpoints, which on a long rib amplifies the polygon
+        // discretization noise - at resolution 0.05 it killed columns standing on walls that
+        // had not moved at all (measured drift 1.4-2mm against a 1.3mm budget), teleporting
+        // the rib to the globally cheapest spot across the part.
+        const double reuse_tol = std::max(double(params.max_drift), 0.5 * double(stagger));
         size_t  best_pos   = 0;
         bool    via_column = false;
         PolyPos anch_p, anch_q;
-        if (prev_anchors != nullptr) {
-            double best_gap = std::numeric_limits<double>::max();
+        if (prev_links != nullptr) {
+            double best_move = std::numeric_limits<double>::max();
             for (size_t k = 0; k < remaining.size(); ++ k) {
                 const Polygon &cand = loops[remaining[k]];
-                for (const Point &anchor : *prev_anchors) {
-                    PolyPos pa, qa;
-                    const double da  = project_onto(merged, anchor, pa);
-                    const double db  = project_onto(cand, anchor, qa);
-                    const double gap = (pa.pt - qa.pt).cast<double>().norm();
-                    // The anchor must sit in THIS pair's gap - about halfway between both
-                    // curves. Anything looser matches the anchor of a NEIGHBOURING column
-                    // whenever this loop's own column is missing, and that used to lock the
-                    // loop out of merging forever.
-                    if (da > 0.5 * gap + 2. * double(stagger) || db > 0.5 * gap + 2. * double(stagger))
-                        continue;
-                    // A column that would have to drift beyond the per-layer budget is NOT
-                    // followed (no sideways staircase); the loop can still relocate below.
-                    if (((pa.pt + qa.pt) / 2 - anchor).cast<double>().norm() > double(params.max_drift))
-                        continue;
-                    if (gap > double(params.max_link_length))
-                        continue;
-                    if (gap < best_gap) {
-                        best_gap   = gap;
-                        best_pos   = k;
-                        anch_p     = pa;
-                        anch_q     = qa;
-                        via_column = true;
+                for (const auto &link : *prev_links) {
+                    // The walk/loop roles of the two endpoints may swap between layers
+                    // (seed choice, merge order): try both assignments.
+                    for (int flip = 0; flip < 2; ++ flip) {
+                        const Point &end_walk = flip ? link.second : link.first;
+                        const Point &end_loop = flip ? link.first  : link.second;
+                        PolyPos pa, qa;
+                        const double da = project_onto(merged, end_walk, pa);
+                        const double db = project_onto(cand, end_loop, qa);
+                        if (da > reuse_tol || db > reuse_tol)
+                            continue;
+                        if ((pa.pt - qa.pt).cast<double>().norm() > double(params.max_link_length))
+                            continue;
+                        const double move = std::max(da, db);
+                        if (move < best_move) {
+                            best_move  = move;
+                            best_pos   = k;
+                            anch_p     = pa;
+                            anch_q     = qa;
+                            via_column = true;
+                        }
                     }
                 }
             }
@@ -427,8 +431,9 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
 
         const Polygon &loop = loops[remaining[best_pos]];
 
-        // Candidate positions in preference order: the column anchor (Z-aligned rib, prints on
-        // yesterday's rib), the closest approach (cheapest rib), then a scan around the loop
+        // Candidate positions in preference order: the column link (Z-aligned rib, prints on
+        // yesterday's rib), then - when a column just died - the scan positions NEAR the dead
+        // column, then the closest approach (cheapest rib), then the rest of the scan
         // nearest-gap-first. The FIRST candidate whose link rests on the previous layer wins;
         // when none does, the first candidate whose foundation buttress can be grown is taken.
         // Only length and obstacle crossing are hard rejections, so a loop stays unmerged only
@@ -437,8 +442,20 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
         std::vector<CandPos> cands;
         if (via_column)
             cands.push_back({ anch_p, anch_q, true });
-        cands.push_back({ best_p, best_q, false });
-        // 3) Scan around the loop. Step of at most one stagger: an existing corridor below has
+        // A column DIED here (previous links exist, none reusable): re-found near it, not at
+        // the global optimum. The old behaviour teleported the rib across the part (166mm on
+        // the real part) whenever the geometry under a column changed, even though valid
+        // positions existed a few mm away.
+        const bool   column_died = ! via_column && prev_links != nullptr && ! prev_links->empty();
+        const double prox_radius = 8. * double(stagger);
+        auto near_dead_column = [&](const Point &a, const Point &b) {
+            const Point mid = (a + b) / 2;
+            for (const auto &link : *prev_links)
+                if (((link.first + link.second) / 2 - mid).cast<double>().norm() <= prox_radius)
+                    return true;
+            return false;
+        };
+        // Scan around the loop. Step of at most one stagger: an existing corridor below has
         // a walkable window of about one stagger along the loop, and the scan must not be able
         // to miss it (that is how columns used to die on annulus sections).
         {
@@ -455,8 +472,14 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
                     scan.push_back({ gap, pm, cursor });
             }
             std::sort(scan.begin(), scan.end(), [](const ScanPos &l, const ScanPos &r) { return l.gap < r.gap; });
+            if (column_died)
+                for (const ScanPos &s : scan)
+                    if (near_dead_column(s.p.pt, s.q.pt))
+                        cands.push_back({ s.p, s.q, false });
+            cands.push_back({ best_p, best_q, false });
             for (const ScanPos &s : scan)
-                cands.push_back({ s.p, s.q, false });
+                if (! (column_died && near_dead_column(s.p.pt, s.q.pt)))
+                    cands.push_back({ s.p, s.q, false });
         }
 
         bool    accepted = false, via_anchor = false, need_foundation = false;
@@ -548,6 +571,8 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
         // next layer's projections, so a column on stationary geometry stays truly vertical;
         // the cut may wobble around it, the corridor covers that.
         out.anchors.emplace_back((use_p.pt + use_q.pt) / 2);
+        // The physical attach pair: next layer's column-reuse test reprojects these endpoints.
+        out.links.emplace_back(use_p.pt, use_q.pt);
     }
 
     if (merged.size() < 3 || out.loop_keys.size() < 2)
