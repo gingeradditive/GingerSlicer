@@ -78,28 +78,9 @@ static t_config_enum_values s_keys_map_PrinterTechnology {
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(PrinterTechnology)
 
 static t_config_enum_values s_keys_map_PrintHostType {
-    { "prusalink",      htPrusaLink },
-    { "prusaconnect",   htPrusaConnect },
     { "octoprint",      htOctoPrint },
-    { "crealityprint",  htCrealityPrint },
-    { "duet",           htDuet },
-    { "flashair",       htFlashAir },
-    { "astrobox",       htAstroBox },
-    { "repetier",       htRepetier },
-    { "mks",            htMKS },
-    { "esp3d",          htESP3D },
-    { "obico",          htObico },
-    { "flashforge",     htFlashforge },
-    { "simplyprint",    htSimplyPrint },
-    { "elegoolink",     htElegooLink }
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(PrintHostType)
-
-static t_config_enum_values s_keys_map_AuthorizationType {
-    { "key",            atKeyPassword },
-    { "user",           atUserPassword }
-};
-CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(AuthorizationType)
 
 static t_config_enum_values s_keys_map_GCodeFlavor {
     { "marlin",         gcfMarlinLegacy },
@@ -626,20 +607,6 @@ void PrintConfigDef::init_common_params()
 
     // Options used by physical printers
 
-    def = this->add("printhost_user", coString);
-    def->label = L("User");
-    //def->tooltip = L("");
-    def->mode = comAdvanced;
-    def->cli = ConfigOptionDef::nocli;
-    def->set_default_value(new ConfigOptionString());
-
-    def = this->add("printhost_password", coString);
-    def->label = L("Password");
-    //def->tooltip = L("");
-    def->mode = comAdvanced;
-    def->cli = ConfigOptionDef::nocli;
-    def->set_default_value(new ConfigOptionString());
-
     // Only available on Windows.
     def = this->add("printhost_ssl_ignore_revoke", coBool);
     def->label = L("Ignore HTTPS certificate revocation checks");
@@ -655,18 +622,6 @@ void PrintConfigDef::init_common_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionStrings());
 
-    def = this->add("printhost_authorization_type", coEnum);
-    def->label = L("Authorization Type");
-    //def->tooltip = L("");
-    def->enum_keys_map = &ConfigOptionEnum<AuthorizationType>::get_enum_values();
-    def->enum_values.push_back("key");
-    def->enum_values.push_back("user");
-    def->enum_labels.push_back(L("API key"));
-    def->enum_labels.push_back(L("HTTP digest"));
-    def->mode = comAdvanced;
-    def->cli = ConfigOptionDef::nocli;
-    def->set_default_value(new ConfigOptionEnum<AuthorizationType>(atKeyPassword));
-    
     // temporary workaround for compatibility with older Slicer
     {
         def = this->add("preset_name", coString);
@@ -1885,7 +1840,7 @@ void PrintConfigDef::init_fff_params()
 
     def = this->add("enable_pressure_advance", coBools);
     def->label = L("Enable pressure advance");
-    def->tooltip = L("Enable pressure advance, auto calibration result will be overwritten once enabled.");
+    def->tooltip = L("Enable pressure advance, auto-tuned value will be overwritten once enabled.");
     def->mode    = comSimple;
     def->set_default_value(new ConfigOptionBools{ false });
 
@@ -1896,7 +1851,6 @@ void PrintConfigDef::init_fff_params()
     def->mode = comSimple;
     def->set_default_value(new ConfigOptionFloats { 0.02 });
     
-    // Orca: Adaptive pressure advance option and calibration values
     def = this->add("adaptive_pressure_advance", coBools);
     def->label = L("Enable adaptive pressure advance (beta)");
     // xgettext:no-c-format, no-boost-format
@@ -1912,14 +1866,13 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBools{ false });
 
-    // Orca: Adaptive pressure advance option and calibration values
     def = this->add("adaptive_pressure_advance_model", coStrings);
     def->label = L("Adaptive pressure advance measurements (beta)");
     // xgettext:no-c-format, no-boost-format
     def->tooltip = L("Add sets of pressure advance (PA) values, the volumetric flow speeds and accelerations they were measured at, separated by a comma. "
                      "One set of values per line. For example\n"
                      "0.04,3.96,3000\n0.033,3.96,10000\n0.029,7.91,3000\n0.026,7.91,10000\n\n"
-                     "How to calibrate:\n"
+                     "How to set up:\n"
                      "1. Run the pressure advance test for at least 3 speeds per acceleration value. It is recommended that the test is run "
                      "for at least the speed of the external perimeters, the speed of the internal perimeters and the fastest feature "
                      "print speed in your profile (usually its the sparse or solid infill). Then run them for the same speeds for the slowest and fastest print accelerations, "
@@ -3584,10 +3537,6 @@ void PrintConfigDef::init_fff_params()
     def->mode     = comAdvanced;
     def->set_default_value(new ConfigOptionInt(2));
 
-    // ORCA: special flag for flow rate calibration
-    def           = this->add("calib_flowrate_topinfill_special_order", coBool);
-    def->mode     = comDevelop;
-    def->set_default_value(new ConfigOptionBool(false));
 
     def = this->add("ironing_type", coEnum);
     def->label = L("Ironing Type");
@@ -4214,34 +4163,8 @@ void PrintConfigDef::init_fff_params()
     def->tooltip = L("Ginger Slicer can upload G-code files to a printer host. This field must contain "
                    "the kind of the host.");
     def->enum_keys_map = &ConfigOptionEnum<PrintHostType>::get_enum_values();
-    def->enum_values.push_back("prusalink");
-    def->enum_values.push_back("prusaconnect");
     def->enum_values.push_back("octoprint");
-    def->enum_values.push_back("duet");
-    def->enum_values.push_back("flashair");
-    def->enum_values.push_back("astrobox");
-    def->enum_values.push_back("repetier");
-    def->enum_values.push_back("mks");
-    def->enum_values.push_back("esp3d");
-    def->enum_values.push_back("crealityprint");
-    def->enum_values.push_back("obico");
-    def->enum_values.push_back("flashforge");
-    def->enum_values.push_back("simplyprint");
-    def->enum_values.push_back("elegoolink");
-    def->enum_labels.push_back("PrusaLink");
-    def->enum_labels.push_back("PrusaConnect");
     def->enum_labels.push_back("Octo/Klipper");
-    def->enum_labels.push_back("Duet");
-    def->enum_labels.push_back("FlashAir");
-    def->enum_labels.push_back("AstroBox");
-    def->enum_labels.push_back("Repetier");
-    def->enum_labels.push_back("MKS");
-    def->enum_labels.push_back("ESP3D");
-    def->enum_labels.push_back("CrealityPrint");
-    def->enum_labels.push_back("Obico");
-    def->enum_labels.push_back("Flashforge");
-    def->enum_labels.push_back("SimplyPrint");
-    def->enum_labels.push_back("Elegoo Link");
     def->mode = comAdvanced;
     def->cli = ConfigOptionDef::nocli;
     def->set_default_value(new ConfigOptionEnum<PrintHostType>(htOctoPrint));
@@ -4987,9 +4910,9 @@ void PrintConfigDef::init_fff_params()
                      "where α_eff is the effective thermal diffusivity (mm²/s) and 0.405 ≈ 4/π². "
                      "α_eff is ~3× lower than nominal α due to natural convection limits and contact "
                      "with the hot underlying layer.\n\n"
-                     "Default values empirically calibrated (T_amb = 25 °C, no heated chamber, T_target ≈ Tg):\n"
+                     "Default values empirically measured (T_amb = 25 °C, no heated chamber, T_target ≈ Tg):\n"
                      "  PLA ~27, PETG ~13, ABS ~7, ASA ~8, HIPS ~8, PP ~22 s/mm².\n"
-                     "Calibration data points: PLA h=1.5 mm reaches 50 °C in ~60 s; PETG h=1.5 mm reaches 80 °C in ~30 s.\n"
+                     "Reference data points: PLA h=1.5 mm reaches 50 °C in ~60 s; PETG h=1.5 mm reaches 80 °C in ~30 s.\n"
                      "For heated chambers, recompute k with chamber temperature as T_amb (the value decreases).\n\n"
                      "Note: a future refinement may add a width-correction factor for very wide beads "
                      "(min_time = h² × k × max(1, w/(2h))). Currently disabled — the simple h² model is "
@@ -7280,7 +7203,7 @@ void PrintConfigDef::handle_legacy(t_config_option_key &opt_key, std::string &va
         "tree_support_collision_resolution", "tree_support_with_infill",
         "max_volumetric_speed", "max_print_speed",
         "support_closing_radius",
-        "remove_freq_sweep", "remove_bed_leveling", "remove_extrusion_calibration",
+        "remove_freq_sweep", "remove_bed_leveling",
         "support_transition_line_width", "support_transition_speed", "bed_temperature", "bed_temperature_initial_layer",
         "can_switch_nozzle_type", "can_add_auxiliary_fan", "extra_flush_volume", "spaghetti_detector", "adaptive_layer_height",
         "z_hop_type", "z_lift_type", "bed_temperature_difference","long_retraction_when_cut",
@@ -8409,8 +8332,8 @@ CLIMiscConfigDef::CLIMiscConfigDef()
     def->set_default_value(new ConfigOptionBool(true));
 
     def = this->add("avoid_extrusion_cali_region", coBool);
-    def->label = L("Avoid extrusion calibrate region when arranging");
-    def->tooltip = L("If enabled, Arrange will avoid extrusion calibrate region when placing objects.");
+    def->label = L("Avoid extrusion startup region when arranging");
+    def->tooltip = L("If enabled, Arrange will avoid the printer's extrusion startup region when placing objects.");
     def->set_default_value(new ConfigOptionBool(false));
 
     def = this->add("skip_modified_gcodes", coBool);

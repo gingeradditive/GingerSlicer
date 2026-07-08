@@ -3294,7 +3294,7 @@ static void check_objects_after_cut(const ModelObjectPtrs& objects)
         names += ", " + from_u8(err_objects_names[i]);
     WarningDialog(wxGetApp().plater(), format_wxstr("Objects(%1%) have duplicated connectors. "
                                 "Some connectors may be missing in slicing result.\n"
-                                "Please report to PrusaSlicer team in which scenario this issue happened.\n"
+                                "Please report this issue to the GingerSlicer team.\n"
                                 "Thank you.", names)).ShowModal();
 }
 

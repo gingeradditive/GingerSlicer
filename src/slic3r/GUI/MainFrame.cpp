@@ -60,17 +60,12 @@
 #include "NotificationManager.hpp"
 #include "MarkdownTip.hpp"
 #include "NetworkTestDialog.hpp"
-#include "ConfigWizard.hpp"
 #include "Widgets/WebView.hpp"
-#include "DailyTips.hpp"
-
 #ifdef _WIN32
 #include <dbt.h>
 #include <shlobj.h>
 #include <shellapi.h>
 #endif // _WIN32
-#include <slic3r/GUI/CreatePresetsDialog.hpp>
-
 
 namespace Slic3r {
 namespace GUI {
@@ -97,7 +92,7 @@ public:
     wxMenu *CreatePopupMenu() override {
         wxMenu *menu = new wxMenu;
         if (wxGetApp().app_config->get("single_instance") == "false") {
-            // Only allow opening a new PrusaSlicer instance on OSX if "single_instance" is disabled,
+            // Only allow opening a new GingerSlicer instance on OSX if "single_instance" is disabled,
             // as starting new instances would interfere with the locking mechanism of "single_instance" support.
             append_menu_item(menu, wxID_ANY, _L("New Window"), _L("Open a new window"),
             [](wxCommandEvent&) { start_new_slicer(); }, "", nullptr);
@@ -214,7 +209,7 @@ DPIFrame(NULL, wxID_ANY, "", wxDefaultPosition, wxDefaultSize, BORDERLESS_FRAME_
     wxGetApp().update_fonts(this);
 
 #ifndef __APPLE__
-    m_topbar         = new BBLTopbar(this);
+    m_topbar         = new Topbar(this);
 #else
     auto panel_topbar = new wxPanel(this, wxID_ANY);
     panel_topbar->SetBackgroundColour(wxColour(48, 38, 38));
@@ -960,11 +955,6 @@ void MainFrame::update_title()
     return;
 }
 
-void MainFrame::show_publish_button(bool show)
-{
-    // m_publish_btn->Show(show);
-    // Layout();
-}
 
 void MainFrame::update_title_colour_after_set_title()
 {
@@ -1663,16 +1653,7 @@ wxBoxSizer* MainFrame::create_side_tools()
                     p->Dismiss();
                     });
 
-                bool support_print_all = true;
-
-                const auto preset_bundle = wxGetApp().preset_bundle;
-                if (preset_bundle) {
-                    auto cfg = preset_bundle->printers.get_edited_preset().config;
-                    const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
-
-                    // Only simply print support uploading all plates
-                    support_print_all = host_type == PrintHostType::htSimplyPrint;
-                }
+                bool support_print_all = false;
 
                 p->append_button(print_plate_btn);
                 if (support_print_all) {
@@ -2018,11 +1999,6 @@ static wxMenu* generate_help_menu()
     // Open Config Folder
     append_menu_item(helpMenu, wxID_ANY, _L("Show Configuration Folder"), _L("Show Configuration Folder"),
         [](wxCommandEvent&) { Slic3r::GUI::desktop_open_datadir_folder(); });
-
-    append_menu_item(helpMenu, wxID_ANY, _L("Show Tip of the Day"), _L("Show Tip of the Day"), [](wxCommandEvent&) {
-        wxGetApp().plater()->get_dailytips()->open();
-        wxGetApp().plater()->get_current_canvas3D()->set_as_dirty();
-        });
 
     // Report a bug
     //append_menu_item(helpMenu, wxID_ANY, _L("Report Bug(TODO)"), _L("Report a bug of GingerSlicer"),
@@ -2697,10 +2673,12 @@ void MainFrame::init_menubar_as_editor()
     //m_topbar->AddDropDownMenuItem(config_item);
     m_topbar->AddDropDownSubMenu(helpMenu, _L("Help"));
 
-    // Ginger: the stock filament-oriented calibrations (temp tower, flow rate, PA, VFA, ...)
+// Ginger: the stock filament-oriented calibrations (temp tower, flow rate, PA, VFA, ...)
     // are not applicable to pellet machines. The only calibration exposed is the
     // layer-by-layer parameter sweep, which works on the objects currently on the plate.
-    append_menu_item(m_topbar->GetCalibMenu(), wxID_ANY, _L("Parameter tuning (per-layer sweep)"), _L("Vary one process parameter layer by layer on the current plate to find its best value"),
+    // Upstream's slimmed Topbar has no Calibration button, so the entry lives in the top menu.
+    append_menu_item(
+        m_topbar->GetTopMenu(), wxID_ANY, _L("Parameter tuning (per-layer sweep)"), _L("Vary one process parameter layer by layer on the current plate to find its best value"),
         [this](wxCommandEvent&) {
             if (!m_param_sweep_dlg)
                 m_param_sweep_dlg = new Param_Sweep_Dlg((wxWindow*)this, wxID_ANY, m_plater);
@@ -2883,10 +2861,6 @@ struct ConfigsOverwriteConfirmDialog : MessageDialog
 
 void MainFrame::export_config()
 {
-    ExportConfigsDialog export_configs_dlg(nullptr);
-    export_configs_dlg.ShowModal();
-    return;
-
     // Generate a cummulative configuration for the selected print, filaments and printer.
     wxDirDialog dlg(this, _L("Choose a directory"),
         from_u8(!m_last_config.IsEmpty() ? get_dir_name(m_last_config) : wxGetApp().app_config->get_last_dir()), wxDD_DEFAULT_STYLE | wxDD_DIR_MUST_EXIST);
@@ -3387,7 +3361,7 @@ void MainFrame::load_printer_url()
     wxString url = cfg.opt_string("print_host_webui").empty() ? cfg.opt_string("print_host") : cfg.opt_string("print_host_webui");
     wxString apikey;
     const auto host_type = cfg.option<ConfigOptionEnum<PrintHostType>>("host_type")->value;
-    if (cfg.has("printhost_apikey") && (host_type == htPrusaLink || host_type == htPrusaConnect))
+    if (cfg.has("printhost_apikey"))
         apikey = cfg.opt_string("printhost_apikey");
     if (!url.empty()) {
         if (!url.Lower().starts_with("http"))

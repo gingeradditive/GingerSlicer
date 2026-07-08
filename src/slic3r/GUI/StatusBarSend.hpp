@@ -1,5 +1,5 @@
-#ifndef BBLSTATUSBARSEND_HPP
-#define BBLSTATUSBARSEND_HPP
+#ifndef STATUSBARSEND_HPP
+#define STATUSBARSEND_HPP
 
 #include <wx/panel.h>
 #include <wx/stattext.h>
@@ -26,7 +26,7 @@ class wxFont;
 
 namespace Slic3r {
 
-class BBLStatusBarSend : public ProgressIndicator
+class StatusBarSend : public ProgressIndicator
 {
     wxPanel *     m_self; // we cheat! It should be the base class but: perl!
     wxGauge *     m_prog;
@@ -44,13 +44,10 @@ class BBLStatusBarSend : public ProgressIndicator
     wxWindow *    block_right;
 
 public:
-    BBLStatusBarSend(wxWindow *parent = nullptr, int id = -1);
-    ~BBLStatusBarSend() = default;
+    StatusBarSend(wxWindow *parent = nullptr, int id = -1);
+    ~StatusBarSend() = default;
 
     int get_progress() const;
-    // if the argument is less than 0 it shows the last state or
-    // pulses if no state was set before.
-    void        set_prog_block();
     void        set_progress(int) override;
     int         get_range() const override;
     void        set_range(int = 100) override;
@@ -59,13 +56,10 @@ public:
     void        show_progress(bool);
     void        start_busy(int = 100);
     void        stop_busy();
-    void        set_cancel_callback_fina(BBLStatusBarSend::CancelFn ccb);
+    void        set_cancel_callback_fina(StatusBarSend::CancelFn ccb);
     inline bool is_busy() const { return m_busy; }
-    void        set_cancel_callback(CancelFn = CancelFn()) override;
-    inline void reset_cancel_callback() { set_cancel_callback(); }
+    void        set_cancel_callback(CancelFn = CancelFn()) override {}
     wxPanel *   get_panel();
-    bool        is_english_text(wxString str);
-    bool        format_text(wxStaticText* dc, int width, const wxString& text, wxString& multiline_text);
     void        set_status_text(const wxString& txt);
     void        set_percent_text(const wxString &txt);
     void        msw_rescale();
@@ -73,10 +67,6 @@ public:
     void        set_status_text(const char *txt) override;
     wxString    get_status_text() const;
     void        set_font(const wxFont &font);
-    void        set_object_info(const wxString &txt);
-    void        set_slice_info(const wxString &txt);
-    void        show_slice_info(bool show);
-    bool        is_slice_info_shown();
     bool        update_status(wxString &msg, bool &was_cancel, int percent = -1, bool yield = true);
     void        reset();
     // Temporary methods to satisfy Perl side
@@ -95,11 +85,11 @@ private:
 };
 
 namespace GUI {
-using Slic3r::BBLStatusBarSend;
+using Slic3r::StatusBarSend;
 }
 
 wxDECLARE_EVENT(EVT_SHOW_ERROR_INFO, wxCommandEvent);
 
 } // namespace Slic3r
 
-#endif // BBLSTATUSBAR_HPP
+#endif // STATUSBARSEND_HPP

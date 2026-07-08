@@ -1635,7 +1635,7 @@ InputIpAddressDialog::InputIpAddressDialog(wxWindow *parent)
     // m_sizer_button->Add(m_button_cancel, 0, wxALL, wxWindow::FromDIP(5, static_cast<wxWindow*>(this)));
     m_sizer_button->Layout();
 
-    m_status_bar = std::make_shared<BBLStatusBarSend>(this);
+    m_status_bar = std::make_shared<StatusBarSend>(this);
     m_status_bar->get_panel()->Hide();
 
     auto m_step_icon_panel1 = new wxWindow(this, wxID_ANY);

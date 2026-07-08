@@ -23,7 +23,6 @@
 #include "libslic3r/Model.hpp"
 #include "libslic3r/PrintBase.hpp"
 
-#include "libslic3r/calib.hpp"
 #include "libslic3r/CutUtils.hpp"
 #include "libslic3r/FlushVolCalc.hpp"
 
@@ -70,7 +69,6 @@ class ObjectList;
 class GLCanvas3D;
 class Mouse3DController;
 class NotificationManager;
-class DailyTipsWindow;
 struct Camera;
 class GLToolbar;
 class PlaterPresetComboBox;
@@ -103,9 +101,6 @@ wxDECLARE_EVENT(EVT_PUBLISH,        wxCommandEvent);
 wxDECLARE_EVENT(EVT_OPEN_PLATESETTINGSDIALOG,        wxCommandEvent);
 wxDECLARE_EVENT(EVT_REPAIR_MODEL,        wxCommandEvent);
 wxDECLARE_EVENT(EVT_FILAMENT_COLOR_CHANGED,        wxCommandEvent);
-wxDECLARE_EVENT(EVT_INSTALL_PLUGIN_NETWORKING,        wxCommandEvent);
-wxDECLARE_EVENT(EVT_INSTALL_PLUGIN_HINT,        wxCommandEvent);
-wxDECLARE_EVENT(EVT_UPDATE_PLUGINS_WHEN_LAUNCH,        wxCommandEvent);
 wxDECLARE_EVENT(EVT_PREVIEW_ONLY_MODE_HINT,        wxCommandEvent);
 wxDECLARE_EVENT(EVT_PRINT_FROM_SDCARD_VIEW,   SimpleEvent);
 wxDECLARE_EVENT(EVT_CREATE_FILAMENT, SimpleEvent);
@@ -253,7 +248,6 @@ public:
     //BBS download project by project id
     void import_model_id(wxString download_info);
     void download_project(const wxString& project_id);
-    void request_model_download(wxString url);
     void request_download_project(std::string project_id);
     // BBS: check snapshot
     bool up_to_date(bool saved, bool backup);
@@ -270,16 +264,8 @@ public:
     void reload_gcode_from_disk();
     void refresh_print();
 
-    // SoftFever
-    void calib_pa(const Calib_Params& params);
-    void calib_flowrate(bool is_linear, int pass);
-    void calib_temp(const Calib_Params& params);
-    void calib_max_vol_speed(const Calib_Params& params);
-    void calib_retraction(const Calib_Params& params);
-    void calib_VFA(const Calib_Params& params);
-    void calib_input_shaping_freq(const Calib_Params& params);
-    void calib_input_shaping_damp(const Calib_Params& params);
-    void calib_junction_deviation(const Calib_Params& params);
+// Ginger: the layer-by-layer parameter sweep is the only calibration kept after
+    // upstream removed the stock (filament-oriented) ones.
     void calib_param_sweep(const Calib_Params& params);
 
     BuildVolume_Type get_build_volume_type() const;
@@ -650,7 +636,6 @@ public:
 
 	const NotificationManager* get_notification_manager() const;
 	NotificationManager* get_notification_manager();
-    DailyTipsWindow* get_dailytips() const;
     //BBS: show message in status bar
     void show_status_message(std::string s);
 
@@ -810,11 +795,6 @@ private:
     void single_snapshots_leave(SingleSnapshot *single);
     // BBS: add project slice related functions
     int start_next_slice();
-
-    void _calib_pa_pattern(const Calib_Params& params);
-    void _calib_pa_pattern_gen_gcode();
-    void _calib_pa_tower(const Calib_Params& params);
-    void _calib_pa_select_added_objects();
 
     void cut_horizontal(size_t obj_idx, size_t instance_idx, double z, ModelObjectCutAttributes attributes);
 

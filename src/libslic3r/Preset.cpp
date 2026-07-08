@@ -848,7 +848,7 @@ static std::vector<std::string> s_Preset_print_options {
      "hole_to_polyhole", "hole_to_polyhole_threshold", "hole_to_polyhole_twisted", "mmu_segmented_region_max_width", "mmu_segmented_region_interlocking_depth",
      "small_area_infill_flow_compensation", "small_area_infill_flow_compensation_model",
      "seam_slope_type", "seam_slope_conditional", "scarf_angle_threshold", "scarf_joint_speed", "scarf_joint_flow_ratio", "seam_slope_start_height", "seam_slope_entire_loop", "seam_slope_min_length", "seam_slope_steps", "seam_slope_inner_walls", "scarf_overhang_threshold",
-     "interlocking_beam", "interlocking_orientation", "interlocking_beam_layer_count", "interlocking_depth", "interlocking_boundary_avoidance", "interlocking_beam_width","calib_flowrate_topinfill_special_order",
+     "interlocking_beam", "interlocking_orientation", "interlocking_beam_layer_count", "interlocking_depth", "interlocking_boundary_avoidance", "interlocking_beam_width",
 };
 
 static std::vector<std::string> s_Preset_filament_options {
@@ -913,8 +913,7 @@ static std::vector<std::string> s_Preset_printer_options {
     "best_object_pos","head_wrap_detect_zone",
     "host_type", "print_host", "printhost_apikey",
     "print_host_webui",
-    "printhost_cafile","printhost_port","printhost_authorization_type",
-    "printhost_user", "printhost_password", "printhost_ssl_ignore_revoke", "thumbnails", "thumbnails_format",
+    "printhost_cafile","printhost_port","printhost_ssl_ignore_revoke", "thumbnails", "thumbnails_format",
     "use_firmware_retraction", "use_relative_e_distances", "printer_notes",
     "cooling_tube_retraction",
     "cooling_tube_length", "high_current_on_filament_swap", "parking_pos_retraction", "extra_loading_move", "purge_in_prime_tower", "enable_filament_ramming",
@@ -1895,7 +1894,7 @@ std::pair<Preset*, bool> PresetCollection::load_external_preset(
     keys.erase(std::remove_if(keys.begin(), keys.end(),
                               [](std::string &val) {
                                 return val == "print_host" || val == "print_host_webui" || val == "printhost_apikey" ||
-                                       val == "printhost_cafile" || val == "printhost_user" || val == "printhost_password" || val == "printhost_port";
+                                       val == "printhost_cafile" || val == "printhost_port";
                               }),
                keys.end());
     cfg.apply_only(combined_config, keys, true);
@@ -3158,10 +3157,6 @@ static std::vector<std::string> s_PhysicalPrinter_opts {
     "printhost_apikey",
     "printhost_cafile",
     "printhost_port",
-    "printhost_authorization_type",
-    // HTTP digest authentization (RFC 2617)
-    "printhost_user",
-    "printhost_password",
     "printhost_ssl_ignore_revoke"
 };
 

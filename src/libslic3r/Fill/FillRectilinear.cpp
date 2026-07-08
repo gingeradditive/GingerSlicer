@@ -3711,7 +3711,7 @@ Polylines FillMonotonicLines::fill_surface(const Surface *surface, const FillPar
     //    fill_surface_by_lines(&rectilinear_surface, params2, polylines_rectilinear);
     //}
     
-    // Orca: The above causes pockmarks in top layer surfaces with a properly calibrated printer with PA and EM tuned.
+    // Orca: The above causes pockmarks in top layer surfaces with a properly tuned printer with PA and EM.
     // Revert implementation to the prusa slicer approach that respects the infill/wall overlap setting
     // while retaining the gap fill logic below. The user can adjust the overlap calue to reduce overflow if needed.
     fill_surface_by_lines(surface, params2, polylines_rectilinear);

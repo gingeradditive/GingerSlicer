@@ -47,13 +47,6 @@ public:
             _host[host.size()-1] = '\0';
         }
 
-        // _host += ':' + std::to_string(ep.port());
-        // Set a decorator to change the User-Agent of the handshake
-        ws_.set_option(websocket::stream_base::decorator(
-            [](websocket::request_type& req)
-            {
-                req.set(http::field::user_agent,"ElegooSlicer");
-            }));
         // Perform the WebSocket handshake
         ws_.handshake(_host, path);
         is_connect = true;

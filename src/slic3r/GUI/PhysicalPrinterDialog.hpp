@@ -29,7 +29,6 @@ class PhysicalPrinterDialog : public DPIDialog
     DynamicPrintConfig* m_config            { nullptr };
     ConfigOptionsGroup* m_optgroup          { nullptr };
 
-    Button*     m_printhost_browse_btn              {nullptr};
     Button*     m_printhost_test_btn                {nullptr};
     Button*     m_printhost_logout_btn              {nullptr};
     Button*     m_printhost_cafile_browse_btn       {nullptr};
@@ -64,7 +63,6 @@ public:
     void        update_printhost_buttons();
     void        update_printers();
     void        update_ports();
-    void        update_webui();
 
 protected:
     void on_dpi_changed(const wxRect& suggested_rect) override;

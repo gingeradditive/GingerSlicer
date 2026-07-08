@@ -18,13 +18,13 @@
 #include "GCode/GCodeProcessor.hpp"
 #include "MultiMaterialSegmentation.hpp"
 #include "libslic3r.h"
+#include "calib.hpp"
 
 #include <Eigen/Geometry>
 
 #include <functional>
 #include <set>
 
-#include "calib.hpp"
 
 namespace Slic3r {
 
@@ -977,11 +977,13 @@ public:
     // Return 4 wipe tower corners in the world coordinates (shifted and rotated), including the wipe tower brim.
     Points first_layer_wipe_tower_corners(bool check_wipe_tower_existance=true) const;
 
-    //SoftFever
+    // Ginger: the per-layer Parameter Sweep (Calib_Param_Sweep) is Ginger's own calibration,
+    // kept after upstream removed the stock ones.
     CalibMode& calib_mode() { return m_calib_params.mode; }
     const CalibMode calib_mode() const { return m_calib_params.mode; }
     void set_calib_params(const Calib_Params& params);
     const Calib_Params& calib_params() const { return m_calib_params; }
+
     Vec2d translate_to_print_space(const Vec2d &point) const;
     // scaled point
     Vec2d translate_to_print_space(const Point &point) const;
@@ -1061,10 +1063,10 @@ private:
     //BBS
     ConflictResultOpt m_conflict_result;
     FakeWipeTower     m_fake_wipe_tower;
-    
-    //SoftFever: calibration
-    Calib_Params m_calib_params;
 
+    // Ginger: parameter-sweep calibration state.
+    Calib_Params m_calib_params;
+    
     // To allow GCode to set the Print's GCodeExport step status.
     friend class GCode;
     // Allow PrintObject to access m_mutex and m_cancel_callback.

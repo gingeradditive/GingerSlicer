@@ -26,20 +26,18 @@ set(SLIC3R_GUI_SOURCES
     GUI/BackgroundSlicingProcess.hpp
     GUI/BBLStatusBar.cpp
     GUI/BBLStatusBar.hpp
-    GUI/BBLStatusBarSend.cpp
-    GUI/BBLStatusBarSend.hpp
-    GUI/BBLTopbar.cpp
-    GUI/BBLTopbar.hpp
+    GUI/StatusBarSend.cpp
+    GUI/StatusBarSend.hpp
+    GUI/Topbar.cpp
+    GUI/Topbar.hpp
+    GUI/calib_dlg.cpp
+    GUI/calib_dlg.hpp
     GUI/BedShapeDialog.cpp
     GUI/BedShapeDialog.hpp
     GUI/BitmapCache.cpp
     GUI/BitmapCache.hpp
     GUI/BitmapComboBox.cpp
     GUI/BitmapComboBox.hpp
-    GUI/BonjourDialog.cpp
-    GUI/BonjourDialog.hpp
-    GUI/calib_dlg.cpp
-    GUI/calib_dlg.hpp
     GUI/Camera.cpp
     GUI/Camera.hpp
     GUI/CameraUtils.cpp
@@ -48,19 +46,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/CloneDialog.hpp
     GUI/ConfigManipulation.cpp
     GUI/ConfigManipulation.hpp
-    GUI/ConfigWizard.hpp
-    GUI/CreatePresetsDialog.cpp
-    GUI/CreatePresetsDialog.hpp
-    GUI/DailyTips.cpp
-    GUI/DailyTips.hpp
     GUI/DesktopIntegrationDialog.cpp
     GUI/DesktopIntegrationDialog.hpp
-    GUI/Downloader.cpp
-    GUI/DownloaderFileGet.cpp
-    GUI/DownloaderFileGet.hpp
-    GUI/Downloader.hpp
-    GUI/DownloadProgressDialog.cpp
-    GUI/DownloadProgressDialog.hpp
     GUI/DragCanvas.cpp
     GUI/DragCanvas.hpp
     GUI/EditGCodeDialog.cpp
@@ -210,8 +197,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/Jobs/SLAImportJob.cpp
     GUI/Jobs/SLAImportJob.hpp
     GUI/Jobs/ThreadSafeQueue.hpp
-    GUI/Jobs/UpgradeNetworkJob.cpp
-    GUI/Jobs/UpgradeNetworkJob.hpp
     GUI/Jobs/Worker.hpp
     GUI/KBShortcutsDialog.cpp
     GUI/KBShortcutsDialog.hpp
@@ -392,30 +377,14 @@ set(SLIC3R_GUI_SOURCES
     pchheader.hpp
     Utils/ASCIIFolding.cpp
     Utils/ASCIIFolding.hpp
-    Utils/AstroBox.cpp
-    Utils/AstroBox.hpp
-    Utils/Bonjour.cpp
-    Utils/Bonjour.hpp
     Utils/ColorSpaceConvert.cpp
     Utils/ColorSpaceConvert.hpp
-    Utils/CrealityPrint.cpp
-    Utils/CrealityPrint.hpp
-    Utils/Duet.cpp
-    Utils/Duet.hpp
-    Utils/ElegooLink.cpp
-    Utils/ElegooLink.hpp
     Utils/EmbossStyleManager.cpp
     Utils/EmbossStyleManager.hpp
-    Utils/ESP3D.cpp
-    Utils/ESP3D.hpp
     Utils/FileHelp.cpp
     Utils/FileHelp.hpp
     Utils/FixModelByWin10.cpp
     Utils/FixModelByWin10.hpp
-    Utils/FlashAir.cpp
-    Utils/FlashAir.hpp
-    Utils/Flashforge.cpp
-    Utils/Flashforge.hpp
     Utils/FontConfigHelp.cpp
     Utils/FontConfigHelp.hpp
     Utils/HexFile.cpp
@@ -428,10 +397,6 @@ set(SLIC3R_GUI_SOURCES
     Utils/json_diff.hpp
     Utils/minilzo_extension.cpp
     Utils/minilzo_extension.hpp
-    Utils/MKS.cpp
-    Utils/MKS.hpp
-    Utils/Obico.cpp
-    Utils/Obico.hpp
     Utils/OctoPrint.cpp
     Utils/OctoPrint.hpp
     Utils/PresetUpdater.cpp
@@ -444,16 +409,6 @@ set(SLIC3R_GUI_SOURCES
     Utils/Profile.hpp
     Utils/RaycastManager.cpp
     Utils/RaycastManager.hpp
-    Utils/Repetier.cpp
-    Utils/Repetier.hpp
-    Utils/Serial.cpp
-    Utils/Serial.hpp
-    Utils/SerialMessage.hpp
-    Utils/SerialMessageType.hpp
-    Utils/SimplyPrint.cpp
-    Utils/SimplyPrint.hpp
-    Utils/TCPConsole.cpp
-    Utils/TCPConsole.hpp
     Utils/UndoRedo.cpp
     Utils/UndoRedo.hpp
     Utils/WebSocketClient.hpp

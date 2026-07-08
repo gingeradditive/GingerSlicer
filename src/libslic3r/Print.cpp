@@ -379,6 +379,8 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
     return invalidated;
 }
 
+// Ginger: kept after upstream's calibration removal - the per-layer Parameter Sweep
+// (Calib_Param_Sweep) is Ginger's own calibration and still flows through here.
 void Print::set_calib_params(const Calib_Params& params) {
     // The calibration parameters are applied during G-code generation and are not part
     // of the config diff: invalidate the export step explicitly, otherwise a print whose

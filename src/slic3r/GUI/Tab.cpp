@@ -1,5 +1,4 @@
 // #include "libslic3r/GCodeSender.hpp"
-//#include "slic3r/Utils/Serial.hpp"
 #include "Tab.hpp"
 #include "PresetHints.hpp"
 #include "libslic3r/PresetBundle.hpp"
@@ -52,7 +51,6 @@
 #include "libslic3r/GCode/Thumbnails.hpp"
 
 #include "BedShapeDialog.hpp"
-// #include "BonjourDialog.hpp"
 #ifdef WIN32
 	#include <commctrl.h>
 #endif // WIN32
@@ -3382,13 +3380,12 @@ void TabFilament::build()
 
         optgroup->append_single_option_line("filament_flow_ratio");
 
-        optgroup->append_single_option_line("enable_pressure_advance", "pressure-advance-calib");
-        optgroup->append_single_option_line("pressure_advance", "pressure-advance-calib");
+        optgroup->append_single_option_line("enable_pressure_advance", "pressure-advance");
+        optgroup->append_single_option_line("pressure_advance", "pressure-advance");
 
-        // Orca: adaptive pressure advance and calibration model
-        optgroup->append_single_option_line("adaptive_pressure_advance", "adaptive-pressure-advance-calib");
-        optgroup->append_single_option_line("adaptive_pressure_advance_overhangs", "adaptive-pressure-advance-calib");
-        optgroup->append_single_option_line("adaptive_pressure_advance_bridges", "adaptive-pressure-advance-calib");
+        optgroup->append_single_option_line("adaptive_pressure_advance", "adaptive-pressure-advance");
+        optgroup->append_single_option_line("adaptive_pressure_advance_overhangs", "adaptive-pressure-advance");
+        optgroup->append_single_option_line("adaptive_pressure_advance_bridges", "adaptive-pressure-advance");
 
         Option option = optgroup->get_option("adaptive_pressure_advance_model");
         option.opt.full_width = true;
@@ -3690,7 +3687,6 @@ void TabFilament::toggle_options()
 
 
 
-        // Orca: adaptive pressure advance and calibration model
         // If PA is not enabled, disable adaptive pressure advance and hide the model section
         // If adaptive PA is not enabled, hide the adaptive PA model section
         toggle_option("adaptive_pressure_advance", pa);

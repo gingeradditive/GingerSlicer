@@ -23,13 +23,18 @@
 #include "UnsavedChangesDialog.hpp"
 #include "Widgets/SideButton.hpp"
 #include "Widgets/SideMenuPopup.hpp"
+#include "Widgets/Label.hpp"
+#include "Widgets/SwitchButton.hpp"
 
 #include <boost/property_tree/ptree_fwd.hpp>
 
 // BBS
-#include "BBLTopbar.hpp"
+#include "Topbar.hpp"
 #include "PrinterWebView.hpp"
+// Ginger: parameter-sweep calibration dialog (the only calibration kept).
 #include "calib_dlg.hpp"
+#include "WebViewDialog.hpp"
+#include "GUI_App.hpp"
 
 #define ENABEL_PRINT_ALL 0
 
@@ -95,7 +100,6 @@ class MainFrame : public DPIFrame
 
     wxMenuBar*  m_menubar{ nullptr };
     //wxMenu* publishMenu{ nullptr };
-    wxMenu *    m_calib_menu{nullptr};
 
 #if 0
     wxMenuItem* m_menu_item_repeat { nullptr }; // doesn't used now
@@ -208,7 +212,6 @@ public:
         tpPreview       = 2,
         tpMonitor       = 3,
         tpProject       = 4,
-        tpCalibration   = 5,
         tpAuxiliary     = 6,
         toDebugTool     = 7,
     };
@@ -242,7 +245,7 @@ public:
     Plater*     plater() { return m_plater; }
 
     // BBS
-    BBLTopbar* topbar() { return m_topbar; }
+    Topbar* topbar() { return m_topbar; }
 
     // for cali to update tab when save new preset
     void update_filament_tab_ui();
@@ -250,7 +253,6 @@ public:
     void        update_title();
     void        set_max_recent_count(int max);
 
-    void        show_publish_button(bool show);
 
 	void        update_title_colour_after_set_title();
     void        show_option(bool show);
@@ -333,18 +335,10 @@ public:
     void RunScript(wxString js);
 
 
-    PA_Calibration_Dlg* m_pa_calib_dlg{ nullptr };
-    Temp_Calibration_Dlg* m_temp_calib_dlg{ nullptr };
-    MaxVolumetricSpeed_Test_Dlg* m_vol_test_dlg { nullptr };
-    VFA_Test_Dlg* m_vfa_test_dlg { nullptr };
-    Retraction_Test_Dlg* m_retraction_calib_dlg{ nullptr };
-    Input_Shaping_Freq_Test_Dlg* m_IS_freq_calib_dlg{ nullptr };
-    Input_Shaping_Damp_Test_Dlg* m_IS_damp_calib_dlg{ nullptr };
-    Junction_Deviation_Test_Dlg* m_junction_deviation_calib_dlg{ nullptr };
-    Param_Sweep_Dlg* m_param_sweep_dlg{ nullptr };
+Param_Sweep_Dlg* m_param_sweep_dlg{ nullptr };
 
     // BBS. Replace title bar and menu bar with top bar.
-    BBLTopbar*            m_topbar{ nullptr };
+    Topbar*               m_topbar{ nullptr };
     PrintHostQueueDialog* printhost_queue_dlg() { return m_printhost_queue_dlg; }
     Plater*               m_plater { nullptr };
     //AuxiliaryPanel*       m_auxiliary{ nullptr };

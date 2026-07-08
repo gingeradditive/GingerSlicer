@@ -139,46 +139,6 @@ private:
     bool load_user_data(int, std::vector<int>&);
 };
 
-class ElegooPrintHostSendDialog : public PrintHostSendDialog
-{
-public:
-    ElegooPrintHostSendDialog(const boost::filesystem::path& path,
-                              PrintHostPostUploadActions     post_actions,
-                              const wxArrayString&           groups,
-                              const wxArrayString&           storage_paths,
-                              const wxArrayString&           storage_names,
-                              bool                           switch_to_device_tab);
-
-    virtual void EndModal(int ret) override;
-    int          timeLapse() const { return m_timeLapse; }
-    int          heatedBedLeveling() const { return m_heatedBedLeveling; }
-    BedType      bedType() const { return m_BedType; }
-
-    virtual void                               init() override;
-    virtual std::map<std::string, std::string> extendedInfo() const
-    {
-        return {{"bedType", std::to_string(static_cast<int>(m_BedType))},
-                {"timeLapse", std::to_string(m_timeLapse)},
-                {"heatedBedLeveling", std::to_string(m_heatedBedLeveling)}};
-    }
-
-private:
-    BedType appBedType() const;
-    void    refresh();
-
-    const char* CONFIG_KEY_UPLOADANDPRINT    = "elegoolink_upload_and_print";
-    const char* CONFIG_KEY_TIMELAPSE         = "elegoolink_timelapse";
-    const char* CONFIG_KEY_HEATEDBEDLEVELING = "elegoolink_heated_bed_leveling";
-    const char* CONFIG_KEY_BEDTYPE           = "elegoolink_bed_type";
-
-private:
-    wxStaticText* warning_text{nullptr};
-    wxBoxSizer*   uploadandprint_sizer{nullptr};
-
-    int     m_timeLapse;
-    int     m_heatedBedLeveling;
-    BedType m_BedType;
-};
 
 wxDECLARE_EVENT(EVT_PRINTHOST_PROGRESS, PrintHostQueueDialog::Event);
 wxDECLARE_EVENT(EVT_PRINTHOST_ERROR, PrintHostQueueDialog::Event);
