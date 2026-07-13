@@ -71,6 +71,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/Gizmos/GLGizmoBrimEars.hpp
     GUI/Gizmos/GLGizmoCut.cpp
     GUI/Gizmos/GLGizmoCut.hpp
+    GUI/Gizmos/GLGizmoDfmCheck.cpp
+    GUI/Gizmos/GLGizmoDfmCheck.hpp
     GUI/Gizmos/GLGizmoEmboss.cpp
     GUI/Gizmos/GLGizmoEmboss.hpp
     #GUI/Gizmos/GLGizmoFaceDetector.cpp

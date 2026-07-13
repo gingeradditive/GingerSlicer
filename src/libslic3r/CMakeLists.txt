@@ -102,6 +102,8 @@ set(lisbslic3r_sources
     CustomGCode.hpp
     CutUtils.cpp
     CutUtils.hpp
+    DfmAnalyzer.cpp
+    DfmAnalyzer.hpp
     EdgeGrid.cpp
     EdgeGrid.hpp
     ElephantFootCompensation.cpp

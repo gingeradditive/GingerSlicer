@@ -1395,7 +1395,8 @@ void GLCanvas3D::toggle_model_objects_visibility(bool visible, const ModelObject
                     if (  (gizmo_type == GLGizmosManager::FdmSupports
                         || gizmo_type == GLGizmosManager::Seam
                         || gizmo_type == GLGizmosManager::Cut
-                        || gizmo_type == GLGizmosManager::FuzzySkin)
+                        || gizmo_type == GLGizmosManager::FuzzySkin
+                        || gizmo_type == GLGizmosManager::DfmCheck)
                         && !vol->is_modifier) {
                         vol->force_neutral_color = true;
                     }
