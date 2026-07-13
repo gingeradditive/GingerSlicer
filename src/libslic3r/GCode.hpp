@@ -537,6 +537,11 @@ private:
     // some object, captured before the first override so they can be restored on
     // objects without their own sweep.
     std::map<std::string, std::unique_ptr<ConfigOption>> m_sweep_writer_defaults;
+    // Ginger Parameter Sweep: gcode-config keys currently overridden by a sweep. Some
+    // of them live in PrintRegionConfig (wipe_speed), so every region-config apply
+    // would bring the profile value back into m_config: these overrides are re-applied
+    // right after each of those applies (extrude_perimeters / extrude_infill).
+    DynamicConfig                       m_sweep_gcode_overrides;
     // Current layer processed. In sequential printing mode, only a single copy will be printed.
     // In non-sequential mode, all its copies will be printed.
     const Layer*                        m_layer;

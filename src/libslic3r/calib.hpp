@@ -58,6 +58,14 @@ inline bool calib_is_writer_param(const std::string &key)
            key == "deretraction_speed" || key == "retract_restart_extra";
 }
 
+// Parameters applied to GCode's own config (m_config) with the same cadence as the
+// writer ones: the wipe move reads them from there at every retraction. wipe_speed is
+// swept as an absolute mm/s value (the profile may express it as % of travel speed).
+inline bool calib_is_gcode_param(const std::string &key)
+{
+    return key == "wipe_distance" || key == "wipe_speed";
+}
+
 // Calib_Param_Sweep: value of the swept parameter at a given layer index.
 // Starts at `start`, changes by the (possibly automatic, see above) step at every
 // layer towards `end`, then holds. `layer_count` is the target's total layer count,

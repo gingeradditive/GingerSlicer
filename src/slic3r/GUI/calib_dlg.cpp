@@ -30,8 +30,9 @@ int GetTextMax(wxWindow* parent, const std::vector<wxString>& labels)
 
 // Parameters that can be swept layer by layer. Units are shown in the label.
 // ERS parameters are applied by the PressureEqualizer (require 'Extrusion rate
-// smoothing' > 0), the retraction ones by the G-code writer at each layer change.
-// For per-object sweeps both are switched at every object change inside the layer
+// smoothing' > 0), the retraction ones by the G-code writer and the wipe ones by the
+// G-code exporter config, both at each layer change.
+// For per-object sweeps all are switched at every object change inside the layer
 // (GCode::apply_per_object_sweep).
 // The step per layer is normally left empty (automatic: the sweep spans the target's
 // whole layer range, see calib_sweep_effective_step), so no default step is proposed.
@@ -47,6 +48,8 @@ static const SweepParamEntry s_sweep_params[] = {
     {"retraction_speed",                     "Retraction speed (mm/s)",                       10,  60},
     {"deretraction_speed",                   "Deretraction speed (mm/s)",                     10,  60},
     {"retract_restart_extra",                "Extra length on restart (mm)",                  0,   1},
+    {"wipe_distance",                        "Wipe distance (mm)",                            0,   10},
+    {"wipe_speed",                           "Wipe speed (mm/s)",                             20,  150},
     {"max_volumetric_extrusion_rate_slope",  "ERS smoothing slope (mm3/s2)",                  5,   40},
     {"pellet_ers_deceleration_slope",        "ERS deceleration slope (mm3/s2)",               5,   40},
     {"pellet_ers_min_rate",                  "ERS minimum flow rate (mm3/s)",                 0.2, 3},
@@ -318,18 +321,25 @@ bool Param_Sweep_Dlg::apply_sweep() {
     // Refuse configurations where the sweep would silently have no effect.
     {
         const std::string key = s_sweep_params[sel].key;
+        wxString warn;
         if (calib_is_ers_param(key)) {
             const DynamicPrintConfig &print_cfg = wxGetApp().preset_bundle->prints.get_edited_preset().config;
-            wxString warn;
             if (print_cfg.option<ConfigOptionFloat>("max_volumetric_extrusion_rate_slope")->value <= 0)
                 warn = _L("'Extrusion rate smoothing' is 0: the ERS post-processor is disabled and this sweep would have no effect.\nSet a smoothing slope > 0 first.");
             else if (key != "max_volumetric_extrusion_rate_slope" && !print_cfg.opt_bool("pellet_ers_mode"))
                 warn = _L("'Pellet extruder mode' is disabled: this parameter only affects Pellet ERS mode and the sweep would have no effect.\nEnable pellet ERS mode first.");
-            if (!warn.empty()) {
-                MessageDialog msg_dlg(nullptr, warn, wxEmptyString, wxICON_WARNING | wxOK);
-                msg_dlg.ShowModal();
-                return false;
-            }
+        } else if (calib_is_gcode_param(key)) {
+            const DynamicPrintConfig full_cfg = wxGetApp().preset_bundle->full_config();
+            if (const auto *wipe = full_cfg.option<ConfigOptionBools>("wipe");
+                wipe != nullptr && !wipe->values.empty() && !wipe->get_at(0))
+                warn = _L("'Wipe while retracting' is disabled in the filament profile: no wipe move is generated and this sweep would have no effect.\nEnable wipe first.");
+            else if (key == "wipe_speed" && full_cfg.opt_bool("role_based_wipe_speed"))
+                warn = _L("'Role base wipe speed' is enabled: the wipe speed follows the current extrusion role and this sweep would have no effect.\nDisable role based wipe speed first.");
+        }
+        if (!warn.empty()) {
+            MessageDialog msg_dlg(nullptr, warn, wxEmptyString, wxICON_WARNING | wxOK);
+            msg_dlg.ShowModal();
+            return false;
         }
     }
 

@@ -3592,10 +3592,20 @@ static std::vector<size_t> order_islands_tour(const std::vector<std::vector<Poin
     return order;
 }
 
+// Ginger: swept value -> properly typed option for the keys applied to GCode::m_config.
+// wipe_speed is FloatOrPercent in the profile (% of travel speed); the sweep always
+// sets an absolute mm/s value. wipe_distance is per-extruder, one value covers all.
+static ConfigOption *sweep_gcode_config_option(const std::string &key, double value)
+{
+    if (key == "wipe_speed")
+        return new ConfigOptionFloatOrPercent(value, false);
+    return new ConfigOptionFloats{value};
+}
+
 // Ginger: per-object Parameter Sweep - bring every swept parameter back to its profile
-// value: writer parameters are restored directly (their profile value is remembered the
-// first time the key is seen, before anything overrode it), ERS parameters through the
-// returned ";_ERS_SWEEP default" tag (empty when no ERS parameter is swept).
+// value: writer and gcode-config parameters are restored directly (their profile value
+// is remembered the first time the key is seen, before anything overrode it), ERS
+// parameters through the returned ";_ERS_SWEEP default" tag (empty when none is swept).
 std::string GCode::restore_swept_defaults(const Print &print)
 {
     bool need_ers_reset = false;
@@ -3604,18 +3614,25 @@ std::string GCode::restore_swept_defaults(const Print &print)
             need_ers_reset = true;
             continue;
         }
-        if (!calib_is_writer_param(p.sweep_param))
+        const bool is_writer = calib_is_writer_param(p.sweep_param);
+        if (!is_writer && !calib_is_gcode_param(p.sweep_param))
             continue;
         auto it = m_sweep_writer_defaults.find(p.sweep_param);
         if (it == m_sweep_writer_defaults.end()) {
-            const ConfigOption *opt = writer().config.option(p.sweep_param);
+            const ConfigOption *opt = is_writer ? writer().config.option(p.sweep_param) :
+                                                  m_config.option(p.sweep_param);
             if (opt == nullptr)
                 continue;
             it = m_sweep_writer_defaults.emplace(p.sweep_param, std::unique_ptr<ConfigOption>(opt->clone())).first;
         }
         DynamicConfig cfg;
         cfg.set_key_value(p.sweep_param, it->second->clone());
-        writer().config.apply(cfg);
+        if (is_writer)
+            writer().config.apply(cfg);
+        else {
+            m_config.apply(cfg);
+            m_sweep_gcode_overrides.erase(p.sweep_param);
+        }
     }
     return need_ers_reset ? std::string(";_ERS_SWEEP default\n") : std::string();
 }
@@ -3639,10 +3656,18 @@ std::string GCode::apply_per_object_sweep(const Print &print, const PrintObject 
         const double value = calib_sweep_value_for_layer(*cp, m_layer_index, print_object.layer_count());
         char valbuf[64];
         snprintf(valbuf, sizeof(valbuf), "%g", value);
-        if (calib_is_writer_param(cp->sweep_param)) {
+        if (calib_is_writer_param(cp->sweep_param) || calib_is_gcode_param(cp->sweep_param)) {
             DynamicConfig cfg;
-            cfg.set_key_value(cp->sweep_param, new ConfigOptionFloats{value});
-            writer().config.apply(cfg);
+            if (calib_is_writer_param(cp->sweep_param)) {
+                cfg.set_key_value(cp->sweep_param, new ConfigOptionFloats{value});
+                writer().config.apply(cfg);
+            } else {
+                cfg.set_key_value(cp->sweep_param, sweep_gcode_config_option(cp->sweep_param, value));
+                m_config.apply(cfg);
+                // set_key_value: a bare DynamicConfig has no option definitions, so
+                // apply() could not create the key.
+                m_sweep_gcode_overrides.set_key_value(cp->sweep_param, sweep_gcode_config_option(cp->sweep_param, value));
+            }
             gcode += std::string("; Calib_Param_Sweep: layer: ") + std::to_string(m_layer_index) +
                      ", object: " + model_object->name + ", " + cp->sweep_param + ": " + valbuf + "\n";
         } else if (calib_is_ers_param(cp->sweep_param)) {
@@ -3824,11 +3849,19 @@ LayerResult GCode::process_layer(
     // never inherit the previous object's swept value.
     if (print.calib_mode() == CalibMode::Calib_Param_Sweep) {
         if (const Calib_Params *cp = print.global_calib_params(); cp != nullptr) {
-            if (calib_is_writer_param(cp->sweep_param)) {
+            if (calib_is_writer_param(cp->sweep_param) || calib_is_gcode_param(cp->sweep_param)) {
                 const double value = calib_sweep_value_for_layer(*cp, m_layer_index, size_t(m_layer_count));
                 DynamicConfig _cfg;
-                _cfg.set_key_value(cp->sweep_param, new ConfigOptionFloats{value});
-                writer().config.apply(_cfg);
+                if (calib_is_writer_param(cp->sweep_param)) {
+                    _cfg.set_key_value(cp->sweep_param, new ConfigOptionFloats{value});
+                    writer().config.apply(_cfg);
+                } else {
+                    _cfg.set_key_value(cp->sweep_param, sweep_gcode_config_option(cp->sweep_param, value));
+                    m_config.apply(_cfg);
+                    // set_key_value: a bare DynamicConfig has no option definitions, so
+                    // apply() could not create the key.
+                    m_sweep_gcode_overrides.set_key_value(cp->sweep_param, sweep_gcode_config_option(cp->sweep_param, value));
+                }
                 sprintf(buf, "; Calib_Param_Sweep: layer: %d, %s: %g\n", m_layer_index, cp->sweep_param.c_str(), value);
                 gcode += buf;
             }
@@ -5183,6 +5216,10 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
     for (const ObjectByExtruder::Island::Region &region : by_region)
         if (! region.perimeters.empty()) {
             m_config.apply(print.get_print_region(&region - &by_region.front()).config());
+            // Ginger Parameter Sweep: the region config just restored profile values for
+            // any swept region-level key (wipe_speed) - keep the swept value active.
+            if (! m_sweep_gcode_overrides.keys().empty())
+                m_config.apply(m_sweep_gcode_overrides);
             // BBS: for first layer, we always print wall firstly to get better bed adhesive force
             // This behaviour is same with cura
             const bool should_print = is_first_layer ? !is_infill_first
@@ -5594,6 +5631,9 @@ std::string GCode::extrude_infill(const Print &print, const std::vector<ObjectBy
                     extrusions.emplace_back(ee);
             if (! extrusions.empty()) {
                 m_config.apply(print.get_print_region(&region - &by_region.front()).config());
+                // Ginger Parameter Sweep: keep swept region-level keys (wipe_speed) active.
+                if (! m_sweep_gcode_overrides.keys().empty())
+                    m_config.apply(m_sweep_gcode_overrides);
                 if (m_config.single_path_mode && ! ironing) {
                     // Ginger single-path: spatial routing with loop suspension replaces the
                     // per-collection chaining (which printed feature-grouped blocks and then
