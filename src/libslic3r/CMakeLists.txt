@@ -84,7 +84,6 @@ set(lisbslic3r_sources
     Brim.hpp
     BuildVolume.cpp
     BuildVolume.hpp
-    calib.cpp
     calib.hpp
     Circle.cpp
     Circle.hpp
