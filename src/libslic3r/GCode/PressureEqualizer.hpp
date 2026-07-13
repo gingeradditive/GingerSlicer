@@ -160,6 +160,30 @@ private:
     void          restore_sweep_params(const SweepSnapshot &params);
     // Apply the sweep value for m_sweep_layer_idx and compose the G-code comment.
     void          apply_param_sweep();
+    // Set `param` to `value` (user units) inside `params`, with the same clamps and
+    // guards as the per-layer sweep. Returns the "name=value" comment fragment, empty
+    // if the parameter is unknown.
+    std::string   sweep_apply_to_snapshot(SweepSnapshot &params, SweepParam param, float value) const;
+    static SweepParam sweep_param_from_key(const std::string &key);
+
+    // Ginger per-object Parameter Sweep: parameters are switched mid-stream through
+    // ;_ERS_SWEEP tags emitted by GCode at each object change ("obj=N key=value") and
+    // at each layer change ("default" = profile values). Each tag is turned into an
+    // event: a line index plus the full parameter snapshot to activate from that line
+    // on. Events are applied per extrusion segment while processing and per line while
+    // outputting (ramp profile, flow factors and tau are consumed at output time).
+    struct SweepEvent {
+        size_t        line_idx;
+        SweepSnapshot params;
+    };
+    // Parameter values coming from the config, the base every tag event starts from.
+    SweepSnapshot             m_sweep_baseline;
+    std::vector<SweepEvent>   m_sweep_events;
+    // Scan m_gcode_lines for ;_ERS_SWEEP tags and rebuild the event list (line indices
+    // are only valid until the buffer is erased, so this runs on every layer).
+    void rebuild_sweep_events();
+    // Apply all events up to and including line_idx; cursor advances monotonically.
+    void apply_sweep_events_up_to(size_t line_idx, size_t &cursor);
 
     // Indicate if extrude set speed block was opened using the tag ";_EXTRUDE_SET_SPEED"
     // or not (not opened, or it was closed using the tag ";_EXTRUDE_END").

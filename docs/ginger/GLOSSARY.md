@@ -125,8 +125,10 @@ GingerSlicer. Each entry points to the primary source file when applicable.
 
 - **ERS G-code tags** — Debug comments emitted by the PressureEqualizer on
   every line it touches: `;_ERS_RAMPUP`, `;_ERS_RAMPDOWN`, `;_ERS_STEADY`
-  (zone of the ramp), `;_ERS_CALIB layer=N param=value` (active sweep value,
-  one per layer). Grep these to analyze ramps without the GUI.
+  (zone of the ramp), `;_ERS_CALIB layer=N param=value` (active global sweep
+  value, one per layer), plus the `;_ERS_SWEEP` tags emitted by GCode for
+  per-object sweeps (see Calibration below). Grep these to analyze ramps
+  without the GUI.
 
 - **Feedrate quantization** — `push_line_to_output` rounds every re-emitted
   feedrate to **0.1 mm/s** (was 1 mm/s upstream). With pellet bead
@@ -147,38 +149,73 @@ GingerSlicer. Each entry points to the primary source file when applicable.
 
 - **Parameter sweep** (`CalibMode::Calib_Param_Sweep`) — The only calibration
   exposed in the Ginger UI (menu **Calibration → Parameter tuning (per-layer
-  sweep)**). Varies ONE parameter layer by layer on the objects currently on
-  the plate (no test model is loaded): `value(layer) = start + step × layer`,
-  clamped at `end`, direction inferred from start/end. Dialog:
-  `Param_Sweep_Dlg` in `src/slic3r/GUI/calib_dlg.cpp`;
-  plumbing: `Calib_Params::sweep_param` in `src/libslic3r/calib.hpp`.
+  sweep)**). Varies ONE parameter layer by layer (no test model is loaded):
+  `value(layer) = start + step × layer`, clamped at `end`, direction inferred
+  from start/end. `step <= 0` (the default, empty field in the dialog) means
+  **automatic**: the step is derived from the target's layer count
+  (`calib_sweep_effective_step`) so the value reaches `end` exactly at the
+  last layer — i.e. the value is linear in Z over the whole object, and
+  objects of different heights each span the full range. The layer count is
+  resolved at G-code time (`PrintObject::layer_count()` per object,
+  `m_layer_count` for the global sweep, passed pre-resolved to the
+  PressureEqualizer ctor). The dialog's **Apply to** combo targets either
+  **All objects** (one global sweep for the whole plate) or a single object,
+  so several per-object sweeps (one per object, different parameters/ranges)
+  can run in the same print. Dialog: `Param_Sweep_Dlg` in
+  `src/slic3r/GUI/calib_dlg.cpp` (Apply = set & stay open, OK = set & close;
+  reads the print via `get_partplate_list().get_current_fff_print()`, NOT
+  `Plater::fff_print()` which is the legacy unused print); plumbing:
+  `Calib_Params` (`sweep_param`, `object_id`; -1 = global) in
+  `src/libslic3r/calib.hpp`; storage: `Print::m_calib_params` is a list —
+  one global entry OR per-object entries, never mixed
+  (`Print::set_calib_params` enforces it, `Calib_None` removes the target's
+  entry).
 
-- **Sweepable parameters** — Two application paths:
+- **Sweepable parameters** — Two application paths (`calib_is_writer_param` /
+  `calib_is_ers_param` in `calib.hpp`):
   - retraction group (`retraction_length`, `retraction_speed`,
-    `deretraction_speed`, `retract_restart_extra`): applied per layer to the
-    G-code writer in `GCode.cpp` `_layer_change` (like the stock retraction
-    tower); comment `; Calib_Param_Sweep: layer: N, key: value`.
+    `deretraction_speed`, `retract_restart_extra`): applied to the G-code
+    writer config — global sweep at each layer change, per-object sweeps at
+    each object change (`GCode::apply_per_object_sweep`, which also restores
+    profile values on non-swept objects); comment
+    `; Calib_Param_Sweep: layer: N[, object: name], key: value`.
   - ERS group (`max_volumetric_extrusion_rate_slope`,
     `pellet_ers_deceleration_slope`, `pellet_ers_min_rate`,
     `pellet_ers_ramp_profile`, `pellet_ers_rampup_flow`,
     `pellet_ers_rampdown_flow`, `pellet_ers_pressure_tau`): applied inside
-    the PressureEqualizer
-    (ctor takes `const Calib_Params*`); comment `;_ERS_CALIB`.
-    Requires `max_volumetric_extrusion_rate_slope > 0` (otherwise the
-    PressureEqualizer is never instantiated). The pellet-only parameters
+    the PressureEqualizer (global sweep via ctor `const Calib_Params*`,
+    comment `;_ERS_CALIB`; per-object sweeps via `;_ERS_SWEEP` tags, see
+    below). Requires `max_volumetric_extrusion_rate_slope > 0` (otherwise
+    the PressureEqualizer is never instantiated). The pellet-only parameters
     (decel slope, min rate, ramp profile) additionally require
     `pellet_ers_mode = 1` to have any effect.
 
-- **CLI sweep** — `--sweep "parameter:start:end:step"` together with
-  `--slice N`. Example:
-  `Ginger-Slicer.exe --slice 2 --sweep "pellet_ers_deceleration_slope:5:40:0.5" --outputdir out project.3mf`.
+- **`;_ERS_SWEEP` tags** — Per-object ERS sweep transport: GCode emits
+  `;_ERS_SWEEP obj=<ModelObject id> <key>=<value>` before each swept
+  object's extrusions and `;_ERS_SWEEP default` at layer changes / before
+  non-swept objects. The PressureEqualizer turns each tag into a
+  `SweepEvent` (line index + full `SweepSnapshot` built from the profile
+  baseline, `rebuild_sweep_events`) and replays events per extrusion segment
+  while processing and per line while outputting (ramp profile, flow factors
+  and τ are consumed at output time). The tags survive into the final
+  G-code: grep `;_ERS_SWEEP` for the object→value map.
+
+- **CLI sweep** — `--sweep "parameter:start:end"` (automatic step) or
+  `--sweep "parameter:start:end:step"` (explicit, step > 0), global or
+  per-object with `@Object name` (entries separated by `;`, matched by
+  ModelObject name) together with `--slice N`:
+  `Ginger-Slicer.exe --slice 2 --sweep "pellet_ers_deceleration_slope:5:40@Cube" --outputdir out project.3mf`.
   Parsed in `GingerSlicer.cpp` (slice branch) → `Print::set_calib_params`.
-  Fully headless: grep `;_ERS_CALIB` in the output for the layer→value map.
+  With duplicate object names the first match wins. Fully headless: grep
+  `;_ERS_CALIB` (global) or `;_ERS_SWEEP` (per-object) in the output.
 
 - **Sweep lifecycle** — `Print::set_calib_params` invalidates `psGCodeExport`
   so the next slice regenerates G-code. Loading new files resets the calib
   mode to `Calib_None` (SoftFever legacy in `Plater::priv::load_files`):
-  load objects FIRST, then set the sweep. The sweep is NOT saved in the 3MF.
+  load objects FIRST, then set the sweep. Sweeps are NOT saved in the 3MF.
+  Per-object sweeps reference `ModelObject::id()` (session-scoped ObjectID),
+  so they don't survive a project reload either; the dialog's "Active
+  sweeps" box shows what is currently set.
 
 - **One-layer output buffering** — The PressureEqualizer emits layer N−1
   while processing layer N. The sweep keeps a `SweepSnapshot` of the

@@ -80,20 +80,7 @@ PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config, const Ca
             m_pellet_ers_pressure_tau  = float(config.pellet_ers_pressure_tau.value);          // seconds
         }
         if (calib_params != nullptr && calib_params->mode == CalibMode::Calib_Param_Sweep) {
-            if (calib_params->sweep_param == "max_volumetric_extrusion_rate_slope")
-                m_sweep_param = SweepParam::Slope;
-            else if (calib_params->sweep_param == "pellet_ers_deceleration_slope")
-                m_sweep_param = SweepParam::DecelSlope;
-            else if (calib_params->sweep_param == "pellet_ers_min_rate")
-                m_sweep_param = SweepParam::MinRate;
-            else if (calib_params->sweep_param == "pellet_ers_ramp_profile")
-                m_sweep_param = SweepParam::RampProfile;
-            else if (calib_params->sweep_param == "pellet_ers_rampup_flow")
-                m_sweep_param = SweepParam::RampupFlow;
-            else if (calib_params->sweep_param == "pellet_ers_rampdown_flow")
-                m_sweep_param = SweepParam::RampdownFlow;
-            else if (calib_params->sweep_param == "pellet_ers_pressure_tau")
-                m_sweep_param = SweepParam::PressureTau;
+            m_sweep_param = sweep_param_from_key(calib_params->sweep_param);
             if (m_sweep_param != SweepParam::None) {
                 m_sweep_start = float(calib_params->start);
                 m_sweep_end   = float(calib_params->end);
@@ -103,6 +90,11 @@ PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config, const Ca
     }
 
     apply_effective_slopes();
+
+    // Base parameters for the per-object sweep tag events (;_ERS_SWEEP): every event
+    // starts from the profile values, so interleaved objects never leak values into
+    // each other.
+    m_sweep_baseline = snapshot_sweep_params();
 
     opened_extrude_set_speed_block = false;
 
@@ -136,7 +128,11 @@ void PressureEqualizer::process_layer(const std::string &gcode)
         }
         assert(!this->opened_extrude_set_speed_block);
     }
-    
+
+    // Ginger per-object sweep: refresh the tag events for the current buffer content
+    // (pending previous layer + the layer just parsed).
+    rebuild_sweep_events();
+
     // at this point, we have an entire layer of gcode lines loaded into m_gcode_lines
     // now we will split the mix of travels and extrudes into segments of continous extrusion and process those
     // We skip over large travels, and pretend small ones are part of a continous extrusion segment
@@ -246,16 +242,24 @@ void PressureEqualizer::process_layer(const std::string &gcode)
             // Last segment: travel_after stays 0 (end of layer, assume full pressure loss)
         }
         // --- Pass 2: Process ERS for each segment ---
+        // Per-object sweep: activate the parameters of the object each segment belongs
+        // to (the ;_ERS_SWEEP tag emitted at the object change precedes its polylines).
+        size_t sweep_cursor = 0;
         for (const auto &seg : segments) {
+            apply_sweep_events_up_to(seg.seg_start, sweep_cursor);
             adjust_volumetric_rate(seg.seg_start, seg.seg_end, true, true);
         }
     } else {
         // Standard filament mode: break at large travel gaps (> 3mm)
-        long idx_end_current_extrusion = 0;
+        long   idx_end_current_extrusion = 0;
+        size_t sweep_cursor = 0;
         while (idx_end_current_extrusion < m_gcode_lines.size()) {
             // find beginning of next extrusion segment from current pos
             const long idx_begin_current_extrusion   = find_if(m_gcode_lines.begin() + idx_end_current_extrusion, m_gcode_lines.end(),
                                                               [](GCodeLine line) { return line.extruding(); }) - m_gcode_lines.begin();
+            // Per-object sweep: activate the parameters of the object this extrusion
+            // segment belongs to.
+            apply_sweep_events_up_to(size_t(idx_begin_current_extrusion), sweep_cursor);
             // (extrusion begin idx = extrusion end idx) here because we start with extrusion length of zero
             idx_end_current_extrusion = idx_begin_current_extrusion;
 
@@ -369,22 +373,31 @@ void PressureEqualizer::restore_sweep_params(const SweepSnapshot &params)
     apply_effective_slopes();
 }
 
-void PressureEqualizer::apply_param_sweep()
+PressureEqualizer::SweepParam PressureEqualizer::sweep_param_from_key(const std::string &key)
 {
-    if (m_sweep_param == SweepParam::None)
-        return;
-    // Sweep from start towards end, changing by step at every layer, then hold at end.
-    const float dir   = (m_sweep_end >= m_sweep_start) ? 1.f : -1.f;
-    float       value = m_sweep_start + dir * std::abs(m_sweep_step) * float(m_sweep_layer_idx);
-    value = std::clamp(value,
-                       std::min(m_sweep_start, m_sweep_end),
-                       std::max(m_sweep_start, m_sweep_end));
+    if (key == "max_volumetric_extrusion_rate_slope")
+        return SweepParam::Slope;
+    if (key == "pellet_ers_deceleration_slope")
+        return SweepParam::DecelSlope;
+    if (key == "pellet_ers_min_rate")
+        return SweepParam::MinRate;
+    if (key == "pellet_ers_ramp_profile")
+        return SweepParam::RampProfile;
+    if (key == "pellet_ers_rampup_flow")
+        return SweepParam::RampupFlow;
+    if (key == "pellet_ers_rampdown_flow")
+        return SweepParam::RampdownFlow;
+    if (key == "pellet_ers_pressure_tau")
+        return SweepParam::PressureTau;
+    return SweepParam::None;
+}
 
-    SweepSnapshot params = snapshot_sweep_params();
+std::string PressureEqualizer::sweep_apply_to_snapshot(SweepSnapshot &params, SweepParam param, float value) const
+{
     const char *param_name = "";
     char value_str[32];
     snprintf(value_str, sizeof(value_str), "%.3f", double(value));
-    switch (m_sweep_param) {
+    switch (param) {
     case SweepParam::Slope:
         // Guard against degenerate values: a zero slope means "unlimited" elsewhere in
         // this class and would divide by zero in the ramp length computations.
@@ -431,13 +444,88 @@ void PressureEqualizer::apply_param_sweep()
         snprintf(value_str, sizeof(value_str), "%.3fs", double(value));
         break;
     default:
-        return;
+        return std::string();
     }
+    return std::string(param_name) + "=" + value_str;
+}
+
+void PressureEqualizer::apply_param_sweep()
+{
+    if (m_sweep_param == SweepParam::None)
+        return;
+    // Sweep from start towards end, changing by step at every layer, then hold at end.
+    const float dir   = (m_sweep_end >= m_sweep_start) ? 1.f : -1.f;
+    float       value = m_sweep_start + dir * std::abs(m_sweep_step) * float(m_sweep_layer_idx);
+    value = std::clamp(value,
+                       std::min(m_sweep_start, m_sweep_end),
+                       std::max(m_sweep_start, m_sweep_end));
+
+    SweepSnapshot params = snapshot_sweep_params();
+    const std::string fragment = sweep_apply_to_snapshot(params, m_sweep_param, value);
+    if (fragment.empty())
+        return;
     restore_sweep_params(params);
 
-    char buf[96];
-    snprintf(buf, sizeof(buf), ";_ERS_CALIB layer=%zu %s=%s", m_sweep_layer_idx, param_name, value_str);
-    m_sweep_comment_next = buf;
+    m_sweep_comment_next = ";_ERS_CALIB layer=" + std::to_string(m_sweep_layer_idx) + " " + fragment;
+}
+
+// Ginger per-object Parameter Sweep: collect the ;_ERS_SWEEP tags present in the line
+// buffer. The buffer holds the pending (previous) layer plus the one being processed,
+// and gets erased after output, so the events are rebuilt on every layer.
+void PressureEqualizer::rebuild_sweep_events()
+{
+    m_sweep_events.clear();
+    static constexpr char TAG[]  = ";_ERS_SWEEP";
+    constexpr size_t      TAG_LEN = sizeof(TAG) - 1;
+    for (size_t i = 0; i < m_gcode_lines.size(); ++i) {
+        const GCodeLine &l = m_gcode_lines[i];
+        if (l.raw_length <= TAG_LEN || strncmp(l.raw.data(), TAG, TAG_LEN) != 0)
+            continue;
+        const char *pos = l.raw.data() + TAG_LEN;
+        const char *end = l.raw.data() + l.raw_length;
+        SweepSnapshot params = m_sweep_baseline;
+        bool valid = false;
+        // Whitespace-separated tokens: "default" or "key=value"; "obj=N" is
+        // informational only. Parsing stops at an inline ';' comment.
+        while (pos < end) {
+            while (pos < end && (*pos == ' ' || *pos == '\t'))
+                ++pos;
+            if (pos >= end || *pos == ';')
+                break;
+            const char *tok_end = pos;
+            while (tok_end < end && *tok_end != ' ' && *tok_end != '\t')
+                ++tok_end;
+            const std::string token(pos, tok_end);
+            pos = tok_end;
+            if (token == "default") {
+                valid = true;
+                continue;
+            }
+            const size_t eq = token.find('=');
+            if (eq == std::string::npos)
+                continue;
+            const std::string key = token.substr(0, eq);
+            if (key == "obj")
+                continue;
+            const SweepParam param = sweep_param_from_key(key);
+            if (param == SweepParam::None)
+                continue;
+            try {
+                if (!sweep_apply_to_snapshot(params, param, std::stof(token.substr(eq + 1))).empty())
+                    valid = true;
+            } catch (...) {}
+        }
+        if (valid)
+            m_sweep_events.push_back({i, params});
+    }
+}
+
+void PressureEqualizer::apply_sweep_events_up_to(const size_t line_idx, size_t &cursor)
+{
+    while (cursor < m_sweep_events.size() && m_sweep_events[cursor].line_idx <= line_idx) {
+        restore_sweep_params(m_sweep_events[cursor].params);
+        ++cursor;
+    }
 }
 
 LayerResult PressureEqualizer::process_layer(LayerResult &&input)
@@ -457,18 +545,26 @@ LayerResult PressureEqualizer::process_layer(LayerResult &&input)
         this->process_layer(input.gcode);
         input.gcode.clear(); // GCode is already processed, so it isn't needed to store it.
         m_layer_results.emplace(new LayerResult(input));
-    } else if (m_pellet_ers_mode && !m_gcode_lines.empty()) {
-        // End of print: the pending lines are the last layer and no further call will
-        // re-process them. Every other layer gets its final ramp-down for free when the
-        // NEXT layer is processed (the pending buffer is re-scanned with the next
-        // polyline's travel distance available); the very last polyline of the print
-        // would otherwise stop at full flow, leaving the screw pressurized.
-        long last_e = long(m_gcode_lines.size()) - 1;
-        while (last_e >= 0 && !m_gcode_lines[last_e].extruding())
-            --last_e;
-        if (last_e >= 0) {
-            m_gcode_lines[last_e].travel_after_polyline = std::numeric_limits<float>::max();
-            adjust_volumetric_rate(0, size_t(last_e), false, true);
+    } else if (!m_gcode_lines.empty()) {
+        // End of print. The sweep event indices are stale (the buffer was erased after
+        // the last rebuild), refresh them for the final output pass below.
+        rebuild_sweep_events();
+        if (m_pellet_ers_mode) {
+            // The pending lines are the last layer and no further call will re-process
+            // them. Every other layer gets its final ramp-down for free when the NEXT
+            // layer is processed (the pending buffer is re-scanned with the next
+            // polyline's travel distance available); the very last polyline of the
+            // print would otherwise stop at full flow, leaving the screw pressurized.
+            long last_e = long(m_gcode_lines.size()) - 1;
+            while (last_e >= 0 && !m_gcode_lines[last_e].extruding())
+                --last_e;
+            if (last_e >= 0) {
+                // Per-object sweep: the final ramp-down belongs to the last printed object.
+                size_t sweep_cursor = 0;
+                apply_sweep_events_up_to(size_t(last_e), sweep_cursor);
+                m_gcode_lines[last_e].travel_after_polyline = std::numeric_limits<float>::max();
+                adjust_volumetric_rate(0, size_t(last_e), false, true);
+            }
         }
     }
 
@@ -487,9 +583,17 @@ LayerResult PressureEqualizer::process_layer(LayerResult &&input)
     output_buffer_prev_length = 0;
     if (!sweep_comment_for_output.empty())
         push_to_output(sweep_comment_for_output, true);
-    for (size_t line_idx = 0; line_idx < next_layer_first_idx; ++line_idx)
+    // Per-object sweep: ramp profile, flow factors and tau are consumed at output time,
+    // so the tag events must be replayed line by line here as well.
+    size_t sweep_output_cursor = 0;
+    for (size_t line_idx = 0; line_idx < next_layer_first_idx; ++line_idx) {
+        apply_sweep_events_up_to(line_idx, sweep_output_cursor);
         output_gcode_line(line_idx);
+    }
     m_gcode_lines.erase(m_gcode_lines.begin(), m_gcode_lines.begin() + int(next_layer_first_idx));
+    // The erase above invalidated the event line indices; they are rebuilt before the
+    // next use, this just prevents accidental reuse.
+    m_sweep_events.clear();
 
     restore_sweep_params(params_current);
 

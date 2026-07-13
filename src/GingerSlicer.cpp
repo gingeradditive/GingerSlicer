@@ -4725,33 +4725,87 @@ int CLI::run(int argc, char **argv)
             bool pre_check = (plate_to_slice == 0)?true:false;
             bool finished = false;
 
-            // Optional layer-by-layer parameter sweep for calibration: --sweep "parameter:start:end:step"
-            Calib_Params sweep_calib_params;
+            // Optional layer-by-layer parameter sweep for calibration:
+            //   --sweep "parameter:start:end"                             single sweep, whole plate,
+            //                                                             automatic step (reaches 'end'
+            //                                                             at the last layer)
+            //   --sweep "parameter:start:end:step"                        explicit step per layer
+            //   --sweep "p1:s:e@Object A;p2:s:e:st@Object B"              per-object sweeps: entries
+            // separated by ';', each targeting the ModelObject whose name follows '@'
+            // (resolved after the model is loaded). A global entry cannot be combined
+            // with per-object ones.
+            std::vector<Calib_Params> sweep_calib_params;
+            std::vector<std::string>  sweep_object_names;
             if (const ConfigOptionString *sweep_opt = m_config.option<ConfigOptionString>("sweep");
                 sweep_opt != nullptr && !sweep_opt->value.empty()) {
                 const std::string &sweep_str = sweep_opt->value;
-                const size_t p1 = sweep_str.find(':');
-                const size_t p2 = (p1 == std::string::npos) ? std::string::npos : sweep_str.find(':', p1 + 1);
-                const size_t p3 = (p2 == std::string::npos) ? std::string::npos : sweep_str.find(':', p2 + 1);
-                bool valid = (p3 != std::string::npos) && (p1 > 0);
-                if (valid) {
-                    try {
-                        sweep_calib_params.sweep_param = sweep_str.substr(0, p1);
-                        sweep_calib_params.start       = std::stod(sweep_str.substr(p1 + 1, p2 - p1 - 1));
-                        sweep_calib_params.end         = std::stod(sweep_str.substr(p2 + 1, p3 - p2 - 1));
-                        sweep_calib_params.step        = std::stod(sweep_str.substr(p3 + 1));
-                        sweep_calib_params.mode        = CalibMode::Calib_Param_Sweep;
-                    } catch (...) {
-                        valid = false;
+                size_t entry_begin = 0;
+                bool   valid       = true;
+                while (valid && entry_begin <= sweep_str.size()) {
+                    size_t entry_end = sweep_str.find(';', entry_begin);
+                    if (entry_end == std::string::npos)
+                        entry_end = sweep_str.size();
+                    std::string entry = sweep_str.substr(entry_begin, entry_end - entry_begin);
+                    entry_begin = entry_end + 1;
+                    if (entry.find_first_not_of(" \t") == std::string::npos)
+                        continue;
+                    std::string object_name;
+                    if (const size_t at = entry.find('@'); at != std::string::npos) {
+                        object_name = entry.substr(at + 1);
+                        entry.resize(at);
+                        if (object_name.empty()) {
+                            valid = false;
+                            break;
+                        }
+                    }
+                    Calib_Params params;
+                    const size_t p1 = entry.find(':');
+                    const size_t p2 = (p1 == std::string::npos) ? std::string::npos : entry.find(':', p1 + 1);
+                    const size_t p3 = (p2 == std::string::npos) ? std::string::npos : entry.find(':', p2 + 1);
+                    valid = (p2 != std::string::npos) && (p1 > 0);
+                    if (valid) {
+                        try {
+                            params.sweep_param = entry.substr(0, p1);
+                            params.start       = std::stod(entry.substr(p1 + 1, p2 - p1 - 1));
+                            if (p3 == std::string::npos) {
+                                // Three fields: automatic step, spans the target's layers.
+                                params.end  = std::stod(entry.substr(p2 + 1));
+                                params.step = 0.;
+                            } else {
+                                params.end  = std::stod(entry.substr(p2 + 1, p3 - p2 - 1));
+                                params.step = std::stod(entry.substr(p3 + 1));
+                                if (params.step <= 0)
+                                    valid = false;
+                            }
+                            params.mode = CalibMode::Calib_Param_Sweep;
+                        } catch (...) {
+                            valid = false;
+                        }
+                    }
+                    if (valid) {
+                        sweep_calib_params.push_back(params);
+                        sweep_object_names.push_back(object_name);
                     }
                 }
-                if (!valid || sweep_calib_params.step <= 0) {
-                    BOOST_LOG_TRIVIAL(error) << "invalid --sweep value, expected \"parameter:start:end:step\" with step > 0, got: " << sweep_str << std::endl;
+                // A global sweep applies to the whole plate: it cannot be combined with
+                // other entries (Print::set_calib_params would drop one of the two).
+                if (valid && sweep_calib_params.size() > 1)
+                    for (const std::string &name : sweep_object_names)
+                        if (name.empty()) {
+                            BOOST_LOG_TRIVIAL(error) << "--sweep: with multiple entries every entry needs an '@object name' target" << std::endl;
+                            valid = false;
+                            break;
+                        }
+                if (!valid || sweep_calib_params.empty()) {
+                    BOOST_LOG_TRIVIAL(error) << "invalid --sweep value, expected \"parameter:start:end[:step][@object name]\" entries separated by ';' (explicit step > 0, omitted = automatic), got: " << sweep_str << std::endl;
                     record_exit_reson(outfile_dir, CLI_INVALID_PARAMS, 0, cli_errors[CLI_INVALID_PARAMS], sliced_info);
                     flush_and_exit(CLI_INVALID_PARAMS);
                 }
-                BOOST_LOG_TRIVIAL(info) << boost::format("parameter sweep enabled: %1% from %2% to %3%, step %4% per layer")
-                    % sweep_calib_params.sweep_param % sweep_calib_params.start % sweep_calib_params.end % sweep_calib_params.step;
+                for (size_t si = 0; si < sweep_calib_params.size(); ++si)
+                    BOOST_LOG_TRIVIAL(info) << boost::format("parameter sweep enabled%1%: %2% from %3% to %4%, step %5% per layer")
+                        % (sweep_object_names[si].empty() ? std::string() : (" on object \"" + sweep_object_names[si] + "\""))
+                        % sweep_calib_params[si].sweep_param % sweep_calib_params[si].start % sweep_calib_params[si].end
+                        % (sweep_calib_params[si].step > 0 ? std::to_string(sweep_calib_params[si].step) : std::string("auto"));
             }
 
             /*if (opt_key == "export_gcode" && printer_technology == ptSLA) {
@@ -4924,8 +4978,26 @@ int CLI::run(int argc, char **argv)
                         new_print_config.apply(*part_plate->config());
                         new_print_config.apply(m_extra_config, true);
                         print->apply(model, new_print_config);
-                        if (print_fff != nullptr && sweep_calib_params.mode == CalibMode::Calib_Param_Sweep)
-                            print_fff->set_calib_params(sweep_calib_params);
+                        if (print_fff != nullptr)
+                            for (size_t si = 0; si < sweep_calib_params.size(); ++si) {
+                                Calib_Params sweep_params = sweep_calib_params[si];
+                                if (!sweep_object_names[si].empty()) {
+                                    // Per-object sweep: resolve the target by ModelObject name.
+                                    const ModelObject *target = nullptr;
+                                    for (const ModelObject *mo : model.objects)
+                                        if (mo->name == sweep_object_names[si]) {
+                                            target = mo;
+                                            break;
+                                        }
+                                    if (target == nullptr) {
+                                        BOOST_LOG_TRIVIAL(error) << "--sweep: no object named \"" << sweep_object_names[si] << "\" in the model" << std::endl;
+                                        record_exit_reson(outfile_dir, CLI_INVALID_PARAMS, index + 1, cli_errors[CLI_INVALID_PARAMS], sliced_info);
+                                        flush_and_exit(CLI_INVALID_PARAMS);
+                                    }
+                                    sweep_params.object_id = int(target->id().id);
+                                }
+                                print_fff->set_calib_params(sweep_params);
+                            }
                         BOOST_LOG_TRIVIAL(info) << boost::format("set no_check to %1%:")%no_check;
                         print->set_no_check_flag(no_check);//BBS
                         StringObjectException warning;

@@ -1888,7 +1888,19 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
         m_spiral_vase = make_unique<SpiralVase>(print.config());
 
     if (print.config().max_volumetric_extrusion_rate_slope.value > 0){
-    		m_pressure_equalizer = make_unique<PressureEqualizer>(print.config(), &print.calib_params());
+    		// Only a global sweep is driven by the PressureEqualizer itself; per-object
+    		// sweeps are communicated through ;_ERS_SWEEP tags emitted at object changes.
+    		// An automatic step (step <= 0) is resolved here with the plate's layer
+    		// count (m_layer_count, computed above): the PressureEqualizer streams the
+    		// layers and cannot know the total by itself.
+    		const Calib_Params *global_sweep = print.global_calib_params();
+    		Calib_Params        global_sweep_resolved;
+    		if (global_sweep != nullptr && global_sweep->step <= 0.) {
+    			global_sweep_resolved      = *global_sweep;
+    			global_sweep_resolved.step = calib_sweep_effective_step(*global_sweep, size_t(m_layer_count));
+    			global_sweep               = &global_sweep_resolved;
+    		}
+    		m_pressure_equalizer = make_unique<PressureEqualizer>(print.config(), global_sweep);
     		m_enable_extrusion_role_markers = (bool)m_pressure_equalizer;
     } else
 	    m_enable_extrusion_role_markers = false;
@@ -3580,6 +3592,68 @@ static std::vector<size_t> order_islands_tour(const std::vector<std::vector<Poin
     return order;
 }
 
+// Ginger: per-object Parameter Sweep - bring every swept parameter back to its profile
+// value: writer parameters are restored directly (their profile value is remembered the
+// first time the key is seen, before anything overrode it), ERS parameters through the
+// returned ";_ERS_SWEEP default" tag (empty when no ERS parameter is swept).
+std::string GCode::restore_swept_defaults(const Print &print)
+{
+    bool need_ers_reset = false;
+    for (const Calib_Params &p : print.calib_params()) {
+        if (calib_is_ers_param(p.sweep_param)) {
+            need_ers_reset = true;
+            continue;
+        }
+        if (!calib_is_writer_param(p.sweep_param))
+            continue;
+        auto it = m_sweep_writer_defaults.find(p.sweep_param);
+        if (it == m_sweep_writer_defaults.end()) {
+            const ConfigOption *opt = writer().config.option(p.sweep_param);
+            if (opt == nullptr)
+                continue;
+            it = m_sweep_writer_defaults.emplace(p.sweep_param, std::unique_ptr<ConfigOption>(opt->clone())).first;
+        }
+        DynamicConfig cfg;
+        cfg.set_key_value(p.sweep_param, it->second->clone());
+        writer().config.apply(cfg);
+    }
+    return need_ers_reset ? std::string(";_ERS_SWEEP default\n") : std::string();
+}
+
+// Ginger: per-object Parameter Sweep. Called at each object change inside a layer:
+// activates the object's swept value (writer parameters directly, ERS parameters via a
+// ;_ERS_SWEEP tag consumed by the PressureEqualizer) and restores the profile values
+// for objects that have no sweep of their own - a previous instance in the same layer
+// may have left another object's value active.
+std::string GCode::apply_per_object_sweep(const Print &print, const PrintObject &print_object)
+{
+    const ModelObject *model_object = print_object.model_object();
+    const int obj_id = int(model_object->id().id);
+    const Calib_Params *cp = print.calib_params_for_object(obj_id);
+
+    std::string gcode = this->restore_swept_defaults(print);
+
+    if (cp != nullptr) {
+        // Automatic step (step <= 0): span the sweep over THIS object's own layers,
+        // so objects of different heights each cover the full start..end range.
+        const double value = calib_sweep_value_for_layer(*cp, m_layer_index, print_object.layer_count());
+        char valbuf[64];
+        snprintf(valbuf, sizeof(valbuf), "%g", value);
+        if (calib_is_writer_param(cp->sweep_param)) {
+            DynamicConfig cfg;
+            cfg.set_key_value(cp->sweep_param, new ConfigOptionFloats{value});
+            writer().config.apply(cfg);
+            gcode += std::string("; Calib_Param_Sweep: layer: ") + std::to_string(m_layer_index) +
+                     ", object: " + model_object->name + ", " + cp->sweep_param + ": " + valbuf + "\n";
+        } else if (calib_is_ers_param(cp->sweep_param)) {
+            // This object's tag replaces the "default" reset from above.
+            gcode = std::string(";_ERS_SWEEP obj=") + std::to_string(obj_id) + " " +
+                    cp->sweep_param + "=" + valbuf + "\n";
+        }
+    }
+    return gcode;
+}
+
 // In sequential mode, process_layer is called once per each object and its copy,
 // therefore layers will contain a single entry and single_object_instance_idx will point to the copy of the object.
 // In non-sequential mode, process_layer is called per each print_z height with all object and support layers accumulated.
@@ -3744,16 +3818,22 @@ LayerResult GCode::process_layer(
     // Ginger's own calibration and stays. ERS parameters (slope, decel slope, min rate,
     // ramp profile) are swept inside the PressureEqualizer post-processor; here we handle
     // the parameters applied through the G-code writer config.
+    // Per-object sweeps are applied at each object change instead (see
+    // apply_per_object_sweep()); at the layer change we only reset the ERS parameters
+    // to the profile values, so skirt/brim/wipe tower printed before the first object
+    // never inherit the previous object's swept value.
     if (print.calib_mode() == CalibMode::Calib_Param_Sweep) {
-        const Calib_Params &cp = print.calib_params();
-        if (cp.sweep_param == "retraction_length" || cp.sweep_param == "retraction_speed" ||
-            cp.sweep_param == "deretraction_speed" || cp.sweep_param == "retract_restart_extra") {
-            const double value = calib_sweep_value_for_layer(cp, m_layer_index);
-            DynamicConfig _cfg;
-            _cfg.set_key_value(cp.sweep_param, new ConfigOptionFloats{value});
-            writer().config.apply(_cfg);
-            sprintf(buf, "; Calib_Param_Sweep: layer: %d, %s: %g\n", m_layer_index, cp.sweep_param.c_str(), value);
-            gcode += buf;
+        if (const Calib_Params *cp = print.global_calib_params(); cp != nullptr) {
+            if (calib_is_writer_param(cp->sweep_param)) {
+                const double value = calib_sweep_value_for_layer(*cp, m_layer_index, size_t(m_layer_count));
+                DynamicConfig _cfg;
+                _cfg.set_key_value(cp->sweep_param, new ConfigOptionFloats{value});
+                writer().config.apply(_cfg);
+                sprintf(buf, "; Calib_Param_Sweep: layer: %d, %s: %g\n", m_layer_index, cp->sweep_param.c_str(), value);
+                gcode += buf;
+            }
+        } else {
+            gcode += this->restore_swept_defaults(print);
         }
     }
 
@@ -4256,6 +4336,10 @@ LayerResult GCode::process_layer(
                              " id:" + std::to_string(instance_to_print.print_object.get_id()) + " copy " +
                              std::to_string(inst.id) + "\n";
                 }
+                // Ginger: per-object Parameter Sweep - switch the swept parameters to
+                // this object's values before its extrusions are emitted.
+                if (print.has_per_object_calib())
+                    gcode += this->apply_per_object_sweep(print, instance_to_print.print_object);
                 // exclude objects
                 if (m_enable_exclude_object) {
                     const auto gflavor = print.config().gcode_flavor.value;

@@ -359,6 +359,10 @@ private:
     std::string     preamble();
     // BBS
     std::string     change_layer(coordf_t print_z);
+    // Ginger: per-object Parameter Sweep - switch swept parameters at object changes.
+    std::string     apply_per_object_sweep(const Print &print, const PrintObject &print_object);
+    // Restore profile values for every swept parameter (returns the ERS reset tag).
+    std::string     restore_swept_defaults(const Print &print);
     // Orca: pass the complete collection of region perimeters to the extrude loop to check whether the wipe before external loop
     // should be executed
     std::string     extrude_entity(const ExtrusionEntity &entity, std::string description = "", double speed = -1., const ExtrusionEntitiesPtr& region_perimeters = ExtrusionEntitiesPtr(), const Point* start_point = nullptr);
@@ -529,6 +533,10 @@ private:
     unsigned int                        m_layer_count;
     // Progress bar indicator. Increments from -1 up to layer_count.
     int                                 m_layer_index;
+    // Ginger: per-object Parameter Sweep - profile values of the writer keys swept by
+    // some object, captured before the first override so they can be restored on
+    // objects without their own sweep.
+    std::map<std::string, std::unique_ptr<ConfigOption>> m_sweep_writer_defaults;
     // Current layer processed. In sequential printing mode, only a single copy will be printed.
     // In non-sequential mode, all its copies will be printed.
     const Layer*                        m_layer;

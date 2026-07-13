@@ -978,11 +978,17 @@ public:
     Points first_layer_wipe_tower_corners(bool check_wipe_tower_existance=true) const;
 
     // Ginger: the per-layer Parameter Sweep (Calib_Param_Sweep) is Ginger's own calibration,
-    // kept after upstream removed the stock ones.
-    CalibMode& calib_mode() { return m_calib_params.mode; }
-    const CalibMode calib_mode() const { return m_calib_params.mode; }
+    // kept after upstream removed the stock ones. The print holds a list of sweeps:
+    // either a single global one (object_id == -1) or several per-object ones
+    // (object_id >= 0, at most one per object) - never both at the same time.
+    const CalibMode calib_mode() const { return m_calib_params.empty() ? CalibMode::Calib_None : CalibMode::Calib_Param_Sweep; }
     void set_calib_params(const Calib_Params& params);
-    const Calib_Params& calib_params() const { return m_calib_params; }
+    const std::vector<Calib_Params>& calib_params() const { return m_calib_params; }
+    // The global (all objects) sweep, or nullptr if none / per-object sweeps are active.
+    const Calib_Params* global_calib_params() const;
+    // The sweep targeting the ModelObject with this ObjectID, or nullptr.
+    const Calib_Params* calib_params_for_object(int object_id) const;
+    bool has_per_object_calib() const;
 
     Vec2d translate_to_print_space(const Vec2d &point) const;
     // scaled point
@@ -1064,8 +1070,9 @@ private:
     ConflictResultOpt m_conflict_result;
     FakeWipeTower     m_fake_wipe_tower;
 
-    // Ginger: parameter-sweep calibration state.
-    Calib_Params m_calib_params;
+    // Ginger: parameter-sweep calibration state (empty = no sweep; one global entry
+    // or several per-object entries, see set_calib_params()).
+    std::vector<Calib_Params> m_calib_params;
     
     // To allow GCode to set the Print's GCodeExport step status.
     friend class GCode;
