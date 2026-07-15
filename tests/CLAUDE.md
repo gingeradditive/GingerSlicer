@@ -103,17 +103,17 @@ OrcaSlicer uses **Catch2 v2** as its primary testing framework. The test suite i
 > **Note**: OrcaSlicer currently uses Catch2 v2 (based on `#include <catch2/catch.hpp>` includes). Some features mentioned in this guide are only available in v3 and marked accordingly.
 
 ### Test Structure
+> **Ginger note (2026-07)**: the tree was pruned to only the suites that guard the Ginger
+> work, aligned with upstream cleanup #63 — everything green, any red = real regression.
+> Removed upstream suites (libslic3r, sla_print, libnest2d, slic3rutils, tests/data) are
+> recoverable from git history.
 ```
 tests/
-├── CMakeLists.txt              # Main test configuration
-├── catch_main.hpp              # Custom test reporter
-├── libslic3r/                  # Core library tests (21 test files)
-├── fff_print/                  # FFF printing tests (12 test files)
-├── sla_print/                  # SLA printing tests (4 test files)
-├── libnest2d/                  # 2D nesting tests
-├── slic3rutils/               # Utility tests
-├── data/                      # Test data files and meshes
-└── catch2/                    # Catch2 framework files
+├── CMakeLists.txt              # Main test configuration (Catch2 + test_common)
+├── catch_main.hpp              # Custom test reporter / main
+├── fff_print/                  # THE suite: test_fill ([Fill]), test_wall_ribs
+│                               # ([WallRibs]), test_data.cpp/.hpp fixture helpers
+└── catch2/                     # Catch2 framework files
 ```
 
 ### Build Integration
@@ -124,26 +124,14 @@ tests/
 
 ## Test Suite Organization
 
-### libslic3r Tests
-Core slicing engine tests covering:
-- **Geometry operations**: Points, polygons, lines, Voronoi diagrams
-- **File formats**: STL, 3MF, AMF parsing and validation
-- **Algorithms**: Clipper operations, mesh boolean operations, optimization
-- **Configuration**: Print settings validation and parsing
-- **Utilities**: String processing, time utilities, data structures
-
-### fff_print Tests
-Fused Filament Fabrication specific tests:
-- **G-code generation**: Writer functionality, cooling, lift/unlift
-- **Slicing algorithms**: Layer generation, infill patterns
-- **Print mechanics**: Flow calculations, extrusion, support material
-- **Model processing**: Print objects, skirt/brim generation
-
-### sla_print Tests
-Stereolithography specific tests:
-- **SLA print processing**: Layer curing, support generation
-- **Raycast operations**: Light path calculations
-- **Test utilities**: SLA-specific helper functions
+### fff_print Tests (the whole suite)
+- **test_fill.cpp** `[Fill]`: fill pattern path lengths, single-path connector guards,
+  `single_path_splice_loops` physical link rules (any-length weld inside island,
+  outside-island rejection, legacy length cap without island)
+- **test_wall_ribs.cpp** `[WallRibs]`: rib planner — Prim over loops, non-crossing
+  staggered links, anchor stability across layers, drift relocation, corridors
+- **test_data.cpp/.hpp**: `Slic3r::Test` fixture helpers (`init_print`, `gcode`,
+  meshes generated in code via `TestMesh` — no external data files)
 
 ## Writing New Tests - Best Practices
 
@@ -643,36 +631,17 @@ The custom `VerboseConsoleReporter` provides enhanced output:
 
 ## Test Data Management
 
-### Using TEST_DATA_DIR
-All test data is accessible via the `TEST_DATA_DIR` preprocessor definition:
-
-```cpp
-std::string mesh_path = std::string(TEST_DATA_DIR) + "/20mm_cube.obj";
-std::string config_path = std::string(TEST_DATA_DIR) + "/test_config/printer.ini";
-```
-
-### Available Test Assets
-
-#### 3D Models
-- **Basic shapes**: `20mm_cube.obj`, `pyramid.obj`, `sphere.obj`
-- **Complex geometry**: `extruder_idler.obj`, `ipadstand.obj`, `bridge.obj`
-- **Edge cases**: `cube_with_hole.obj`, `sloping_hole.obj`, `small_dorito.obj`
-
-#### File Format Tests
-- **STL variants**: ASCII/binary, different line endings, Unicode names
-- **3MF files**: Multi-material, complex assemblies
-- **Configuration files**: Various printer/material profiles
+> **Ginger note**: `tests/data/` was removed with the 2026-07 prune. `TEST_DATA_DIR` is
+> still defined (catch_main.hpp derives the repo root from it to locate `resources/`),
+> but no test may depend on files under it — generate fixtures in code instead.
 
 #### Test Utilities
-The `Test` namespace provides helper functions:
+The `Test` namespace provides helper functions (meshes generated in code):
 ```cpp
 using namespace Slic3r::Test;
 
 // Load standard test meshes
 TriangleMesh mesh = mesh(TestMesh::cube_20x20x20);
-
-// Standard test configurations
-DynamicPrintConfig config = config(TestConfig::PLA_default);
 ```
 
 ## Common Pitfalls and Solutions

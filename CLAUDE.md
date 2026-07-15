@@ -22,8 +22,9 @@ GingerSlicer is Ginger Additive's pellet-focused fork of OrcaSlicer (itself fork
   so 1 mm/s of speed is mm³/s-scale flow error.
 - **Calibration**: the only exposed calibration is "Parameter tuning (per-layer sweep)"
   (`CalibMode::Calib_Param_Sweep`, dialog `Param_Sweep_Dlg`). The stock filament
-  calibrations (temp tower, flow rate, PA, VFA…) are removed from the menu but their
-  code remains. Load objects BEFORE setting a sweep (`load_files` resets calib mode).
+  calibrations (temp tower, flow rate, PA, VFA…) are removed entirely — code, dialogs
+  and pattern generators; `calib.hpp` is sweep-only and `calib.cpp` no longer exists.
+  Load objects BEFORE setting a sweep (`load_files` resets calib mode).
 - **Headless slicing for testing** (works, use it to verify slicing changes without GUI):
   ```
   build/src/Release/Ginger-Slicer.exe --slice <plate|0> --outputdir <dir> project.3mf
@@ -118,35 +119,22 @@ build_release_vs2022.bat slicer
 - Linux builds use Ninja generator
 
 ### Testing
-Tests are located in the `tests/` directory and use the Catch2 testing framework. Test structure:
-- `tests/libslic3r/` - Core library tests (21 test files)
-  - Geometry processing, algorithms, file formats (STL, 3MF, AMF)
-  - Polygon operations, clipper utilities, Voronoi diagrams
-- `tests/fff_print/` - Fused Filament Fabrication tests (12 test files)
-  - Slicing algorithms, G-code generation, print mechanics
-  - Fill patterns, extrusion, support material
-- `tests/sla_print/` - Stereolithography tests (4 test files)
-  - SLA-specific printing algorithms, support generation
-- `tests/libnest2d/` - 2D nesting algorithm tests
-- `tests/slic3rutils/` - Utility function tests
-- `tests/sandboxes/` - Experimental/sandbox test code
+Tests use the Catch2 framework. The tree was pruned (2026-07, aligned with upstream
+cleanup #63) to only the suites that guard the Ginger work — everything runs green,
+so ANY red is a real regression. Structure:
+- `tests/fff_print/` - the whole suite:
+  - `test_fill.cpp` - `[Fill]`: fill patterns, single-path connector guards,
+    `single_path_splice_loops` physical link rules
+  - `test_wall_ribs.cpp` - `[WallRibs]`: rib planner (Prim, columns, buttress, corridors)
+  - `test_data.cpp/.hpp` - fixture helpers (`Slic3r::Test::init_print`, in-code meshes)
+- The removed upstream suites (libslic3r, sla_print, libnest2d, slic3rutils, tests/data)
+  are recoverable from git history if ever needed.
 
-Run all tests after building:
+Run after building (all green expected):
 ```bash
-cd build && ctest
-```
-
-Run tests with verbose output:
-```bash
+build/tests/fff_print/Release/fff_print_tests.exe            # Windows
+./tests/fff_print/fff_print_tests "[Fill],[WallRibs]"        # from build dir, tag filter
 cd build && ctest --output-on-failure
-```
-
-Run individual test suites:
-```bash
-# From build directory
-./tests/libslic3r/libslic3r_tests
-./tests/fff_print/fff_print_tests
-./tests/sla_print/sla_print_tests
 ```
 
 ## Architecture

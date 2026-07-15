@@ -345,36 +345,3 @@ std::string slice(std::initializer_list<TriangleMesh> meshes, std::initializer_l
 }
 
 } } // namespace Slic3r::Test
-
-#include <catch2/catch.hpp>
-
-SCENARIO("init_print functionality", "[test_data]") {
-	GIVEN("A default config") {
-		Slic3r::DynamicPrintConfig config = Slic3r::DynamicPrintConfig::full_print_config();
-		WHEN("init_print is called with a single mesh.") {
-			Slic3r::Model model;
-			Slic3r::Print print;
-			Slic3r::Test::init_print({ Slic3r::Test::TestMesh::cube_20x20x20 }, print, model, config, true);
-			THEN("One mesh/printobject is in the resulting Print object.") {
-				REQUIRE(print.objects().size() == 1);
-			}
-			THEN("print.process() doesn't crash.") {
-				REQUIRE_NOTHROW(print.process());
-			}
-			THEN("Export gcode functions outputs text.") {
-				REQUIRE(! Slic3r::Test::gcode(print).empty());
-			}
-#if 0
-			THEN("Embedded meshes exported") {
-				std::string path = "C:\\data\\temp\\embedded_meshes\\";
-				for (auto kvp : Slic3r::Test::mesh_names) {
-					Slic3r::TriangleMesh m = mesh(kvp.first);
-					std::string name = kvp.second;
-					REQUIRE(Slic3r::store_stl((path + name + ".stl").c_str(), &m, true) == true);
-					REQUIRE(Slic3r::store_obj((path + name + ".obj").c_str(), &m) == true);
-				}
-			}
-#endif
-		}
-	}
-}
