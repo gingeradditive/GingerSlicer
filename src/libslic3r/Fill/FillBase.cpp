@@ -1674,32 +1674,51 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         const double len = v.norm();
         if (len <= guard_free)
             return true;
-        {
-            Lines  kept = intersection_ln(Line(la, lb), *island);
-            double tot  = 0.;
-            for (const Line &l : kept)
-                tot += l.length();
-            if (tot + SCALED_EPSILON < 0.999 * len)
-                return false; // would extrude across void outside the part
-        }
-        if (! retrace)
-            return true;
-        const Vec2d  dir     = v / len;
-        const double step    = 0.5 * stagger;
-        const double d_close = 0.8 * stagger;
-        const double cos_par = 0.90630779; // cos 25deg, as in gap_blocked
-        double coinc = 0.;
-        for (double s = 0.5 * step; s < len && coinc <= guard_free; s += step) {
-            const Point p((la.cast<double>() + dir * s).cast<coord_t>());
-            const auto [d, idx, np] = retrace->distance_from_lines_extra<false>(p);
-            if (std::abs(d) < d_close) {
-                const Vec2d  t  = (retrace_lines[size_t(idx)].b - retrace_lines[size_t(idx)].a).cast<double>();
-                const double tn = t.norm();
-                if (tn > 0. && std::abs(dir.dot(t)) > cos_par * tn)
-                    coinc += step;
+        // No-retrace first: the AABB scan is much cheaper than the Clipper clip below, and it is
+        // the test that rejects most invalid candidates (links riding an existing bead).
+        if (retrace) {
+            const Vec2d  dir     = v / len;
+            const double step    = 0.5 * stagger;
+            const double d_close = 0.8 * stagger;
+            const double cos_par = 0.90630779; // cos 25deg, as in gap_blocked
+            double coinc = 0.;
+            for (double s = 0.5 * step; s < len && coinc <= guard_free; s += step) {
+                const Point p((la.cast<double>() + dir * s).cast<coord_t>());
+                const auto [d, idx, np] = retrace->distance_from_lines_extra<false>(p);
+                if (std::abs(d) < d_close) {
+                    const Vec2d  t  = (retrace_lines[size_t(idx)].b - retrace_lines[size_t(idx)].a).cast<double>();
+                    const double tn = t.norm();
+                    if (tn > 0. && std::abs(dir.dot(t)) > cos_par * tn)
+                        coinc += step;
+                }
             }
+            if (coinc > guard_free)
+                return false;
         }
-        return coinc <= guard_free;
+        Lines  kept = intersection_ln(Line(la, lb), *island);
+        double tot  = 0.;
+        for (const Line &l : kept)
+            tot += l.length();
+        return tot + SCALED_EPSILON >= 0.999 * len; // else: would extrude across void outside the part
+    };
+    // A candidate scan validates at most this many (distance-ordered) candidates before giving
+    // up for the round: on an unweldable piece every candidate fails, and each validation ends
+    // in a Clipper call - unbounded, that is 100k+ clips on a single pathological layer. The
+    // budget counts DISTINCT regions: a failed candidate vetoes its neighborhood, because the
+    // invalid cluster around a void (hundreds of point pairs through the same notch, measured
+    // on the H part) would otherwise exhaust any budget before the first geometrically distinct
+    // candidate gets a chance.
+    constexpr size_t max_validations = 64;
+    const double     dedup_r  = 3. * stagger;
+    std::vector<std::pair<Point, Point>> failed_links;
+    auto near_failed = [&failed_links, dedup_r](const Point &a, const Point &b) -> bool {
+        for (const auto &f : failed_links) {
+            if ((a - f.first).cast<double>().norm() < dedup_r && (b - f.second).cast<double>().norm() < dedup_r)
+                return true;
+            if ((a - f.second).cast<double>().norm() < dedup_r && (b - f.first).cast<double>().norm() < dedup_r)
+                return true;
+        }
+        return false;
     };
     rebuild_retrace();
 
@@ -1743,6 +1762,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         // Globally closest approach between any two rings: vertices of one against segments of the other.
         struct RingCand { double d2; size_t i, j, v, s; Point proj; };
         std::vector<RingCand> rcands;
+        rcands.reserve(256);
         for (size_t i = 0; i < rings.size(); ++ i)
             for (size_t j = 0; j < rings.size(); ++ j) {
                 if (i == j)
@@ -1761,12 +1781,21 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         size_t bi = 0, bj = 0, b_vert = 0, b_seg = 0;
         Point  b_proj;
         bool   b_found = false;
-        for (const RingCand &c : rcands)
-            if (link_valid(c.proj, rings[c.j].points[c.v])) {
+        size_t tried   = 0;
+        failed_links.clear();
+        for (const RingCand &c : rcands) {
+            const Point &pb = rings[c.j].points[c.v];
+            if (near_failed(c.proj, pb))
+                continue; // same invalid region: skip without spending budget
+            if (++ tried > max_validations)
+                break;
+            if (link_valid(c.proj, pb)) {
                 bi = c.i; bj = c.j; b_vert = c.v; b_seg = c.s; b_proj = c.proj;
                 b_found = true;
                 break;
             }
+            failed_links.emplace_back(c.proj, pb);
+        }
         if (! b_found)
             break;
         const Points &A = rings[bi].points;
@@ -1809,6 +1838,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         attached_any = false;
         struct AttCand { double d2; size_t r, o, k, seg; Point entry, junction; bool insert_junction; };
         std::vector<AttCand> acands;
+        acands.reserve(256);
         for (size_t r = 0; r < rings.size(); ++ r)
             for (size_t o = 0; o < open.size(); ++ o) {
                 const Points &R = rings[r].points;
@@ -1835,13 +1865,21 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         Point  b_entry, b_junction;
         bool   b_insert_junction = false;
         bool   b_found = false;
-        for (const AttCand &c : acands)
+        size_t tried   = 0;
+        failed_links.clear();
+        for (const AttCand &c : acands) {
+            if (near_failed(c.junction, c.entry))
+                continue; // same invalid region: skip without spending budget
+            if (++ tried > max_validations)
+                break;
             if (link_valid(c.junction, c.entry)) {
                 br = c.r; bo = c.o; bk = c.k; b_seg = c.seg;
                 b_entry = c.entry; b_junction = c.junction; b_insert_junction = c.insert_junction;
                 b_found = true;
                 break;
             }
+            failed_links.emplace_back(c.junction, c.entry);
+        }
         if (! b_found)
             break;
         const Points &R      = rings[br].points;
@@ -1923,11 +1961,16 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
     assert(cps.size() == n_vertices);
     const size_t out_begin = polylines_out.size();
     // Island region for the physical link checks (bridges and welds are real extruded beads:
-    // they must stay inside the part).
+    // they must stay inside the part). Built lazily: most calls never bridge nor weld.
     Polygons island_polys;
-    island_polys.reserve(graph.boundary.size());
-    for (const Points &c : graph.boundary)
-        island_polys.emplace_back(c);
+    auto island_region = [&island_polys, &graph]() -> const Polygons & {
+        if (island_polys.empty() && ! graph.boundary.empty()) {
+            island_polys.reserve(graph.boundary.size());
+            for (const Points &c : graph.boundary)
+                island_polys.emplace_back(c);
+        }
+        return island_polys;
+    };
 
     // Fragments that cannot take part in the graph: degenerate, closed (e.g. a ring lying fully inside
     // the surface) or with an end point that could not be projected onto the boundary.
@@ -2161,8 +2204,11 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             // the greedy passes below cannot reach many of its optima: from k closed loops down to
             // one open trail the count_trails cost rises before it falls, which a strictly improving
             // search never crosses (measured on the fumidai H layers: 9 pieces greedy vs 1 exact).
+            // NOT under wall lining (lightning): its phase choice must keep the max-wall-coverage
+            // tie-break of the greedy swap below (the lining "second wall"), which this cost model
+            // does not carry.
             bool exact_solved = false;
-            if (contour_vertices.size() == 1 && contour_vertices[0].size() >= 4 &&
+            if (! wall_lining && contour_vertices.size() == 1 && contour_vertices[0].size() >= 4 &&
                 contour_vertices[0].size() <= 160 && (contour_vertices[0].size() % 2) == 0) {
                 const std::vector<size_t> &cv = contour_vertices[0];
                 const size_t m = cv.size();
@@ -2255,12 +2301,13 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             }
 
             // Initial alternating phase per contour.
-            if (! exact_solved)
-            for (size_t c = 0; c < contour_vertices.size(); ++ c)
-                if (contour_vertices[c].size() >= 2)
-                    for (size_t k = 0; k < contour_vertices[c].size(); k += 2)
-                        if (k + 1 < contour_vertices[c].size() || (contour_vertices[c].size() % 2) == 0)
-                            take_gap(c, k);
+            if (! exact_solved) {
+                for (size_t c = 0; c < contour_vertices.size(); ++ c)
+                    if (contour_vertices[c].size() >= 2)
+                        for (size_t k = 0; k < contour_vertices[c].size(); k += 2)
+                            if (k + 1 < contour_vertices[c].size() || (contour_vertices[c].size() % 2) == 0)
+                                take_gap(c, k);
+            }
             // Extruded wall coverage of one contour's current phase (taken gap length).
             auto contour_coverage = [&contour_vertices, &gap_taken, &gap_length](size_t c) -> double {
                 const std::vector<size_t> &cv = contour_vertices[c];
@@ -2717,7 +2764,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             if (len <= 0.)
                 return true;
             {
-                Lines  kept = intersection_ln(Line(a, b), island_polys);
+                Lines  kept = intersection_ln(Line(a, b), island_region());
                 double tot  = 0.;
                 for (const Line &l : kept)
                     tot += l.length();
@@ -2851,7 +2898,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
         Polylines tail(std::make_move_iterator(polylines_out.begin() + out_begin),
                        std::make_move_iterator(polylines_out.end()));
         polylines_out.erase(polylines_out.begin() + out_begin, polylines_out.end());
-        const size_t before = tail.size();
+        const size_t before_join = tail.size();
         // Join OPEN pieces whose ends nearly touch: a trail split re-emitted as two pieces sharing
         // an almost-exact endpoint otherwise survives as a sub-bead travel move. The joint segment
         // is extruded; 1.5 line widths keeps it inside the tolerated coincidence.
@@ -2887,13 +2934,15 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
         }
         // Weld residual pieces into the walk under the physical rule only (no length policy):
         // the search is bounded by the island extent, acceptance by inside-island + no-retrace.
-        BoundingBox bb;
-        for (const Polygon &p : island_polys)
+        const size_t before_weld = tail.size();
+        BoundingBox  bb;
+        for (const Polygon &p : island_region())
             bb.merge(get_extents(p));
         const double search_reach = std::max((bb.max - bb.min).cast<double>().norm(), 10. * line_w);
-        single_path_splice_loops(tail, search_reach, line_w, &island_polys);
-        if (tail.size() != before && ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
-            std::fprintf(stderr, "[SPWELD] pieces %zu -> %zu\n", before, tail.size());
+        single_path_splice_loops(tail, search_reach, line_w, &island_region());
+        if (tail.size() != before_join && ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+            std::fprintf(stderr, "[SPWELD] pieces %zu -> %zu (join %zu, weld %zu)\n",
+                         before_join, tail.size(), before_join - before_weld, before_weld - tail.size());
         append(polylines_out, std::move(tail));
     }
 }
@@ -2951,8 +3000,10 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
     // (a 157mm scanline tangent to each leg fillet for ~27mm). Re-route just that stretch to sit
     // exactly one line width off the boundary: bead beside bead, the arc becomes legal, and the
     // endpoints stay put so the boundary graph is untouched. Interior stretches only - line ends
-    // legitimately land on the contour.
-    if (params.connect_polygons) {
+    // legitimately land on the contour. NOT under wall lining (lightning): there a wall-hugging
+    // stretch is the PRODUCT - the racetrack lining is the "second wall" fused to the perimeter -
+    // while on scanline patterns it is a geometric accident. Same signature, opposite meaning.
+    if (params.connect_polygons && ! params.sparse_wall_lining) {
         const double line_w = params.flow.scaled_width() > 0 ? double(params.flow.scaled_width()) : scale_(spacing);
         Lines bnd;
         for (const Polygon *p : boundary_src)
@@ -3000,23 +3051,27 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
                     runs.emplace_back(run_start, len - end_guard);
                 if (runs.empty())
                     continue;
-                // Rebuild: original vertices outside the runs, offset samples inside. The offset
-                // direction comes from the projected boundary SEGMENT's left normal (material is
-                // always to the left of a Slic3r contour/hole), which stays stable at distance ~0
-                // where the point-to-projection direction does not.
-                Points  out;
-                out.reserve(pl.size() + runs.size() * 32);
-                double  acc = 0.;
-                size_t  ri  = 0;
-                out.emplace_back(pl.points.front());
-                for (size_t i = 0; i + 1 < pl.size(); ++ i) {
-                    const double l = (pl.points[i + 1] - pl.points[i]).cast<double>().norm();
-                    const double s0 = acc, s1 = acc + l;
-                    while (ri < runs.size() && runs[ri].first < s1) {
-                        const double ra = std::max(runs[ri].first, s0);
-                        const double rb = std::min(runs[ri].second, s1);
-                        for (double s = ra; s <= rb + 1e-9; s += scan_step) {
-                            const Point  q = point_at(pl, std::min(s, runs[ri].second));
+                // Compute the replacement points per run - the offset direction comes from the
+                // projected boundary SEGMENT's left normal (material is always to the left of a
+                // Slic3r contour/hole), which stays stable at distance ~0 where the
+                // point-to-projection direction does not - and validate them against the OTHER
+                // fill lines: at high densities the deviated stretch could land on the next
+                // scanline. A colliding run keeps its original geometry (its arc simply stays
+                // blocked, exactly as before this pass existed).
+                std::vector<Points> repl(runs.size());
+                {
+                    std::vector<Line> other_lines;
+                    for (const Polyline &pl2 : infill_ordered)
+                        if (&pl2 != &pl)
+                            for (size_t i2 = 0; i2 + 1 < pl2.size(); ++ i2)
+                                other_lines.emplace_back(pl2.points[i2], pl2.points[i2 + 1]);
+                    std::optional<AABBTreeLines::LinesDistancer<Line>> others;
+                    if (! other_lines.empty())
+                        others.emplace(other_lines);
+                    for (size_t r = 0; r < runs.size(); ++ r) {
+                        double coinc = 0.; // parallel-coincident stretch vs the other fill lines
+                        for (double s = runs[r].first; s <= runs[r].second + 1e-9 && coinc <= 1.5 * line_w; s += scan_step) {
+                            const Point  q = point_at(pl, std::min(s, runs[r].second));
                             const auto [d, li, np] = wall.distance_from_lines_extra<false>(q);
                             const Line  &bl  = bnd[size_t(li)];
                             Vec2d        dir = (bl.b - bl.a).cast<double>();
@@ -3025,12 +3080,61 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
                                 continue;
                             const Vec2d nrm(-dir.y() / dn, dir.x() / dn); // left normal = inward
                             const Point dev((Vec2d(np.x(), np.y()) + nrm * d_target).cast<coord_t>());
-                            if (out.empty() || (dev - out.back()).cast<double>().norm() > 0.2 * line_w)
-                                out.emplace_back(dev);
+                            if (others) {
+                                // Same physical rule as everywhere else: only RIDING another line
+                                // is a collision - parallel (<25deg) closer than 0.8 bead for more
+                                // than 1.5 bead accumulated. Passing near a chord end at an angle
+                                // is the normal neighborhood of the fillet and must not veto.
+                                const auto [od, oi, onp] = others->distance_from_lines_extra<false>(dev);
+                                if (std::abs(od) < 0.8 * line_w) {
+                                    const Line  &ol = (*others).get_line(size_t(oi));
+                                    const Vec2d  ot = (ol.b - ol.a).cast<double>();
+                                    const double on = ot.norm();
+                                    if (on > 0. && std::abs(dir.dot(ot)) > 0.90630779 * dn * on) // cos 25deg
+                                        coinc += scan_step;
+                                }
+                            }
+                            if (repl[r].empty() || (dev - repl[r].back()).cast<double>().norm() > 0.2 * line_w)
+                                repl[r].emplace_back(dev);
                         }
-                        if (runs[ri].second <= s1 + 1e-9)
+                        if (coinc > 1.5 * line_w)
+                            repl[r].clear(); // would ride another line: keep the original geometry
+                    }
+                }
+                {
+                    std::vector<std::pair<double, double>> keep;
+                    std::vector<Points>                    keep_repl;
+                    for (size_t r = 0; r < runs.size(); ++ r)
+                        if (! repl[r].empty()) {
+                            keep.emplace_back(runs[r]);
+                            keep_repl.emplace_back(std::move(repl[r]));
+                        }
+                    runs = std::move(keep);
+                    repl = std::move(keep_repl);
+                }
+                if (runs.empty())
+                    continue;
+                // Rebuild: original vertices outside the runs, the precomputed points inside.
+                Points  out;
+                out.reserve(pl.size() + runs.size() * 32);
+                double  acc = 0.;
+                size_t  ri  = 0;
+                bool    ri_emitted = false;
+                out.emplace_back(pl.points.front());
+                for (size_t i = 0; i + 1 < pl.size(); ++ i) {
+                    const double l = (pl.points[i + 1] - pl.points[i]).cast<double>().norm();
+                    const double s1 = acc + l;
+                    while (ri < runs.size() && runs[ri].first < s1) {
+                        if (! ri_emitted) {
+                            for (const Point &dev : repl[ri])
+                                if (out.empty() || (dev - out.back()).cast<double>().norm() > 0.2 * line_w)
+                                    out.emplace_back(dev);
+                            ri_emitted = true;
+                        }
+                        if (runs[ri].second <= s1 + 1e-9) {
                             ++ ri;
-                        else
+                            ri_emitted = false;
+                        } else
                             break;
                     }
                     const bool inside_run = ri < runs.size() && runs[ri].first <= s1 && runs[ri].second >= s1;

@@ -7,6 +7,7 @@
 
 #include "libslic3r/ClipperUtils.hpp"
 #include "libslic3r/Fill/Fill.hpp"
+#include "libslic3r/Fill/FillBase.hpp"
 #include "libslic3r/Flow.hpp"
 #include "libslic3r/Geometry.hpp"
 #include "libslic3r/Print.hpp"
@@ -785,4 +786,66 @@ bool test_if_solid_surface_filled(const ExPolygon& expolygon, double flow_spacin
 #endif
 
     return uncovered.empty(); // solid surface is fully filled
+}
+
+// Ginger: physical link rules of single_path_splice_loops with the `island` parameter. A link
+// may be ANY length (no length policy), but it must stay inside the island and must not retrace
+// an already extruded line; links up to 1.5 stagger always pass. island == nullptr keeps the
+// legacy distance-capped behavior of the multiline (trapezoidal) caller.
+TEST_CASE("Fill: single_path_splice_loops physical link rules", "[Fill]") {
+    const double W = scale_(3.0); // extrusion width = link stagger
+
+    auto square_ring = [](double cx, double cy, double half) -> Polyline {
+        Polyline pl;
+        pl.points = { Point(coord_t(cx - half), coord_t(cy - half)),
+                      Point(coord_t(cx + half), coord_t(cy - half)),
+                      Point(coord_t(cx + half), coord_t(cy + half)),
+                      Point(coord_t(cx - half), coord_t(cy + half)),
+                      Point(coord_t(cx - half), coord_t(cy - half)) };
+        return pl;
+    };
+
+    SECTION("any-length weld inside the island") {
+        // Two rings 50mm apart in a plain rectangular island: far beyond any legacy cap, still
+        // welded because the link lies inside the part and retraces nothing.
+        Polygons island { Polygon(Points{ Point(0, 0), Point(coord_t(scale_(200.)), 0),
+                                          Point(coord_t(scale_(200.)), coord_t(scale_(100.))),
+                                          Point(0, coord_t(scale_(100.))) }) };
+        Polylines loops;
+        loops.emplace_back(square_ring(scale_(50.), scale_(50.), scale_(15.)));
+        loops.emplace_back(square_ring(scale_(130.), scale_(50.), scale_(15.)));
+        single_path_splice_loops(loops, scale_(1000.), W, &island);
+        REQUIRE(loops.size() == 1);
+        REQUIRE(loops.front().points.front() == loops.front().points.back());
+    }
+
+    SECTION("a link across void outside the island is rejected") {
+        // U-shaped island, one ring per arm: both rings sit above the bottom band, so EVERY
+        // straight link between them crosses the notch void between the arms. Without the
+        // island parameter this pair would weld; with it the rings must stay separate.
+        Polygons island { Polygon(Points{
+            Point(0, 0), Point(coord_t(scale_(110.)), 0),
+            Point(coord_t(scale_(110.)), coord_t(scale_(100.))), Point(coord_t(scale_(70.)), coord_t(scale_(100.))),
+            Point(coord_t(scale_(70.)), coord_t(scale_(20.))),   Point(coord_t(scale_(40.)), coord_t(scale_(20.))),
+            Point(coord_t(scale_(40.)), coord_t(scale_(100.))),  Point(0, coord_t(scale_(100.))) }) };
+        Polylines loops;
+        loops.emplace_back(square_ring(scale_(20.), scale_(60.), scale_(12.)));
+        loops.emplace_back(square_ring(scale_(90.), scale_(60.), scale_(12.)));
+        single_path_splice_loops(loops, scale_(1000.), W, &island);
+        REQUIRE(loops.size() == 2);
+    }
+
+    SECTION("island == nullptr keeps the legacy distance cap") {
+        Polylines near_loops;
+        near_loops.emplace_back(square_ring(scale_(50.), scale_(50.), scale_(15.)));
+        near_loops.emplace_back(square_ring(scale_(90.), scale_(50.), scale_(15.))); // 10mm gap
+        single_path_splice_loops(near_loops, scale_(20.), W);
+        REQUIRE(near_loops.size() == 1);
+
+        Polylines far_loops;
+        far_loops.emplace_back(square_ring(scale_(50.), scale_(50.), scale_(15.)));
+        far_loops.emplace_back(square_ring(scale_(130.), scale_(50.), scale_(15.))); // 50mm gap
+        single_path_splice_loops(far_loops, scale_(20.), W);
+        REQUIRE(far_loops.size() == 2);
+    }
 }
