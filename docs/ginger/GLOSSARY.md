@@ -285,6 +285,62 @@ GingerSlicer. Each entry points to the primary source file when applicable.
 
 ---
 
+## Single path & wall ribs (Ginger)
+
+Full rationale and implementation map in `docs/ginger/DFM.md`.
+
+- **Single path mode** (`single_path_mode`) — Print-wide toggle: walls and
+  sparse infill of each island chain into one continuous walk (travels are
+  the enemy on pellet: no true retract, melt degrades while idle). Drives
+  `FillParams::connect_polygons` for connectable sparse patterns and the
+  wall/seam routing in `GCode.cpp`.
+
+- **Euler connector** — `connect_infill_single_path()` in
+  `src/libslic3r/Fill/FillBase.cpp`: chords (scanlines) + boundary gap arcs
+  form a ring graph; an alternating gap *phase* makes every vertex even;
+  odd vertices (**defects**) are the open ends of the walk.
+
+- **Exact min-pieces solve** — For single-contour islands (m ≤ 160): a
+  selection with 0/2 defects is fully determined by the defect pair + one
+  phase bit, so all `2 + 2·C(m,2)` candidates are enumerated exactly.
+  Debug line `[SPEXACT]`. Skipped under lightning wall lining.
+
+- **Physical link rule** — Any artificial connection (bridge over a
+  virtual edge, join of near-touching open ends, weld of a residual loop)
+  is an extruded bead allowed at ANY length provided it stays inside the
+  island and does not retrace an extruded line (parallel < 25° within
+  0.8 bead for > 1.5 bead accumulated). Links ≤ 1.5 bead skip the tests.
+
+- **Weld / splice** — `single_path_splice_loops()`: staggered double-link
+  merge of loops into the walk (ladder, never crossing); with the `island`
+  parameter it enforces the physical link rule.
+
+- **Deviation** — Boundary-grazing interior stretch of a scanline is
+  re-routed one bead off the contour so the arc under it stays legal
+  (`[SPDEVIATE]`). Scanline patterns only — under lightning wall lining a
+  wall-hugging row is the product, not an accident.
+
+- **Wall rib** (`single_path_wall_ribs`) — Two staggered link segments
+  welding two wall loops into one walk (the automated CAD "micro cut").
+  Planned per layer by Prim (`loops − 1` ribs) in
+  `PrintObject::generate_wall_ribs()` / `src/libslic3r/WallRibs.hpp`.
+
+- **Rib column** — A rib re-anchored on the previous layer's attach pair;
+  columns are the self-standing vertical structure of ribs.
+
+- **Foundation buttress** — Lightning-style stub chain grown downward
+  through the walls under a rib that starts over void; each stub 0.5 bead
+  shorter per layer, ends on real material or the bed. Sparse infill is
+  never treated as support.
+
+- **Rib corridor** — The rib footprint carved out of the layer's fill
+  surfaces so nothing else extrudes across the rib beads.
+
+- **`[RIBSTAT]`** (`GINGER_RIBS_DEBUG=1`) — Per-layer census of the rib
+  planner (loops, spliced, anchor_reused, founded, drop reasons).
+
+---
+
 ## Multiline infill (Clipper2)
 
 Aligned to OrcaSlicer PR **#11435** (Clipper2 multiline), **#11765**
