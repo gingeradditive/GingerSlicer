@@ -3033,12 +3033,24 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
                 const double len = pl.length();
                 if (len <= 2. * end_guard + min_run)
                     continue;
-                // Scan the interior for grazing runs.
+                // Scan the interior for grazing runs. Same riding metric as gap_blocked: a
+                // sample counts only when the line also runs PARALLEL (<25deg) to the projected
+                // boundary segment - an angled near-miss (a concave spike reaching toward the
+                // line) is not a graze and must not trigger a reroute.
                 std::vector<std::pair<double, double>> runs;
                 double run_start = -1.;
                 for (double s = end_guard; s <= len - end_guard + 0.5 * scan_step; s += scan_step) {
-                    const auto [d, li, np] = wall.distance_from_lines_extra<false>(point_at(pl, s));
-                    if (std::abs(d) < d_trip) {
+                    const Point q = point_at(pl, s);
+                    const auto [d, li, np] = wall.distance_from_lines_extra<false>(q);
+                    bool grazing = std::abs(d) < d_trip;
+                    if (grazing) {
+                        const Line  &bl = bnd[size_t(li)];
+                        const Vec2d  bt = (bl.b - bl.a).cast<double>();
+                        const Vec2d  ct = (point_at(pl, std::min(s + scan_step, len)) - q).cast<double>();
+                        const double bn = bt.norm(), cn = ct.norm();
+                        grazing = bn > 0. && cn > 0. && std::abs(ct.dot(bt)) > 0.90630779 * bn * cn; // cos 25deg
+                    }
+                    if (grazing) {
                         if (run_start < 0.)
                             run_start = s;
                     } else if (run_start >= 0.) {
