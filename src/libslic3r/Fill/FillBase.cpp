@@ -3026,6 +3026,20 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
                 }
                 return pl.points.back();
             };
+            // Direction of the polyline SEGMENT containing arc length s - same walk as point_at.
+            // The riding test must compare segment vs segment (as gap_blocked does): a forward
+            // difference taken across a pattern corner points into the next flank and would break
+            // a legitimate grazing run right where the trapezoid wave folds.
+            auto seg_dir_at = [](const Polyline &pl, double s) -> Vec2d {
+                for (size_t i = 0; i + 1 < pl.size(); ++ i) {
+                    const Vec2d  v = (pl.points[i + 1] - pl.points[i]).cast<double>();
+                    const double l = v.norm();
+                    if (s <= l || i + 2 == pl.size())
+                        return v;
+                    s -= l;
+                }
+                return Vec2d(0., 0.);
+            };
             size_t sp_deviated = 0;
             for (Polyline &pl : infill_ordered) {
                 if (pl.size() < 2)
@@ -3046,7 +3060,7 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
                     if (grazing) {
                         const Line  &bl = bnd[size_t(li)];
                         const Vec2d  bt = (bl.b - bl.a).cast<double>();
-                        const Vec2d  ct = (point_at(pl, std::min(s + scan_step, len)) - q).cast<double>();
+                        const Vec2d  ct = seg_dir_at(pl, s);
                         const double bn = bt.norm(), cn = ct.norm();
                         grazing = bn > 0. && cn > 0. && std::abs(ct.dot(bt)) > 0.90630779 * bn * cn; // cos 25deg
                     }
