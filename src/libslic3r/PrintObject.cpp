@@ -611,10 +611,9 @@ static bool build_rib_buttress(Layer *rib_layer, const Point &link_a, const Poin
                         for (const ExtrusionEntity *ee : island->entities)
                             if (const auto *loop = dynamic_cast<const ExtrusionLoop *>(ee)) {
                                 walls.emplace_back(loop->polygon());
-                                // Multi-path loops (overhang splits) cannot ride a stub: the
-                                // emitted merge would flatten their per-segment flow.
-                                if (loop->paths.size() != 1)
-                                    continue;
+                                // Multi-path loops ride stubs like any other: the emission
+                                // re-attributes every merged segment to its source path (role,
+                                // flow, width, height preserved), so nothing gets flattened.
                                 bool        consumed = false;
                                 const Point fp       = loop->first_point();
                                 for (const WallRibMerge &m : below->wall_ribs)
@@ -804,27 +803,34 @@ void PrintObject::generate_wall_ribs()
                         if (loop->paths.empty())
                             continue;
                         // A loop segmented into several paths is still one CLOSED wall: Arachne
-                        // splits a loop into variable-width paths where the wall thickens (measured
-                        // 3.2->4.3->3.2mm where two rings approach on the real part), and the speed
-                        // classifier splits without changing flow. Skipping every multi-path loop
-                        // dropped the whole island's merge on exactly those layers: two separate
-                        // walls plus a travel where the ribs exist to guarantee a single path, and
-                        // the rib columns broke vertically. Loops merge as long as their segments
-                        // share the ROLE and HEIGHT; the merged walk is re-emitted with per-segment
-                        // flow preserved (see the flow-preserving split in GCode::extrude_perimeters),
-                        // so variable widths survive the merge. Only mixed-role loops (true overhang
-                        // flow changes) stay unmerged.
-                        const ExtrusionPath &pth = loop->paths.front();
-                        bool uniform = true;
-                        for (const ExtrusionPath &p : loop->paths)
-                            if (p.role() != pth.role() || p.height != pth.height) {
-                                uniform = false;
-                                break;
+                        // width splits, the speed classifier and overhang/bridge stretches all
+                        // produce multi-path loops, and ALL of them merge. The emission rebuilds
+                        // the walk by re-attributing every segment to its source path and inherits
+                        // the COMPLETE per-segment attribute set - role, flow, width, height (the
+                        // flow-preserving split in GCode::extrude_perimeters), so a bridge stretch
+                        // inside the walk still prints as a bridge. Excluding a whole loop for a
+                        // few special segments broke healthy rib columns far away from them (D02
+                        // z=19.2: two 123mm bar bridges killed the four hub links 200mm away and
+                        // spawned a founded frame + retro-buttresses). Whether a rib can STAND
+                        // somewhere is for the support/foundation tests alone - never the role
+                        // under the attach. Group by the DOMINANT path (longest): a loop that
+                        // happens to START on a short bridge stretch must not group - and flow
+                        // its rib links - as a bridge.
+                        const ExtrusionPath *dom      = &loop->paths.front();
+                        double               dom_len  = -1.;
+                        bool                 mixed    = false;
+                        for (const ExtrusionPath &p : loop->paths) {
+                            const double l = p.polyline.length();
+                            if (l > dom_len) {
+                                dom_len = l;
+                                dom     = &p;
                             }
-                        if (! uniform) {
-                            ++ l_multipath;
-                            continue;
+                            if (p.role() != loop->paths.front().role() || p.height != loop->paths.front().height)
+                                mixed = true;
                         }
+                        if (mixed)
+                            ++ l_multipath; // census only: mixed-role loops merge like any other
+                        const ExtrusionPath &pth = *dom;
                         RibGroup *g = nullptr;
                         for (RibGroup &gg : groups)
                             if (gg.role == pth.role() && gg.width == pth.width &&

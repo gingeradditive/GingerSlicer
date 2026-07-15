@@ -247,8 +247,11 @@ public:
    //Fill  Multiline
    void multiline_fill(Polylines& polylines, const FillParams& params, float spacing);
    // Cura-style single-path infill: splice closed loops (outline walls of a dilated band) into one
-   // closed loop with short staggered link segments (see FillBase.cpp).
-   void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger);
+   // closed loop with staggered link segments (see FillBase.cpp). When `island` is given, links obey
+   // the physical rule instead of any length policy: they must lie inside the island and must not
+   // retrace an already extruded line (gap_blocked-style coincidence test); `stagger` must then be
+   // the extrusion line width.
+   void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger, const Polygons *island = nullptr);
 } // namespace Slic3r
 
 #endif // slic3r_FillBase_hpp_

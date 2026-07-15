@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <cstdlib>
 #include <numeric>
+#include <optional>
 
 #include <cmath>
 #include <boost/log/trivial.hpp>
@@ -1615,7 +1616,7 @@ BoundingBox Fill::extended_object_bounding_box() const
 // the two loops are staggered by ~one extrusion width, so the links land in the cut gaps instead of
 // over already extruded material. Rings that remain (no other ring within reach) are attached to the
 // closest open polyline as a detour; open polylines are otherwise left untouched.
-void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger)
+void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger, const Polygons *island)
 {
     // Separate the closed loops (normalized to an open ring representation) from open polylines.
     Polylines rings, open;
@@ -1641,6 +1642,66 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         double t = std::clamp((p - a).cast<double>().dot(ab) / len2, 0., 1.);
         return Point((a.cast<double>() + ab * t).cast<coord_t>());
     };
+
+    // Physical link rule (Davide): a link may be ANY length, but (a) it must stay inside the
+    // island - it is a real extruded bead - and (b) it must not RETRACE an already extruded
+    // line: nearly parallel (<25deg) closer than 0.8 stagger over more than 1.5 stagger
+    // accumulated, the same coincidence the gap_blocked rule measures (stagger is the line
+    // width at every caller that passes an island). Links up to 1.5 stagger skip the test:
+    // too short to accumulate more overlap than a legal gap arc is allowed anyway.
+    // With island == nullptr (the trapezoidal multiline caller) every link is accepted.
+    const double guard_free = 1.5 * stagger;
+    std::vector<Line> retrace_lines;
+    std::optional<AABBTreeLines::LinesDistancer<Line>> retrace;
+    auto rebuild_retrace = [&]() {
+        if (island == nullptr)
+            return;
+        retrace_lines.clear();
+        for (const Polylines *set : { &rings, &open })
+            for (const Polyline &pl : *set)
+                for (size_t i = 0; i + 1 < pl.size(); ++ i)
+                    retrace_lines.emplace_back(pl.points[i], pl.points[i + 1]);
+        // A normalized ring is stored open: close it so the seam segment is testable too.
+        for (const Polyline &pl : rings)
+            if (pl.size() > 2)
+                retrace_lines.emplace_back(pl.points.back(), pl.points.front());
+        retrace.emplace(retrace_lines);
+    };
+    auto link_valid = [&](const Point &la, const Point &lb) -> bool {
+        if (island == nullptr)
+            return true;
+        const Vec2d  v   = (lb - la).cast<double>();
+        const double len = v.norm();
+        if (len <= guard_free)
+            return true;
+        {
+            Lines  kept = intersection_ln(Line(la, lb), *island);
+            double tot  = 0.;
+            for (const Line &l : kept)
+                tot += l.length();
+            if (tot + SCALED_EPSILON < 0.999 * len)
+                return false; // would extrude across void outside the part
+        }
+        if (! retrace)
+            return true;
+        const Vec2d  dir     = v / len;
+        const double step    = 0.5 * stagger;
+        const double d_close = 0.8 * stagger;
+        const double cos_par = 0.90630779; // cos 25deg, as in gap_blocked
+        double coinc = 0.;
+        for (double s = 0.5 * step; s < len && coinc <= guard_free; s += step) {
+            const Point p((la.cast<double>() + dir * s).cast<coord_t>());
+            const auto [d, idx, np] = retrace->distance_from_lines_extra<false>(p);
+            if (std::abs(d) < d_close) {
+                const Vec2d  t  = (retrace_lines[size_t(idx)].b - retrace_lines[size_t(idx)].a).cast<double>();
+                const double tn = t.norm();
+                if (tn > 0. && std::abs(dir.dot(t)) > cos_par * tn)
+                    coinc += step;
+            }
+        }
+        return coinc <= guard_free;
+    };
+    rebuild_retrace();
 
     // Traverse the whole ring once, entering at `entry` (a point on the segment R[seg] -> R[seg+1]) and
     // exiting at the point one `stagger` away from the entry on the far side of the walk; the arc
@@ -1680,9 +1741,8 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
     for (bool merged_any = true; merged_any && rings.size() > 1; ) {
         merged_any = false;
         // Globally closest approach between any two rings: vertices of one against segments of the other.
-        size_t bi = 0, bj = 0, b_vert = 0, b_seg = 0;
-        Point  b_proj;
-        double best = max_link2;
+        struct RingCand { double d2; size_t i, j, v, s; Point proj; };
+        std::vector<RingCand> rcands;
         for (size_t i = 0; i < rings.size(); ++ i)
             for (size_t j = 0; j < rings.size(); ++ j) {
                 if (i == j)
@@ -1693,13 +1753,21 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                     for (size_t s = 0; s < A.size(); ++ s) {
                         Point  proj = closest_on_segment(B[v], A[s], A[(s + 1) % A.size()]);
                         double d    = (B[v] - proj).cast<double>().squaredNorm();
-                        if (d < best) {
-                            best = d;
-                            bi = i; bj = j; b_vert = v; b_seg = s; b_proj = proj;
-                        }
+                        if (d < max_link2)
+                            rcands.push_back({ d, i, j, v, s, proj });
                     }
             }
-        if (best >= max_link2)
+        std::sort(rcands.begin(), rcands.end(), [](const RingCand &l, const RingCand &r) { return l.d2 < r.d2; });
+        size_t bi = 0, bj = 0, b_vert = 0, b_seg = 0;
+        Point  b_proj;
+        bool   b_found = false;
+        for (const RingCand &c : rcands)
+            if (link_valid(c.proj, rings[c.j].points[c.v])) {
+                bi = c.i; bj = c.j; b_vert = c.v; b_seg = c.s; b_proj = c.proj;
+                b_found = true;
+                break;
+            }
+        if (! b_found)
             break;
         const Points &A = rings[bi].points;
         const Points &B = rings[bj].points;
@@ -1729,6 +1797,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         rings[bi] = std::move(merged);
         rings.erase(rings.begin() + bj);
         merged_any = true;
+        rebuild_retrace();
     }
 
     // Attach any leftover ring to the closest open polyline (odd multiline with an open centerline:
@@ -1738,10 +1807,8 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
     // the ring one stagger apart, so they diverge instead of overlapping.
     for (bool attached_any = true; attached_any && ! rings.empty() && ! open.empty(); ) {
         attached_any = false;
-        size_t br = 0, bo = 0, bk = 0, b_seg = 0;
-        Point  b_entry, b_junction;
-        bool   b_insert_junction = false;
-        double best = max_link2;
+        struct AttCand { double d2; size_t r, o, k, seg; Point entry, junction; bool insert_junction; };
+        std::vector<AttCand> acands;
         for (size_t r = 0; r < rings.size(); ++ r)
             for (size_t o = 0; o < open.size(); ++ o) {
                 const Points &R = rings[r].points;
@@ -1751,25 +1818,31 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                     for (size_t s = 0; s < R.size(); ++ s) {
                         Point  proj = closest_on_segment(P[k], R[s], R[(s + 1) % R.size()]);
                         double d    = (P[k] - proj).cast<double>().squaredNorm();
-                        if (d < best) {
-                            best = d;
-                            br = r; bo = o; bk = k; b_seg = s; b_entry = proj; b_junction = P[k];
-                            b_insert_junction = false;
-                        }
+                        if (d < max_link2)
+                            acands.push_back({ d, r, o, k, s, proj, P[k], false });
                     }
                 // ... and ring vertex against path segments (the junction is inserted into the path).
                 for (size_t v = 0; v < R.size(); ++ v)
                     for (size_t k = 0; k + 1 < P.size(); ++ k) {
                         Point  proj = closest_on_segment(R[v], P[k], P[k + 1]);
                         double d    = (R[v] - proj).cast<double>().squaredNorm();
-                        if (d < best) {
-                            best = d;
-                            br = r; bo = o; bk = k; b_seg = v; b_entry = rings[r].points[v]; b_junction = proj;
-                            b_insert_junction = true;
-                        }
+                        if (d < max_link2)
+                            acands.push_back({ d, r, o, k, v, R[v], proj, true });
                     }
             }
-        if (best >= max_link2)
+        std::sort(acands.begin(), acands.end(), [](const AttCand &l, const AttCand &r) { return l.d2 < r.d2; });
+        size_t br = 0, bo = 0, bk = 0, b_seg = 0;
+        Point  b_entry, b_junction;
+        bool   b_insert_junction = false;
+        bool   b_found = false;
+        for (const AttCand &c : acands)
+            if (link_valid(c.junction, c.entry)) {
+                br = c.r; bo = c.o; bk = c.k; b_seg = c.seg;
+                b_entry = c.entry; b_junction = c.junction; b_insert_junction = c.insert_junction;
+                b_found = true;
+                break;
+            }
+        if (! b_found)
             break;
         const Points &R      = rings[br].points;
         Points        walk_f = walk_ring(R, b_seg, b_entry, stagger, true);
@@ -1785,6 +1858,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         open[bo].points.insert(open[bo].points.begin() + bk + 1, ins.begin(), ins.end());
         rings.erase(rings.begin() + br);
         attached_any = true;
+        rebuild_retrace();
     }
 
     // Re-close the rings and emit everything.
@@ -1847,6 +1921,13 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
     const size_t n_fragments = infill_ordered.size();
     const size_t n_vertices  = 2 * n_fragments;
     assert(cps.size() == n_vertices);
+    const size_t out_begin = polylines_out.size();
+    // Island region for the physical link checks (bridges and welds are real extruded beads:
+    // they must stay inside the part).
+    Polygons island_polys;
+    island_polys.reserve(graph.boundary.size());
+    for (const Points &c : graph.boundary)
+        island_polys.emplace_back(c);
 
     // Fragments that cannot take part in the graph: degenerate, closed (e.g. a ring lying fully inside
     // the surface) or with an end point that could not be projected onto the boundary.
@@ -2073,7 +2154,108 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     toggle_gap(c, (first + l) % m);
             };
 
+            // Exact min-pieces solve for a SINGLE-contour island: with 0 defects the selection must
+            // alternate (2 candidates); fixing a defect PAIR determines the whole selection up to the
+            // same phase bit (the alternation propagates across every non-defect vertex and holds at
+            // a defect). The full space is 2 + 2*C(m,2) candidates, small enough to enumerate, and
+            // the greedy passes below cannot reach many of its optima: from k closed loops down to
+            // one open trail the count_trails cost rises before it falls, which a strictly improving
+            // search never crosses (measured on the fumidai H layers: 9 pieces greedy vs 1 exact).
+            bool exact_solved = false;
+            if (contour_vertices.size() == 1 && contour_vertices[0].size() >= 4 &&
+                contour_vertices[0].size() <= 160 && (contour_vertices[0].size() % 2) == 0) {
+                const std::vector<size_t> &cv = contour_vertices[0];
+                const size_t m = cv.size();
+                // Fragment (chord) connectivity is selection-independent: precompute per-vertex pairs.
+                std::vector<std::pair<size_t, size_t>> chord_pairs; // ring positions
+                {
+                    std::vector<size_t> pos_of(n_vertices, std::numeric_limits<size_t>::max());
+                    for (size_t p = 0; p < m; ++ p)
+                        pos_of[cv[p]] = p;
+                    for (size_t i = 0; i < n_fragments; ++ i)
+                        if (! standalone[i])
+                            chord_pairs.emplace_back(pos_of[2 * i], pos_of[2 * i + 1]);
+                }
+                std::vector<size_t> uf(m);
+                auto solve_components = [&](const std::vector<char> &sel) -> size_t {
+                    std::iota(uf.begin(), uf.end(), 0);
+                    auto find = [&](size_t x) {
+                        while (uf[x] != x) { uf[x] = uf[uf[x]]; x = uf[x]; }
+                        return x;
+                    };
+                    for (const auto &cp : chord_pairs)
+                        uf[find(cp.first)] = find(cp.second);
+                    for (size_t k = 0; k < m; ++ k)
+                        if (sel[k])
+                            uf[find(k)] = find((k + 1) % m);
+                    size_t comps = 0;
+                    for (size_t v = 0; v < m; ++ v)
+                        if (find(v) == v)
+                            ++ comps;
+                    return comps;
+                };
+                // Build the selection determined by a defect set (ring positions) and the phase bit.
+                // sel[k] is the state of the gap between vertex k and k+1; crossing a NON-defect
+                // vertex flips it, a defect keeps it. Consistent iff the wrap parity matches.
+                auto build_sel = [&](size_t da, size_t db, bool phase, std::vector<char> &sel) -> bool {
+                    bool cur = phase;
+                    for (size_t k = 0; k < m; ++ k) {
+                        sel[k] = cur;
+                        const size_t v = (k + 1) % m;
+                        if (v != da && v != db)
+                            cur = ! cur;
+                    }
+                    const bool v0_defect = (da == 0 || db == 0);
+                    return v0_defect ? (sel[0] == sel[m - 1]) : (sel[0] != sel[m - 1]);
+                };
+                auto vpt = [&](size_t pos) -> const Point & {
+                    const size_t v = cv[pos];
+                    return graph.boundary[cps[v].contour_idx][cps[v].point_idx];
+                };
+                // Cost: pieces first, then blocked gaps taken (each is a stretch of doubled bead),
+                // then open ends, then the mouth span (shorter = cheaper arrival if unclosed).
+                struct ExactBest { size_t comps, blocked, defects; double mouth; std::vector<char> sel; };
+                ExactBest best { std::numeric_limits<size_t>::max(), 0, 0, 0., {} };
+                std::vector<char> sel(m);
+                auto consider = [&](size_t da, size_t db, bool phase) {
+                    if (! build_sel(da, db, phase, sel))
+                        return;
+                    const size_t comps = solve_components(sel);
+                    size_t blocked_used = 0;
+                    for (size_t k = 0; k < m; ++ k)
+                        if (sel[k] && gap_blocked[0][k])
+                            ++ blocked_used;
+                    const size_t ndef  = (da == db) ? 0 : 2;
+                    const double mouth = ndef ? (vpt(da) - vpt(db)).cast<double>().norm() : 0.;
+                    if (comps < best.comps ||
+                        (comps == best.comps && (blocked_used < best.blocked ||
+                         (blocked_used == best.blocked && (ndef < best.defects ||
+                          (ndef == best.defects && mouth < best.mouth)))))) {
+                        best = { comps, blocked_used, ndef, mouth, sel };
+                    }
+                };
+                // 0-defect candidates: the sentinel matches no vertex, so the alternation runs the
+                // whole ring (the two pure phases).
+                const size_t no_defect = std::numeric_limits<size_t>::max();
+                for (int phase = 0; phase < 2; ++ phase)
+                    consider(no_defect, no_defect, phase != 0);
+                for (size_t da = 0; da < m; ++ da)
+                    for (size_t db = da + 1; db < m; ++ db)
+                        for (int phase = 0; phase < 2; ++ phase)
+                            consider(da, db, phase != 0);
+                if (! best.sel.empty()) {
+                    for (size_t k = 0; k < m; ++ k)
+                        if (best.sel[k])
+                            take_gap(0, k, /* force_blocked */ gap_blocked[0][k] != 0);
+                    exact_solved = true;
+                    if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+                        std::fprintf(stderr, "[SPEXACT] m=%zu pieces=%zu blocked=%zu defects=%zu mouth=%.1fmm\n",
+                                     m, best.comps, best.blocked, best.defects, best.mouth * SCALING_FACTOR);
+                }
+            }
+
             // Initial alternating phase per contour.
+            if (! exact_solved)
             for (size_t c = 0; c < contour_vertices.size(); ++ c)
                 if (contour_vertices[c].size() >= 2)
                     for (size_t k = 0; k < contour_vertices[c].size(); k += 2)
@@ -2096,7 +2278,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             // ("second wall") that every high-demand layer has: banding on the inner surface and
             // no rail carrying the walk to the wall seam (rib). On ties, prefer the phase that
             // covers MORE wall - material is explicitly not a concern (pellet printing).
-            {
+            if (! exact_solved) {
                 size_t trails = count_trails();
                 for (size_t c = 0; c < contour_vertices.size(); ++ c) {
                     const size_t m = contour_vertices[c].size();
@@ -2120,7 +2302,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             // deleted gaps on a component frontier; a sector is any range between two candidates of
             // the same contour. Accept the flip that lexicographically improves
             // (components, odd vertices, flipped range length).
-            for (size_t guard = 0; guard < n_vertices + 16; ++ guard) {
+            for (size_t guard = 0; ! exact_solved && guard < n_vertices + 16; ++ guard) {
                 std::vector<int> comp;
                 component_labels(comp);
                 size_t trails = count_trails();
@@ -2205,7 +2387,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             //     it - and once the two ends are within stitch range, run_trail below closes the
             //     trail into a LOOP whose seam the G-code generator places freely (that is the real
             //     prize: a closed sparse path is entered wherever the toolhead happens to arrive).
-            if (final_emission) {
+            if (final_emission && ! exact_solved) {
             size_t sp_runs_closed = 0, sp_slide_steps = 0;
             for (;;) {
                 size_t best_c = 0, best_first = 0, best_len = 0;
@@ -2518,7 +2700,56 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
         // line spacings covers ends facing each other across a hole / rib corridor, which the defect
         // sliding above brings together but can never merge exactly (different contours).
         const double stitch_max = final_emission ? 2.5 * line_w : 0.;
-        auto run_trail = [&adjacency, &edges, &cps, &graph, &infill_ordered, &polylines_out, &next_unused, &vertex_point, stitch_max](size_t start) {
+        // Virtual edges are extruded (bridged) instead of split whenever physically sound. Up to
+        // 1.5 line widths no check is needed: too short to lay more doubled bead than a legal gap
+        // arc is allowed anyway. Beyond that the PHYSICAL rule applies (no length policy): the
+        // bridge must stay inside the island and must not retrace an extruded fragment.
+        const double bridge_free = final_emission ? 1.5 * line_w : 0.;
+        size_t sp_bridged = 0;
+        double sp_bridged_len = 0.;
+        std::vector<Line> bridge_frag_lines;
+        std::optional<AABBTreeLines::LinesDistancer<Line>> bridge_dist;
+        auto bridge_valid = [&](const Point &a, const Point &b) -> bool {
+            if (! final_emission)
+                return false;
+            const Vec2d  v   = (b - a).cast<double>();
+            const double len = v.norm();
+            if (len <= 0.)
+                return true;
+            {
+                Lines  kept = intersection_ln(Line(a, b), island_polys);
+                double tot  = 0.;
+                for (const Line &l : kept)
+                    tot += l.length();
+                if (tot + SCALED_EPSILON < 0.999 * len)
+                    return false;
+            }
+            if (! bridge_dist) {
+                for (size_t i = 0; i < n_fragments; ++ i)
+                    if (! standalone[i])
+                        for (size_t k = 1; k < infill_ordered[i].size(); ++ k)
+                            bridge_frag_lines.emplace_back(infill_ordered[i].points[k - 1], infill_ordered[i].points[k]);
+                bridge_dist.emplace(bridge_frag_lines);
+            }
+            if (bridge_frag_lines.empty())
+                return true;
+            const Vec2d  dir     = v / len;
+            const double step    = 0.5 * line_w;
+            const double cos_par = 0.90630779; // cos 25deg
+            double coinc = 0.;
+            for (double s = 0.5 * step; s < len && coinc <= 1.5 * line_w; s += step) {
+                const Point p((a.cast<double>() + dir * s).cast<coord_t>());
+                const auto [d, idx, np] = bridge_dist->distance_from_lines_extra<false>(p);
+                if (std::abs(d) < 0.8 * line_w) {
+                    const Vec2d  t  = (bridge_frag_lines[size_t(idx)].b - bridge_frag_lines[size_t(idx)].a).cast<double>();
+                    const double tn = t.norm();
+                    if (tn > 0. && std::abs(dir.dot(t)) > cos_par * tn)
+                        coinc += step;
+                }
+            }
+            return coinc <= 1.5 * line_w;
+        };
+        auto run_trail = [&adjacency, &edges, &cps, &graph, &infill_ordered, &polylines_out, &next_unused, &vertex_point, stitch_max, bridge_free, &bridge_valid, &sp_bridged, &sp_bridged_len](size_t start) {
             std::vector<std::pair<size_t, int>> stack, trail; // (vertex, edge used to arrive)
             stack.emplace_back(start, -1);
             while (! stack.empty()) {
@@ -2543,11 +2774,22 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 size_t                v_to   = trail[i].first;
                 const SinglePathEdge &e      = edges[size_t(trail[i].second)];
                 if (e.is_virtual) {
-                    // Trail split point: never extruded, the printer travels here.
-                    if (pl.size() > 1)
-                        pieces.emplace_back(std::move(pl));
-                    pl = Polyline();
-                    pl.points.emplace_back(vertex_point(v_to));
+                    const double jump = (vertex_point(v_to) - vertex_point(v_from)).cast<double>().norm();
+                    if (jump <= bridge_free || bridge_valid(vertex_point(v_from), vertex_point(v_to))) {
+                        // Bridge: extrude across the split instead of traveling (a hop costs a
+                        // retract/wipe cycle and an ERS transition; the bead costs nothing on
+                        // pellet). Also the only way to join defects on DIFFERENT contours,
+                        // which no gap arc can ever connect.
+                        pl.points.emplace_back(vertex_point(v_to));
+                        ++ sp_bridged;
+                        sp_bridged_len += jump;
+                    } else {
+                        // Trail split point: never extruded, the printer travels here.
+                        if (pl.size() > 1)
+                            pieces.emplace_back(std::move(pl));
+                        pl = Polyline();
+                        pl.points.emplace_back(vertex_point(v_to));
+                    }
                 } else if (e.is_gap)
                     single_path_append_arc(pl.points, graph.boundary[e.contour_idx],
                                            cps[v_from].point_idx, cps[v_to].point_idx, /* forward */ v_from == e.v1);
@@ -2591,12 +2833,69 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
         for (size_t v = 0; v < n_vertices; ++ v)
             if (! standalone[v / 2] && next_unused(v) >= 0)
                 run_trail(v);
+        if (sp_bridged > 0 && ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+            std::fprintf(stderr, "[SPBRIDGE] bridged=%zu total=%.1fmm\n", sp_bridged, sp_bridged_len * SCALING_FACTOR);
     }
 
     // Emit the fragments that could not take part in the graph.
     for (size_t i = 0; i < n_fragments; ++ i)
         if (standalone[i] && infill_ordered[i].size() > 1)
             polylines_out.emplace_back(std::move(infill_ordered[i]));
+
+    // Close-range weld of the emitted pieces (splice, per Davide). A residual closed loop next to
+    // another piece costs two chainer hops per layer (enter at the free seam, hop back out); welding
+    // it in costs two extruded links instead. Link budget 2.5 line widths: below that the doubled
+    // stretch where the diverging links leave the shared junction stays within the coincidence the
+    // blocked rule already tolerates on a legal gap arc.
+    if (final_emission && polylines_out.size() - out_begin > 1) {
+        Polylines tail(std::make_move_iterator(polylines_out.begin() + out_begin),
+                       std::make_move_iterator(polylines_out.end()));
+        polylines_out.erase(polylines_out.begin() + out_begin, polylines_out.end());
+        const size_t before = tail.size();
+        // Join OPEN pieces whose ends nearly touch: a trail split re-emitted as two pieces sharing
+        // an almost-exact endpoint otherwise survives as a sub-bead travel move. The joint segment
+        // is extruded; 1.5 line widths keeps it inside the tolerated coincidence.
+        const double join_max2 = (1.5 * line_w) * (1.5 * line_w);
+        for (bool joined = true; joined; ) {
+            joined = false;
+            for (size_t i = 0; i < tail.size() && ! joined; ++ i) {
+                Polyline &a = tail[i];
+                if (a.size() < 2 || a.points.front() == a.points.back())
+                    continue;
+                for (size_t j = i + 1; j < tail.size(); ++ j) {
+                    Polyline &b = tail[j];
+                    if (b.size() < 2 || b.points.front() == b.points.back())
+                        continue;
+                    const double d_bf = (a.points.back()  - b.points.front()).cast<double>().squaredNorm();
+                    const double d_bb = (a.points.back()  - b.points.back()).cast<double>().squaredNorm();
+                    const double d_ff = (a.points.front() - b.points.front()).cast<double>().squaredNorm();
+                    const double d_fb = (a.points.front() - b.points.back()).cast<double>().squaredNorm();
+                    const double dmin = std::min(std::min(d_bf, d_bb), std::min(d_ff, d_fb));
+                    if (dmin > join_max2)
+                        continue;
+                    if      (dmin == d_bb) b.reverse();
+                    else if (dmin == d_ff) a.reverse();
+                    else if (dmin == d_fb) { a.reverse(); b.reverse(); }
+                    a.points.insert(a.points.end(),
+                                    a.points.back() == b.points.front() ? b.points.begin() + 1 : b.points.begin(),
+                                    b.points.end());
+                    tail.erase(tail.begin() + j);
+                    joined = true;
+                    break;
+                }
+            }
+        }
+        // Weld residual pieces into the walk under the physical rule only (no length policy):
+        // the search is bounded by the island extent, acceptance by inside-island + no-retrace.
+        BoundingBox bb;
+        for (const Polygon &p : island_polys)
+            bb.merge(get_extents(p));
+        const double search_reach = std::max((bb.max - bb.min).cast<double>().norm(), 10. * line_w);
+        single_path_splice_loops(tail, search_reach, line_w, &island_polys);
+        if (tail.size() != before && ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+            std::fprintf(stderr, "[SPWELD] pieces %zu -> %zu\n", before, tail.size());
+        append(polylines_out, std::move(tail));
+    }
 }
 
 void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Polygon*> &boundary_src, const BoundingBox &bbox, Polylines &polylines_out, const double spacing, const FillParams &params)
@@ -2644,6 +2943,111 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
         infill_ordered.erase(std::remove_if(infill_ordered.begin(), infill_ordered.end(), [](const Polyline &pl) { return pl.empty(); }), infill_ordered.end());
         if (infill_ordered.empty())
             return;
+    }
+
+    // Deviate a fill-line stretch that grazes the boundary (Davide's green line): a stretch running
+    // nearly tangent to the contour inside the collision distance makes gap_blocked veto the whole
+    // arc under it - on the H part the only arcs that could weld the leg cells into the serpentine
+    // (a 157mm scanline tangent to each leg fillet for ~27mm). Re-route just that stretch to sit
+    // exactly one line width off the boundary: bead beside bead, the arc becomes legal, and the
+    // endpoints stay put so the boundary graph is untouched. Interior stretches only - line ends
+    // legitimately land on the contour.
+    if (params.connect_polygons) {
+        const double line_w = params.flow.scaled_width() > 0 ? double(params.flow.scaled_width()) : scale_(spacing);
+        Lines bnd;
+        for (const Polygon *p : boundary_src)
+            append(bnd, p->lines());
+        if (! bnd.empty() && line_w > 0.) {
+            AABBTreeLines::LinesDistancer<Line> wall(bnd);
+            const double d_trip    = 0.8 * line_w;  // the gap_blocked collision distance
+            const double d_target  = line_w;        // deviated stretch: one bead off the wall
+            const double end_guard = 2.0 * line_w;
+            const double scan_step = 0.5 * line_w;
+            const double min_run   = 1.5 * line_w;  // the gap_blocked coincidence threshold
+            auto point_at = [](const Polyline &pl, double s) -> Point {
+                for (size_t i = 0; i + 1 < pl.size(); ++ i) {
+                    const double l = (pl.points[i + 1] - pl.points[i]).cast<double>().norm();
+                    if (s <= l || i + 2 == pl.size()) {
+                        const double t = l > 0. ? std::min(1., s / l) : 0.;
+                        return Point((pl.points[i].cast<double>() * (1. - t) + pl.points[i + 1].cast<double>() * t).cast<coord_t>());
+                    }
+                    s -= l;
+                }
+                return pl.points.back();
+            };
+            size_t sp_deviated = 0;
+            for (Polyline &pl : infill_ordered) {
+                if (pl.size() < 2)
+                    continue;
+                const double len = pl.length();
+                if (len <= 2. * end_guard + min_run)
+                    continue;
+                // Scan the interior for grazing runs.
+                std::vector<std::pair<double, double>> runs;
+                double run_start = -1.;
+                for (double s = end_guard; s <= len - end_guard + 0.5 * scan_step; s += scan_step) {
+                    const auto [d, li, np] = wall.distance_from_lines_extra<false>(point_at(pl, s));
+                    if (std::abs(d) < d_trip) {
+                        if (run_start < 0.)
+                            run_start = s;
+                    } else if (run_start >= 0.) {
+                        if (s - run_start > min_run)
+                            runs.emplace_back(run_start, s);
+                        run_start = -1.;
+                    }
+                }
+                if (run_start >= 0. && len - end_guard - run_start > min_run)
+                    runs.emplace_back(run_start, len - end_guard);
+                if (runs.empty())
+                    continue;
+                // Rebuild: original vertices outside the runs, offset samples inside. The offset
+                // direction comes from the projected boundary SEGMENT's left normal (material is
+                // always to the left of a Slic3r contour/hole), which stays stable at distance ~0
+                // where the point-to-projection direction does not.
+                Points  out;
+                out.reserve(pl.size() + runs.size() * 32);
+                double  acc = 0.;
+                size_t  ri  = 0;
+                out.emplace_back(pl.points.front());
+                for (size_t i = 0; i + 1 < pl.size(); ++ i) {
+                    const double l = (pl.points[i + 1] - pl.points[i]).cast<double>().norm();
+                    const double s0 = acc, s1 = acc + l;
+                    while (ri < runs.size() && runs[ri].first < s1) {
+                        const double ra = std::max(runs[ri].first, s0);
+                        const double rb = std::min(runs[ri].second, s1);
+                        for (double s = ra; s <= rb + 1e-9; s += scan_step) {
+                            const Point  q = point_at(pl, std::min(s, runs[ri].second));
+                            const auto [d, li, np] = wall.distance_from_lines_extra<false>(q);
+                            const Line  &bl  = bnd[size_t(li)];
+                            Vec2d        dir = (bl.b - bl.a).cast<double>();
+                            const double dn  = dir.norm();
+                            if (dn <= 0.)
+                                continue;
+                            const Vec2d nrm(-dir.y() / dn, dir.x() / dn); // left normal = inward
+                            const Point dev((Vec2d(np.x(), np.y()) + nrm * d_target).cast<coord_t>());
+                            if (out.empty() || (dev - out.back()).cast<double>().norm() > 0.2 * line_w)
+                                out.emplace_back(dev);
+                        }
+                        if (runs[ri].second <= s1 + 1e-9)
+                            ++ ri;
+                        else
+                            break;
+                    }
+                    const bool inside_run = ri < runs.size() && runs[ri].first <= s1 && runs[ri].second >= s1;
+                    if (! inside_run && (pl.points[i + 1] - out.back()).cast<double>().norm() > 0.)
+                        out.emplace_back(pl.points[i + 1]);
+                    acc = s1;
+                }
+                if (out.back() != pl.points.back())
+                    out.emplace_back(pl.points.back());
+                if (out.size() >= 2) {
+                    pl.points = std::move(out);
+                    ++ sp_deviated;
+                }
+            }
+            if (sp_deviated > 0 && ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+                std::fprintf(stderr, "[SPDEVIATE] lines=%zu\n", sp_deviated);
+        }
     }
 
     // Cura-style single-path infill: skip boundary trimming so the whole inner wall can be traced.
