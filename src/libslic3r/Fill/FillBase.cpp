@@ -1860,42 +1860,79 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
     for (bool merged_any = true; merged_any && rings.size() > 1; ) {
         merged_any = false;
         SPTimer sp_timer_(SPProfile::phSpliceRingScan);
-        // Globally closest approach between any two rings: vertices of one against segments of the other.
+        // Globally closest approach between any two rings: vertices of one against segments of the
+        // other. The candidate set is conceptually ALL pairs under max_link_distance, but only a
+        // d2-sorted prefix is ever consumed (the first VALID link wins and validation is
+        // budget-capped), so enumerating every pair - O(V^2), measured 43s of a 52s slice on the
+        // stool racetrack rings - buys nothing. Candidates are collected inside a GROWING RADIUS
+        // instead: per-ring segment trees answer all-lines-in-radius queries, the radius only
+        // grows while nothing within it validates and budget remains, and each pass processes the
+        // exact d2 window [r_prev^2, r^2) so no candidate is seen twice. Ties on d2 order by
+        // enumeration (i, j, v, s) via stable_sort: canonical, subset-independent.
         struct RingCand { double d2; size_t i, j, v, s; Point proj; };
         std::vector<RingCand> rcands;
         rcands.reserve(256);
-        for (size_t i = 0; i < rings.size(); ++ i)
-            for (size_t j = 0; j < rings.size(); ++ j) {
-                if (i == j)
-                    continue;
-                const Points &A = rings[i].points; // segments
-                const Points &B = rings[j].points; // vertices
-                for (size_t v = 0; v < B.size(); ++ v)
-                    for (size_t s = 0; s < A.size(); ++ s) {
-                        Point  proj = closest_on_segment(B[v], A[s], A[(s + 1) % A.size()]);
-                        double d    = (B[v] - proj).cast<double>().squaredNorm();
-                        if (d < max_link2)
-                            rcands.push_back({ d, i, j, v, s, proj });
-                    }
-            }
-        std::sort(rcands.begin(), rcands.end(), [](const RingCand &l, const RingCand &r) { return l.d2 < r.d2; });
+        // Per-ring segment sets, index-aligned with the s of the original enumeration
+        // (segment s = A[s] .. A[(s+1) % size], ring-closing seam included).
+        std::vector<std::vector<Line>>                                  ring_lines(rings.size());
+        std::vector<std::optional<AABBTreeLines::LinesDistancer<Line>>> ring_tree(rings.size());
+        for (size_t i = 0; i < rings.size(); ++ i) {
+            const Points &A = rings[i].points;
+            ring_lines[i].reserve(A.size());
+            for (size_t s = 0; s < A.size(); ++ s)
+                ring_lines[i].emplace_back(A[s], A[(s + 1) % A.size()]);
+            ring_tree[i].emplace(ring_lines[i]);
+        }
         size_t bi = 0, bj = 0, b_vert = 0, b_seg = 0;
         Point  b_proj;
         bool   b_found = false;
         size_t tried   = 0;
         failed_links.clear();
-        for (const RingCand &c : rcands) {
-            const Point &pb = rings[c.j].points[c.v];
-            if (near_failed(c.proj, pb))
-                continue; // same invalid region: skip without spending budget
-            if (++ tried > max_validations)
-                break;
-            if (link_valid(c.proj, pb)) {
-                bi = c.i; bj = c.j; b_vert = c.v; b_seg = c.s; b_proj = c.proj;
-                b_found = true;
-                break;
+        std::vector<size_t> near_segs;
+        double r_prev2 = 0.; // exclusive-below bound of the d2 window already processed
+        for (double r = std::min(std::max(8. * stagger, scale_(1.)), max_link_distance); ; ) {
+            const double r2 = std::min(r * r, max_link2);
+            rcands.clear();
+            for (size_t i = 0; i < rings.size(); ++ i)
+                for (size_t j = 0; j < rings.size(); ++ j) {
+                    if (i == j)
+                        continue;
+                    const Points &B = rings[j].points; // vertices
+                    for (size_t v = 0; v < B.size(); ++ v) {
+                        // Inflated superset query; the exact filter below uses the same
+                        // closest_on_segment arithmetic as the original full enumeration.
+                        near_segs = ring_tree[i]->all_lines_in_radius(B[v], r * 1.01);
+                        std::sort(near_segs.begin(), near_segs.end());
+                        for (size_t s : near_segs) {
+                            const Line &ln   = ring_lines[i][s];
+                            Point       proj = closest_on_segment(B[v], ln.a, ln.b);
+                            double      d    = (B[v] - proj).cast<double>().squaredNorm();
+                            if (d >= r_prev2 && d < r2)
+                                rcands.push_back({ d, i, j, v, s, proj });
+                        }
+                    }
+                }
+            std::stable_sort(rcands.begin(), rcands.end(), [](const RingCand &l, const RingCand &r) { return l.d2 < r.d2; });
+            bool budget_out = false;
+            for (const RingCand &c : rcands) {
+                const Point &pb = rings[c.j].points[c.v];
+                if (near_failed(c.proj, pb))
+                    continue; // same invalid region: skip without spending budget
+                if (++ tried > max_validations) {
+                    budget_out = true;
+                    break;
+                }
+                if (link_valid(c.proj, pb)) {
+                    bi = c.i; bj = c.j; b_vert = c.v; b_seg = c.s; b_proj = c.proj;
+                    b_found = true;
+                    break;
+                }
+                failed_links.emplace_back(c.proj, pb);
             }
-            failed_links.emplace_back(c.proj, pb);
+            if (b_found || budget_out || r >= max_link_distance)
+                break;
+            r_prev2 = r2;
+            r       = std::min(r * 4., max_link_distance);
         }
         if (! b_found)
             break;
@@ -1939,49 +1976,92 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
     for (bool attached_any = true; attached_any && ! rings.empty() && ! open.empty(); ) {
         attached_any = false;
         SPTimer sp_timer_(SPProfile::phSpliceAttachScan);
+        // Same growing-radius collection as the ring-ring scan above (the all-pairs enumeration
+        // was 5.2s of the stool slice): per-set segment trees, exact d2 windows, stable_sort with
+        // enumeration-order ties - decision-preserving for the same reasons.
         struct AttCand { double d2; size_t r, o, k, seg; Point entry, junction; bool insert_junction; };
         std::vector<AttCand> acands;
         acands.reserve(256);
-        for (size_t r = 0; r < rings.size(); ++ r)
-            for (size_t o = 0; o < open.size(); ++ o) {
-                const Points &R = rings[r].points;
-                const Points &P = open[o].points;
-                // Path vertex against ring segments...
-                for (size_t k = 0; k < P.size(); ++ k)
-                    for (size_t s = 0; s < R.size(); ++ s) {
-                        Point  proj = closest_on_segment(P[k], R[s], R[(s + 1) % R.size()]);
-                        double d    = (P[k] - proj).cast<double>().squaredNorm();
-                        if (d < max_link2)
-                            acands.push_back({ d, r, o, k, s, proj, P[k], false });
-                    }
-                // ... and ring vertex against path segments (the junction is inserted into the path).
-                for (size_t v = 0; v < R.size(); ++ v)
-                    for (size_t k = 0; k + 1 < P.size(); ++ k) {
-                        Point  proj = closest_on_segment(R[v], P[k], P[k + 1]);
-                        double d    = (R[v] - proj).cast<double>().squaredNorm();
-                        if (d < max_link2)
-                            acands.push_back({ d, r, o, k, v, R[v], proj, true });
-                    }
+        std::vector<std::vector<Line>>                                  ring_lines(rings.size()), open_lines(open.size());
+        std::vector<std::optional<AABBTreeLines::LinesDistancer<Line>>> ring_tree(rings.size()), open_tree(open.size());
+        for (size_t r = 0; r < rings.size(); ++ r) {
+            const Points &R = rings[r].points;
+            ring_lines[r].reserve(R.size());
+            for (size_t s = 0; s < R.size(); ++ s)
+                ring_lines[r].emplace_back(R[s], R[(s + 1) % R.size()]);
+            ring_tree[r].emplace(ring_lines[r]);
+        }
+        for (size_t o = 0; o < open.size(); ++ o) {
+            const Points &P = open[o].points;
+            if (P.size() >= 2) {
+                open_lines[o].reserve(P.size() - 1);
+                for (size_t k = 0; k + 1 < P.size(); ++ k)
+                    open_lines[o].emplace_back(P[k], P[k + 1]);
+                open_tree[o].emplace(open_lines[o]);
             }
-        std::sort(acands.begin(), acands.end(), [](const AttCand &l, const AttCand &r) { return l.d2 < r.d2; });
+        }
         size_t br = 0, bo = 0, bk = 0, b_seg = 0;
         Point  b_entry, b_junction;
         bool   b_insert_junction = false;
         bool   b_found = false;
         size_t tried   = 0;
         failed_links.clear();
-        for (const AttCand &c : acands) {
-            if (near_failed(c.junction, c.entry))
-                continue; // same invalid region: skip without spending budget
-            if (++ tried > max_validations)
-                break;
-            if (link_valid(c.junction, c.entry)) {
-                br = c.r; bo = c.o; bk = c.k; b_seg = c.seg;
-                b_entry = c.entry; b_junction = c.junction; b_insert_junction = c.insert_junction;
-                b_found = true;
-                break;
+        std::vector<size_t> near_segs2;
+        double r_prev2 = 0.;
+        for (double rad = std::min(std::max(8. * stagger, scale_(1.)), max_link_distance); ; ) {
+            const double r2 = std::min(rad * rad, max_link2);
+            acands.clear();
+            for (size_t r = 0; r < rings.size(); ++ r)
+                for (size_t o = 0; o < open.size(); ++ o) {
+                    const Points &R = rings[r].points;
+                    const Points &P = open[o].points;
+                    // Path vertex against ring segments...
+                    for (size_t k = 0; k < P.size(); ++ k) {
+                        near_segs2 = ring_tree[r]->all_lines_in_radius(P[k], rad * 1.01);
+                        std::sort(near_segs2.begin(), near_segs2.end());
+                        for (size_t s : near_segs2) {
+                            const Line &ln   = ring_lines[r][s];
+                            Point       proj = closest_on_segment(P[k], ln.a, ln.b);
+                            double      d    = (P[k] - proj).cast<double>().squaredNorm();
+                            if (d >= r_prev2 && d < r2)
+                                acands.push_back({ d, r, o, k, s, proj, P[k], false });
+                        }
+                    }
+                    // ... and ring vertex against path segments (the junction is inserted into the path).
+                    if (open_tree[o])
+                        for (size_t v = 0; v < R.size(); ++ v) {
+                            near_segs2 = open_tree[o]->all_lines_in_radius(R[v], rad * 1.01);
+                            std::sort(near_segs2.begin(), near_segs2.end());
+                            for (size_t k : near_segs2) {
+                                const Line &ln   = open_lines[o][k];
+                                Point       proj = closest_on_segment(R[v], ln.a, ln.b);
+                                double      d    = (R[v] - proj).cast<double>().squaredNorm();
+                                if (d >= r_prev2 && d < r2)
+                                    acands.push_back({ d, r, o, k, v, R[v], proj, true });
+                            }
+                        }
+                }
+            std::stable_sort(acands.begin(), acands.end(), [](const AttCand &l, const AttCand &r) { return l.d2 < r.d2; });
+            bool budget_out = false;
+            for (const AttCand &c : acands) {
+                if (near_failed(c.junction, c.entry))
+                    continue; // same invalid region: skip without spending budget
+                if (++ tried > max_validations) {
+                    budget_out = true;
+                    break;
+                }
+                if (link_valid(c.junction, c.entry)) {
+                    br = c.r; bo = c.o; bk = c.k; b_seg = c.seg;
+                    b_entry = c.entry; b_junction = c.junction; b_insert_junction = c.insert_junction;
+                    b_found = true;
+                    break;
+                }
+                failed_links.emplace_back(c.junction, c.entry);
             }
-            failed_links.emplace_back(c.junction, c.entry);
+            if (b_found || budget_out || rad >= max_link_distance)
+                break;
+            r_prev2 = r2;
+            rad     = std::min(rad * 4., max_link_distance);
         }
         if (! b_found)
             break;
