@@ -139,6 +139,11 @@ struct WallRibParams
 // bead-overlap tolerance. Placement cascade per loop: column link, then (when a column just
 // died) positions near the dead column, then the closest approach and a scan around the loop -
 // first at SUPPORTED positions (rib stands on yesterday's rib/wall/solid); when none exists,
+// EXCEPTION: the near-dead preference only exists to buy SELF-support (standing on yesterday's
+// rib corridor), so when a column died and candidates stand on REAL material (solid/walls),
+// the shortest such candidate wins outright - the corpse's position has no continuity value
+// when the loops it linked are gone (e.g. an engraved text ending: its whole rib forest dies
+// at once and must not capture the re-founded rib into a long chord);
 // the first position whose foundation buttress `can_found` grants is taken and reported in
 // `founded_links` for the caller to grow. Only loops that are too short to host a cut, farther
 // than max_link_length, whose every link would cross another wall, or for which no buttress is

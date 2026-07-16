@@ -128,7 +128,11 @@ Principles (all downstream of D1/D4):
   bridge segment).
 - **Placement cascade** (in order): yesterday's column → near the dead column → supported
   positions (on yesterday's rib/wall/solid) → foundable positions (buttress dry-run) → drop
-  with a counted reason.
+  with a counted reason. **Free re-founding exception**: the near-dead preference exists to
+  buy self-support (standing on yesterday's rib corridor); when the column died and a
+  candidate stands on REAL material (solid/walls), the shortest such candidate wins outright —
+  a whole feature dying at once (engraved text) must not capture the re-founded rib into a
+  long chord across the part.
 
 Debug: `GINGER_RIBS_DEBUG=1` → `[RIBSTAT]` per layer (loops / candidates / spliced /
 anchor_reused / founded / drop reasons) — the tool for "why is this hole not connected".

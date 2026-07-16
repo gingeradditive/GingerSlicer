@@ -272,6 +272,59 @@ TEST_CASE("WallRibs: a neighbouring column's anchor cannot lock a loop out of me
     require_no_coincident_segments(plan.merged, lw);
 }
 
+TEST_CASE("WallRibs: free re-founding - a dead column must not capture the rib when real material is everywhere", "[WallRibs]")
+{
+    // Miniature of the stool hub: at layer N-1 a feature (the engraved text) provided loops in
+    // the middle and rib columns ended on them; at layer N the feature is gone all at once.
+    // The near-dead-column preference exists to buy SELF-support (standing on yesterday's rib),
+    // so when the region below is plain solid - the rib can stand anywhere - the corpse must
+    // not drag the new rib into a long chord: the loop re-founds at its closest approach.
+    const coord_t lw = scale_(3.2);
+    Polygon outer = square_ccw(0., 0., 50.);
+    // Two vertical bars facing each other across a 20 mm mouth at the origin (the hub in
+    // miniature); each bar's tip toward the outer wall is only 5 mm away - the H the operator
+    // expects. For a cursor on a facing tip the OTHER bar is genuinely the nearest merged
+    // geometry, so the 20 mm tip-to-tip chord is a real scan candidate (like the hub chord).
+    Polygon bar_top({ Point::new_scale(-5., 10.), Point::new_scale(5., 10.),
+                      Point::new_scale(5., 45.),  Point::new_scale(-5., 45.) });
+    Polygon bar_bottom({ Point::new_scale(-5., -45.), Point::new_scale(5., -45.),
+                         Point::new_scale(5., -10.),  Point::new_scale(-5., -10.) });
+    bar_top.reverse(); bar_bottom.reverse();
+
+    WallRibParams params;
+    params.stagger         = lw;
+    params.corridor_offset = coord_t(scale_(1.6));
+    params.max_drift       = coord_t(scale_(1.5)); // real-world budget: without it the corpse
+                                                   // reprojects as a live column from anywhere
+    // The corpse: yesterday's link onto the now-gone middle feature, midpoint at the origin -
+    // right where the tip-to-tip chord passes.
+    std::vector<std::pair<Point, Point>> prev { { Point::new_scale(-2., 0.), Point::new_scale(2., 0.) } };
+    // Real material everywhere below: solid fill covering the whole part.
+    ExPolygons solid { ExPolygon(square_ccw(0., 0., 50.)) };
+    Polygons   none;
+    WallRibSupport support;
+    support.prev_corridors = &none;
+    support.prev_walls     = &none;
+    support.prev_solid     = &solid;
+    params.support         = &support;
+
+    WallRibMerge        plan;
+    std::vector<size_t> unmerged;
+    REQUIRE(plan_wall_ribs({ outer, bar_bottom, bar_top }, params, &prev, plan, unmerged));
+    REQUIRE(unmerged.empty());
+    REQUIRE(plan.links.size() == 2);
+    // Both ribs must be the 5 mm hops to the outer wall; the 20 mm chord through the corpse
+    // (near-dead order) must lose to them, because everything stands on solid anyway.
+    for (const auto &link : plan.links) {
+        const double len = (link.second - link.first).cast<double>().norm();
+        UNSCOPED_INFO("link (" << unscale<double>(link.first.x()) << "," << unscale<double>(link.first.y())
+                      << ") -> (" << unscale<double>(link.second.x()) << "," << unscale<double>(link.second.y())
+                      << ") length " << unscale<double>(coord_t(len)) << " mm");
+        CHECK(len < scale_(10.));
+    }
+    require_no_coincident_segments(plan.merged, lw);
+}
+
 TEST_CASE("WallRibs: support test - rib only where the previous layer has material", "[WallRibs]")
 {
     const coord_t lw = scale_(3.2);

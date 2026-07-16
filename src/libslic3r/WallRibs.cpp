@@ -243,11 +243,14 @@ public:
 
     bool enabled() const { return m_s != nullptr && ! m_s->first_layer; }
 
-    bool point_supported(const Point &p) const
+    // `corridors_count = false` restricts the test to REAL material of the previous layer
+    // (solid fill, wall beads, the bed): what a rib can stand on with no help from any
+    // column. Yesterday's rib corridors only count for the default (full) test.
+    bool point_supported(const Point &p, bool corridors_count = true) const
     {
         if (! this->enabled())
             return true;
-        if (m_s->prev_corridors != nullptr)
+        if (corridors_count && m_s->prev_corridors != nullptr)
             for (const Polygon &c : *m_s->prev_corridors)
                 if (c.contains(p))
                     return true;
@@ -262,7 +265,7 @@ public:
 
     // The whole link must rest on the previous layer; a single sub-bead gap (e.g. crossing the
     // carved corridor edge) is tolerated, anything longer is void.
-    bool link_supported(const Point &a, const Point &b, double step) const
+    bool link_supported(const Point &a, const Point &b, double step, bool corridors_count = true) const
     {
         if (! this->enabled())
             return true;
@@ -272,7 +275,7 @@ public:
         for (int i = 0; i < n; ++ i) {
             const double t = double(i) / double(n - 1);
             const Point  p = a + ((b - a).cast<double>() * t).cast<coord_t>();
-            if (this->point_supported(p))
+            if (this->point_supported(p, corridors_count))
                 consecutive_unsupported = 0;
             else if (++ consecutive_unsupported > 1)
                 return false;
@@ -436,10 +439,14 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
         // column, then the closest approach (cheapest rib), then the rest of the scan
         // nearest-gap-first. The FIRST candidate whose link rests on the previous layer wins;
         // when none does, the first candidate whose foundation buttress can be grown is taken.
+        // EXCEPTION (free re-founding): when the column died, a candidate standing on REAL
+        // material (solid/walls, not yesterday's rib corridors) is position-free - the
+        // shortest one is taken before any near-dead preference (see the pass below).
         // Only length and obstacle crossing are hard rejections, so a loop stays unmerged only
         // over true void, past the user cap, or when every link would cross a wall.
         struct CandPos { PolyPos p, q; bool is_anchor; };
         std::vector<CandPos> cands;
+        std::vector<CandPos> free_cands;
         if (via_column)
             cands.push_back({ anch_p, anch_q, true });
         // A column DIED here (previous links exist, none reusable): re-found near it, not at
@@ -480,6 +487,13 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
             for (const ScanPos &s : scan)
                 if (! (column_died && near_dead_column(s.p.pt, s.q.pt)))
                     cands.push_back({ s.p, s.q, false });
+            // Free-placement list for the re-founding pass below: pure gap order, closest
+            // approach first, no near-dead preference.
+            if (column_died && support.enabled()) {
+                free_cands.push_back({ best_p, best_q, false });
+                for (const ScanPos &s : scan)
+                    free_cands.push_back({ s.p, s.q, false });
+            }
         }
 
         bool    accepted = false, via_anchor = false, need_foundation = false;
@@ -487,7 +501,28 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
         size_t  rej_long = 0, rej_obstacle = 0, rej_void = 0;
         PolyPos use_p, use_q;
         CandPos fallback {};
+        // FREE RE-FOUNDING pass: the near-dead preference exists to buy SELF-support - a rib
+        // placed where yesterday's rib corridor lies keeps standing when nothing else is
+        // there. A candidate resting on REAL material (solid fill, wall beads) buys nothing
+        // from the corpse's position, so the shortest such link wins outright. Without this,
+        // a whole feature dying at once (the engraved text on the stool hub: dozens of loops
+        // gone in one layer) made the near-dead order pick a 54 mm chord across the hub
+        // standing on plain bottom solid, while the 18 mm rib across the spoke - just as
+        // supported - was never even reached.
+        for (const CandPos &c : free_cands) {
+            if ((c.p.pt - c.q.pt).cast<double>().norm() > double(params.max_link_length)
+                || link_crosses_obstacles(c.p.pt, c.q.pt, params.obstacles, stagger))
+                continue; // counted by the main pass below if nothing is accepted
+            if (support.link_supported(c.p.pt, c.q.pt, 0.5 * double(stagger), /*corridors_count=*/false)) {
+                use_p    = c.p;
+                use_q    = c.q;
+                accepted = true;
+                break;
+            }
+        }
         for (const CandPos &c : cands) {
+            if (accepted)
+                break;
             if ((c.p.pt - c.q.pt).cast<double>().norm() > double(params.max_link_length)) {
                 ++ rej_long;
                 continue;
