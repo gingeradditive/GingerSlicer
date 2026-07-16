@@ -328,6 +328,12 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
 - **Rib column** — A rib re-anchored on the previous layer's attach pair;
   columns are the self-standing vertical structure of ribs.
 
+- **Free re-founding** — When a column dies, candidates near the dead column
+  are preferred ONLY because they may stand on yesterday's rib corridor
+  (self-support). A candidate standing on REAL material (solid/wall beads)
+  is position-free: the shortest wins outright, so a whole feature dying at
+  once (engraved text) cannot capture the new rib into a long chord.
+
 - **Foundation buttress** — Lightning-style stub chain grown downward
   through the walls under a rib that starts over void; each stub 0.5 bead
   shorter per layer, ends on real material or the bed. Sparse infill is
