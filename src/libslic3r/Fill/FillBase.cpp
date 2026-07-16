@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <cstdlib>
+#include <atomic>
+#include <chrono>
 #include <numeric>
 #include <optional>
 
@@ -1610,6 +1612,101 @@ BoundingBox Fill::extended_object_bounding_box() const
     return out.scaled(sqrt(2.));
 }
 
+// ---------------------------------------------------------------------------------------------
+// GINGER_SP_PROFILE=1: per-phase wall-clock profiler of the single-path connector. Pure
+// observation - decisions are never touched; when the env var is unset the cost is one cached
+// branch per scope. Totals are atomics (TBB threads aggregate lock-free) and are dumped to
+// stderr at process exit.
+namespace {
+
+struct SPProfile
+{
+    enum Phase : unsigned {
+        phGapBlocked, phExactSolve, phInitPhase, phPhaseSwap, phSectorFlips,
+        phFreeRunClosure, phDefectSlide, phLastResort, phAugmentation, phHierholzerEmit,
+        phJoinWeld, phSpliceRingScan, phSpliceAttachScan, phRebuildRetrace, phLinkValid,
+        N_PHASES
+    };
+    static const char *name(unsigned i) {
+        static const char *names[N_PHASES] = {
+            "gap_blocked", "exact_solve", "init_phase", "phase_swap", "sector_flips",
+            "freerun_closure", "defect_slide", "last_resort", "augmentation", "hierholzer_emit",
+            "join_weld", "splice_ring_scan", "splice_attach_scan", "rebuild_retrace", "link_valid"
+        };
+        return names[i];
+    }
+    std::atomic<uint64_t> ns[N_PHASES] {};
+    std::atomic<uint64_t> cnt[N_PHASES] {};
+    // Work counters paired with the timers (what scales, not just how long).
+    std::atomic<uint64_t> flip_iters {}, flip_cands {}, trails_calls {}, slide_steps {},
+                          augment_pairs {}, splice_merges {}, clipper_calls {}, islands {};
+
+    static bool enabled() {
+        static const bool on = std::getenv("GINGER_SP_PROFILE") != nullptr;
+        return on;
+    }
+    static SPProfile& get() {
+        static SPProfile p;
+        static const bool registered = []() { std::atexit(&SPProfile::dump); return true; }();
+        (void)registered;
+        return p;
+    }
+    static void dump() {
+        SPProfile &p = get();
+        uint64_t total = 0;
+        for (unsigned i = 0; i < N_PHASES; ++ i)
+            total += p.ns[i].load(std::memory_order_relaxed);
+        fprintf(stderr, "[SPPROF] ============ single-path connector profile ============\n");
+        for (unsigned i = 0; i < N_PHASES; ++ i) {
+            const uint64_t t = p.ns[i].load(std::memory_order_relaxed);
+            if (t == 0)
+                continue;
+            fprintf(stderr, "[SPPROF] %-20s %10.1f ms  (%8llu calls, %5.1f%%)\n",
+                    name(i), double(t) * 1e-6,
+                    (unsigned long long) p.cnt[i].load(std::memory_order_relaxed),
+                    total > 0 ? 100. * double(t) / double(total) : 0.);
+        }
+        fprintf(stderr, "[SPPROF] phases total %.1f ms (threads overlap: wall time is lower)\n", double(total) * 1e-6);
+        fprintf(stderr, "[SPPROF] islands=%llu flip_iters=%llu flip_cands=%llu trails_calls=%llu"
+                        " slide_steps=%llu augment_pairs=%llu splice_merges=%llu clipper_calls=%llu\n",
+                (unsigned long long) p.islands.load(), (unsigned long long) p.flip_iters.load(),
+                (unsigned long long) p.flip_cands.load(), (unsigned long long) p.trails_calls.load(),
+                (unsigned long long) p.slide_steps.load(), (unsigned long long) p.augment_pairs.load(),
+                (unsigned long long) p.splice_merges.load(), (unsigned long long) p.clipper_calls.load());
+    }
+};
+
+// RAII scope timer: negligible when profiling is off (one cached-static branch).
+class SPTimer
+{
+public:
+    SPTimer(SPProfile::Phase phase) : m_phase(phase), m_on(SPProfile::enabled()) {
+        if (m_on)
+            m_t0 = std::chrono::steady_clock::now();
+    }
+    ~SPTimer() {
+        if (m_on) {
+            const uint64_t dt = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now() - m_t0).count();
+            SPProfile &p = SPProfile::get();
+            p.ns[m_phase].fetch_add(dt, std::memory_order_relaxed);
+            p.cnt[m_phase].fetch_add(1, std::memory_order_relaxed);
+        }
+    }
+private:
+    SPProfile::Phase                      m_phase;
+    bool                                  m_on;
+    std::chrono::steady_clock::time_point m_t0;
+};
+
+inline void sp_profile_count(std::atomic<uint64_t> SPProfile::*counter, uint64_t n = 1) {
+    if (SPProfile::enabled())
+        (SPProfile::get().*counter).fetch_add(n, std::memory_order_relaxed);
+}
+
+} // anonymous namespace
+// ---------------------------------------------------------------------------------------------
+
 // Splice a set of closed loops (e.g. the outline walls of a dilated infill band: one outer wall plus
 // the hole walls of the pockets it encloses) into a single closed loop. Loops are linked pairwise at
 // their closest approach with two short link segments crossing the empty space in between; the cuts in
@@ -1656,6 +1753,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
     auto rebuild_retrace = [&]() {
         if (island == nullptr)
             return;
+        SPTimer sp_timer_(SPProfile::phRebuildRetrace);
         retrace_lines.clear();
         for (const Polylines *set : { &rings, &open })
             for (const Polyline &pl : *set)
@@ -1670,6 +1768,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
     auto link_valid = [&](const Point &la, const Point &lb) -> bool {
         if (island == nullptr)
             return true;
+        SPTimer sp_timer_(SPProfile::phLinkValid);
         const Vec2d  v   = (lb - la).cast<double>();
         const double len = v.norm();
         if (len <= guard_free)
@@ -1695,6 +1794,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
             if (coinc > guard_free)
                 return false;
         }
+        sp_profile_count(&SPProfile::clipper_calls);
         Lines  kept = intersection_ln(Line(la, lb), *island);
         double tot  = 0.;
         for (const Line &l : kept)
@@ -1759,6 +1859,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
     const double max_link2 = max_link_distance * max_link_distance;
     for (bool merged_any = true; merged_any && rings.size() > 1; ) {
         merged_any = false;
+        SPTimer sp_timer_(SPProfile::phSpliceRingScan);
         // Globally closest approach between any two rings: vertices of one against segments of the other.
         struct RingCand { double d2; size_t i, j, v, s; Point proj; };
         std::vector<RingCand> rcands;
@@ -1826,6 +1927,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         rings[bi] = std::move(merged);
         rings.erase(rings.begin() + bj);
         merged_any = true;
+        sp_profile_count(&SPProfile::splice_merges);
         rebuild_retrace();
     }
 
@@ -1836,6 +1938,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
     // the ring one stagger apart, so they diverge instead of overlapping.
     for (bool attached_any = true; attached_any && ! rings.empty() && ! open.empty(); ) {
         attached_any = false;
+        SPTimer sp_timer_(SPProfile::phSpliceAttachScan);
         struct AttCand { double d2; size_t r, o, k, seg; Point entry, junction; bool insert_junction; };
         std::vector<AttCand> acands;
         acands.reserve(256);
@@ -1948,6 +2051,7 @@ static inline void single_path_append_arc(Points &dst, const Points &contour, si
 // several trails gracefully).
 static void connect_infill_single_path(Polylines &&infill_ordered, const BoundaryInfillGraph &graph, const double spacing, Polylines &polylines_out, const bool final_emission, const double line_w, const double anchor_max, const bool wall_lining = false)
 {
+    sp_profile_count(&SPProfile::islands);
     // Cost of one OPEN trail, measured in closed pieces (see count_trails below). For the final
     // emission an open trail's two fixed ends each force a long, arrival-independent travel, so it
     // is worth up to (open_trail_cost - 1) extra closed loops to avoid one. Intermediate multiline
@@ -2033,6 +2137,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
         // gaps for good - the solver treats them as nonexistent and routes around them.
         std::vector<std::vector<char>> gap_blocked(graph.boundary.size());
         {
+            SPTimer sp_timer_(SPProfile::phGapBlocked);
             std::vector<Line> fragment_lines;
             for (size_t i = 0; i < n_fragments; ++ i)
                 if (! standalone[i])
@@ -2174,6 +2279,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             // splits the odd vertices as well (releasing the one bridge gap between the two ends of
             // an open ring trail turns it into two closed loops).
             auto count_trails = [&contour_vertices, &gap_degree, &component_labels, open_trail_cost]() -> size_t {
+                sp_profile_count(&SPProfile::trails_calls);
                 std::vector<int> comp;
                 size_t n_comp = component_labels(comp);
                 if (n_comp == 0)
@@ -2210,6 +2316,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             bool exact_solved = false;
             if (! wall_lining && contour_vertices.size() == 1 && contour_vertices[0].size() >= 4 &&
                 contour_vertices[0].size() <= 160 && (contour_vertices[0].size() % 2) == 0) {
+                SPTimer sp_timer_(SPProfile::phExactSolve);
                 const std::vector<size_t> &cv = contour_vertices[0];
                 const size_t m = cv.size();
                 // Fragment (chord) connectivity is selection-independent: precompute per-vertex pairs.
@@ -2302,6 +2409,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
 
             // Initial alternating phase per contour.
             if (! exact_solved) {
+                SPTimer sp_timer_(SPProfile::phInitPhase);
                 for (size_t c = 0; c < contour_vertices.size(); ++ c)
                     if (contour_vertices[c].size() >= 2)
                         for (size_t k = 0; k < contour_vertices[c].size(); k += 2)
@@ -2326,6 +2434,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             // no rail carrying the walk to the wall seam (rib). On ties, prefer the phase that
             // covers MORE wall - material is explicitly not a concern (pellet printing).
             if (! exact_solved) {
+                SPTimer sp_timer_(SPProfile::phPhaseSwap);
                 size_t trails = count_trails();
                 for (size_t c = 0; c < contour_vertices.size(); ++ c) {
                     const size_t m = contour_vertices[c].size();
@@ -2350,6 +2459,8 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             // the same contour. Accept the flip that lexicographically improves
             // (components, odd vertices, flipped range length).
             for (size_t guard = 0; ! exact_solved && guard < n_vertices + 16; ++ guard) {
+                SPTimer sp_timer_(SPProfile::phSectorFlips);
+                sp_profile_count(&SPProfile::flip_iters);
                 std::vector<int> comp;
                 component_labels(comp);
                 size_t trails = count_trails();
@@ -2392,6 +2503,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                             size_t len   = (cand[b] + m - cand[a]) % m;
                             if (len == 0 || len >= m)
                                 continue;
+                            sp_profile_count(&SPProfile::flip_cands);
                             toggle_range(c, first, len);
                             size_t trails2 = count_trails();
                             size_t odds2   = count_odd();
@@ -2436,6 +2548,8 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             //     prize: a closed sparse path is entered wherever the toolhead happens to arrive).
             if (final_emission && ! exact_solved) {
             size_t sp_runs_closed = 0, sp_slide_steps = 0;
+            {
+            SPTimer sp_timer_(SPProfile::phFreeRunClosure);
             for (;;) {
                 size_t best_c = 0, best_first = 0, best_len = 0;
                 double best_cost = std::numeric_limits<double>::max();
@@ -2481,7 +2595,9 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     take_gap(best_c, (best_first + l) % m);
                 ++ sp_runs_closed;
             }
+            } // free-run timer scope
             {
+                SPTimer sp_timer_(SPProfile::phDefectSlide);
                 std::vector<int> comp;
                 component_labels(comp);
                 constexpr size_t no_pos = std::numeric_limits<size_t>::max();
@@ -2548,6 +2664,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                     break;
                                 }
                                 ++ sp_slide_steps;
+                                sp_profile_count(&SPProfile::slide_steps);
                                 if (count_odd() + 2 <= odds_before) {
                                     // Stepped onto another defect: both resolved, the trail closed here.
                                     closed = true;
@@ -2570,6 +2687,8 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             // pieces is acceptable) and taking the untaken ones, including short blocked stretches
             // (force_blocked). Guards: the forced overlapped-bead length is hard-capped, and the
             // toggle is reverted unless the defect pair is resolved without raising the cost.
+            {
+            SPTimer sp_timer_(SPProfile::phLastResort);
             for (;;) {
                 // Overlap budget for the forced blocked stretches: at least 25 line widths, and
                 // beyond that whatever the user's infill-anchor length allows (Davide runs it
@@ -2635,6 +2754,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 if (! applied)
                     break;
             }
+            } // last-resort timer scope
             if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr) {
                 std::fprintf(stderr, "[SPCLOSE] runs_closed=%zu slide_steps=%zu odds_left=%zu\n",
                              sp_runs_closed, sp_slide_steps, count_odd());
@@ -2671,6 +2791,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
         // is exactly the topological lower bound. Components without odd vertices come out as closed
         // loops, components with 2k odd vertices as k open trails.
         {
+            SPTimer sp_timer_(SPProfile::phAugmentation);
             // Component labels (BFS over active edges).
             std::vector<int> comp(n_vertices, -1);
             int              n_comp = 0;
@@ -2720,6 +2841,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                 best_j = j;
                             }
                         }
+                    sp_profile_count(&SPProfile::augment_pairs);
                     adjacency[odd[best_i]].emplace_back(edges.size());
                     adjacency[odd[best_j]].emplace_back(edges.size());
                     edges.push_back({ odd[best_i], odd[best_j], false, true, 0, 0, true, false });
@@ -2764,6 +2886,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             if (len <= 0.)
                 return true;
             {
+                sp_profile_count(&SPProfile::clipper_calls);
                 Lines  kept = intersection_ln(Line(a, b), island_region());
                 double tot  = 0.;
                 for (const Line &l : kept)
@@ -2877,9 +3000,12 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
         };
         // After the Euler augmentation every component is a circuit; any vertex with unused edges may
         // start it. A circuit containing k virtual edges materializes into k open trails.
-        for (size_t v = 0; v < n_vertices; ++ v)
-            if (! standalone[v / 2] && next_unused(v) >= 0)
-                run_trail(v);
+        {
+            SPTimer sp_timer_(SPProfile::phHierholzerEmit);
+            for (size_t v = 0; v < n_vertices; ++ v)
+                if (! standalone[v / 2] && next_unused(v) >= 0)
+                    run_trail(v);
+        }
         if (sp_bridged > 0 && ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
             std::fprintf(stderr, "[SPBRIDGE] bridged=%zu total=%.1fmm\n", sp_bridged, sp_bridged_len * SCALING_FACTOR);
     }
@@ -2895,6 +3021,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
     // stretch where the diverging links leave the shared junction stays within the coincidence the
     // blocked rule already tolerates on a legal gap arc.
     if (final_emission && polylines_out.size() - out_begin > 1) {
+        SPTimer sp_timer_(SPProfile::phJoinWeld);
         Polylines tail(std::make_move_iterator(polylines_out.begin() + out_begin),
                        std::make_move_iterator(polylines_out.end()));
         polylines_out.erase(polylines_out.begin() + out_begin, polylines_out.end());
