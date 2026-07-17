@@ -196,9 +196,10 @@ TEST_CASE("WallRibs: a loop farther than max_link_length stays unmerged", "[Wall
 
 TEST_CASE("WallRibs: a link that would cross another wall is rejected", "[WallRibs]")
 {
-    // Outer plate; a big EXCLUDED loop (obstacle, e.g. a multi-path overhang wall) sits exactly
-    // between the outer wall and the only mergeable hole: the direct link would extrude straight
-    // across it, so the merge must be refused.
+    // Outer plate; a big EXTRA bead (e.g. a thin-wall ring the planner cannot see as a
+    // candidate) sits exactly between the outer wall and the only mergeable hole: the
+    // direct link would extrude straight across it, so the merge must be refused. The
+    // candidates themselves need not be passed - the planner tracks walk and loops itself.
     Polygon outer    = square_ccw(0., 0., 100.);
     Polygon hole     = square_ccw(0., 0., 20.);  hole.reverse();     // centered, gap 40mm to obstacle ring
     Polygon obstacle = square_ccw(0., 0., 60.);                      // ring between them (not in loops)
@@ -206,11 +207,51 @@ TEST_CASE("WallRibs: a link that would cross another wall is rejected", "[WallRi
     WallRibParams params;
     params.stagger         = scale_(3.2);
     params.corridor_offset = coord_t(scale_(1.6));
-    Polygons obstacles { outer, hole, obstacle };
-    params.obstacles = &obstacles;
+    Lines obstacle_lines = obstacle.lines();
+    params.extra_obstacles = &obstacle_lines;
     WallRibMerge        plan;
     std::vector<size_t> unmerged;
     REQUIRE_FALSE(plan_wall_ribs({ outer, hole }, params, nullptr, plan, unmerged));
+}
+
+TEST_CASE("WallRibs: segment conflict rules - crossing, attach contact, interasse", "[WallRibs]")
+{
+    const coord_t lw = scale_(3.2);
+    const Lines   none;
+    const Point   a = Point::new_scale(0., 0.);
+    const Point   b = Point::new_scale(30., 0.);
+
+    // Crossing a foreign bead is illegal anywhere - even right next to an endpoint (the old
+    // distance-based exemption let a third wall passing near the attach be crossed).
+    Lines mid_cross  { Line(Point::new_scale(15., -10.), Point::new_scale(15., 10.)) };
+    Lines near_cross { Line(Point::new_scale(1., -10.),  Point::new_scale(1., 10.)) };
+    CHECK(rib_segment_conflicts(a, b, lw, none, none, mid_cross));
+    CHECK(rib_segment_conflicts(a, b, lw, none, none, near_cross));
+
+    // Crossing the OWN curves is the attach contact: legal within one stagger of the
+    // respective endpoint, illegal farther (that is crossing the walk somewhere else).
+    CHECK_FALSE(rib_segment_conflicts(a, b, lw, near_cross, none, none)); // own_a at 1mm from a
+    CHECK(rib_segment_conflicts(a, b, lw, mid_cross, none, none));        // own_a at 15mm from a
+    Lines near_b { Line(Point::new_scale(29., -10.), Point::new_scale(29., 10.)) };
+    CHECK_FALSE(rib_segment_conflicts(a, b, lw, none, near_b, none));     // own_b at 1mm from b
+
+    // Interasse (the pellet hard rule): a bead running PARALLEL closer than one width for an
+    // extended stretch is doubled extrusion - invisible to segment intersection, caught by
+    // the proximity run. At one full width the flanks touch and fuse: legal (the rib's own
+    // two links sit at exactly one stagger).
+    Lines riding { Line(Point::new_scale(5., 2.), Point::new_scale(25., 2.)) };   // 2mm off-axis, 20mm long
+    Lines fused  { Line(Point::new_scale(5., 3.2), Point::new_scale(25., 3.2)) }; // exactly one width
+    CHECK(rib_segment_conflicts(a, b, lw, none, none, riding));
+    CHECK_FALSE(rib_segment_conflicts(a, b, lw, none, none, fused));
+    // Riding the OWN walk far from the attach is equally illegal (a later link along an
+    // earlier rib); near the attach it is the legitimate wall contact.
+    CHECK(rib_segment_conflicts(a, b, lw, riding, none, none));
+    Lines own_near_attach { Line(Point::new_scale(0., 2.), Point::new_scale(3., 2.)) };
+    CHECK_FALSE(rib_segment_conflicts(a, b, lw, own_near_attach, none, none));
+
+    // A quick transversal pass-by (one close sample, no shared axis) is not riding.
+    Lines pass_by { Line(Point::new_scale(15., 2.), Point::new_scale(18., 12.)) };
+    CHECK_FALSE(rib_segment_conflicts(a, b, lw, none, none, pass_by));
 }
 
 TEST_CASE("WallRibs: drift beyond the budget relocates the rib instead of staircasing or giving up", "[WallRibs]")
@@ -505,6 +546,50 @@ TEST_CASE("WallRibs: a column on stationary geometry does not creep sideways", "
     const double creep = (last_anchor - a0).cast<double>().norm();
     INFO("total creep over 10 layers: " << unscale<double>(coord_t(creep)) << " mm");
     REQUIRE(creep < scale_(0.5)); // was ~16mm with the joint-based anchor
+}
+
+TEST_CASE("WallRibs: column reuse respects the per-layer drift budget", "[WallRibs]")
+{
+    // The reuse tolerance is the caller's max_drift (half a bead capped at ONE LAYER HEIGHT).
+    // A half-bead floor inside the planner used to override the layer-height cap: with thin
+    // layers a column could lean far past 45 degrees and still be "continued". Simulate the
+    // walls having moved off yesterday's link by more than the budget (but less than half a
+    // bead): the column must NOT be reused - the rib re-founds instead of leaning after it.
+    const coord_t lw = scale_(3.2);
+    Polygon outer = square_ccw(0., 0., 100.);
+    Polygon hole  = square_ccw(0., 0., 60.);
+    hole.reverse();
+
+    WallRibParams params;
+    params.stagger         = lw;
+    params.corridor_offset = coord_t(scale_(1.6));
+    params.max_drift       = coord_t(scale_(1.0)); // thin layer: budget below half a bead (1.6)
+    WallRibMerge        plan1;
+    std::vector<size_t> unmerged;
+    REQUIRE(plan_wall_ribs({ outer, hole }, params, nullptr, plan1, unmerged));
+    REQUIRE(plan1.links.size() == 1);
+    // Shift yesterday's link endpoints ALONG the link axis (= off both walls): both endpoints
+    // reproject onto today's unchanged walls at exactly `delta`.
+    auto shifted = [&plan1](double delta_mm) {
+        const auto &link = plan1.links.front();
+        const Point d = ((link.second - link.first).cast<double>().normalized() * scale_(delta_mm)).cast<coord_t>();
+        return std::vector<std::pair<Point, Point>> { { link.first + d, link.second + d } };
+    };
+
+    WallRibStats stats;
+    params.stats = &stats;
+    WallRibMerge plan2;
+    auto prev_far = shifted(1.3); // beyond the 1.0mm budget, below the old half-bead floor
+    REQUIRE(plan_wall_ribs({ outer, hole }, params, &prev_far, plan2, unmerged));
+    REQUIRE(unmerged.empty());
+    REQUIRE(stats.anchor_reused == 0); // the old floor "continued" this column
+
+    stats = WallRibStats{};
+    WallRibMerge plan3;
+    auto prev_near = shifted(0.7); // within the budget: the column continues
+    REQUIRE(plan_wall_ribs({ outer, hole }, params, &prev_near, plan3, unmerged));
+    REQUIRE(unmerged.empty());
+    REQUIRE(stats.anchor_reused == 1);
 }
 
 TEST_CASE("WallRibs: a foundation stub is part of the wall and never retraces", "[WallRibs]")

@@ -289,20 +289,61 @@ private:
     std::unique_ptr<AABBTreeLines::LinesDistancer<Line>> m_walls;
 };
 
-// Does the segment cross any obstacle loop? Endpoint contacts (the link legitimately starts
-// and ends ON a wall) do not count; anything deeper does.
-static bool link_crosses_obstacles(const Point &a, const Point &b, const Polygons *obstacles, coord_t stagger)
+bool rib_segment_conflicts(const Point &a, const Point &b, coord_t stagger,
+                           const Lines &own_a, const Lines &own_b, const Lines &foreign)
 {
-    if (obstacles == nullptr)
-        return false;
-    const Line link(a, b);
-    Point      hit;
-    for (const Polygon &obstacle : *obstacles)
-        for (const Line &edge : obstacle.lines())
-            if (link.intersection(edge, &hit)
-                && (hit - a).cast<double>().norm() > double(stagger)
-                && (hit - b).cast<double>().norm() > double(stagger))
+    const Line   link(a, b);
+    const double sg = double(stagger);
+    Point        hit;
+    // Crossing a foreign bead is illegal ANYWHERE along the link - it means extruding across
+    // another wall, into a hole cavity, or over an already-printed bead. The old test
+    // exempted any crossing within one stagger of an endpoint regardless of WHOSE edge was
+    // crossed; the exemption belongs to the attach contact on the OWN curves only.
+    for (const Line &edge : foreign)
+        if (link.intersection(edge, &hit))
+            return true;
+    for (const Line &edge : own_a)
+        if (link.intersection(edge, &hit) && (hit - a).cast<double>().norm() > sg)
+            return true;
+    for (const Line &edge : own_b)
+        if (link.intersection(edge, &hit) && (hit - b).cast<double>().norm() > sg)
+            return true;
+    // Riding: segment intersection is blind to (near-)collinear overlap, which is exactly
+    // the hard violation - two same-layer beads sharing the interasse. Sample the axis at
+    // half a stagger: a RUN of consecutive samples closer than 0.9 width to some bead for
+    // more than one stagger of length is riding, a single close sample is a transversal
+    // pass-by. The rib's own staggered link pair sits at exactly one width and passes.
+    const double len = (b - a).cast<double>().norm();
+    if (len <= sg)
+        return false; // too short to ride anything
+    const double prox      = 0.9 * sg;
+    const int    n         = std::max(2, int(std::ceil(len / (0.5 * sg))) + 1);
+    const int    run_limit = 2; // > run_limit consecutive samples ~ more than one stagger
+    auto closer_than = [](const Lines &lines, const Point &p, double d) {
+        for (const Line &l : lines)
+            if (l.distance_to(p) < d)
                 return true;
+        return false;
+    };
+    int run_foreign = 0, run_own = 0;
+    for (int i = 0; i < n; ++ i) {
+        const double t = double(i) / double(n - 1);
+        const Point  p = a + ((b - a).cast<double>() * t).cast<coord_t>();
+        if (! foreign.empty() && closer_than(foreign, p, prox)) {
+            if (++ run_foreign > run_limit)
+                return true;
+        } else
+            run_foreign = 0;
+        // Own curves only count outside the attach zones - right at the attach the link is
+        // legitimately ON its wall.
+        const bool in_attach_zone = (p - a).cast<double>().norm() <= 1.5 * sg ||
+                                    (p - b).cast<double>().norm() <= 1.5 * sg;
+        if (! in_attach_zone && (closer_than(own_a, p, prox) || closer_than(own_b, p, prox))) {
+            if (++ run_own > run_limit)
+                return true;
+        } else
+            run_own = 0;
+    }
     return false;
 }
 
@@ -347,11 +388,17 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
         if (i != seed)
             remaining.emplace_back(i);
 
+    // Which loops are already part of the walk: everything NOT in the walk (not-yet-spliced
+    // candidates, dropped and too-short loops) still prints as its own bead this layer and
+    // belongs to the obstacle field of later splices.
+    std::vector<bool> in_walk(loops.size(), false);
+    in_walk[seed] = true;
+
     out.loop_keys.emplace_back(loops[seed].points.front());
 
-    // A position is printable when the link is short enough, does not extrude across another
-    // wall/hole, and RESTS on the previous layer (rib column, wall bead or solid below) - or
-    // at least has sparse below everywhere, in which case a foundation pad makes it legal.
+    // A position is printable when the link is short enough, does not extrude across or along
+    // another bead, and RESTS on the previous layer (rib column, wall bead or solid below) -
+    // or a foundation buttress can be grown under it (works even over true void).
     const SupportTester support(params.support, 0.55 * double(stagger));
 
     // Prim: repeatedly splice in the loop closest to the growing walk, so the total rib
@@ -363,15 +410,16 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
     while (! remaining.empty()) {
         // COLUMN CONTINUITY outranks nearest-first: reproject the PHYSICAL link of the
         // previous layer (its two attach points) onto the walk and each remaining loop; the
-        // column continues when both endpoints land within the bead-overlap tolerance, i.e.
-        // today's rib bead still stacks on yesterday's with enough overlap to stand (~half a
-        // bead = the 45-degree lean limit). Endpoints sit ON the walls, so their nearest-point
-        // reprojection is well conditioned; the old test projected the MID-GAP anchor onto
-        // both curves and compared midpoints, which on a long rib amplifies the polygon
-        // discretization noise - at resolution 0.05 it killed columns standing on walls that
-        // had not moved at all (measured drift 1.4-2mm against a 1.3mm budget), teleporting
-        // the rib to the globally cheapest spot across the part.
-        const double reuse_tol = std::max(double(params.max_drift), 0.5 * double(stagger));
+        // column continues when both endpoints land within the caller's per-layer drift
+        // budget (params.max_drift: half a bead capped at one layer height = the 45-degree
+        // lean limit; a half-bead FLOOR here used to nullify the layer-height cap, letting
+        // thin-layer columns lean far past 45 degrees). Endpoints sit ON the walls, so their
+        // nearest-point reprojection is well conditioned; the old test projected the MID-GAP
+        // anchor onto both curves and compared midpoints, which on a long rib amplifies the
+        // polygon discretization noise - at resolution 0.05 it killed columns standing on
+        // walls that had not moved at all (measured drift 1.4-2mm against a 1.3mm budget),
+        // teleporting the rib to the globally cheapest spot across the part.
+        const double reuse_tol = double(params.max_drift);
         size_t  best_pos   = 0;
         bool    via_column = false;
         PolyPos anch_p, anch_q;
@@ -432,7 +480,22 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
             }
         }
 
-        const Polygon &loop = loops[remaining[best_pos]];
+        const size_t   target_idx = remaining[best_pos];
+        const Polygon &loop       = loops[target_idx];
+
+        // The obstacle field of THIS splice: the walk as it stands now (cuts and already
+        // inserted rib links included - a later link must not cross or ride an earlier rib,
+        // and an edge that became a cut gap is no longer an obstacle), the target loop, and
+        // every other bead of the layer (not-yet-spliced candidates, dropped loops, the
+        // caller's open thin walls). Rebuilt each iteration because the walk grows.
+        const Lines walk_lines   = merged.lines();
+        const Lines target_lines = loop.lines();
+        Lines       foreign_lines;
+        if (params.extra_obstacles != nullptr)
+            foreign_lines = *params.extra_obstacles;
+        for (size_t i = 0; i < loops.size(); ++ i)
+            if (! in_walk[i] && i != target_idx)
+                append(foreign_lines, loops[i].lines());
 
         // Candidate positions in preference order: the column link (Z-aligned rib, prints on
         // yesterday's rib), then - when a column just died - the scan positions NEAR the dead
@@ -464,19 +527,23 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
         };
         // Scan around the loop. Step of at most one stagger: an existing corridor below has
         // a walkable window of about one stagger along the loop, and the scan must not be able
-        // to miss it (that is how columns used to die on annulus sections).
+        // to miss it (that is how columns used to die on annulus sections); short loops scan
+        // finer (~96 samples). The walk's distancer is built ONCE here - project_onto would
+        // rebuild it per sample, and at one-stagger steps a big part scans hundreds of
+        // positions per loop.
         {
-            const double step = std::max(loop.length() / 96., double(stagger));
+            const double step = std::min(loop.length() / 96., double(stagger));
             struct ScanPos { double gap; PolyPos p, q; };
             std::vector<ScanPos> scan;
+            AABBTreeLines::LinesDistancer<Line> merged_dist(merged.lines());
             PolyPos cursor { 0, loop.points.front() };
             for (double walked = 0.; walked < loop.length() - step * 0.5; walked += step) {
                 if (walked > 0.)
                     cursor = walk_along(loop, cursor, step, true);
-                PolyPos      pm;
-                const double gap = project_onto(merged, cursor.pt, pm);
+                auto [d, line_idx, nearest] = merged_dist.distance_from_lines_extra<false>(cursor.pt);
+                const double gap = std::abs(d);
                 if (gap <= double(params.max_link_length))
-                    scan.push_back({ gap, pm, cursor });
+                    scan.push_back({ gap, PolyPos{ size_t(line_idx), nearest.cast<coord_t>() }, cursor });
             }
             std::sort(scan.begin(), scan.end(), [](const ScanPos &l, const ScanPos &r) { return l.gap < r.gap; });
             if (column_died)
@@ -511,7 +578,7 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
         // supported - was never even reached.
         for (const CandPos &c : free_cands) {
             if ((c.p.pt - c.q.pt).cast<double>().norm() > double(params.max_link_length)
-                || link_crosses_obstacles(c.p.pt, c.q.pt, params.obstacles, stagger))
+                || rib_segment_conflicts(c.p.pt, c.q.pt, stagger, walk_lines, target_lines, foreign_lines))
                 continue; // counted by the main pass below if nothing is accepted
             if (support.link_supported(c.p.pt, c.q.pt, 0.5 * double(stagger), /*corridors_count=*/false)) {
                 use_p    = c.p;
@@ -527,7 +594,7 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
                 ++ rej_long;
                 continue;
             }
-            if (link_crosses_obstacles(c.p.pt, c.q.pt, params.obstacles, stagger)) {
+            if (rib_segment_conflicts(c.p.pt, c.q.pt, stagger, walk_lines, target_lines, foreign_lines)) {
                 ++ rej_obstacle;
                 continue;
             }
@@ -582,6 +649,7 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
         out.loop_keys.emplace_back(loop.points.front());
         RibJoint joint;
         merged = splice_one(merged, use_p, loop, use_q, stagger, joint);
+        in_walk[target_idx] = true;
         remaining.erase(remaining.begin() + best_pos);
 
         // Corridor = the rib quad (both links + both cuts) expanded by bead half width +
@@ -620,7 +688,7 @@ bool splice_wall_loops(const Polygons &loops, coord_t stagger, Polygon &merged, 
 {
     WallRibParams params;
     params.stagger         = stagger;
-    params.corridor_offset = stagger;
+    params.corridor_offset = coord_t(stagger / 2); // bead half width, mirroring production
     WallRibMerge plan;
     if (! plan_wall_ribs(loops, params, nullptr, plan, unmerged))
         return false;

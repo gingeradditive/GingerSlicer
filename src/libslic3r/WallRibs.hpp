@@ -93,7 +93,7 @@ struct WallRibStats
     size_t drop_too_short    { 0 };  // loop perimeter too short to host a cut
     size_t drop_prim_far     { 0 };  // farther than max_link_length from the walk (Prim cap)
     size_t drop_obstacle     { 0 };  // every candidate link crosses another wall
-    size_t drop_unsupported  { 0 };  // every candidate link is over true void (not even sparse below)
+    size_t drop_unsupported  { 0 };  // every candidate hangs over void and no foundation was possible either
 
     void add(const WallRibStats &o) {
         loops_in += o.loops_in; spliced += o.spliced; anchor_reused += o.anchor_reused;
@@ -118,9 +118,11 @@ struct WallRibParams
     // (starting a fresh, founded column there) - the old column simply ends, but the loop
     // stays connected.
     coord_t max_drift { std::numeric_limits<coord_t>::max() };
-    // All wall loops of the island (including the non-mergeable ones): a rib link must not
-    // cross any of them, or it would extrude straight over a hole / another wall.
-    const Polygons *obstacles { nullptr };
+    // Printed beads of the layer BEYOND the candidate loops themselves (open thin walls,
+    // anything else extruded on the island). The planner tracks the rest of the obstacle
+    // field on its own: the growing walk (cuts and already-inserted rib links included)
+    // and the not-yet-spliced candidate loops - see rib_segment_conflicts for the rules.
+    const Lines *extra_obstacles { nullptr };
     // Support of the previous layer; null = no support constraint (geometry-only use / tests).
     const WallRibSupport *support { nullptr };
     // Asked when a candidate link rests on nothing: may a foundation buttress be grown below
@@ -132,7 +134,9 @@ struct WallRibParams
     WallRibStats *stats { nullptr };
 };
 
-// Plan the merge of `loops` (centerline polygons of one island's wall loops, same role/flow).
+// Plan the merge of `loops` (centerline polygons of one island's wall loops; the planner is
+// purely geometric - per-loop roles/flows live in the source ExtrusionLoops and are preserved
+// per segment at emission, so heterogeneous loops merge like any other).
 // `prev_links` (optional, the previous layer's rib attach pairs) keeps each rib on the previous
 // layer's position while the local geometry still allows it (self-standing columns): a column
 // continues when BOTH endpoints of yesterday's link reproject onto today's loops within the
@@ -167,5 +171,22 @@ bool splice_wall_stub(Polygon &walk, const Point &base_hint, const Point &tip, c
 // The planner's link support test, exported for the buttress descent: does the segment a-b
 // rest on the given previous-layer material (with the same sub-bead gap tolerance)?
 bool wall_rib_link_supported(const Point &a, const Point &b, coord_t stagger, const WallRibSupport &support);
+
+// May a rib link / buttress stub be extruded along the axis a-b among the layer's beads?
+// `own_a` is the curve the segment legitimately LEAVES at `a` (the walk / the ride wall),
+// `own_b` the curve it legitimately LANDS on at `b` (the spliced loop; empty for a stub
+// tip in the void), `foreign` every other bead of the layer. Illegal, in rule order:
+//  - CROSSING a foreign bead anywhere (extruding across another wall / into a hole cavity,
+//    riding over a printed bead);
+//  - crossing the own curves farther than one stagger from the respective attach (the
+//    attach contact itself is the rib's own geometry);
+//  - RUNNING ALONG any bead: centerlines closer than ~one width for more than about a bead
+//    of length is doubled extrusion - the pellet hard rule ("stesso interasse"). Flank
+//    contact at one full width is fusion and legal (the rib's own two links are exactly one
+//    stagger apart); a quick transversal pass-by is not riding. Own curves only count
+//    outside the attach zones.
+// Returns true when the segment CONFLICTS (must be rejected).
+bool rib_segment_conflicts(const Point &a, const Point &b, coord_t stagger,
+                           const Lines &own_a, const Lines &own_b, const Lines &foreign);
 
 } // namespace Slic3r

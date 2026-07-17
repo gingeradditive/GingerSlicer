@@ -5299,28 +5299,37 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                                 merge_of[i] = -1;
                         continue;
                     }
-                    const auto *proto = dynamic_cast<const ExtrusionLoop*>(region.perimeters[emit_at[m]]);
-                    if (proto == nullptr || proto->paths.empty())
-                        continue;
-                    const ExtrusionPath &pth = proto->paths.front();
                     // Flow-preserving re-emission: Arachne may have split a source loop into
                     // variable-width paths (the wall thickens where two rings approach - measured
                     // 3.2->4.3mm); flattening the merged walk to one uniform flow would underextrude
                     // those stretches by up to a third. Attribute every merged segment back to the
                     // nearest source path (within ~half a bead) and inherit its width/flow; segments
-                    // near no source path are the rib links and use the nominal group flow. Runs of
+                    // near no source path are the rib links and flow like the DOMINANT source path -
+                    // the longest across all merged loops, never whatever short special stretch (a
+                    // bridge, an overhang split) some member loop happens to start with. Runs of
                     // equal attribution collapse into one ExtrusionPath, so the common all-uniform
                     // case still emits the single path it always did.
                     Lines                              src_lines;
                     std::vector<const ExtrusionPath *> src_owner;
+                    const ExtrusionPath               *dom     = nullptr;
+                    double                             dom_len = -1.;
                     for (size_t i = 0; i < region.perimeters.size(); ++ i)
                         if (merge_of[i] == int(m))
                             if (const auto *sl = dynamic_cast<const ExtrusionLoop*>(region.perimeters[i]))
-                                for (const ExtrusionPath &p : sl->paths)
+                                for (const ExtrusionPath &p : sl->paths) {
+                                    const double plen = p.polyline.length();
+                                    if (plen > dom_len) {
+                                        dom_len = plen;
+                                        dom     = &p;
+                                    }
                                     for (size_t j = 1; j < p.polyline.points.size(); ++ j) {
                                         src_lines.emplace_back(p.polyline.points[j - 1], p.polyline.points[j]);
                                         src_owner.emplace_back(&p);
                                     }
+                                }
+                    if (dom == nullptr)
+                        continue;
+                    const ExtrusionPath &pth = *dom;
                     Points closed = merges[m].merged.points;
                     closed.emplace_back(closed.front());
                     auto merged = std::make_unique<ExtrusionLoop>();
