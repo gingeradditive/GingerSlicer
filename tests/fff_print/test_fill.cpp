@@ -96,7 +96,8 @@ TEST_CASE("Fill: Pattern Path Length", "[Fill]") {
 					svg.Close();
 				}
 #endif
-                REQUIRE((paths.size() >= 1 && paths.size() <= 3));
+                REQUIRE(paths.size() >= 1);
+                REQUIRE(paths.size() <= 3);
                 // paths don't cross hole
                 REQUIRE(diff_pl(paths, offset(e, float(SCALED_EPSILON*10))).size() == 0);
             }

@@ -663,22 +663,29 @@ static bool build_rib_buttress(Layer *rib_layer, const Point &link_a, const Poin
                 under_support.prev_solid     = &under_solid;
                 grounded = wall_rib_link_supported(foot, tip, stagger, under_support);
             }
+            // The stub must be spliceable into the ride walk. Tested on a COPY in the dry-run
+            // too, so dry-run and mutate share the SAME predicate: a walk too short to host
+            // the cut (or a melted/degenerate stub) used to be a materialize-only failure -
+            // accepted at dry-run, then failing mid-descent at grow time and leaving the rib
+            // standing on air with nothing but a log line.
+            Polygon  quad;
+            Polygon  fresh;
+            Polygon *walk_src = ride_merge != nullptr ? &ride_merge->merged : nullptr;
+            if (walk_src == nullptr) {
+                fresh    = ride_loop->polygon();
+                walk_src = &fresh;
+            }
+            Polygon spliced = *walk_src;
+            if (! splice_wall_stub(spliced, foot, tip, stagger, quad))
+                return false;
             if (mutate) {
-                Polygon  quad;
-                Polygon  fresh;
-                Polygon *walk = ride_merge != nullptr ? &ride_merge->merged : nullptr;
-                if (walk == nullptr) {
-                    fresh = ride_loop->polygon();
-                    walk  = &fresh;
-                }
-                if (! splice_wall_stub(*walk, foot, tip, stagger, quad))
-                    return false;
                 if (ride_merge != nullptr) {
+                    ride_merge->merged = std::move(spliced);
                     ride_merge->corridors.emplace_back(quad);
                 } else {
                     WallRibMerge stub_merge;
                     stub_merge.loop_keys.emplace_back(ride_loop->polygon().points.front());
-                    stub_merge.merged = std::move(*walk);
+                    stub_merge.merged = std::move(spliced);
                     stub_merge.corridors.emplace_back(quad);
                     below->wall_ribs.emplace_back(std::move(stub_merge));
                 }
@@ -872,18 +879,36 @@ void PrintObject::generate_wall_ribs()
                     std::vector<size_t> unmerged;
                     if (plan_wall_ribs(group.loops, params,
                                        prev_links.empty() ? nullptr : &prev_links, merge, unmerged)) {
-                        append(corridors, merge.corridors);
-                        // The fill is carved a quarter bead LESS than the full corridor, so
-                        // its lines run into the rib flanks and fuse with them - carving
-                        // flush left jagged gaps along the rib in bottom/top skins.
-                        for (Polygon &e : offset(merge.corridors, -float(scale_(0.25 * group.width))))
-                            carve.emplace_back(std::move(e));
-                        append(layer_anchors, merge.anchors);
-                        append(layer_links, merge.links);
+                        // Materialize the foundation buttresses FIRST: only a fully grounded
+                        // plan may be accepted. The dry-run and the grow pass share the same
+                        // predicates, but earlier links of this very group mutate the lower
+                        // layers between the two, so a late failure is still possible - in
+                        // that case the whole group's plan is DROPPED (its loops print
+                        // unmerged: a travel more, never a rib over void). Stubs already
+                        // grown by this group's earlier links stay: each chain passed its own
+                        // descent, they are self-standing wall excursions - harmless extra
+                        // bead on pellet.
+                        bool founded_ok = true;
                         for (const auto &link : merge.founded_links)
-                            if (! build_rib_buttress(layer, link.first, link.second, group.width, true))
-                                BOOST_LOG_TRIVIAL(warning) << "single_path_wall_ribs: foundation buttress failed to materialize at z=" << layer->print_z;
-                        layer->wall_ribs.emplace_back(std::move(merge));
+                            if (! build_rib_buttress(layer, link.first, link.second, group.width, true)) {
+                                founded_ok = false;
+                                break;
+                            }
+                        if (! founded_ok) {
+                            BOOST_LOG_TRIVIAL(warning) << "single_path_wall_ribs: foundation buttress failed to"
+                                " materialize at z=" << layer->print_z << " - dropping the group's rib plan"
+                                " (its loops print unmerged this layer)";
+                        } else {
+                            append(corridors, merge.corridors);
+                            // The fill is carved a quarter bead LESS than the full corridor, so
+                            // its lines run into the rib flanks and fuse with them - carving
+                            // flush left jagged gaps along the rib in bottom/top skins.
+                            for (Polygon &e : offset(merge.corridors, -float(scale_(0.25 * group.width))))
+                                carve.emplace_back(std::move(e));
+                            append(layer_anchors, merge.anchors);
+                            append(layer_links, merge.links);
+                            layer->wall_ribs.emplace_back(std::move(merge));
+                        }
                     }
                 }
             }

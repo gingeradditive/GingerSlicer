@@ -3653,7 +3653,12 @@ std::string GCode::apply_per_object_sweep(const Print &print, const PrintObject 
     if (cp != nullptr) {
         // Automatic step (step <= 0): span the sweep over THIS object's own layers,
         // so objects of different heights each cover the full start..end range.
-        const double value = calib_sweep_value_for_layer(*cp, m_layer_index, print_object.layer_count());
+        // The layer index must be OBJECT-LOCAL (m_layer->id()), not the plate-global
+        // m_layer_index: in sequential mode (or for any object whose first layer is not
+        // plate layer 0) the global counter keeps accumulating, so start + step*global
+        // would overshoot immediately and clamp the whole object to `end`.
+        const int obj_layer_idx = m_layer != nullptr ? int(m_layer->id()) : m_layer_index;
+        const double value = calib_sweep_value_for_layer(*cp, obj_layer_idx, print_object.layer_count());
         char valbuf[64];
         snprintf(valbuf, sizeof(valbuf), "%g", value);
         if (calib_is_writer_param(cp->sweep_param) || calib_is_gcode_param(cp->sweep_param)) {
@@ -3668,7 +3673,7 @@ std::string GCode::apply_per_object_sweep(const Print &print, const PrintObject 
                 // apply() could not create the key.
                 m_sweep_gcode_overrides.set_key_value(cp->sweep_param, sweep_gcode_config_option(cp->sweep_param, value));
             }
-            gcode += std::string("; Calib_Param_Sweep: layer: ") + std::to_string(m_layer_index) +
+            gcode += std::string("; Calib_Param_Sweep: layer: ") + std::to_string(obj_layer_idx) +
                      ", object: " + model_object->name + ", " + cp->sweep_param + ": " + valbuf + "\n";
         } else if (calib_is_ers_param(cp->sweep_param)) {
             // This object's tag replaces the "default" reset from above.
