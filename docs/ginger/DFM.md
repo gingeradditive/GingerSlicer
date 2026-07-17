@@ -165,7 +165,10 @@ of `GLOSSARY.md`. DFM consequences used throughout this codebase:
 - Fewer path pieces (D1) means fewer ramps: single-path is also a flow-quality feature. Every
   travel eliminated removes one decompression/recompression cycle and one ERS transition.
 - Calibration: the per-layer Parameter Sweep (`Calib_Param_Sweep`, also headless via
-  `--sweep "key:start:end:step"`) sweeps any numeric option along Z, incl. `pellet_ers_*`.
+  `--sweep "key:start:end:step"`) sweeps a calibration key along Z. Supported keys are the
+  `calib.hpp` sets: ERS (`max_volumetric_extrusion_rate_slope`, `pellet_ers_*`), retraction
+  (`retraction_length/speed`, `deretraction_speed`, `retract_restart_extra`) and wipe
+  (`wipe_distance`, `wipe_speed`); anything else is rejected at parse.
 
 ---
 
