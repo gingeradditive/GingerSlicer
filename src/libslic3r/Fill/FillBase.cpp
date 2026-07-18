@@ -2390,11 +2390,15 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             // the greedy passes below cannot reach many of its optima: from k closed loops down to
             // one open trail the count_trails cost rises before it falls, which a strictly improving
             // search never crosses (measured on the fumidai H layers: 9 pieces greedy vs 1 exact).
-            // NOT under wall lining (lightning): its phase choice must keep the max-wall-coverage
-            // tie-break of the greedy swap below (the lining "second wall"), which this cost model
-            // does not carry.
+            // Under wall lining (lightning) the cost model carries the max-wall-coverage tie-break
+            // as its FINAL criterion, mirroring the greedy swap below. The solver used to be skipped
+            // there, leaving the greedy - whose landing spot depends on the contour's point-0
+            // ROTATION on degenerate inputs (a junction fragment lying ON the contour): identical
+            // three-fragment layers of the real part flipped between the 1-trail mega loop (full
+            // wall hug) and 2 closed blobs reached by 130-360mm travels, three layers out of sixty.
             bool exact_solved = false;
-            if (! wall_lining && contour_vertices.size() == 1 && contour_vertices[0].size() >= 4 &&
+            const bool lining_tiebreak = wall_lining && final_emission;
+            if (contour_vertices.size() == 1 && contour_vertices[0].size() >= 4 &&
                 contour_vertices[0].size() <= 160 && (contour_vertices[0].size() % 2) == 0) {
                 SPTimer sp_timer_(SPProfile::phExactSolve);
                 const std::vector<size_t> &cv = contour_vertices[0];
@@ -2446,9 +2450,11 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     return graph.boundary[cps[v].contour_idx][cps[v].point_idx];
                 };
                 // Cost: pieces first, then blocked gaps taken (each is a stretch of doubled bead),
-                // then open ends, then the mouth span (shorter = cheaper arrival if unclosed).
-                struct ExactBest { size_t comps, blocked, defects; double mouth; std::vector<char> sel; };
-                ExactBest best { std::numeric_limits<size_t>::max(), 0, 0, 0., {} };
+                // then open ends, then the mouth span (shorter = cheaper arrival if unclosed); on
+                // the final lightning emission, ties break toward the selection covering MORE wall
+                // (the lining "second wall" - material is explicitly not a concern on pellet).
+                struct ExactBest { size_t comps, blocked, defects; double mouth, coverage; std::vector<char> sel; };
+                ExactBest best { std::numeric_limits<size_t>::max(), 0, 0, 0., -1., {} };
                 std::vector<char> sel(m);
                 auto consider = [&](size_t da, size_t db, bool phase) {
                     if (! build_sel(da, db, phase, sel))
@@ -2460,11 +2466,17 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                             ++ blocked_used;
                     const size_t ndef  = (da == db) ? 0 : 2;
                     const double mouth = ndef ? (vpt(da) - vpt(db)).cast<double>().norm() : 0.;
+                    double       cov   = 0.;
+                    if (lining_tiebreak)
+                        for (size_t k = 0; k < m; ++ k)
+                            if (sel[k])
+                                cov += gap_length(0, cv[k], cv[(k + 1) % m]);
                     if (comps < best.comps ||
                         (comps == best.comps && (blocked_used < best.blocked ||
                          (blocked_used == best.blocked && (ndef < best.defects ||
-                          (ndef == best.defects && mouth < best.mouth)))))) {
-                        best = { comps, blocked_used, ndef, mouth, sel };
+                          (ndef == best.defects && (mouth < best.mouth ||
+                           (lining_tiebreak && mouth == best.mouth && cov > best.coverage)))))))) {
+                        best = { comps, blocked_used, ndef, mouth, cov, sel };
                     }
                 };
                 // 0-defect candidates: the sentinel matches no vertex, so the alternation runs the
@@ -2482,8 +2494,9 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                             take_gap(0, k, /* force_blocked */ gap_blocked[0][k] != 0);
                     exact_solved = true;
                     if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
-                        std::fprintf(stderr, "[SPEXACT] m=%zu pieces=%zu blocked=%zu defects=%zu mouth=%.1fmm\n",
-                                     m, best.comps, best.blocked, best.defects, best.mouth * SCALING_FACTOR);
+                        std::fprintf(stderr, "[SPEXACT] m=%zu pieces=%zu blocked=%zu defects=%zu mouth=%.1fmm coverage=%.1fmm\n",
+                                     m, best.comps, best.blocked, best.defects, best.mouth * SCALING_FACTOR,
+                                     best.coverage * SCALING_FACTOR);
                 }
             }
 
