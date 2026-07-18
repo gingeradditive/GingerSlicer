@@ -303,13 +303,27 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
 - **Exact min-pieces solve** — For single-contour islands (m ≤ 160): a
   selection with 0/2 defects is fully determined by the defect pair + one
   phase bit, so all `2 + 2·C(m,2)` candidates are enumerated exactly.
-  Debug line `[SPEXACT]`. Skipped under lightning wall lining.
+  Cost: pieces → blocked → defects → mouth; under lightning wall lining
+  (final emission) ties break toward max wall coverage — the lining. Runs
+  under lining too (the greedy's landing spot was rotation-sensitive and
+  flipped identical layers between wall-hug and floating blobs).
+  Debug line `[SPEXACT]` (incl. coverage).
 
 - **Physical link rule** — Any artificial connection (bridge over a
   virtual edge, join of near-touching open ends, weld of a residual loop)
   is an extruded bead allowed at ANY length provided it stays inside the
   island and does not retrace an extruded line (parallel < 25° within
   0.8 bead for > 1.5 bead accumulated). Links ≤ 1.5 bead skip the tests.
+  Canonical retrace rule ("stesso interasse"): same-layer centerlines
+  parallel closer than one width = doubled material; flank contact at
+  exactly one width = fusion, legal and often the goal.
+
+- **Wall lining** (`FillParams::sparse_wall_lining`) — Under lightning +
+  single path, the wall-hugging boundary stretch the connector keeps when
+  it costs no extra trail: the "second wall" bead fused to the perimeter,
+  the rail that carries the walk to the wall seam. It is the connector's
+  optimum choice, not an unconditional extra loop — layers whose tree is
+  empty print no sparse at all (lightning is demand-driven).
 
 - **Weld / splice** — `single_path_splice_loops()`: staggered double-link
   merge of loops into the walk (ladder, never crossing); with the `island`
@@ -324,9 +338,23 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   welding two wall loops into one walk (the automated CAD "micro cut").
   Planned per layer by Prim (`loops − 1` ribs) in
   `PrintObject::generate_wall_ribs()` / `src/libslic3r/WallRibs.hpp`.
+  EVERY closed loop of the island is a candidate — no role/width/flow
+  partition (exact-equality grouping left Arachne's variable-width loops
+  each in its own group: zero ribs). Rib scalars and emission link flow
+  come from the DOMINANT (longest) source path.
+
+- **Rib obstacle field** (`rib_segment_conflicts`, `WallRibs.hpp`) — A
+  link/stub axis may not cross a foreign bead anywhere (own curves exempt
+  within one stagger of their attach) nor ride one (parallel < 0.9 width
+  for > one stagger = the interasse violation, sampled — intersection
+  tests are blind to it). Rebuilt live at every splice: growing walk +
+  unspliced loops + open thin walls (`extra_obstacles`).
 
 - **Rib column** — A rib re-anchored on the previous layer's attach pair;
-  columns are the self-standing vertical structure of ribs.
+  columns are the self-standing vertical structure of ribs. Per-layer
+  drift budget: half a bead capped at one layer height (~45° lean).
+  Column memory is per island, superseded zone by zone (accepted plans
+  claim their zone; corpses elsewhere survive for near-dead re-founding).
 
 - **Free re-founding** — When a column dies, candidates near the dead column
   are preferred ONLY because they may stand on yesterday's rib corridor

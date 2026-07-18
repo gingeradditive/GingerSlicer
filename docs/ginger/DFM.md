@@ -30,7 +30,12 @@ These force four directives that the rest of this document instantiates:
 - **D1 — Minimize travels.** The ideal layer is ONE continuous extrusion path.
 - **D2 — Prefer extrusion over travel.** A bead is cheaper than a hop: material use is
   explicitly not a concern ("preferiamo estrudere"). Corollary: never extrude *twice over
-  the same line* (retrace), and never extrude *outside the part*.
+  the same line* (retrace), and never extrude *outside the part*. Canonical form of the
+  retrace rule ("stesso interasse"): two same-layer beads whose centerlines run parallel
+  closer than one width are doubled material — the violation. Flank contact at exactly one
+  width is *fusion* and is the goal (rib link pairs, sparse anchors along walls); transversal
+  point crossings are a separate, softer class (geometric integrity of holes/walls); and
+  vertical stacking across layers is just FDM — columns are built on it.
 - **D3 — Keep flow continuous.** Paths should chain with matched flow; ERS handles what
   geometry cannot (feedrates re-quantized at 0.1 mm/s — 1 mm/s is mm³/s-scale error here).
 - **D4 — Every bead must be sustainable.** Support below (wall, rib column, solid) or a
@@ -53,10 +58,16 @@ File: `src/libslic3r/Fill/FillBase.cpp`, `connect_infill_single_path()`.
 ### 2.2 Exact min-pieces solve (single-contour islands)
 Key theorem used: a selection with 0 or 2 defects is **fully determined** by the defect pair
 plus one phase bit, so the whole space is `2 + 2·C(m,2)` candidates — enumerable exactly
-(m ≤ 160 gate). Cost order: pieces → blocked gaps → defects → mouth span. The greedy passes
-cannot reach many optima (cost rises before it falls between k closed loops and one open
-trail; measured 9 pieces greedy vs 1 exact on the H-section part). Not active under lightning
-wall lining (its phase needs the max-wall-coverage tie-break of the greedy swap).
+(m ≤ 160 gate). Cost order: pieces → blocked gaps → defects → mouth span; on the final
+lightning-lining emission, ties break toward the selection covering MORE wall (the "second
+wall" lining bead — D2). The greedy passes cannot reach many optima (cost rises before it
+falls between k closed loops and one open trail; measured 9 pieces greedy vs 1 exact on the
+H-section part) and, worse, their landing spot depends on the contour's point-0 rotation on
+degenerate inputs: identical three-fragment lightning layers of the D02 flipped between the
+1-trail wall-hugging loop and two closed blobs reached by 130–360 mm travels — which is why
+the solver also runs under wall lining now. When the wall-hug phase would take a *blocked*
+arc (riding it would retrace a fragment), the solver correctly settles for the best clean
+1-trail selection: anchored arcs plus one mouth travel, never a doubled bead.
 Openness is often *forced*: on an H section the two trail ends provably sit at the far leg
 tips (exhaustive: 9 valid selections of 2862, mouth ≥ 350 mm) — an open trail costs ~nothing
 when consecutive layers alternate direction and the wall seam lands on the entry.
@@ -110,10 +121,28 @@ header comments), `PrintObject.cpp::generate_wall_ribs()`, consumed in
 
 Principles (all downstream of D1/D4):
 
+- **Every closed loop of the island is a candidate.** Single path is a *chain of features*,
+  not a uniform path: loops are never partitioned by role/width/flow (the old exact-equality
+  grouping put every Arachne variable-width loop in its own group — no ribs at all on the
+  fantome). The rib's own scalars (stagger, corridor, buttress width) and the link flow at
+  emission come from the DOMINANT (longest) source path — never from whatever short special
+  stretch a loop happens to start with.
 - **Per-layer Prim.** The walk is planned per layer: `loops − 1` ribs (minimum spanning
   tree). The rib count changes only when the geometry's topology changes.
+- **Obstacle field, live** (`rib_segment_conflicts`, exported in `WallRibs.hpp`). A link
+  axis must not CROSS any foreign bead anywhere (own curves are exempt only within one
+  stagger of their attach), and must not RIDE any bead: centerlines parallel closer than
+  0.9 width for more than one stagger is the D2 interasse violation — invisible to segment
+  intersection, caught by sampling. The field is rebuilt at every splice: the growing walk
+  (cuts and inserted links included), the not-yet-spliced loops, and the island's OPEN
+  printed beads (Arachne thin-wall multipaths, `extra_obstacles`). The buttress descent
+  applies the same test (ride walk = own, everything else foreign).
 - **Columns.** Each rib re-anchors on the previous layer's attach pair while the geometry
   still allows it (bead-overlap reprojection test) → ribs stack into self-standing columns.
+  Drift budget per layer = half a bead capped at ONE layer height (~45° lean). Column
+  memory is per island and superseded zone by zone: an island whose plan was accepted claims
+  its zone; corpses elsewhere carry over (across rib-less layers and founded-failure drops)
+  so the near-dead re-founding always sees them.
 - **Foundation buttress.** A rib that must start with nothing below grows a lightning-style
   stub chain downward through the *walls*: each layer's stub is 0.5 bead shorter (the
   self-support step), the chain ends on real material (solid shells, the bed) or melts back
