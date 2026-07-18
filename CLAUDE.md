@@ -126,6 +126,8 @@ so ANY red is a real regression. Structure:
   - `test_fill.cpp` - `[Fill]`: fill patterns, single-path connector guards,
     `single_path_splice_loops` physical link rules
   - `test_wall_ribs.cpp` - `[WallRibs]`: rib planner (Prim, columns, buttress, corridors)
+  - `test_dfm_analyzer.cpp` - `[DfmAnalyzer]`: DfM mesh feasibility (thin walls,
+    external/internal overhangs, world-space analysis)
   - `test_data.cpp/.hpp` - fixture helpers (`Slic3r::Test::init_print`, in-code meshes)
 - The removed upstream suites (libslic3r, sla_print, libnest2d, slic3rutils, tests/data)
   are recoverable from git history if ever needed.
@@ -133,7 +135,7 @@ so ANY red is a real regression. Structure:
 Run after building (all green expected):
 ```bash
 build/tests/fff_print/Release/fff_print_tests.exe            # Windows
-./tests/fff_print/fff_print_tests "[Fill],[WallRibs]"        # from build dir, tag filter
+./tests/fff_print/fff_print_tests "[Fill],[WallRibs],[DfmAnalyzer]"  # from build dir, tag filter
 cd build && ctest --output-on-failure
 ```
 

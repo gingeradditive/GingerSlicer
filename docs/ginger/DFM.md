@@ -177,8 +177,15 @@ anchor_reused / founded / drop reasons) — the tool for "why is this hole not c
   flow through any rib merge (see §3) — the classifier's segmentation survives single-path.
 - **Buttresses are engineered overhangs**: the 0.5 bead/layer regression *is* the printable
   overhang ratio applied to a growing stub.
-- **Design-time check**: the "Print check" gizmo (dado/DfM_UI branch) analyses the mesh for
-  thin walls (1×/2× bead) and paints overhang gradients before slicing.
+- **Design-time check**: the "Print check" gizmo analyses the mesh BEFORE slicing
+  (`src/libslic3r/DfmAnalyzer.{hpp,cpp}`, `src/slic3r/GUI/Gizmos/GLGizmoDfmCheck.{hpp,cpp}`).
+  Four per-facet categories: thin critical (< 1× nozzle — unprintable), thin warning
+  (< 2× nozzle — the out + return wall bead pair does not fit), external overhang
+  (lean > 35° from the vertical) and **internal overhang** (upward-tilted wall leaning
+  30–80°: the perimeters above rest on sparse infill — the D4 case filament slicers
+  ignore; past 80° it is a top surface, handled by shells). Expensive threshold-invariant
+  `dfm_measure()` (ray-cast thickness, TBB) + cheap `dfm_classify()` keep threshold and
+  nozzle changes interactive; overhang facets paint a 1°-quantized gradient.
 
 ---
 
@@ -219,7 +226,7 @@ schedule driver — massive short parts cool layer-bound, thin tall parts print 
 | `GINGER_SPCUT_Z=<z>` | per-hole detail near one z | racetrack cut inspection |
 | Headless slice | `Ginger-Slicer.exe --slice <plate> --outputdir <dir> project.3mf` | verify slicing changes without GUI (3MF must embed settings) |
 | `--sweep "opt:from:to:step"` | per-layer swept G-code | parameter calibration prints |
-| `fff_print_tests "[Fill]"` | unit level | splice link rules, single-path guards |
+| `fff_print_tests "[Fill],[WallRibs],[DfmAnalyzer]"` | unit level | splice link rules, rib planner, DfM mesh checks |
 
 Filament diameter on Ginger pellet profiles is 1.12838 mm → 1 mm² cross-section: ΔE in mm
 equals mm³ extruded (convenient for G-code analysis).

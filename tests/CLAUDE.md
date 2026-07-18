@@ -112,7 +112,8 @@ tests/
 ├── CMakeLists.txt              # Main test configuration (Catch2 + test_common)
 ├── catch_main.hpp              # Custom test reporter / main
 ├── fff_print/                  # THE suite: test_fill ([Fill]), test_wall_ribs
-│                               # ([WallRibs]), test_data.cpp/.hpp fixture helpers
+│                               # ([WallRibs]), test_dfm_analyzer ([DfmAnalyzer]),
+│                               # test_data.cpp/.hpp fixture helpers
 └── catch2/                     # Catch2 framework files
 ```
 
@@ -130,6 +131,9 @@ tests/
   outside-island rejection, legacy length cap without island)
 - **test_wall_ribs.cpp** `[WallRibs]`: rib planner — Prim over loops, non-crossing
   staggered links, anchor stability across layers, drift relocation, corridors
+- **test_dfm_analyzer.cpp** `[DfmAnalyzer]`: DfM mesh feasibility — thickness bands
+  (1×/2× nozzle), internal vs external overhang classification, world-space
+  transforms, open-mesh degradation, measure/classify split (meshes built in code)
 - **test_data.cpp/.hpp**: `Slic3r::Test` fixture helpers (`init_print`, `gcode`,
   meshes generated in code via `TestMesh` — no external data files)
 

@@ -433,8 +433,22 @@ Aligned to OrcaSlicer PR **#11435** (Clipper2 multiline), **#11765**
 ## Geometry & quality concepts (Ginger usage)
 
 - **Feature size vs nozzle** — On pellet (≥1 mm nozzles) geometric features
-  smaller than ~`nozzle/2` will be silently dropped by the slicer. Future
-  geometry-analyzer checks should warn before slicing.
+  smaller than ~`nozzle/2` will be silently dropped by the slicer. The
+  Print check gizmo (next entry) warns about thin walls before slicing.
+
+- **Print check (DfM gizmo)** — Per-facet mesh feasibility analysis run
+  BEFORE slicing, in world space (instance transforms applied). Four
+  categories (`DfmIssueFlag`): thin critical (< 1× nozzle), thin warning
+  (< 2× nozzle — no room for the out + return wall bead pair), external
+  overhang (lean > 35° from the vertical) and internal overhang
+  (upward-tilted wall 30–80°: the perimeters above rest on sparse infill;
+  past 80° = top surface, shells' job). Thresholds in `DfmThresholds`;
+  split as expensive threshold-invariant `dfm_measure()` (ray-cast
+  thickness, TBB) + cheap `dfm_classify()` so threshold/nozzle changes
+  re-color interactively; overhang facets carry a 1°-quantized gradient.
+  Files: `src/libslic3r/DfmAnalyzer.{hpp,cpp}`,
+  `src/slic3r/GUI/Gizmos/GLGizmoDfmCheck.{hpp,cpp}`. Unit tests:
+  `tests/fff_print/test_dfm_analyzer.cpp` `[DfmAnalyzer]`.
 
 - **Layer-time warping** — On large pellet parts, layers with very long
   per-perimeter time allow material to crystallize/cool between passes,
