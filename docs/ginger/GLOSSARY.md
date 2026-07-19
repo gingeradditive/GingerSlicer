@@ -440,12 +440,14 @@ Aligned to OrcaSlicer PR **#11435** (Clipper2 multiline), **#11765**
   BEFORE slicing, in world space (instance transforms applied). Four
   categories (`DfmIssueFlag`): thin critical (< 1× nozzle), thin warning
   (< 2× nozzle — no room for the out + return wall bead pair), external
-  overhang (lean > 35° from the vertical) and internal overhang
-  (upward-tilted wall 30–80°: the perimeters above rest on sparse infill;
-  past 80° = top surface, shells' job). Thresholds in `DfmThresholds`;
-  split as expensive threshold-invariant `dfm_measure()` (ray-cast
-  thickness, TBB) + cheap `dfm_classify()` so threshold/nozzle changes
-  re-color interactively; overhang facets carry a 1°-quantized gradient.
+  overhang (downward-facing) and internal overhang (upward-facing: the
+  perimeters above rest on sparse infill; a flat top surface is the worst
+  case of it, 90°). Overhangs have NO angle thresholds: the color is the
+  lean angle, a 1°-quantized gradient over 0–90° (pale→dark red outward,
+  pale→dark blue inward); plumb facets and bed contact stay unflagged.
+  Only the nozzle diameter drives the thin bands (`DfmThresholds`);
+  expensive `dfm_measure()` (ray-cast thickness, TBB) + cheap
+  `dfm_classify()` keep re-classification instant.
   Files: `src/libslic3r/DfmAnalyzer.{hpp,cpp}`,
   `src/slic3r/GUI/Gizmos/GLGizmoDfmCheck.{hpp,cpp}`. Unit tests:
   `tests/fff_print/test_dfm_analyzer.cpp` `[DfmAnalyzer]`.

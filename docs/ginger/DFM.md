@@ -181,11 +181,13 @@ anchor_reused / founded / drop reasons) — the tool for "why is this hole not c
   (`src/libslic3r/DfmAnalyzer.{hpp,cpp}`, `src/slic3r/GUI/Gizmos/GLGizmoDfmCheck.{hpp,cpp}`).
   Four per-facet categories: thin critical (< 1× nozzle — unprintable), thin warning
   (< 2× nozzle — the out + return wall bead pair does not fit), external overhang
-  (lean > 35° from the vertical) and **internal overhang** (upward-tilted wall leaning
-  30–80°: the perimeters above rest on sparse infill — the D4 case filament slicers
-  ignore; past 80° it is a top surface, handled by shells). Expensive threshold-invariant
-  `dfm_measure()` (ray-cast thickness, TBB) + cheap `dfm_classify()` keep threshold and
-  nozzle changes interactive; overhang facets paint a 1°-quantized gradient.
+  (downward-facing) and **internal overhang** (upward-facing: the perimeters above rest
+  on sparse infill — the D4 case filament slicers ignore; a flat top surface is the WORST
+  case of it, 90°, not a separate class). Overhangs carry no angle thresholds: the color
+  IS the lean angle, a 1°-quantized gradient over the full 0–90° range (pale→dark red
+  outward, pale→dark blue inward); plumb facets and bed contact stay unflagged. Expensive
+  threshold-invariant `dfm_measure()` (ray-cast thickness, TBB) + cheap `dfm_classify()`
+  keep nozzle changes interactive.
 
 ---
 

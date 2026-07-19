@@ -4,8 +4,9 @@
 // "Print Check" gizmo: educational Design-for-Manufacturing feasibility analysis for
 // large-scale pellet printing. Runs the DfmAnalyzer on the selected instance on a worker
 // thread and paints the issues on the model: flat red/orange for walls thinner than
-// 1x/2x the nozzle diameter, and per-degree color gradients for external (yellow->red)
-// and internal (teal->blue) overhangs.
+// 1x/2x the nozzle diameter, and per-degree color gradients over the full 0..90° lean
+// range (no thresholds) for external (pale->dark red) and internal (pale->dark blue)
+// overhangs — a flat top surface is the worst internal overhang (90°).
 
 // Include GLGizmoBase.hpp before I18N.hpp as it includes some libigl code,
 // which overrides our localization "L" macro.
@@ -93,9 +94,6 @@ private:
     void render_color_chip(size_t category);
     void render_issue_row(size_t category, const wxString &title, const wxString &explanation,
                           float stats_col, float wrap_width);
-    bool render_threshold_slider(const std::string &id, const wxString &caption, double &value_deg,
-                                 float min_deg, float max_deg, float caption_size, float slider_width,
-                                 float drag_left_width, float slider_icon_width);
 
     std::thread m_worker;
     std::mutex  m_state_mutex; // guards m_state
@@ -114,6 +112,12 @@ private:
 
     // Timestamp of the last rerender request. Only accessed from UI thread.
     int64_t m_last_rerender_timestamp = std::numeric_limits<int64_t>::min();
+
+    // Input window geometry measured inside Begin/End on the previous frame: the height
+    // feeds the bottom-limit clamp, the content height detects expand/collapse of the
+    // tree nodes so an extra frame lets AlwaysAutoResize settle (no stale empty window).
+    float m_last_input_window_height = 0.f;
+    float m_last_content_height      = 0.f;
 };
 
 } // namespace GUI

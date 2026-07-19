@@ -21,13 +21,14 @@ static const ColorRGBA THIN_CRITICAL_COLOR = {0.85f, 0.10f, 0.10f, 1.0f};
 static const ColorRGBA THIN_WARNING_COLOR  = {0.95f, 0.55f, 0.05f, 1.0f};
 
 // Overhang severity is graded by the lean angle (1 degree resolution): the gradients run
-// from the user threshold to 90 degrees. Yellow->red for external, teal->blue for
-// internal, so the two families stay distinguishable.
-static ColorRGBA overhang_gradient_color(int deg, double threshold_deg, bool external)
+// over the FULL 0..90 range — the color IS the angle, there is no threshold to tune.
+// Pale warm -> dark red for external, pale cool -> dark blue for internal, so the two
+// families stay distinguishable while near-vertical walls stay close to the neutral gray.
+static ColorRGBA overhang_gradient_color(int deg, bool external)
 {
-    const float t = std::clamp(float((deg - threshold_deg) / std::max(1., 90. - threshold_deg)), 0.f, 1.f);
-    return external ? lerp(ColorRGBA(0.98f, 0.85f, 0.20f, 1.0f), ColorRGBA(0.75f, 0.03f, 0.03f, 1.0f), t) :
-                      lerp(ColorRGBA(0.45f, 0.90f, 0.85f, 1.0f), ColorRGBA(0.05f, 0.15f, 0.65f, 1.0f), t);
+    const float t = std::clamp(float(deg) / 90.f, 0.f, 1.f);
+    return external ? lerp(ColorRGBA(0.93f, 0.89f, 0.72f, 1.0f), ColorRGBA(0.75f, 0.03f, 0.03f, 1.0f), t) :
+                      lerp(ColorRGBA(0.72f, 0.90f, 0.90f, 1.0f), ColorRGBA(0.05f, 0.15f, 0.65f, 1.0f), t);
 }
 
 // Extend call after only when the DfmCheck gizmo is still alive/active.
@@ -336,12 +337,12 @@ void GLGizmoDfmCheck::rebuild_overlays()
         for (auto &[deg, geometry] : external_by_deg) {
             GLModel &model = overlay->external_by_deg[deg];
             model.init_from(std::move(geometry));
-            model.set_color(overhang_gradient_color(deg, m_thresholds.external_overhang_deg, true));
+            model.set_color(overhang_gradient_color(deg, true));
         }
         for (auto &[deg, geometry] : internal_by_deg) {
             GLModel &model = overlay->internal_by_deg[deg];
             model.init_from(std::move(geometry));
-            model.set_color(overhang_gradient_color(deg, m_thresholds.internal_overhang_deg, false));
+            model.set_color(overhang_gradient_color(deg, false));
         }
         m_overlays.emplace_back(std::move(overlay));
     }
@@ -441,12 +442,11 @@ void GLGizmoDfmCheck::render_color_chip(size_t category)
         draw_list->AddRectFilled(pos, ImVec2(pos.x + size, pos.y + size),
                                  ImGui::GetColorU32(ImVec4(color.r(), color.g(), color.b(), 1.f)), 2.f);
     } else {
-        const bool   external  = category == 2;
-        const double threshold = external ? m_thresholds.external_overhang_deg : m_thresholds.internal_overhang_deg;
-        const int    segments  = 6;
+        const bool external = category == 2;
+        const int  segments = 6;
         for (int i = 0; i < segments; ++i) {
-            const int deg = int(std::lround(threshold + (90. - threshold) * (i + 0.5) / segments));
-            const ColorRGBA color = overhang_gradient_color(deg, threshold, external);
+            const int deg = int(std::lround(90. * (i + 0.5) / segments));
+            const ColorRGBA color = overhang_gradient_color(deg, external);
             draw_list->AddRectFilled(ImVec2(pos.x + size * i / segments, pos.y),
                                      ImVec2(pos.x + size * (i + 1) / segments, pos.y + size),
                                      ImGui::GetColorU32(ImVec4(color.r(), color.g(), color.b(), 1.f)));
@@ -487,30 +487,16 @@ void GLGizmoDfmCheck::render_issue_row(size_t category, const wxString &title, c
         const float indent = ImGui::GetFrameHeight() * 0.75f + ImGui::GetStyle().ItemSpacing.x;
         ImGui::Indent(indent);
         if (ImGui::TreeNodeEx(_u8L("Why & how to fix").c_str(), ImGuiTreeNodeFlags_None)) {
-            m_imgui->text_wrapped(explanation, wrap_width);
+            // text_wrapped wraps at cursor.x + width: subtract the tree/row indent so the
+            // text ends at the same right edge as the top-level rows and cannot widen the
+            // width-pinned window.
+            m_imgui->text_wrapped(explanation,
+                wrap_width + ImGui::GetStyle().WindowPadding.x - ImGui::GetCursorPosX());
             ImGui::TreePop();
         }
         ImGui::Unindent(indent);
     }
     ImGui::PopID();
-}
-
-bool GLGizmoDfmCheck::render_threshold_slider(const std::string &id, const wxString &caption, double &value_deg,
-                                              float min_deg, float max_deg, float caption_size, float slider_width,
-                                              float drag_left_width, float slider_icon_width)
-{
-    ImGui::AlignTextToFramePadding();
-    m_imgui->text(caption);
-    ImGui::SameLine(caption_size);
-    ImGui::PushItemWidth(slider_width);
-    float value   = float(value_deg);
-    bool  changed = m_imgui->bbl_slider_float_style("##" + id, &value, min_deg, max_deg, "%.0f°", 1.0f, true);
-    ImGui::SameLine(drag_left_width);
-    ImGui::PushItemWidth(1.5f * slider_icon_width);
-    changed |= ImGui::BBLDragFloat(("##" + id + "_input").c_str(), &value, 1.0f, min_deg, max_deg, "%.0f");
-    if (changed)
-        value_deg = double(std::clamp(value, min_deg, max_deg));
-    return changed;
 }
 
 void GLGizmoDfmCheck::on_render_input_window(float x, float y, float bottom_limit)
@@ -540,31 +526,31 @@ void GLGizmoDfmCheck::on_render_input_window(float x, float y, float bottom_limi
         progress   = m_state.progress;
     }
 
-    const float win_h = ImGui::GetWindowHeight();
-    y                 = std::min(y, bottom_limit - win_h);
+    // Clamp with the height measured INSIDE the window on the previous frame:
+    // ImGui::GetWindowHeight() here would report whatever window happens to be current.
+    y = std::min(y, bottom_limit - m_last_input_window_height);
     GizmoImguiSetNextWIndowPos(x, y, ImGuiCond_Always, 0.0f, 0.0f);
 
     const float currt_scale = m_parent.get_scale();
     ImGuiWrapper::push_toolbar_style(currt_scale);
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(4.0 * currt_scale, 5.0 * currt_scale));
     ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, 4.0f * currt_scale);
-    GizmoImguiBegin(get_name(), ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove |
-                                ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
-    // Layout constants, following the other gizmo panels (caption left, slider + drag right).
+    // Layout constants: issue title left, area/angle stats right. Computed BEFORE Begin
+    // so the window WIDTH can be pinned: with AlwaysAutoResize alone, expanding a
+    // "Why & how to fix" node widens the window, and the x clamp in
+    // GizmoImguiSetNextWIndowPos (based on the previous frame's width) then makes the
+    // whole panel jump left/right on every expand/collapse.
     const float space_size = m_imgui->get_style_scaling() * 8;
-    std::vector<wxString> captions = {_L("Max outward overhang"), _L("Max inward lean"), _L("Top surface band")};
-    const float caption_size      = m_imgui->find_widest_text(captions) + space_size + ImGui::GetStyle().WindowPadding.x;
-    const float input_text_size   = m_imgui->scaled(10.0f);
-    const float list_width        = input_text_size + ImGui::GetStyle().ScrollbarSize + 2 * currt_scale;
-    const float slider_icon_width = m_imgui->get_slider_icon_size().x;
-    const float slider_width      = list_width - space_size;
-    const float drag_left_width   = caption_size + slider_width + space_size;
-    const float panel_width       = drag_left_width + 1.5f * slider_icon_width;
-
     std::vector<wxString> titles = {_L("Too thin — unprintable"), _L("Too thin for a wall loop"),
                                     _L("Overhang (outward)"), _L("Overhang (inward, over infill)")};
-    const float stats_col = m_imgui->find_widest_text(titles) + 2.f * ImGui::GetFrameHeight() + 3.f * space_size;
+    const float stats_col    = m_imgui->find_widest_text(titles) + 2.f * ImGui::GetFrameHeight() + 3.f * space_size;
+    const float panel_width  = stats_col + m_imgui->scaled(9.0f);
+    const float window_width = panel_width + 2.f * ImGui::GetStyle().WindowPadding.x;
+    ImGui::SetNextWindowSizeConstraints(ImVec2(window_width, 0.f), ImVec2(window_width, FLT_MAX));
+
+    GizmoImguiBegin(get_name(), ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove |
+                                ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse);
 
     m_imgui->text_wrapped(GUI::format(_L("Nozzle %1% mm: walls need %2% mm to print and %3% mm for a wall loop."),
                                       GUI::format("%.2f", nozzle),
@@ -605,36 +591,25 @@ void GLGizmoDfmCheck::on_render_input_window(float x, float y, float bottom_limi
                 GUI::format("%.2f", 2. * nozzle)),
             stats_col, panel_width);
         render_issue_row(2, titles[2],
-            GUI::format_wxstr(_L("These surfaces hang over empty space by more than %1%°. Heavy pellet beads "
-                 "sag when there is no material below them. Color runs from yellow (at the limit) "
-                 "to dark red (worst).\n"
-                 "Fix: reduce the angle (45° chamfers instead of flat ledges), rotate the part, "
-                 "or split the model and print it in pieces."),
-                int(m_thresholds.external_overhang_deg)),
+            _L("These surfaces face downward over empty space, and heavy pellet beads sag "
+               "when there is no material below them. The color IS the surface angle: from "
+               "pale (near vertical, 0°) to dark red (horizontal, 90°).\n"
+               "Fix: reduce the angle (45° chamfers instead of flat ledges), rotate the part, "
+               "or split the model and print it in pieces."),
             stats_col, panel_width);
         render_issue_row(3, titles[3],
-            _L("These walls lean inward: on the layers above, the wall bead rests on sparse "
-               "infill, which cannot carry a heavy pellet bead — the wall can collapse inward. "
-               "Slicers made for desktop printers ignore this problem completely! Color runs "
-               "from teal (at the limit) to dark blue (worst).\n"
-               "Fix: reduce the lean, use denser or solid infill, or thicken the wall."),
+            _L("These surfaces face upward: on the layers above, the wall bead rests on "
+               "sparse infill, which cannot carry a heavy pellet bead — the wall can collapse "
+               "inward. A flat top is the worst case of this (90°): the whole surface rests on "
+               "infill. Slicers made for desktop printers ignore this problem completely! The "
+               "color IS the surface angle: from pale (near vertical, 0°) to dark blue (90°).\n"
+               "Fix: reduce the lean, use denser or solid infill under tops, or thicken the wall."),
             stats_col, panel_width);
 
         ImGui::Separator();
-        if (render_threshold_slider("ext_deg", captions[0], m_thresholds.external_overhang_deg, 10.f, 70.f,
-                                    caption_size, slider_width, drag_left_width, slider_icon_width))
-            m_reclassify_pending = true;
-        if (render_threshold_slider("int_deg", captions[1], m_thresholds.internal_overhang_deg, 10.f, 70.f,
-                                    caption_size, slider_width, drag_left_width, slider_icon_width))
-            m_reclassify_pending = true;
-        if (ImGui::TreeNodeEx(_u8L("Advanced").c_str(), ImGuiTreeNodeFlags_None)) {
-            if (render_threshold_slider("top_band", captions[2], m_thresholds.top_surface_band_deg, 70.f, 90.f,
-                                        caption_size, slider_width, drag_left_width, slider_icon_width))
-                m_reclassify_pending = true;
-            m_imgui->text_wrapped(_L("Upward leans beyond this angle count as top surfaces "
-                                     "(handled by top shells), not as inward overhangs."), panel_width);
-            ImGui::TreePop();
-        }
+        m_imgui->text_wrapped(_L("Overhang colors grade the surface angle from vertical (pale, 0°) "
+                                 "to horizontal (dark, 90°) — there is nothing to configure."),
+                              panel_width);
 
         if (m_measurement.skipped_volumes > 0) {
             ImGui::Separator();
@@ -646,6 +621,16 @@ void GLGizmoDfmCheck::on_render_input_window(float x, float y, float bottom_limi
             m_imgui->text_wrapped(_L("This model has holes or errors, so thickness results may be "
                                      "incomplete. Consider repairing the model first."), panel_width);
         }
+    }
+
+    // AlwaysAutoResize applies a content change only on the NEXT ImGui frame; without an
+    // extra frame the window keeps the stale size (a big empty area after collapsing a
+    // "Why & how to fix" node) until some other event triggers a render.
+    m_last_input_window_height = ImGui::GetWindowHeight();
+    const float content_height = ImGui::GetCursorPosY();
+    if (std::abs(content_height - m_last_content_height) > 0.5f) {
+        m_last_content_height = content_height;
+        request_rerender(true);
     }
 
     GizmoImguiEnd();

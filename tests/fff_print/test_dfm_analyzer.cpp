@@ -10,8 +10,11 @@
 using namespace Slic3r;
 using Catch::Matchers::WithinAbs;
 
-// Default thresholds: nozzle 3.0 mm -> thin critical < 3 mm, thin warning < 6 mm,
-// external overhang > 35 deg, internal overhang 30..80 deg of lean from the vertical.
+// Default thresholds: nozzle 3.0 mm -> thin critical < 3 mm, thin warning < 6 mm.
+// Overhangs carry no angle threshold: every leaning facet is graded 0..90 deg of lean
+// from the vertical (external = downward-facing, internal = upward-facing over infill;
+// a flat top surface is internal at 90). Plumb facets (quantized 0) and bed contact
+// stay unflagged.
 
 static size_t count_flagged(const DfmClassification &c, uint8_t flag)
 {
@@ -61,16 +64,20 @@ TEST_CASE("DfmAnalyzer: wall thickness bands on plates", "[DfmAnalyzer]")
     }
 }
 
-TEST_CASE("DfmAnalyzer: thick cube is clean", "[DfmAnalyzer]")
+TEST_CASE("DfmAnalyzer: thick cube flags only its top surface", "[DfmAnalyzer]")
 {
     const indexed_triangle_set its = its_make_cube(100., 100., 100.);
     std::atomic<int> last_progress{-1};
     const DfmMeasurement m = dfm_measure(its, {}, [&last_progress](int pct) { last_progress = pct; });
     const DfmClassification c = dfm_classify(m, DfmThresholds{});
-    // No false positives anywhere: bottom is bed contact, top is in the top-surface band,
-    // walls are vertical and 100 mm thick.
-    for (size_t cat = 0; cat < DfmCategoryCount; ++ cat)
-        REQUIRE(c.stats[cat].facets == 0);
+    // Vertical 100 mm walls and the bed-contact bottom stay clean; the flat top is the
+    // worst inward overhang by definition (90 deg, resting on infill).
+    REQUIRE(c.stats[0].facets == 0);
+    REQUIRE(c.stats[1].facets == 0);
+    REQUIRE(c.stats[2].facets == 0);
+    REQUIRE(c.stats[3].facets == 2);
+    REQUIRE(c.stats[3].max_overhang_deg == 90);
+    REQUIRE_THAT(c.stats[3].area, WithinAbs(100. * 100., 1.));
     REQUIRE_THAT(c.total_area, WithinAbs(6. * 100. * 100., 1.));
     REQUIRE(last_progress.load() == 100);
     REQUIRE(m.ray_miss_count == 0);
@@ -95,11 +102,6 @@ TEST_CASE("DfmAnalyzer: pyramid distinguishes internal from external overhang", 
         for (size_t f = 0; f < c.facet_flags.size(); ++ f)
             if (c.facet_flags[f] & dfmOverhangInternal)
                 REQUIRE(int(c.overhang_deg[f]) == 45);
-
-        DfmThresholds relaxed;
-        relaxed.internal_overhang_deg = 50.;
-        const DfmClassification c2 = dfm_classify(m, relaxed);
-        REQUIRE(c2.stats[3].facets == 0);
     }
 
     SECTION("apex down: walls lean outward -> external overhang") {
@@ -108,25 +110,38 @@ TEST_CASE("DfmAnalyzer: pyramid distinguishes internal from external overhang", 
         const DfmClassification c = dfm_classify(m, DfmThresholds{});
         REQUIRE(c.stats[2].facets == 4);
         REQUIRE(c.stats[2].max_overhang_deg == 45);
-        REQUIRE(c.stats[3].facets == 0);
+        // The base, now the flat top, is the worst inward overhang (90 deg).
+        REQUIRE(c.stats[3].facets == 2);
+        REQUIRE(c.stats[3].max_overhang_deg == 90);
     }
 }
 
-TEST_CASE("DfmAnalyzer: near-horizontal top surfaces are not internal overhang", "[DfmAnalyzer]")
+TEST_CASE("DfmAnalyzer: top surfaces are the worst inward overhang", "[DfmAnalyzer]")
 {
-    SECTION("85 deg of lean falls in the top-surface band") {
-        indexed_triangle_set its = its_make_cube(100., 100., 2.);
-        its_rotate_x(its, 5.f);
+    SECTION("flat top of a slab is flagged at 90 deg") {
+        const indexed_triangle_set its = its_make_cube(100., 100., 2.);
         const DfmClassification c = dfm_classify(dfm_measure(its), DfmThresholds{});
-        REQUIRE(c.stats[3].facets == 0);
+        // Two top triangles at 90 deg; vertical walls (lean 0) stay clean; the bottom
+        // is bed contact.
+        REQUIRE(c.stats[3].facets == 2);
+        REQUIRE(c.stats[3].max_overhang_deg == 90);
+        REQUIRE(c.stats[2].facets == 0);
     }
-    SECTION("75 deg of lean is still a flagged wall") {
+    SECTION("tilting 15 deg grades the top at 75 and the raised side wall at 15") {
         indexed_triangle_set its = its_make_cube(100., 100., 2.);
         its_rotate_x(its, 15.f);
         const DfmClassification c = dfm_classify(dfm_measure(its), DfmThresholds{});
-        // The two top-face triangles now lean 75 deg upward.
-        REQUIRE(c.stats[3].facets == 2);
+        // Upward-facing: the top quad now leans 75 deg, the +Y wall 15 deg.
+        REQUIRE(c.stats[3].facets == 4);
         REQUIRE(c.stats[3].max_overhang_deg == 75);
+        for (size_t f = 0; f < c.facet_flags.size(); ++ f)
+            if (c.facet_flags[f] & dfmOverhangInternal) {
+                const bool is_15_or_75 = c.overhang_deg[f] == 15 || c.overhang_deg[f] == 75;
+                REQUIRE(is_15_or_75);
+            }
+        // Downward mirror: the bottom at 75, the -Y wall at 15 (both clear the bed band).
+        REQUIRE(c.stats[2].facets == 4);
+        REQUIRE(c.stats[2].max_overhang_deg == 75);
     }
 }
 

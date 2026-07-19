@@ -216,22 +216,27 @@ DfmClassification dfm_classify(const DfmMeasurement &m, const DfmThresholds &t)
 
         const double nz   = std::clamp(double(m.normal_z[f]), -1., 1.);
         // Lean of the surface from the vertical: 0 = plumb wall, 90 = horizontal.
-        const double lean = std::asin(std::abs(nz)) * (180. / M_PI);
-        bool is_overhang  = false;
-        if (nz < 0.) {
-            if (lean > t.external_overhang_deg && double(m.z_max[f]) > bed_band_z) {
-                flags      |= dfmOverhangExternal;
-                is_overhang = true;
-            }
-        } else if (nz > 0.) {
-            if (lean > t.internal_overhang_deg && lean < t.top_surface_band_deg) {
+        const double lean     = std::asin(std::abs(nz)) * (180. / M_PI);
+        const int    lean_deg = int(std::min(90l, std::lround(lean)));
+        // No angle thresholds: every leaning facet is graded 0..90 so the overlay paints
+        // the full gradient. Quantized 0 (plumb within half a degree) stays unflagged.
+        bool is_overhang = false;
+        if (lean_deg > 0) {
+            if (nz < 0.) {
+                // Downward-facing: external overhang, unless it is bed contact.
+                if (double(m.z_max[f]) > bed_band_z) {
+                    flags      |= dfmOverhangExternal;
+                    is_overhang = true;
+                }
+            } else {
+                // Upward-facing: on the layers above, the wall bead rests on sparse
+                // infill. A flat top (90°) is the worst case of the same problem.
                 flags      |= dfmOverhangInternal;
                 is_overhang = true;
             }
         }
 
         c.facet_flags[f] = flags;
-        const int lean_deg = int(std::min(90l, std::lround(lean)));
         if (is_overhang)
             c.overhang_deg[f] = uint8_t(lean_deg);
         for (size_t cat = 0; cat < DfmCategoryCount; ++ cat)

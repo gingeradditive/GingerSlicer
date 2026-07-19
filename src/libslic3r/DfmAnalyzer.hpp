@@ -5,9 +5,11 @@
 // pellet printing. Detects, per facet of the world-space mesh:
 //  - walls thinner than 1x nozzle diameter (physically unprintable)
 //  - walls thinner than 2x nozzle diameter (an outbound + return wall bead pair does not fit)
-//  - external overhangs (downward-facing faces leaning past a threshold)
+//  - external overhangs (downward-facing faces), graded by lean angle 0..90 — no threshold
 //  - internal overhangs (upward-tilted walls: the perimeters above them rest on sparse
-//    infill, which cannot carry a pellet bead; filament slicers ignore this case)
+//    infill, which cannot carry a pellet bead; filament slicers ignore this case), graded
+//    0..90 as well — a flat top surface is the worst case (90°) of the same problem, not
+//    a separate class
 //
 // The analysis is split in two passes so that interactive threshold changes stay cheap:
 //  - dfm_measure(): expensive, threshold-invariant raw measurement (ray-cast thickness,
@@ -28,8 +30,9 @@ namespace Slic3r {
 
 class ModelObject;
 
-// All lengths in mm (world space). Angles in degrees, measured as the lean of the
-// surface from the vertical: 0 = plumb wall, 90 = horizontal.
+// All lengths in mm (world space). Overhangs carry no angle thresholds: every leaning
+// facet is graded by its lean from the vertical (0 = plumb wall, 90 = horizontal) and the
+// overlay paints the full gradient.
 struct DfmThresholds
 {
     double nozzle_diameter       = 3.0;
@@ -37,12 +40,6 @@ struct DfmThresholds
     double thin_critical_factor  = 1.0;
     // Below thin_warning_factor * nozzle_diameter a wall loop (out + return bead) does not fit.
     double thin_warning_factor   = 2.0;
-    // Downward-facing faces leaning more than this from the vertical are unsupported.
-    double external_overhang_deg = 35.;
-    // Upward-facing walls leaning more than this rest on sparse infill on the layers above.
-    double internal_overhang_deg = 30.;
-    // Upward lean beyond this band is a legitimate top surface handled by top shells.
-    double top_surface_band_deg  = 80.;
     // Faces whose top vertex lies within bed_band_factor * nozzle_diameter of the mesh
     // bottom are bed contact, not overhangs.
     double bed_band_factor       = 0.5;
