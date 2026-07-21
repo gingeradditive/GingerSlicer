@@ -699,6 +699,25 @@ std::string GCodeWriter::_travel_to_z(double z, const std::string &comment)
 
 std::string GCodeWriter::_spiral_travel_to_z(double z, const Vec2d &ij_offset, const std::string &comment)
 {
+    // Ginger: the helix is emitted as two half arcs with explicit X/Y end points, not as a
+    // single full circle with the end point omitted (which is what upstream does).
+    // A full circle makes the firmware compute an angular travel of exactly 0: Klipper and
+    // Marlin recover the radius vector as (target - center) with center = (current - r), and
+    // that float round trip leaves a ~1e-14 residue in a cross product that is 0 in exact
+    // arithmetic. The sign of the residue then decides between "no arc at all" (angle 0) and
+    // "full turn" (angle 2*PI, after the `if (angle < 0) angle += 2*PI` normalization), so
+    // about half of the spiral lifts silently degenerated into a plain vertical hop depending
+    // on the current XY and on I/J. Klipper's "make a circle" special case does not rescue it:
+    // it tests `angular_travel == 0.` exactly, which the residue defeats.
+    // Each half arc has an angular travel of PI instead, where that normalization is
+    // continuous, so the residue only perturbs the angle by ~1e-13 rad.
+    const double radius = ij_offset.norm();
+    if (radius < 0.005)
+        // Degenerate radius: the quantized end points would collapse onto the start point and
+        // reintroduce the very degeneracy above. A plain vertical lift is the honest fallback.
+        return this->_travel_to_z(z, comment);
+
+    const double z_start = m_pos(2);
     m_pos(2) = z;
 
     double speed = this->config.travel_speed_z.value;
@@ -706,15 +725,35 @@ std::string GCodeWriter::_spiral_travel_to_z(double z, const Vec2d &ij_offset, c
         speed = m_is_first_layer ? this->config.get_abs_value("initial_layer_travel_speed")
                                  : this->config.travel_speed.value;
     }
-    
+
+    //BBS: take plate offset into consider
+    const Vec2d  cur      = { m_pos(0) - m_x_offset, m_pos(1) - m_y_offset };
+    const Vec2d  opposite = { cur.x() + 2. * ij_offset.x(), cur.y() + 2. * ij_offset.y() };
+    const Vec2d  ij_back  = { -ij_offset.x(), -ij_offset.y() };
+    const double z_mid    = 0.5 * (z_start + z);
+
+    // Note: no P word. Marlin reads P as "extra full circles to run before the arc", which
+    // would turn each half arc into a full circle plus a half.
     std::string output = "G17\n";
-    GCodeG2G3Formatter w(true);
-    w.emit_z(z);
-    w.emit_ij(ij_offset);
-    w.emit_string(" P1 ");
-    w.emit_f(speed * 60.0);
-    w.emit_comment(GCodeWriter::full_gcode_comment, comment);
-    return output + w.string();
+    {
+        GCodeG2G3Formatter w(true);
+        w.emit_xy(opposite);
+        w.emit_z(z_mid);
+        w.emit_ij(ij_offset);
+        w.emit_f(speed * 60.0);
+        w.emit_comment(GCodeWriter::full_gcode_comment, comment);
+        output += w.string();
+    }
+    {
+        GCodeG2G3Formatter w(true);
+        w.emit_xy(cur);
+        w.emit_z(z);
+        w.emit_ij(ij_back);
+        w.emit_f(speed * 60.0);
+        w.emit_comment(GCodeWriter::full_gcode_comment, comment);
+        output += w.string();
+    }
+    return output;
 }
 
 bool GCodeWriter::will_move_z(double z) const
