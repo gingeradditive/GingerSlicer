@@ -445,6 +445,37 @@ Aligned to OrcaSlicer PR **#11435** (Clipper2 multiline), **#11765**
   during travels. Mitigated by: (a) brief screw reverse, (b) higher travel
   speeds, (c) wiping with `coast_at_end_speed`.
 
+- **Adhesion-bridging stringing (cord stringing)** — Distinct from oozing.
+  The molten cord inside a >1 mm nozzle stays physically welded to the
+  just-printed bead even after full screw decompression: retraction relieves
+  pressure but cannot *cut* a several-mm-wide cord. On travel the melt
+  separates — and polymer melt is strain-rate dependent, so a *slow* pull
+  strings while a *fast* pull snaps. Observed symptom: a ~2 mm vertical
+  "spike" (spina) at the path end during the in-place Z-hop, which then bends
+  into the travel direction; on stringy materials (PP, PETG) it thins into a
+  hair, on fibre-filled materials only the spike remains. Because the Z axis
+  is capped low (~8 mm/s), the fast separation must happen in XY. Levers:
+  Slope/Spiral lift (separate at XY travel speed instead of a slow vertical
+  hop), faster wipe (`role_based_wipe_speed=0` + high `wipe_speed`), and the
+  parked "string snap" idea (retrace the bead at travel speed before the hop).
+  Not the same failure ERS solves — ERS manages the flow reservoir, not the
+  melt-to-bead adhesion.
+
+- **Spiral lift** (`z_hop_types = Spiral Lift`) — Rises Z along a helix over
+  the just-printed area instead of a vertical hop, so separation happens at
+  XY travel speed (bypassing the ~8 mm/s Z cap) and any severed material lands
+  over existing material. Radius `= z_hop / (2π·tan(travel_slope))`, so a
+  smaller `travel_slope` widens the circle (1° → ~9 mm, 3° → ~3 mm). Ginger
+  emits the helix as **two half arcs with explicit X/Y end points**, not a
+  single full circle with the end point omitted: a full circle makes Klipper /
+  Marlin compute an angular travel of exactly 0, and a ~1e-14 float residue in
+  the radius round-trip then decides — by its sign — between "no arc" and "full
+  turn", so ~50 % of lifts silently degenerated into a plain vertical hop
+  (`GCodeWriter::_spiral_travel_to_z`). Half arcs sit at angle π, where the
+  angle normalization is continuous, so they are robust. Needs `[gcode_arcs]`
+  in the Klipper config; `resolution: 0.1–0.2` gives a smoother, faster arc
+  than the default.
+
 ---
 
 ## Volume-based cooling (h² × k model)
