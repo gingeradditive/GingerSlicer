@@ -108,6 +108,35 @@ lining**: there a wall-hugging stretch is the product (the "second wall"), not a
 Debug: `GINGER_SINGLE_PATH_DEBUG=1` → `[SPEXACT] [SPWELD] [SPBRIDGE] [SPDEVIATE] [SPOPEN]
 [SPCUT] [SPCLOSE] [SPDEFECT]` on stderr.
 
+### 2.6 The wall takes over the infill (`single_path_infill_as_wall`)
+On transparent material the *anchor* — where a Lightning branch meets the wall — is the visible
+defect. Doubling the branch is what removes it: a single branch touching the wall is a degree-3
+vertex (a T, which no non-retracing walk can cross), while a branch with two flanks is entered from
+one and left by the other, degree 2 throughout. So the wall loop itself detours around every branch:
+
+    loop = ∂( P \ (branches ⊕ spacing/2) )      P = region inside the wall centerline
+
+A boolean, not a router. The bead keeps its usual position (half a width from the surface) and the
+skin stays closed: the two flanks sit one spacing apart and are one width each, so together they
+cover the mouth they opened (verified — mouths measure one width median, never above two, which is
+the exact coverage limit). Files: `src/libslic3r/WallFusion.{hpp,cpp}`,
+`PrintObject::fuse_lightning_into_walls()`, called inside `prepare_infill()` between
+`combine_infill()` and `generate_wall_ribs()` — the one window where the trees exist (built in
+`bridge_over_infill`), the fill surfaces are final, and the rib planner has not run. The fused loop
+is not a new entity: the existing outer loop is reshaped, so role, flow, seam and the
+overhang/bridge segmentation of the untouched stretches survive by construction.
+
+Gated on Lightning + `wall_loops = 1` (the gorge is one spacing wide — a second concentric loop has
+nowhere to go, and a scanline pattern would cut the island into one cell per chord); outside that it
+falls back to the normal infill rings, which `single_path_infill_ring_always` can force on every
+layer. Rules, all in the geometry: extend roots to the wall centerline (or the gorge never opens);
+prune branches under 2.5 widths; clean up the interior only and put the perimeter collar back (the
+opening run over the whole region eats stretches of wall); keep two roots at least two widths apart.
+Pruning implies non-pinching: a tip that close to the far wall implies a branch too short to survive
+it — so the caller simply takes every curve the boolean returns instead of assuming there is one.
+Price: **2 mm of bead per mm of branch**. Debug: `GINGER_FUSION_DEBUG=1` → `[FUSION]`.
+Tests: `tests/fff_print/test_wall_fusion.cpp` (`[WallFusion]`).
+
 ---
 
 ## 3. Wall connectivity — ribs (`single_path_wall_ribs`)
@@ -216,6 +245,7 @@ schedule driver — massive short parts cool layer-bound, thin tall parts print 
 |---|---|---|
 | `GINGER_SINGLE_PATH_DEBUG=1` | `[SPEXACT] [SPWELD] [SPBRIDGE] [SPDEVIATE] [SPOPEN] [SPCUT] [SPCLOSE] [SPDEFECT]` | sparse single-path decisions per island |
 | `GINGER_RIBS_DEBUG=1` | `[RIBSTAT]` per layer + emission drops | wall rib planning census |
+| `GINGER_FUSION_DEBUG=1` | `[FUSION]` per island and per object | wall/lightning fusion census (gorges, pruned branches, dropped roots, extra loops) |
 | `GINGER_SPCUT_Z=<z>` | per-hole detail near one z | racetrack cut inspection |
 | Headless slice | `Ginger-Slicer.exe --slice <plate> --outputdir <dir> project.3mf` | verify slicing changes without GUI (3MF must embed settings) |
 | `--sweep "opt:from:to:step"` | per-layer swept G-code | parameter calibration prints |

@@ -2417,6 +2417,34 @@ void PrintConfigDef::init_fff_params()
     def->mode       = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(20.));
 
+    // Ginger: the sparse infill becomes the wall (single_path_mode sub-option). See docs/ginger/DFM.md.
+    def             = this->add("single_path_infill_as_wall", coBool);
+    def->label      = L("Merge infill with wall");
+    def->category   = L("Others");
+    def->tooltip    = L("The outer wall itself takes over the sparse infill: instead of anchoring the Lightning "
+                        "branches against the wall (a visible junction, especially on transparent material), the "
+                        "wall loop detours inward around every branch, goes around it and comes back. The layer "
+                        "prints as ONE closed bead - no anchors, no free ends, free seam - and the branches "
+                        "inherit everything a wall gets: rib connectors, seam placement, wall speed and flow. "
+                        "The bead keeps its usual position (half a width from the surface) and the outer skin "
+                        "stays closed: the branch flanks are one spacing apart, so they cover the mouth. "
+                        "Requires Single path mode, Lightning sparse infill and exactly ONE wall loop; outside "
+                        "those conditions the normal infill rings are used instead.");
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def             = this->add("single_path_infill_ring_always", coBool);
+    def->label      = L("Always ring with infill");
+    def->category   = L("Others");
+    def->tooltip    = L("Close the sparse infill ring on EVERY layer that has a sparse area, instead of leaving "
+                        "the choice to the single-path connector (which keeps it only where it costs no extra "
+                        "trail). Lightning is demand-driven, so on layers with a poor tree the ring disappears "
+                        "for a band of layers and shows up as banding on the inner surface. The ring stays "
+                        "infill - infill width and role - and the outer wall is a separate loop. Ignored when "
+                        "\"Merge infill with wall\" is on: there the ring IS the wall, so it is always present.");
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("sparse_infill_pattern", coEnum);
     def->label = L("Sparse infill pattern");
     def->category = L("Strength");

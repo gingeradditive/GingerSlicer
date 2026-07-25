@@ -325,6 +325,43 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   optimum choice, not an unconditional extra loop — layers whose tree is
   empty print no sparse at all (lightning is demand-driven).
 
+- **Wall fusion** (`single_path_infill_as_wall`) — The outer wall loop takes
+  over the Lightning branches: instead of a branch being anchored against the
+  wall (a T junction — the "anchor" that shows through transparent material),
+  the loop detours inward around each branch, goes around it and comes back.
+  One closed bead per layer, free seam, and the branches inherit everything a
+  wall gets (rib planner, seam, wall speed/flow, role-preserving re-emission).
+  Construction is a boolean, not a router:
+  `loop = ∂( P \ (branches ⊕ spacing/2) )` with `P` the region inside the wall
+  centerline — so the bead keeps its usual position and the skin stays closed
+  (the two flanks are one spacing apart and one width each, so they cover the
+  mouth they opened). Files: `src/libslic3r/WallFusion.{hpp,cpp}`,
+  `PrintObject::fuse_lightning_into_walls()`. Runs inside `prepare_infill`
+  between `combine_infill()` and `generate_wall_ribs()` — the one window where
+  the trees already exist, the fill surfaces are final and the rib planner has
+  not run yet. Requires `single_path_mode`, Lightning and `wall_loops = 1`
+  (the gorge is one spacing wide: a second concentric loop has nowhere to go);
+  outside those conditions it falls back to the normal infill rings.
+  Debug: `GINGER_FUSION_DEBUG=1` → `[FUSION]`.
+
+- **Gorge** — The inward detour the fused wall makes around one branch: two
+  flanks one spacing apart (flank contact = fusion, never a doubled
+  centerline) plus a round cap at the tip. Costs **2 mm of bead per mm of
+  branch**, measured. Its rules: roots are extended out to the wall centerline
+  or the gorge never opens; branches under 2.5 widths are pruned (a gorge that
+  short is a dent, not a detour) — and that pruning is also what makes a
+  branch tip unable to reach the far wall, so the region cannot be pinched;
+  the cleanup opening is applied to the interior only, with the collar along
+  the perimeter put back (run over the whole region it eats stretches of wall);
+  two roots closer than two widths would merge their mouths into one
+  2-spacing opening, the exact coverage limit, so the shorter one is dropped.
+
+- **Always ring** (`single_path_infill_ring_always`) — Closes the sparse
+  infill ring on every layer with a sparse area instead of leaving the choice
+  to the connector (which keeps it only where it costs no extra trail).
+  Answers the banding the demand-driven tree causes on low-demand layers. The
+  ring stays infill; ignored under wall fusion, where the ring IS the wall.
+
 - **Weld / splice** — `single_path_splice_loops()`: staggered double-link
   merge of loops into the walk (ladder, never crossing); with the `island`
   parameter it enforces the physical link rule.

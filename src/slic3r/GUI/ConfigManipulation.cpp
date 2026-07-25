@@ -589,6 +589,16 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     // Its sub-options (rib connectors between wall loops) only make sense with single_path_mode on.
     toggle_field("single_path_wall_ribs", config->opt_bool("single_path_mode"));
     toggle_field("single_path_wall_rib_max_length", config->opt_bool("single_path_mode") && config->opt_bool("single_path_wall_ribs"));
+    // Ginger single_path_infill_as_wall: the fusion needs the Lightning tree and exactly one wall loop
+    // (the gorge is one spacing wide - a second concentric loop has nowhere to go). Outside those
+    // conditions it silently falls back to the normal infill rings, so the field is greyed out to say so.
+    const bool fusion_possible = config->opt_bool("single_path_mode") &&
+                                 config->option<ConfigOptionEnum<InfillPattern>>("sparse_infill_pattern")->value == ipLightning &&
+                                 config->opt_int("wall_loops") == 1;
+    toggle_field("single_path_infill_as_wall", fusion_possible);
+    // With the fusion active the ring IS the wall: always there, nothing left to choose.
+    toggle_field("single_path_infill_ring_always",
+                 config->opt_bool("single_path_mode") && ! (fusion_possible && config->opt_bool("single_path_infill_as_wall")));
     if (have_infill) {
         toggle_field("fill_multiline", have_multiline_infill_pattern);
         // If the infill pattern does not support multiline fill_multiline is changed to 1.

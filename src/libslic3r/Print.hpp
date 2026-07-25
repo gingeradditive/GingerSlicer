@@ -520,6 +520,11 @@ private:
     // each rib column is anchored to the previous layer = self-standing) and subtract the rib
     // corridors from the fill surfaces so no infill/top/bottom is extruded across the ribs.
     void generate_wall_ribs();
+    // Ginger single_path_infill_as_wall: the outer wall loop takes over the Lightning branches
+    // (it detours around each one instead of being anchored against). Runs inside prepare_infill,
+    // after the trees exist and before the rib planner, so the fused loop is just another wall loop
+    // to everything downstream. See src/libslic3r/WallFusion.hpp.
+    void fuse_lightning_into_walls();
     void _generate_support_material();
     std::pair<FillAdaptive::OctreePtr, FillAdaptive::OctreePtr> prepare_adaptive_infill_data(
         const std::vector<std::pair<const Surface*, float>>& surfaces_w_bottom_z) const;

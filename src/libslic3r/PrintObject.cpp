@@ -19,6 +19,9 @@
 #include "Utils.hpp"
 #include "Fill/FillAdaptive.hpp"
 #include "Fill/FillLightning.hpp"
+#include "Fill/Lightning/Generator.hpp"
+#include "Fill/Lightning/Layer.hpp"
+#include "WallFusion.hpp"
 #include "Format/STL.hpp"
 #include "format.hpp"
 
@@ -522,6 +525,12 @@ void PrintObject::prepare_infill()
     this->combine_infill();
     m_print->throw_if_canceled();
 
+    // Ginger single_path_infill_as_wall: the wall takes over the lightning branches. Must run
+    // BEFORE the rib planner (which then sees the fused loop as an ordinary candidate) and after
+    // the fill surfaces are final (it carves the gorges out of them).
+    this->fuse_lightning_into_walls();
+    m_print->throw_if_canceled();
+
     // Ginger single_path_wall_ribs: plan the wall rib merges and carve their corridors out of
     // the final fill surfaces (must run last, when fill_surfaces are final).
     this->generate_wall_ribs();
@@ -738,6 +747,233 @@ static bool build_rib_buttress(Layer *rib_layer, const Point &link_a, const Poin
 //    allows it, so the rib columns stack and are self-standing instead of landing on air over
 //    sparse infill.
 // GCode::extrude_perimeters consumes the stored plan by matching loop first points.
+// Ginger single_path_infill_as_wall. The outer wall loop of every island takes over the layer's
+// Lightning branches: instead of a branch being anchored against the wall (a T junction - the
+// "anchor" that shows through transparent material) the loop itself detours inward around each
+// branch, goes around it and comes back. Geometry in WallFusion.cpp; here is the plumbing.
+//
+// Why it can run here at all: prepare_infill() builds the Lightning generator inside
+// bridge_over_infill(), the fill surfaces are final after combine_infill(), the perimeters have
+// existed since posPerimeters - and generate_wall_ribs() has not run yet. So this is the one spot
+// where the fused loop can be born and still be treated as an ordinary wall loop by everything
+// downstream: the rib planner, the seam, the wall speed/flow, the role-preserving re-emission.
+static bool wall_fusion_enabled(const PrintRegionConfig &cfg)
+{
+    // The gorge is one spacing wide: a second concentric wall loop has nowhere to go, and a
+    // scanline pattern would cut the island into one cell per chord. Outside these conditions the
+    // toggle silently falls back to the normal infill rings (which is what the UI says).
+    return cfg.single_path_mode && cfg.single_path_infill_as_wall &&
+           cfg.sparse_infill_pattern == ipLightning && cfg.wall_loops == 1 &&
+           cfg.sparse_infill_density > 0;
+}
+
+// Rebuild a wall loop from a fused ring. Stretches still lying on the original loop keep their
+// source path's attributes - role, flow, width, height - so the overhang/bridge segmentation the
+// PerimeterGenerator computed survives the fusion. The new gorge flanks get the overhang role:
+// they hang over the void by definition, being the lightning branch itself.
+static ExtrusionLoop rebuild_fused_loop(const Polygon &ring, const ExtrusionLoop &src, const coord_t tol)
+{
+    Lines               lines;
+    std::vector<size_t> owner;
+    for (size_t pi = 0; pi < src.paths.size(); ++ pi)
+        for (const Line &l : src.paths[pi].polyline.lines()) {
+            lines.emplace_back(l);
+            owner.emplace_back(pi);
+        }
+    // The dominant path lends its flow to the new stretches - never whatever short special
+    // stretch the loop happens to start with (same rule as the rib planner).
+    size_t dom = 0;
+    double dom_len = -1.;
+    for (size_t pi = 0; pi < src.paths.size(); ++ pi)
+        if (const double l = src.paths[pi].polyline.length(); l > dom_len) {
+            dom_len = l;
+            dom     = pi;
+        }
+
+    Points pts = ring.points;
+    if (pts.size() < 3)
+        return ExtrusionLoop();
+    pts.emplace_back(pts.front());
+
+    const size_t     n = pts.size() - 1;
+    std::vector<int> seg_owner(n, -1);
+    if (! lines.empty()) {
+        AABBTreeLines::LinesDistancer<Line> src_d(lines);
+        for (size_t k = 0; k < n; ++ k) {
+            const Point mid = (pts[k] + pts[k + 1]) / 2;
+            auto [d, idx, np] = src_d.distance_from_lines_extra<false>(mid);
+            (void) np;
+            if (d <= double(tol) && idx < owner.size())
+                seg_owner[k] = int(owner[idx]);
+        }
+    }
+
+    ExtrusionLoop out(src.loop_role());
+    size_t        k = 0;
+    while (k < n) {
+        size_t m = k;
+        while (m + 1 < n && seg_owner[m + 1] == seg_owner[k])
+            ++ m;
+        const ExtrusionPath &proto = src.paths[seg_owner[k] >= 0 ? size_t(seg_owner[k]) : dom];
+        ExtrusionPath        p(seg_owner[k] >= 0 ? proto.role() : erOverhangPerimeter,
+                               proto.mm3_per_mm, proto.width, proto.height);
+        p.polyline.points.assign(pts.begin() + k, pts.begin() + m + 2);
+        out.paths.emplace_back(std::move(p));
+        k = m + 1;
+    }
+    return out;
+}
+
+void PrintObject::fuse_lightning_into_walls()
+{
+    if (m_lightning_generator == nullptr)
+        return;
+    bool enabled = false;
+    for (size_t region_id = 0; region_id < this->num_printing_regions(); ++ region_id)
+        if (wall_fusion_enabled(this->printing_region(region_id).config())) {
+            enabled = true;
+            break;
+        }
+    if (! enabled)
+        return;
+
+    BOOST_LOG_TRIVIAL(debug) << "Fusing lightning into walls - start";
+    const bool fusion_debug = std::getenv("GINGER_FUSION_DEBUG") != nullptr;
+    size_t     stat_islands = 0, stat_fused = 0, stat_gorges = 0, stat_extra_loops = 0;
+
+    for (size_t layer_idx = 0; layer_idx < m_layers.size(); ++ layer_idx) {
+        m_print->throw_if_canceled();
+        Layer *layer = m_layers[layer_idx];
+        const FillLightning::Layer &trees = m_lightning_generator->getTreesForLayer(layer_idx);
+
+        for (LayerRegion *layerm : layer->regions()) {
+            const PrintRegionConfig &cfg = layerm->region().config();
+            if (! wall_fusion_enabled(cfg) || layerm->perimeters.entities.empty())
+                continue;
+            const coord_t spacing = layerm->flow(frExternalPerimeter).scaled_spacing();
+            if (spacing <= 0)
+                continue;
+
+            WallFusionParams params;
+            params.spacing      = spacing;
+            params.prune_length = coord_t(2.5 * double(spacing));
+            params.root_reach   = coord_t(1.5 * double(spacing));
+            params.root_min_gap = coord_t(2.0 * double(spacing));
+
+            // The whole layer's tree, once. line_overlap = 0: the junction shortening that
+            // convertToLines applies for printing would break the tube at every fork.
+            Polygons island_outers;
+            for (const ExtrusionEntity *ee : layerm->perimeters.entities)
+                if (const auto *island = dynamic_cast<const ExtrusionEntityCollection*>(ee))
+                    for (const ExtrusionEntity *e : island->entities)
+                        if (const auto *loop = dynamic_cast<const ExtrusionLoop*>(e))
+                            if (Polygon poly = loop->polygon(); poly.area() > 0)
+                                island_outers.emplace_back(std::move(poly));
+            if (island_outers.empty())
+                continue;
+            const Polylines layer_branches = trees.convertToLines(island_outers, 0);
+            if (layer_branches.empty())
+                continue;
+
+            Polygons island_areas, keep_inside;
+            for (ExtrusionEntity *&island_ee : layerm->perimeters.entities) {
+                auto *island = dynamic_cast<ExtrusionEntityCollection*>(island_ee);
+                if (island == nullptr || island->entities.empty())
+                    continue;
+                // With one wall loop the island is: the outer loop plus one loop per hole. The
+                // outer one is the one with positive area (holes come back clockwise).
+                ExtrusionLoop *outer     = nullptr;
+                double         outer_a   = 0.;
+                Polygons       hole_ring;
+                for (ExtrusionEntity *e : island->entities)
+                    if (auto *loop = dynamic_cast<ExtrusionLoop*>(e)) {
+                        Polygon poly = loop->polygon();
+                        const double a = poly.area();
+                        if (a > outer_a) {
+                            if (outer != nullptr)
+                                hole_ring.emplace_back(outer->polygon());
+                            outer_a = a;
+                            outer   = loop;
+                        } else
+                            hole_ring.emplace_back(std::move(poly));
+                    }
+                if (outer == nullptr || outer->paths.empty())
+                    continue;
+                ++ stat_islands;
+
+                const Polygon wall = outer->polygon();
+                Polylines     branches = intersection_pl(layer_branches, Polygons{ wall });
+                if (! hole_ring.empty() && ! branches.empty()) {
+                    // A branch that comes within a spacing of a hole is left to the infill: the
+                    // fusion may not reach around a hole (§3.2 says the tree never gets there, this
+                    // is the guard for when it does anyway - a propagated tree in changed geometry).
+                    const Polygons guard = offset(hole_ring, float(spacing));
+                    Polylines      safe;
+                    safe.reserve(branches.size());
+                    for (Polyline &pl : branches)
+                        if (intersection_pl(Polylines{ pl }, guard).empty())
+                            safe.emplace_back(std::move(pl));
+                    branches = std::move(safe);
+                }
+                if (branches.empty())
+                    continue;
+
+                const WallFusionResult res = fuse_wall_with_branches(wall, branches, params);
+                if (res.loops.empty() || res.gorges == 0)
+                    continue;
+
+                // Replace the outer loop in place; extra curves (a crossing pair of branches splits
+                // the region) are appended - the rib planner welds them like any other wall loop.
+                // The attributes always come from the ORIGINAL loop, so every rebuilt curve
+                // inherits the same overhang/bridge segmentation.
+                const coord_t       tol      = spacing / 4;
+                const ExtrusionLoop original = *outer;
+                std::vector<size_t> order(res.loops.size());
+                for (size_t i = 0; i < order.size(); ++ i)
+                    order[i] = i;
+                std::sort(order.begin(), order.end(), [&res](size_t a, size_t b) {
+                    return std::abs(res.loops[a].area()) > std::abs(res.loops[b].area());
+                });
+                ExtrusionLoop first = rebuild_fused_loop(res.loops[order.front()], original, tol);
+                if (first.paths.empty())
+                    continue;
+                *outer = std::move(first);
+                for (size_t i = 1; i < order.size(); ++ i) {
+                    ExtrusionLoop extra = rebuild_fused_loop(res.loops[order[i]], original, tol);
+                    if (! extra.paths.empty()) {
+                        island->entities.emplace_back(new ExtrusionLoop(std::move(extra)));
+                        ++ stat_extra_loops;
+                    }
+                }
+                ++ stat_fused;
+                stat_gorges += res.gorges;
+                island_areas.emplace_back(wall);
+                append(keep_inside, to_polygons(res.interior));
+            }
+
+            // R7: the branches that became wall must not be printed again by the infill. Inside a
+            // fused island the fill is clipped to the fused interior; everything outside those
+            // islands is left alone.
+            if (! island_areas.empty()) {
+                Surfaces out;
+                out.reserve(layerm->fill_surfaces.surfaces.size());
+                for (const Surface &s : layerm->fill_surfaces.surfaces) {
+                    for (ExPolygon &e : diff_ex(s.expolygon, island_areas))
+                        out.emplace_back(Surface(s, std::move(e)));
+                    for (ExPolygon &e : intersection_ex(ExPolygons{ s.expolygon }, keep_inside))
+                        out.emplace_back(Surface(s, std::move(e)));
+                }
+                layerm->fill_surfaces.surfaces = std::move(out);
+            }
+        }
+    }
+
+    if (fusion_debug)
+        std::fprintf(stderr, "[FUSION] islands=%zu fused=%zu gorges=%zu extra_loops=%zu\n",
+                     stat_islands, stat_fused, stat_gorges, stat_extra_loops);
+    BOOST_LOG_TRIVIAL(debug) << "Fusing lightning into walls - end";
+}
+
 void PrintObject::generate_wall_ribs()
 {
     for (Layer *layer : m_layers)
@@ -1504,6 +1740,11 @@ bool PrintObject::invalidate_state_by_config_options(
 #endif
         } else if (
                opt_key == "interface_shells"
+            // Ginger single_path_infill_as_wall: the fused wall loop is built inside prepare_infill
+            // (between combine_infill and the rib planner), so both toggles invalidate posPrepareInfill,
+            // not just posInfill.
+            || opt_key == "single_path_infill_as_wall"
+            || opt_key == "single_path_infill_ring_always"
             || opt_key == "infill_multiline"
             || opt_key == "infill_combination"
             || opt_key == "infill_combination_max_layer_height"

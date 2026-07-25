@@ -1016,6 +1016,8 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionBool,                 single_path_mode))
     ((ConfigOptionBool,                 single_path_wall_ribs))
     ((ConfigOptionFloat,                single_path_wall_rib_max_length))
+    ((ConfigOptionBool,                 single_path_infill_as_wall))
+    ((ConfigOptionBool,                 single_path_infill_ring_always))
     // Ironing options
     ((ConfigOptionEnum<IroningType>, ironing_type))
     ((ConfigOptionEnum<InfillPattern>, ironing_pattern))
