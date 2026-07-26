@@ -56,6 +56,9 @@ public:
      * Lightning Infill pattern.
      */
     const Layer& getTreesForLayer(const size_t& layer_id) const;
+    // Ginger: callers outside the Fill pipeline (the wall fusion) index by PrintObject layer,
+    // so they need to know how many layers the generator actually holds.
+    size_t layerCount() const { return m_lightning_layers.size(); }
 
     std::vector<Polygons>& Overhangs() { return m_overhang_per_layer; }
 

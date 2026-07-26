@@ -839,10 +839,20 @@ void PrintObject::fuse_lightning_into_walls()
 
     BOOST_LOG_TRIVIAL(debug) << "Fusing lightning into walls - start";
     const bool fusion_debug = std::getenv("GINGER_FUSION_DEBUG") != nullptr;
+    const bool no_carve     = std::getenv("GINGER_FUSION_NOCARVE") != nullptr;
+    const bool no_replace   = std::getenv("GINGER_FUSION_NOREPLACE") != nullptr;
+    double     prune_widths = 2.5;
+    if (const char *e = std::getenv("GINGER_FUSION_PRUNE_W"))
+        prune_widths = std::max(0.5, atof(e));
+    if (fusion_debug)
+        std::fprintf(stderr, "[FUSION] object layers=%zu generator layers=%zu\n",
+                     m_layers.size(), m_lightning_generator->layerCount());
     size_t     stat_islands = 0, stat_fused = 0, stat_gorges = 0, stat_extra_loops = 0;
 
     for (size_t layer_idx = 0; layer_idx < m_layers.size(); ++ layer_idx) {
         m_print->throw_if_canceled();
+        if (layer_idx >= m_lightning_generator->layerCount())
+            break; // the generator is built per PrintObject layer; never index past it
         Layer *layer = m_layers[layer_idx];
         const FillLightning::Layer &trees = m_lightning_generator->getTreesForLayer(layer_idx);
 
@@ -856,7 +866,9 @@ void PrintObject::fuse_lightning_into_walls()
 
             WallFusionParams params;
             params.spacing      = spacing;
-            params.prune_length = coord_t(2.5 * double(spacing));
+            // R3 threshold, in multiples of the wall spacing. Tunable while we calibrate it against
+            // real trees: it decides how many anchors the fusion actually removes.
+            params.prune_length = coord_t(prune_widths * double(spacing));
             params.root_reach   = coord_t(1.5 * double(spacing));
             params.root_min_gap = coord_t(2.0 * double(spacing));
 
@@ -875,7 +887,9 @@ void PrintObject::fuse_lightning_into_walls()
             if (layer_branches.empty())
                 continue;
 
-            Polygons island_areas, keep_inside;
+            Polygons carve_gorges;
+            const char *stage = "start";
+            try {
             for (ExtrusionEntity *&island_ee : layerm->perimeters.entities) {
                 auto *island = dynamic_cast<ExtrusionEntityCollection*>(island_ee);
                 if (island == nullptr || island->entities.empty())
@@ -901,12 +915,14 @@ void PrintObject::fuse_lightning_into_walls()
                     continue;
                 ++ stat_islands;
 
+                stage = "clip-branches";
                 const Polygon wall = outer->polygon();
                 Polylines     branches = intersection_pl(layer_branches, Polygons{ wall });
                 if (! hole_ring.empty() && ! branches.empty()) {
                     // A branch that comes within a spacing of a hole is left to the infill: the
                     // fusion may not reach around a hole (§3.2 says the tree never gets there, this
                     // is the guard for when it does anyway - a propagated tree in changed geometry).
+                    stage = "hole-guard";
                     const Polygons guard = offset(hole_ring, float(spacing));
                     Polylines      safe;
                     safe.reserve(branches.size());
@@ -918,6 +934,7 @@ void PrintObject::fuse_lightning_into_walls()
                 if (branches.empty())
                     continue;
 
+                stage = "fuse";
                 const WallFusionResult res = fuse_wall_with_branches(wall, branches, params);
                 if (res.loops.empty() || res.gorges == 0)
                     continue;
@@ -934,10 +951,12 @@ void PrintObject::fuse_lightning_into_walls()
                 std::sort(order.begin(), order.end(), [&res](size_t a, size_t b) {
                     return std::abs(res.loops[a].area()) > std::abs(res.loops[b].area());
                 });
+                stage = "rebuild";
                 ExtrusionLoop first = rebuild_fused_loop(res.loops[order.front()], original, tol);
                 if (first.paths.empty())
                     continue;
-                *outer = std::move(first);
+                if (! no_replace)
+                    *outer = std::move(first);
                 for (size_t i = 1; i < order.size(); ++ i) {
                     ExtrusionLoop extra = rebuild_fused_loop(res.loops[order[i]], original, tol);
                     if (! extra.paths.empty()) {
@@ -947,23 +966,25 @@ void PrintObject::fuse_lightning_into_walls()
                 }
                 ++ stat_fused;
                 stat_gorges += res.gorges;
-                island_areas.emplace_back(wall);
-                append(keep_inside, to_polygons(res.interior));
+                append(carve_gorges, res.carve);
             }
 
             // R7: the branches that became wall must not be printed again by the infill. Inside a
             // fused island the fill is clipped to the fused interior; everything outside those
             // islands is left alone.
-            if (! island_areas.empty()) {
+            stage = "carve";
+            if (! carve_gorges.empty() && ! no_carve) {
                 Surfaces out;
                 out.reserve(layerm->fill_surfaces.surfaces.size());
-                for (const Surface &s : layerm->fill_surfaces.surfaces) {
-                    for (ExPolygon &e : diff_ex(s.expolygon, island_areas))
+                for (const Surface &s : layerm->fill_surfaces.surfaces)
+                    for (ExPolygon &e : diff_ex(s.expolygon, carve_gorges))
                         out.emplace_back(Surface(s, std::move(e)));
-                    for (ExPolygon &e : intersection_ex(ExPolygons{ s.expolygon }, keep_inside))
-                        out.emplace_back(Surface(s, std::move(e)));
-                }
                 layerm->fill_surfaces.surfaces = std::move(out);
+            }
+            } catch (const std::exception &ex) {
+                std::fprintf(stderr, "[FUSION] EXCEPTION layer=%zu stage=%s : %s\n",
+                             layer_idx, stage, ex.what());
+                throw;
             }
         }
     }

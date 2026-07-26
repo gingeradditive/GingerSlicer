@@ -395,7 +395,13 @@ void Node::removeJunctionOverlap(Polylines &result_lines, const coord_t line_ove
             const Point ab = b - a;
             const auto ab_len = coord_t(ab.cast<double>().norm());
             if (ab_len >= to_be_reduced) {
-                polyline.points.back() = a + (ab.cast<double>() * (double(to_be_reduced) / ab_len)).cast<coord_t>();
+                // Ginger: with line_overlap = 0 (the wall fusion asks for the tree UNSHORTENED, and
+                // TreeSupport does the same) a zero-length segment reaches this branch with
+                // to_be_reduced = 0, and the interpolation becomes 0/0 = NaN. Casting that to
+                // coord_t yields garbage coordinates that blow up the next Clipper call with
+                // "Coordinate outside allowed range". Nothing to move when the segment is empty.
+                if (ab_len > 0)
+                    polyline.points.back() = a + (ab.cast<double>() * (double(to_be_reduced) / ab_len)).cast<coord_t>();
                 break;
             } else {
                 to_be_reduced -= ab_len;

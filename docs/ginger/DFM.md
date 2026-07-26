@@ -245,7 +245,8 @@ schedule driver — massive short parts cool layer-bound, thin tall parts print 
 |---|---|---|
 | `GINGER_SINGLE_PATH_DEBUG=1` | `[SPEXACT] [SPWELD] [SPBRIDGE] [SPDEVIATE] [SPOPEN] [SPCUT] [SPCLOSE] [SPDEFECT]` | sparse single-path decisions per island |
 | `GINGER_RIBS_DEBUG=1` | `[RIBSTAT]` per layer + emission drops | wall rib planning census |
-| `GINGER_FUSION_DEBUG=1` | `[FUSION]` per island and per object | wall/lightning fusion census (gorges, pruned branches, dropped roots, extra loops) |
+| `GINGER_FUSION_DEBUG=1` | `[FUSION]` per island and per object | wall/lightning fusion census (roots, gorges, pruned branches, dropped roots, extra loops) |
+| `GINGER_FUSION_PRUNE_W=<n>` / `_NOCARVE=1` / `_NOREPLACE=1` | — | fusion bisection: R3 threshold in wall spacings (default 2.5), skip the gorge carve, skip the loop replacement |
 | `GINGER_SPCUT_Z=<z>` | per-hole detail near one z | racetrack cut inspection |
 | Headless slice | `Ginger-Slicer.exe --slice <plate> --outputdir <dir> project.3mf` | verify slicing changes without GUI (3MF must embed settings) |
 | `--sweep "opt:from:to:step"` | per-layer swept G-code | parameter calibration prints |

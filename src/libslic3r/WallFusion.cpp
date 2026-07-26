@@ -3,6 +3,7 @@
 #include "ClipperUtils.hpp"
 #include "Clipper2Utils.hpp"
 #include "AABBTreeLines.hpp"
+#include "BoundingBox.hpp"
 
 #include <algorithm>
 #include <cstdio>
@@ -65,7 +66,8 @@ static Polylines prepare_branches(const Polygon          &wall,
                                   const WallFusionParams &p,
                                   size_t                 &pruned,
                                   size_t                 &dropped_roots,
-                                  size_t                 &gorges)
+                                  size_t                 &gorges,
+                                  size_t                 &roots_before_prune)
 {
     AABBTreeLines::LinesDistancer<Line> wall_d(wall.lines());
 
@@ -82,6 +84,12 @@ static Polylines prepare_branches(const Polygon          &wall,
         if (src.size() < 2)
             continue;
         const double len = src.length();
+        {   // census before pruning: how many anchors were there to remove in the first place
+            const double df = wall_d.distance_from_lines<false>(src.points.front());
+            const double db = wall_d.distance_from_lines<false>(src.points.back());
+            if (std::min(df, db) <= double(p.root_reach))
+                ++ roots_before_prune;
+        }
         if (len < double(p.prune_length)) {
             // R3: a gorge this short is a dent on the wall, not a detour - two flow reversals for
             // nothing. (A short polyline with a junction in the middle would orphan its children;
@@ -161,7 +169,8 @@ WallFusionResult fuse_wall_with_branches(const Polygon          &wall_loop,
     const ExPolygons P { ExPolygon(contour) };
 
     const Polylines prepared = prepare_branches(contour, branches, params,
-                                                res.pruned, res.dropped_roots, res.gorges);
+                                                res.pruned, res.dropped_roots, res.gorges,
+                                                res.roots_before_prune);
 
     ExPolygons R;
     if (prepared.empty()) {
@@ -184,12 +193,25 @@ WallFusionResult fuse_wall_with_branches(const Polygon          &wall_loop,
 
     res.loops    = to_polygons(R);
     res.interior = offset_ex(R, - float(params.spacing / 2));
+    if (! prepared.empty())
+        res.carve = branch_tubes(prepared, coord_t(0.75 * double(params.spacing)));
 
-    if (std::getenv("GINGER_FUSION_DEBUG") != nullptr)
-        std::fprintf(stderr, "[FUSION] branches=%zu kept=%zu gorges=%zu pruned=%zu dropped_roots=%zu "
-                             "loops=%zu\n",
-                     branches.size(), prepared.size(), res.gorges, res.pruned, res.dropped_roots,
-                     res.loops.size());
+    if (std::getenv("GINGER_FUSION_DEBUG") != nullptr) {
+        BoundingBox in_bb = get_extents(contour);
+        BoundingBox out_bb;
+        for (const Polygon &p : res.loops)
+            out_bb.merge(get_extents(p));
+        std::fprintf(stderr, "[FUSION] branches=%zu kept=%zu roots=%zu gorges=%zu pruned=%zu dropped_roots=%zu "
+                             "loops=%zu bbox_in=[%.1f %.1f %.1f %.1f] bbox_out=[%.1f %.1f %.1f %.1f]\n",
+                     branches.size(), prepared.size(), res.roots_before_prune, res.gorges, res.pruned, res.dropped_roots,
+                     res.loops.size(),
+                     unscale<double>(in_bb.min.x()), unscale<double>(in_bb.min.y()),
+                     unscale<double>(in_bb.max.x()), unscale<double>(in_bb.max.y()),
+                     out_bb.defined ? unscale<double>(out_bb.min.x()) : 0.,
+                     out_bb.defined ? unscale<double>(out_bb.min.y()) : 0.,
+                     out_bb.defined ? unscale<double>(out_bb.max.x()) : 0.,
+                     out_bb.defined ? unscale<double>(out_bb.max.y()) : 0.);
+    }
     return res;
 }
 

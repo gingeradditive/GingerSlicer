@@ -50,8 +50,18 @@ struct WallFusionResult
     Polygons   loops;
     // Where the leftover sparse infill may still go: the fused region eroded by half a spacing.
     ExPolygons interior;
+    // Footprint to carve out of the fill surfaces: the gorges only. Carving with `interior` instead
+    // would pull the fill back from the WHOLE island edge (the fill boundary carries
+    // infill_wall_overlap, which `interior` does not), and the tree roots live exactly there - the
+    // pruned branches would lose their anchor and vanish from the layer. Like the rib corridors,
+    // it is a quarter of a spacing tighter than the beads' true footprint, so what is still printed
+    // fuses into the gorge flanks instead of leaving a gap.
+    Polygons   carve;
     // Census, for GINGER_FUSION_DEBUG.
     size_t     gorges        { 0 };
+    // Roots the tree had on this wall BEFORE pruning: the anchors the fusion set out to remove.
+    // gorges < roots_before_prune means some anchors are still printed as ordinary infill.
+    size_t     roots_before_prune { 0 };
     size_t     pruned        { 0 };
     size_t     dropped_roots { 0 };
 };
