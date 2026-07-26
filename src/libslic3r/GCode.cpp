@@ -5271,14 +5271,40 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                 std::vector<int> merge_of(region.perimeters.size(), -1);
                 std::vector<int> matched(merges.size(), 0);
                 std::vector<int> emit_at(merges.size(), -1);
+                // A planned key is consumed by AT MOST ONE entity, so a spurious hit can never
+                // inflate matched[m] past the plan's size. Counting hits per entity instead let a
+                // single stray coincidence look like a broken plan and killed the whole island's
+                // ribs - while their corridors had already been carved out of the fill surfaces
+                // back in PrintObject::generate_wall_ribs, leaving empty slots in the layer (the
+                // stool's first layer: 7 hits against 6 keys, ~200 mm3 of bottom surface missing).
+                std::vector<std::vector<char>> key_taken(merges.size());
+                std::vector<char>              ambiguous(merges.size(), 0);
+                for (size_t m = 0; m < merges.size(); ++ m)
+                    key_taken[m].assign(merges[m].loop_keys.size(), 0);
                 for (size_t i = 0; i < region.perimeters.size(); ++ i) {
+                    // Only closed loops can be plan members: generate_wall_ribs builds the plan
+                    // from the island's ExtrusionLoops alone, while Arachne's OPEN beads go into
+                    // the obstacle field. Such a bead often starts on a wall loop's first vertex
+                    // (both come out of the same skeletal graph), and testing every entity made
+                    // that coincidence count as a match. Worse, had the count still added up, the
+                    // open bead would have been treated as a consumed member and never printed.
+                    if (dynamic_cast<const ExtrusionLoop*>(region.perimeters[i]) == nullptr)
+                        continue;
                     const Point fp = region.perimeters[i]->first_point();
                     for (size_t m = 0; m < merges.size() && merge_of[i] < 0; ++ m)
-                        for (const Point &key : merges[m].loop_keys)
-                            if (key == fp) {
-                                merge_of[i] = int(m);
-                                ++ matched[m];
-                                emit_at[m] = int(i);
+                        for (size_t k = 0; k < merges[m].loop_keys.size(); ++ k)
+                            if (merges[m].loop_keys[k] == fp) {
+                                // Two distinct loops starting on the same vertex: the key cannot
+                                // tell them apart, and consuming the wrong one would print the
+                                // other one ON TOP of the merged walk. Flag, never guess.
+                                if (key_taken[m][k])
+                                    ambiguous[m] = 1;
+                                else {
+                                    key_taken[m][k] = 1;
+                                    merge_of[i]     = int(m);
+                                    ++ matched[m];
+                                    emit_at[m]      = int(i);
+                                }
                                 break;
                             }
                 }
@@ -5287,13 +5313,21 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                 for (size_t m = 0; m < merges.size(); ++ m) {
                     if (matched[m] == 0)
                         continue;
-                    // Use the plan only when every source loop is here (guards against island or
-                    // extruder-override splits; the corridor would then stay unfilled, so warn).
-                    if (size_t(matched[m]) != merges[m].loop_keys.size()) {
-                        BOOST_LOG_TRIVIAL(warning) << "single_path_wall_ribs: planned merge only partially matched, printing loops separately";
+                    // Use the plan only when every source loop is here AND each was identified
+                    // unambiguously (guards against island or extruder-override splits). The rib
+                    // corridors were carved out of the fill surfaces during slicing and cannot be
+                    // given back here, so a drop leaves the rib slots EMPTY - this has to stay a
+                    // rare, loud fallback rather than a routine outcome.
+                    if (ambiguous[m] != 0 || size_t(matched[m]) != merges[m].loop_keys.size()) {
+                        BOOST_LOG_TRIVIAL(warning) << "single_path_wall_ribs: planned merge "
+                            << (ambiguous[m] != 0 ? "is ambiguous (two wall loops share a start vertex)"
+                                                  : "only partially matched")
+                            << " at z=" << (m_layer != nullptr ? m_layer->print_z : -1.)
+                            << " - printing the loops separately; the carved rib corridors stay unfilled";
                         if (std::getenv("GINGER_RIBS_DEBUG") != nullptr)
-                            std::fprintf(stderr, "[RIBSTAT] gcode z=%.2f merge %zu/%zu keys matched -> DROPPED at emission\n",
-                                         m_layer != nullptr ? m_layer->print_z : -1., size_t(matched[m]), merges[m].loop_keys.size());
+                            std::fprintf(stderr, "[RIBSTAT] gcode z=%.2f merge %zu/%zu keys matched%s -> DROPPED at emission\n",
+                                         m_layer != nullptr ? m_layer->print_z : -1., size_t(matched[m]), merges[m].loop_keys.size(),
+                                         ambiguous[m] != 0 ? " AMBIGUOUS" : "");
                         for (size_t i = 0; i < merge_of.size(); ++ i)
                             if (merge_of[i] == int(m))
                                 merge_of[i] = -1;
