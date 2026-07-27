@@ -1233,8 +1233,12 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
             assert(fill_concentric != nullptr);
             fill_concentric->print_config = &this->object()->print()->config();
             fill_concentric->print_object_config = &this->object()->config();
-        } else if (surface_fill.params.pattern == ipLightning)
-            dynamic_cast<FillLightning::Filler*>(f.get())->generator = lightning_generator;
+        } else if (surface_fill.params.pattern == ipLightning) {
+            auto *lightning_filler = dynamic_cast<FillLightning::Filler*>(f.get());
+            lightning_filler->generator = lightning_generator;
+            // Ginger single_path_infill_as_wall: the islands whose wall already is the ring.
+            lightning_filler->fused_islands = this->wall_fused_islands.empty() ? nullptr : &this->wall_fused_islands;
+        }
         // calculate flow spacing for infill pattern generation
         bool using_internal_flow = ! surface_fill.surface.is_solid() && ! surface_fill.params.bridge;
         double link_max_length = 0.;
@@ -1277,6 +1281,12 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
 		params.no_extrusion_overlap = surface_fill.params.overlap;
         auto &region_config = layerm->region().config();
         params.config               = &region_config;
+        // Ginger single_path_infill_ring_always: the sparse ring is a second wall, wanted on every
+        // layer and not only where the demand-driven tree happens to give the connector something
+        // to walk along.
+        params.ring_always          = bool(region_config.single_path_mode) &&
+                                      bool(region_config.single_path_infill_ring_always) &&
+                                      surface_fill.params.extrusion_role == erInternalInfill;
         params.pattern              = surface_fill.params.pattern;
 
         if( surface_fill.params.pattern == ipLockedZag ) {

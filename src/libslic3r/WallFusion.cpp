@@ -8,6 +8,9 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
+#include <limits>
+#include <numeric>
 
 namespace Slic3r {
 
@@ -61,7 +64,7 @@ static void extend_end(Polyline &pl, const bool at_front, const double by)
 // ends at the tree root (which sits on the FILL boundary, inside the wall centerline), the side
 // ones end at their junction with the parent. So only an end that is close to the wall is a root,
 // and only that end is extended.
-static Polylines prepare_branches(const Polygon          &wall,
+static Polylines prepare_branches(const ExPolygon        &island,
                                   const Polylines        &in,
                                   const WallFusionParams &p,
                                   size_t                 &pruned,
@@ -69,12 +72,21 @@ static Polylines prepare_branches(const Polygon          &wall,
                                   size_t                 &gorges,
                                   size_t                 &roots_before_prune)
 {
-    AABBTreeLines::LinesDistancer<Line> wall_d(wall.lines());
+    // Every ring of the island counts as wall: a branch rooted on the boundary of a HOLE opens its
+    // gorge in the hole's loop, exactly like one rooted on the outer contour. Treating the outer
+    // contour as the only wall is what used to leave the holed islands (the stool's base: an
+    // annulus with spokes) to the infill, 26 layers of 527 with sparse the merge could not absorb.
+    Lines ring_lines = island.contour.lines();
+    for (const Polygon &hole : island.holes)
+        append(ring_lines, hole.lines());
+    AABBTreeLines::LinesDistancer<Line> wall_d(ring_lines);
 
     struct Cand {
         Polyline pl;
-        double   len       = 0.;
-        bool     is_root   = false;
+        double   len           = 0.;
+        bool     is_root       = false;
+        bool     root_at_front = false;
+        double   root_dist     = 0.;
         Point    root_on_wall;
     };
     std::vector<Cand> cands;
@@ -90,10 +102,10 @@ static Polylines prepare_branches(const Polygon          &wall,
             if (std::min(df, db) <= double(p.root_reach))
                 ++ roots_before_prune;
         }
-        if (len < double(p.prune_length)) {
-            // R3: a gorge this short is a dent on the wall, not a detour - two flow reversals for
-            // nothing. (A short polyline with a junction in the middle would orphan its children;
-            // at this length that does not happen in practice, the tree spaces its nodes far wider.)
+        if (p.prune_length > 0 && len < double(p.prune_length)) {
+            // R3, off by default: a gorge this short is a dent on the wall rather than a detour.
+            // Pruning here is not free - the branch is not printed by anyone else - so it only
+            // happens when someone explicitly asks for it.
             ++ pruned;
             continue;
         }
@@ -103,31 +115,29 @@ static Polylines prepare_branches(const Polygon          &wall,
 
         const double d_front = wall_d.distance_from_lines<false>(c.pl.points.front());
         const double d_back  = wall_d.distance_from_lines<false>(c.pl.points.back());
-        const bool   front   = d_front <= d_back;
-        const double d       = front ? d_front : d_back;
-        if (d <= double(p.root_reach)) {
+        c.root_at_front      = d_front <= d_back;
+        c.root_dist          = c.root_at_front ? d_front : d_back;
+        if (c.root_dist <= double(p.root_reach)) {
             c.is_root = true;
-            auto [dist, idx, np] = wall_d.distance_from_lines_extra<false>(front ? c.pl.points.front() : c.pl.points.back());
+            auto [dist, idx, np] = wall_d.distance_from_lines_extra<false>(c.root_at_front ? c.pl.points.front() : c.pl.points.back());
             (void) dist; (void) idx;
             c.root_on_wall = Point(coord_t(np.x()), coord_t(np.y()));
-            // R2: the tube must REACH the wall centerline, or the boolean leaves a detached island
-            // instead of a detour. Half a spacing past it is enough for the difference to bite.
-            extend_end(c.pl, front, d + 0.5 * double(p.spacing));
         }
         cands.emplace_back(std::move(c));
     }
 
     // R9: two roots closer than this fuse their mouths into one 2-spacing opening, which is exactly
     // the coverage limit of the two outer flanks - an oblique branch there leaves a slit in the skin.
-    // Longest branch wins; the loser is dropped whole (it may survive as an inner loop, which the rib
-    // planner welds).
+    // Longest branch wins; the loser is DEMOTED, not dropped. Its material stays (the tube is still
+    // subtracted, so it comes back as an inner ring for the rib planner to weld) but it is not
+    // extended to the centerline, so it opens no second mouth. Dropping it used to leave the branch
+    // to the infill, which no longer exists in a fused island.
     std::vector<size_t> order(cands.size());
     for (size_t i = 0; i < order.size(); ++ i)
         order[i] = i;
     std::sort(order.begin(), order.end(), [&cands](size_t a, size_t b) { return cands[a].len > cands[b].len; });
 
     std::vector<Point> taken;
-    std::vector<bool>  keep(cands.size(), true);
     const double       gap2 = double(p.root_min_gap) * double(p.root_min_gap);
     for (size_t i : order) {
         if (! cands[i].is_root)
@@ -139,7 +149,7 @@ static Polylines prepare_branches(const Polygon          &wall,
                 break;
             }
         if (clash) {
-            keep[i] = false;
+            cands[i].is_root = false;
             ++ dropped_roots;
         } else {
             taken.emplace_back(cands[i].root_on_wall);
@@ -147,28 +157,120 @@ static Polylines prepare_branches(const Polygon          &wall,
         }
     }
 
+    // R10, nothing may float. Whatever the tubes do not connect to a wall comes back as a closed
+    // ring in the middle of the island, and a ring that small (measured: 13 mm of perimeter, a
+    // 3x5 mm dot) is below what the rib planner can weld - so it prints on its own, between two
+    // travels. On the stool's layer 7 that was 45 dots and 54 extra travels. Two ways in: a tip
+    // that stops just outside root_reach (median 8 mm from the wall - the tree ends where the fill
+    // boundary is, not where the wall is), and a root R9 has just demoted. Both get linked here:
+    // to the neighbouring branch when one is closer (no second mouth, R9 still honoured), to the
+    // wall otherwise. The bead it costs is a few mm; the travel it saves is the whole point of
+    // single path.
+    {
+        std::vector<AABBTreeLines::LinesDistancer<Line>> cand_d;
+        cand_d.reserve(cands.size());
+        for (const Cand &c : cands)
+            cand_d.emplace_back(c.pl.lines());
+
+        // Components of the tube graph: two branches are one piece when their tubes overlap.
+        std::vector<size_t> parent(cands.size());
+        std::iota(parent.begin(), parent.end(), size_t(0));
+        std::function<size_t(size_t)> find = [&parent, &find](size_t i) {
+            return parent[i] == i ? i : parent[i] = find(parent[i]);
+        };
+        auto pl_distance = [&cand_d](const Polyline &pl, size_t j) {
+            double best = std::numeric_limits<double>::max();
+            for (const Point &pt : pl.points)
+                best = std::min(best, cand_d[j].distance_from_lines<false>(pt));
+            return best;
+        };
+        // Both directions: a child branch ENDS on its parent, and the parent has no vertex there -
+        // testing one way only left a whole sub-tree looking unanchored.
+        auto touching = [&pl_distance, &cands, &p](size_t i, size_t j) {
+            return std::min(pl_distance(cands[i].pl, j), pl_distance(cands[j].pl, i)) <= double(p.spacing);
+        };
+        for (size_t i = 0; i < cands.size(); ++ i)
+            for (size_t j = i + 1; j < cands.size(); ++ j)
+                if (find(i) != find(j) && touching(i, j))
+                    parent[find(i)] = find(j);
+
+        std::vector<char> anchored(cands.size(), 0);
+        for (size_t i = 0; i < cands.size(); ++ i)
+            if (cands[i].is_root)
+                anchored[find(i)] = 1;
+
+        for (size_t i = 0; i < cands.size(); ++ i) {
+            if (anchored[find(i)])
+                continue;
+            // Cheapest way out of the void, for the whole component: this branch's end either
+            // reaches a wall or reaches a branch that already does.
+            const bool   front   = cands[i].root_at_front;
+            const Point &tip     = front ? cands[i].pl.points.front() : cands[i].pl.points.back();
+            double       d_other = std::numeric_limits<double>::max();
+            Point        target;
+            for (size_t j = 0; j < cands.size(); ++ j)
+                if (find(j) != find(i) && anchored[find(j)]) {
+                    auto [d, idx, np] = cand_d[j].distance_from_lines_extra<false>(tip);
+                    (void) idx;
+                    if (d < d_other) {
+                        d_other = d;
+                        target  = Point(coord_t(np.x()), coord_t(np.y()));
+                    }
+                }
+            if (d_other <= double(p.spacing)) {
+                anchored[find(i)] = 1;   // already touching an anchored piece: nothing to do
+            } else if (d_other <= cands[i].root_dist) {
+                // Link to the neighbour: a straight segment, half a spacing past it so the tubes
+                // certainly merge. One mouth for the pair, which is what R9 asked for.
+                const Vec2d dir = (target - tip).cast<double>();
+                const double n  = dir.norm();
+                const Point  end = n > SCALED_EPSILON
+                                 ? target + (dir * (0.5 * double(p.spacing) / n)).cast<coord_t>() : target;
+                if (front)
+                    cands[i].pl.points.insert(cands[i].pl.points.begin(), end);
+                else
+                    cands[i].pl.points.emplace_back(end);
+                anchored[find(i)] = 1;
+            } else {
+                // Nothing but wall in reach: open a mouth there, whatever R9 would have said - a
+                // second mouth beats a floating dot.
+                cands[i].is_root  = true;
+                anchored[find(i)] = 1;
+                ++ gorges;
+            }
+        }
+    }
+
     Polylines out;
     out.reserve(cands.size());
-    for (size_t i = 0; i < cands.size(); ++ i)
-        if (keep[i])
-            out.emplace_back(std::move(cands[i].pl));
+    for (Cand &c : cands) {
+        // R2: a root's tube must REACH the wall centerline, or the boolean leaves a detached island
+        // instead of a detour. Half a spacing past it is enough for the difference to bite. Done
+        // here and not before R9, so a demoted root keeps its original ends.
+        if (c.is_root)
+            extend_end(c.pl, c.root_at_front, c.root_dist + 0.5 * double(p.spacing));
+        out.emplace_back(std::move(c.pl));
+    }
     return out;
 }
 
-WallFusionResult fuse_wall_with_branches(const Polygon          &wall_loop,
+WallFusionResult fuse_wall_with_branches(const ExPolygon        &island,
                                          const Polylines        &branches,
                                          const WallFusionParams &params)
 {
     WallFusionResult res;
-    if (wall_loop.size() < 3 || params.spacing <= 0)
+    if (island.contour.size() < 3 || params.spacing <= 0)
         return res;
 
-    Polygon contour = wall_loop;
-    if (contour.is_clockwise())
-        contour.make_counter_clockwise();
-    const ExPolygons P { ExPolygon(contour) };
+    ExPolygon shape = island;
+    if (shape.contour.is_clockwise())
+        shape.contour.make_counter_clockwise();
+    for (Polygon &hole : shape.holes)
+        if (hole.is_counter_clockwise())
+            hole.make_clockwise();
+    const ExPolygons P { shape };
 
-    const Polylines prepared = prepare_branches(contour, branches, params,
+    const Polylines prepared = prepare_branches(shape, branches, params,
                                                 res.pruned, res.dropped_roots, res.gorges,
                                                 res.roots_before_prune);
 
@@ -191,13 +293,15 @@ WallFusionResult fuse_wall_with_branches(const Polygon          &wall_loop,
         R = union_ex(merged);
     }
 
-    res.loops    = to_polygons(R);
-    res.interior = offset_ex(R, - float(params.spacing / 2));
+    res.loops          = to_polygons(R);
+    res.interior       = offset_ex(R, - float(params.spacing / 2));
+    // Nothing was refused: the caller may drop the island's sparse fill altogether.
+    res.left_to_infill = res.pruned;
     if (! prepared.empty())
         res.carve = branch_tubes(prepared, coord_t(0.75 * double(params.spacing)));
 
     if (std::getenv("GINGER_FUSION_DEBUG") != nullptr) {
-        BoundingBox in_bb = get_extents(contour);
+        BoundingBox in_bb = get_extents(shape.contour);
         BoundingBox out_bb;
         for (const Polygon &p : res.loops)
             out_bb.merge(get_extents(p));

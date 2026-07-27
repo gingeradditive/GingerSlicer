@@ -66,6 +66,12 @@ struct FillParams
     // equal-cost contour phases prefer the one covering the most wall (set by lightning, whose
     // demand-driven trees would otherwise drop the lining on low-demand layers).
     bool        sparse_wall_lining     { false };
+    // Ginger single_path_infill_ring_always: the lining is a SECOND WALL, so it has to be on every
+    // layer or the inner surface bands where it is missing. The tie-break above cannot deliver that
+    // on its own - a demand-driven tree leaves whole bands of layers with no fill line at all
+    // (stool: 366 layers of 527), and with nothing to connect the connector emits nothing. There
+    // the ring is laid down on its own, along the same boundary the lining would have walked.
+    bool        ring_always            { false };
 
     // Length of an infill anchor along the perimeter.
     // 1000mm is roughly the maximum length line that fits into a 32bit coord_t.

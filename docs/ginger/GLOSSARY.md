@@ -342,19 +342,39 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   not run yet. Requires `single_path_mode`, Lightning and `wall_loops = 1`
   (the gorge is one spacing wide: a second concentric loop has nowhere to go);
   outside those conditions it falls back to the normal infill rings.
-  Debug: `GINGER_FUSION_DEBUG=1` → `[FUSION]`.
+  Two consequences of editing a *perimeter* from inside `prepare_infill`, both
+  paid for once in blood (2026-07-26, stool): the option must invalidate
+  **`posPerimeters`**, or switching it off re-runs only the fill and leaves the
+  fused loops in place — the tree then prints twice, once as wall and once as
+  infill (+5.6% material, 83% of the sparse within 0.3 mm of a wall bead); and
+  an island whose whole tree the wall absorbed is recorded in
+  `Layer::wall_fused_islands` and loses its sparse surface altogether — no
+  [[Wall lining]], no connector walk, nothing: the wall IS the infill. That is
+  all 527 layers of the stool at **zero** sparse, for 3868 g against the 4120 g
+  of the same part with the fusion off. It takes the boolean running on the
+  island's whole ExPolygon (a hole's loop is wall too, and can host a gorge)
+  and accepting the ring a wall-less branch punches in the region — otherwise
+  the holed base (26 layers) and the lone stubs under a top shell (10 more)
+  keep their fill. Price of those rings: they are small, the rib planner does
+  not always weld them, and 68 travels come back (layer 7: 22 → 81).
+  Debug: `GINGER_FUSION_DEBUG=1` → `[FUSION]`, `complete=` counts them.
 
 - **Gorge** — The inward detour the fused wall makes around one branch: two
   flanks one spacing apart (flank contact = fusion, never a doubled
   centerline) plus a round cap at the tip. Costs **2 mm of bead per mm of
-  branch**, measured. Its rules: roots are extended out to the wall centerline
-  or the gorge never opens; branches under 2.5 widths are pruned (a gorge that
-  short is a dent, not a detour) — and that pruning is also what makes a
-  branch tip unable to reach the far wall, so the region cannot be pinched;
-  the cleanup opening is applied to the interior only, with the collar along
-  the perimeter put back (run over the whole region it eats stretches of wall);
-  two roots closer than two widths would merge their mouths into one
-  2-spacing opening, the exact coverage limit, so the shorter one is dropped.
+  branch**, measured. A flank is ordinary wall, not `erOverhangPerimeter`:
+  trees stack, so the gorge of layer N lands on the gorge of layer N-1 (99.7%
+  of the flank length has material below it within half a bead, the same as
+  the outer wall). Its rules: roots are extended out to the wall centerline
+  or the gorge never opens; the cleanup opening is applied to the interior
+  only, with the collar along the perimeter put back (run over the whole
+  region it eats stretches of wall); two roots closer than two widths would
+  merge their mouths into one 2-spacing opening, the exact coverage limit, so
+  the shorter one is **demoted** — kept as an inner ring for the rib planner,
+  never dropped. Nothing is pruned either (`prune_length = 0`): a fused island
+  prints no sparse infill, so a branch the fusion refuses is a branch nobody
+  prints, and a dent in the wall beats a missing support. Non-pinching then
+  comes from the caller taking every curve the boolean returns.
 
 - **Always ring** (`single_path_infill_ring_always`) — Closes the sparse
   infill ring on every layer with a sparse area instead of leaving the choice

@@ -124,17 +124,49 @@ the exact coverage limit). Files: `src/libslic3r/WallFusion.{hpp,cpp}`,
 `combine_infill()` and `generate_wall_ribs()` — the one window where the trees exist (built in
 `bridge_over_infill`), the fill surfaces are final, and the rib planner has not run. The fused loop
 is not a new entity: the existing outer loop is reshaped, so role, flow, seam and the
-overhang/bridge segmentation of the untouched stretches survive by construction.
+overhang/bridge segmentation of the untouched stretches survive by construction; the new flanks
+take the dominant path's role — they are wall, not overhang (trees stack: 99.7% of the flank
+length has material directly below, same as the outer wall), and a flank that really hangs is
+caught by `detect_overhang_wall` like any other.
+
+Editing a perimeter from inside `prepare_infill` has two consequences, both learned the hard way
+(2026-07-26, stool). The option invalidates **`posPerimeters`**: with `posPrepareInfill` only,
+switching it off re-ran the fill against walls that were still fused and printed the tree twice,
+once as wall and once as infill (+5.6% material). And every fused island is recorded in
+`Layer::wall_fused_islands`, so `FillLightning::Filler` drops the wall lining there: the fused loop
+IS the ring, while a lining would trace the outline of each carved gorge, one more bead beside
+every flank.
 
 Gated on Lightning + `wall_loops = 1` (the gorge is one spacing wide — a second concentric loop has
 nowhere to go, and a scanline pattern would cut the island into one cell per chord); outside that it
 falls back to the normal infill rings, which `single_path_infill_ring_always` can force on every
 layer. Rules, all in the geometry: extend roots to the wall centerline (or the gorge never opens);
-prune branches under 2.5 widths; clean up the interior only and put the perimeter collar back (the
-opening run over the whole region eats stretches of wall); keep two roots at least two widths apart.
-Pruning implies non-pinching: a tip that close to the far wall implies a branch too short to survive
-it — so the caller simply takes every curve the boolean returns instead of assuming there is one.
-Price: **2 mm of bead per mm of branch**. Debug: `GINGER_FUSION_DEBUG=1` → `[FUSION]`.
+clean up the interior only and put the perimeter collar back (the opening run over the whole region
+eats stretches of wall); keep two mouths at least two widths apart.
+
+**All or nothing, per island.** An island whose whole tree the wall absorbs gets NO sparse infill:
+the surface is dropped, not carved. Leaving it there made the single-path connector walk the outline
+of every gorge — 93% of the leftover fill ran 2.3 mm from a flank and supported nothing. That is
+also why the fusion refuses nothing any more: what it will not take, nobody prints. Branches are
+never pruned (`prune_length = 0`; `GINGER_FUSION_PRUNE_W` is an experiment knob, and any value above
+zero puts the island's fill back), and a root that lands too close to one already taken is demoted,
+not dropped — it keeps its material as an inner ring for the rib planner. Asking the generator for a
+tidier tree is not an option either: its own prune length is the 45° overhang budget (one layer
+height per layer), so a twig it kept is a twig something above stands on. Non-pinching comes for
+free: the caller takes every curve the boolean returns instead of assuming there is one.
+
+Which means the boolean has to run on the island's whole **ExPolygon**, not on its outer loop: every
+ring is wall, so a branch rooted on a hole opens its gorge there (the stool's base is an annulus
+with spokes — with the outer loop alone, 26 layers of 527 still printed sparse), and the rings that
+come back REPLACE the island's whole loop set, two of them having possibly merged into one (a branch
+bridging a hole to the outer wall) or one having split. A branch that reaches no ring at all — the
+lone stub under a top shell, whose root is on the solid/sparse interface in the middle of the island
+— punches a hole instead: the island comes back with one more ring, for the rib planner to weld.
+That is the last 10 layers, and the reason the stool now prints **zero** sparse on all 527.
+
+Price: **2 mm of bead per mm of branch** — and, measured end to end on the stool, that is a wash:
+4118 g against 4120 g with the fusion off, +25 min (wall speed instead of infill speed).
+Debug: `GINGER_FUSION_DEBUG=1` → `[FUSION]`, `complete=` counts the islands left with no fill.
 Tests: `tests/fff_print/test_wall_fusion.cpp` (`[WallFusion]`).
 
 ---

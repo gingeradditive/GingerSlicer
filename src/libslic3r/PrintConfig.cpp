@@ -2428,6 +2428,9 @@ void PrintConfigDef::init_fff_params()
                         "inherit everything a wall gets: rib connectors, seam placement, wall speed and flow. "
                         "The bead keeps its usual position (half a width from the surface) and the outer skin "
                         "stays closed: the branch flanks are one spacing apart, so they cover the mouth. "
+                        "An island whose whole tree the wall absorbs is left with NO sparse infill at all - the "
+                        "wall is the infill, ring included; the few islands where a branch cannot be reached "
+                        "(around a hole) keep their fill so that branch still gets printed. "
                         "Requires Single path mode, Lightning sparse infill and exactly ONE wall loop; outside "
                         "those conditions the normal infill rings are used instead.");
     def->mode       = comAdvanced;

@@ -164,6 +164,27 @@ public:
     // surfaces; consumed by GCode::extrude_perimeters, which splices the referenced wall loops
     // into the planned single walk instead of recomputing anything.
     std::vector<WallRibMerge> wall_ribs;
+    // Ginger single_path_infill_as_wall: the wall polygon of every island whose loop took over the
+    // Lightning branches on this layer, filled by PrintObject::fuse_lightning_into_walls. The
+    // sparse fill of such an island must NOT add the wall-hugging lining ("second wall"): the fused
+    // loop IS the ring, and the lining would trace the outline of every carved gorge - a bead
+    // running 0.75 spacings alongside each flank, which is where the fusion's material went
+    // (measured on the stool: the fill barely shrank, -1.2 m, while the wall grew by 6.0 m on the
+    // same layer). Read in Layer::make_fills, applied in FillLightning::Filler.
+    Polygons                  wall_fused_islands;
+    // Ginger single_path_infill_as_wall: how to put this layer's walls back the way the
+    // PerimeterGenerator left them. prepare_infill re-runs on its own whenever an option that
+    // invalidates posPrepareInfill changes (density, bridges, shell thickness...), and the fusion
+    // must not fuse its own output: on a second pass every branch axis lies inside a carved gorge,
+    // i.e. OUTSIDE the wall polygon the branches are clipped against, so nothing fuses - and, worse,
+    // the carve is not re-applied while the walls stay fused, which puts the infill back on top of
+    // the gorges. Undone at the top of every fusion run; dropped by Layer::make_perimeters(), which
+    // destroys the very entities these pointers refer to.
+    struct WallFusionUndo {
+        ExtrusionEntityCollection *island;    // island collection that was rewritten
+        ExtrusionEntityCollection  original;  // deep copy of it, as the PerimeterGenerator left it
+    };
+    std::vector<WallFusionUndo> wall_fusion_undo;
     size_t                  region_count() const { return m_regions.size(); }
     const LayerRegion*      get_region(int idx) const { return m_regions[idx]; }
     LayerRegion*            get_region(int idx) { return m_regions[idx]; }
