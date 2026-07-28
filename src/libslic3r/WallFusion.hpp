@@ -29,7 +29,53 @@
 #include "Polyline.hpp"
 #include "ExPolygon.hpp"
 
+#include <atomic>
+#include <chrono>
+
 namespace Slic3r {
+
+// GINGER_FUSION_PROFILE=1: where the fusion spends its time, in stages, summed over every island of
+// every layer (so the numbers add up to more than the wall clock once the loop runs in parallel).
+struct WallFusionProfile
+{
+    std::atomic<int64_t> convert  { 0 };  // Lightning tree -> polylines, once per layer/region
+    std::atomic<int64_t> clip     { 0 };  // the layer's branches clipped to one island
+    std::atomic<int64_t> prepare  { 0 };  // roots, R9 (prepare_branches minus the linking)
+    std::atomic<int64_t> link     { 0 };  // R10, the tube components and their linking
+    std::atomic<int64_t> boolean  { 0 };  // tubes, difference, cleanup opening, collar
+    std::atomic<int64_t> carve    { 0 };  // the 0.75-spacing tubes handed back for the fill surfaces
+    std::atomic<int64_t> match    { 0 };  // which source loop each returned ring came from
+    std::atomic<int64_t> rebuild  { 0 };  // ring -> ExtrusionLoop, attributes carried over
+    std::atomic<int64_t> surfaces { 0 };  // gorges carved out of the fill surfaces
+    std::atomic<int64_t> islands  { 0 };
+    std::atomic<int64_t> branches { 0 };  // branch polylines seen by prepare_branches, summed
+
+    void reset();
+    void dump(const char *tag, int64_t total_ns) const;
+};
+extern WallFusionProfile g_wall_fusion_profile;
+bool wall_fusion_profiling();
+
+// Adds its lifetime to one counter. Zero cost when profiling is off (the caller checks first).
+class WallFusionTimer
+{
+public:
+    explicit WallFusionTimer(std::atomic<int64_t> &acc, bool on)
+        : m_acc(on ? &acc : nullptr), m_t0(std::chrono::steady_clock::now()) {}
+    ~WallFusionTimer() { stop(); }
+    void stop()
+    {
+        if (m_acc == nullptr)
+            return;
+        m_acc->fetch_add(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                             std::chrono::steady_clock::now() - m_t0).count(),
+                         std::memory_order_relaxed);
+        m_acc = nullptr;
+    }
+private:
+    std::atomic<int64_t>                          *m_acc;
+    std::chrono::steady_clock::time_point          m_t0;
+};
 
 struct WallFusionParams
 {
@@ -48,6 +94,14 @@ struct WallFusionParams
     // already taken is DEMOTED, not dropped: it keeps its material (its tube becomes an inner ring
     // the rib planner welds) but it does not open a second mouth next to the first.
     coord_t root_min_gap { 0 };
+    // The print's `resolution`: the tolerance every other loop in the slice is already simplified
+    // to. Left at zero the tube offsets fall back to Clipper's RELATIVE arc tolerance (1/500 of the
+    // radius), which on a pellet bead means 0.0035 mm - fourteen times finer than the user asked
+    // for, on every gorge tip. Those points are not free: they cost the boolean, the rib planner,
+    // the seam, the cooling and the G-code (measured on the stool: +96 k moves, +5.2 MB) and no
+    // machine can resolve them. Set it and the arcs, and the rings the boolean returns, are held to
+    // the same standard as the rest of the slice.
+    coord_t resolution   { 0 };
 };
 
 struct WallFusionResult
@@ -56,8 +110,6 @@ struct WallFusionResult
     // More than one closed curve is legal (crossing branches split the region); the caller passes
     // them all on and lets the rib planner weld them.
     Polygons   loops;
-    // Where the leftover sparse infill may still go: the fused region eroded by half a spacing.
-    ExPolygons interior;
     // Footprint to carve out of the fill surfaces: the gorges only. Carving with `interior` instead
     // would pull the fill back from the WHOLE island edge (the fill boundary carries
     // infill_wall_overlap, which `interior` does not), and the tree roots live exactly there - the

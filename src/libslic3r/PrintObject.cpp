@@ -296,10 +296,13 @@ void PrintObject::_transform_hole_to_polyholes()
 // 1) Merges typed region slices into stInternal type.
 // 2) Increases an "extra perimeters" counter at region slices where needed.
 // 3) Generates perimeters, gap fills and fill regions (fill regions of type stInternal).
+static void determinism_probe(const PrintObject *po, const char *stage);
+
 void PrintObject::make_perimeters()
 {
     // prerequisites
     this->slice();
+    determinism_probe(this, "A after slice");
 
     if (! this->set_started(posPerimeters))
         return;
@@ -400,13 +403,83 @@ void PrintObject::make_perimeters()
     m_print->throw_if_canceled();
     BOOST_LOG_TRIVIAL(debug) << "Generating perimeters in parallel - end";
 
+    determinism_probe(this, "B after perimeters");
     this->set_done(posPerimeters);
+}
+
+// GINGER_DETERMINISM_PROBE=1: hash everything prepare_infill produces, after each of its steps.
+// Slice twice, diff the two [DET] streams, and the first line that differs names the step that is
+// not reproducible. Written to hunt exactly that: 2026-07-27, five identical slices of the stool
+// produced two distinct G-codes (0.04 g apart, layers 3-14), and static reading of the parallel
+// loops had already sent me down one wrong path.
+static void determinism_probe(const PrintObject *po, const char *stage)
+{
+    static const bool on = std::getenv("GINGER_DETERMINISM_PROBE") != nullptr;
+    if (! on)
+        return;
+    auto mix = [](uint64_t h, uint64_t v) { return h ^ (v + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2)); };
+    auto hash_pts = [&mix](uint64_t h, const Points &pts) {
+        for (const Point &pt : pts) {
+            h = mix(h, uint64_t(uint32_t(pt.x())));
+            h = mix(h, uint64_t(uint32_t(pt.y())));
+        }
+        return h;
+    };
+    // Two hashes per collection: one order-SENSITIVE, one commutative (a sum of per-surface
+    // hashes). Same set in a different order gives set=equal, ord=different, which is the whole
+    // question - a permutation is canonicalised with a sort, different geometry is a real bug.
+    // The per-surface hash is itself rotation-sensitive, so a contour starting at another vertex
+    // also shows up as ord-only. That distinction is what stopped me chasing a phantom twice.
+    auto hash_surfaces = [&mix, &hash_pts](uint64_t &h_ord, uint64_t &h_set, const Surfaces &ss) {
+        for (const Surface &s : ss) {
+            uint64_t one = mix(0xcbf29ce484222325ULL, uint64_t(s.surface_type));
+            one = hash_pts(one, s.expolygon.contour.points);
+            for (const Polygon &hole : s.expolygon.holes)
+                one = hash_pts(one, hole.points);
+            h_ord  = mix(h_ord, one);
+            h_set += one;   // commutative on purpose
+        }
+    };
+    uint64_t h_fill = 0xcbf29ce484222325ULL, h_slices = 0xcbf29ce484222325ULL, h_per = 0xcbf29ce484222325ULL;
+    uint64_t h_ribs = 0xcbf29ce484222325ULL, h_fills = 0xcbf29ce484222325ULL;
+    uint64_t h_fill_set = 0, h_slices_set = 0;
+    size_t   n_fill = 0;
+    for (const Layer *layer : po->layers()) {
+        for (const LayerRegion *region : layer->regions()) {
+            hash_surfaces(h_fill, h_fill_set, region->fill_surfaces.surfaces);
+            hash_surfaces(h_slices, h_slices_set, region->slices.surfaces);
+            n_fill  += region->fill_surfaces.surfaces.size();
+            Points pts;
+            region->perimeters.collect_points(pts);
+            h_per = hash_pts(h_per, pts);
+            pts.clear();
+            region->fills.collect_points(pts);
+            h_fills = hash_pts(h_fills, pts);
+        }
+        // The rib PLAN: it lives outside the entities and is only cashed in at G-code time, so a
+        // plan that varies moves the WALL while every perimeter still hashes the same.
+        for (const WallRibMerge &rib : layer->wall_ribs) {
+            h_ribs = hash_pts(h_ribs, rib.loop_keys);
+            h_ribs = hash_pts(h_ribs, rib.merged.points);
+            h_ribs = hash_pts(h_ribs, rib.anchors);
+            for (const Polygon &c : rib.corridors)
+                h_ribs = hash_pts(h_ribs, c.points);
+        }
+    }
+    std::fprintf(stderr, "[DET] %-22.22s %-26s fillord=%016llx fillset=%016llx per=%016llx "
+                         "ribs=%016llx fills=%016llx slicesord=%016llx slicesset=%016llx n=%zu\n",
+                 po->model_object() ? po->model_object()->name.c_str() : "?",
+                 stage, (unsigned long long) h_fill, (unsigned long long) h_fill_set,
+                 (unsigned long long) h_per, (unsigned long long) h_ribs,
+                 (unsigned long long) h_fills, (unsigned long long) h_slices,
+                 (unsigned long long) h_slices_set, n_fill);
 }
 
 void PrintObject::prepare_infill()
 {
     if (! this->set_started(posPrepareInfill))
         return;
+    determinism_probe(this, "0 enter");
     m_print->set_status(25, L("Generating infill regions"));
     if (m_typed_slices) {
         // To improve robustness of detect_surfaces_type() when reslicing (working with typed slices), see GH issue #7442.
@@ -425,6 +498,7 @@ void PrintObject::prepare_infill()
     // by the cummulative area of the previous $layerm->fill_surfaces.
     this->detect_surfaces_type();
     m_print->throw_if_canceled();
+    determinism_probe(this, "1 detect_surfaces_type");
 
     // Decide what surfaces are to be filled.
     // Here the stTop / stBottomBridge / stBottom infill is turned to just stInternal if zero top / bottom infill layers are configured.
@@ -435,11 +509,13 @@ void PrintObject::prepare_infill()
             region->prepare_fill_surfaces();
             m_print->throw_if_canceled();
         }
+    determinism_probe(this, "2 prepare_fill_surfaces");
 
 
     // Add solid fills to ensure the shell vertical thickness.
     this->discover_vertical_shells();
     m_print->throw_if_canceled();
+    determinism_probe(this, "3 vertical_shells");
 
     // Debugging output.
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
@@ -463,6 +539,7 @@ void PrintObject::prepare_infill()
     // one perimeter. Example of this is the bridge over the benchy lettering.
     this->discover_horizontal_shells();
     m_print->throw_if_canceled();
+    determinism_probe(this, "4 horizontal_shells");
 
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
     for (size_t region_id = 0; region_id < this->num_printing_regions(); ++ region_id) {
@@ -485,6 +562,7 @@ void PrintObject::prepare_infill()
     //FIXME This does not likely merge surfaces, which are supported by a material with different colors, but same properties.
     this->process_external_surfaces();
     m_print->throw_if_canceled();
+    determinism_probe(this, "5 external_surfaces");
 
     // Debugging output.
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
@@ -505,6 +583,7 @@ void PrintObject::prepare_infill()
     // Also one wishes the perimeters to be supported by a full infill.
     this->clip_fill_surfaces();
     m_print->throw_if_canceled();
+    determinism_probe(this, "6 clip_fill_surfaces");
 
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
     for (size_t region_id = 0; region_id < this->num_printing_regions(); ++ region_id) {
@@ -520,21 +599,25 @@ void PrintObject::prepare_infill()
     // to remove only half of the combined infill
     this->bridge_over_infill();
     m_print->throw_if_canceled();
+    determinism_probe(this, "7 bridge_over_infill");
 
     // combine fill surfaces to honor the "infill every N layers" option
     this->combine_infill();
     m_print->throw_if_canceled();
+    determinism_probe(this, "8 combine_infill");
 
     // Ginger single_path_infill_as_wall: the wall takes over the lightning branches. Must run
     // BEFORE the rib planner (which then sees the fused loop as an ordinary candidate) and after
     // the fill surfaces are final (it carves the gorges out of them).
     this->fuse_lightning_into_walls();
     m_print->throw_if_canceled();
+    determinism_probe(this, "9 fuse_walls");
 
     // Ginger single_path_wall_ribs: plan the wall rib merges and carve their corridors out of
     // the final fill surfaces (must run last, when fill_surfaces are final).
     this->generate_wall_ribs();
     m_print->throw_if_canceled();
+    determinism_probe(this, "10 wall_ribs");
 
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
     for (size_t region_id = 0; region_id < this->num_printing_regions(); ++ region_id) {
@@ -855,6 +938,10 @@ void PrintObject::fuse_lightning_into_walls()
         return;
 
     BOOST_LOG_TRIVIAL(debug) << "Fusing lightning into walls - start";
+    const bool profiling = wall_fusion_profiling();
+    const auto prof_t0   = std::chrono::steady_clock::now();
+    if (profiling)
+        g_wall_fusion_profile.reset();
     const bool fusion_debug = std::getenv("GINGER_FUSION_DEBUG") != nullptr;
     const bool no_carve     = std::getenv("GINGER_FUSION_NOCARVE") != nullptr;
     const bool no_replace   = std::getenv("GINGER_FUSION_NOREPLACE") != nullptr;
@@ -867,12 +954,29 @@ void PrintObject::fuse_lightning_into_walls()
     if (fusion_debug)
         std::fprintf(stderr, "[FUSION] object layers=%zu generator layers=%zu\n",
                      m_layers.size(), m_lightning_generator->layerCount());
-    size_t     stat_islands = 0, stat_fused = 0, stat_gorges = 0, stat_extra_loops = 0, stat_complete = 0;
+    std::atomic<size_t> stat_islands { 0 }, stat_fused { 0 }, stat_gorges { 0 },
+                        stat_extra_loops { 0 }, stat_complete { 0 };
+    // Every ring the fusion returns is simplified to this, like every other loop in the slice
+    // (clamped per region below - see the note where params.resolution is set).
+    // GINGER_FUSION_RES_W scales it while we calibrate the gorge tip: coarser means fewer points
+    // but sharper corners for the motion planner to slow down at, 0 turns the simplification off.
+    double res_w = 1.;
+    if (const char *e = std::getenv("GINGER_FUSION_RES_W"))
+        res_w = std::max(0., atof(e));
+    const coord_t scaled_resolution = coord_t(res_w * scaled<double>(
+        m_print->config().resolution.value > EPSILON ? m_print->config().resolution.value : EPSILON));
 
-    for (size_t layer_idx = 0; layer_idx < m_layers.size(); ++ layer_idx) {
+    // One layer never reads another: the undo record, the fused-island census and the fill surfaces
+    // it touches all belong to the layer, and the Lightning generator is only read. The rest of
+    // prepare_infill is parallel for the same reason - leaving this loop serial made the fusion the
+    // one sequential stretch in the middle of it.
+    const size_t layer_count = std::min(m_layers.size(), m_lightning_generator->layerCount());
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, layer_count),
+        [this, &stat_islands, &stat_fused, &stat_gorges, &stat_extra_loops, &stat_complete,
+         profiling, no_carve, no_replace, prune_widths, scaled_resolution, res_w]
+        (const tbb::blocked_range<size_t> &range) {
+    for (size_t layer_idx = range.begin(); layer_idx < range.end(); ++ layer_idx) {
         m_print->throw_if_canceled();
-        if (layer_idx >= m_lightning_generator->layerCount())
-            break; // the generator is built per PrintObject layer; never index past it
         Layer *layer = m_layers[layer_idx];
         const FillLightning::Layer &trees = m_lightning_generator->getTreesForLayer(layer_idx);
 
@@ -891,6 +995,13 @@ void PrintObject::fuse_lightning_into_walls()
             params.prune_length = coord_t(prune_widths * double(spacing));
             params.root_reach   = coord_t(1.5 * double(spacing));
             params.root_min_gap = coord_t(2.0 * double(spacing));
+            // Never coarser than one part in 500 of the bead: past that the gorge tip stops being
+            // a turn and becomes a corner the motion planner has to brake for. Measured on the
+            // stool, simplifying all the way to the print resolution (0.05 mm) buys 21% fewer moves
+            // and costs 14 minutes of print - the wrong trade on a machine that is already slow.
+            // At the clamp the move count still drops 10% and the estimate does not move at all.
+            params.resolution   = coord_t(res_w * std::min(double(scaled_resolution),
+                                                           double(spacing) / 500.));
 
             // The whole layer's tree, once. line_overlap = 0: the junction shortening that
             // convertToLines applies for printing would break the tube at every fork.
@@ -903,7 +1014,9 @@ void PrintObject::fuse_lightning_into_walls()
                                 island_outers.emplace_back(std::move(poly));
             if (island_outers.empty())
                 continue;
+            WallFusionTimer prof_convert(g_wall_fusion_profile.convert, profiling);
             const Polylines layer_branches = trees.convertToLines(island_outers, 0);
+            prof_convert.stop();
             if (layer_branches.empty())
                 continue;
 
@@ -946,9 +1059,13 @@ void PrintObject::fuse_lightning_into_walls()
                 // Clipping to the island's MATERIAL (holes excluded) is all the guard that is
                 // needed: a branch is either inside the region the fusion reshapes, or it is not
                 // this island's business.
+                WallFusionTimer prof_clip(g_wall_fusion_profile.clip, profiling);
                 const Polylines branches = intersection_pl(layer_branches, island_shape);
+                prof_clip.stop();
                 if (branches.empty())
                     continue;
+                if (profiling)
+                    g_wall_fusion_profile.islands.fetch_add(1, std::memory_order_relaxed);
 
                 stage = "fuse";
                 const WallFusionResult res = fuse_wall_with_branches(island_shape, branches, params);
@@ -971,25 +1088,37 @@ void PrintObject::fuse_lightning_into_walls()
                 // nothing (an inner ring around a demoted branch) borrows the outer loop's. A
                 // source loop that no ring claims has been absorbed into another one and goes.
                 stage = "rebuild";
+                WallFusionTimer prof_match(g_wall_fusion_profile.match, profiling);
                 const coord_t tol = spacing / 4;
-                std::vector<AABBTreeLines::LinesDistancer<Line>> src_d;
-                src_d.reserve(src_loops.size());
-                for (const ExtrusionLoop *loop : src_loops)
-                    src_d.emplace_back(loop->polygon().lines());
-                std::vector<int> proto_of(res.loops.size(), -1);
-                for (size_t i = 0; i < res.loops.size(); ++ i) {
-                    const Points &pts = res.loops[i].points;
+                // One tree over ALL the source loops, with a line -> loop map: a ring point is
+                // charged to the loop it is nearest to, in a single query, instead of being tested
+                // against every loop in turn. Same winner (a point within tol of two loops at once
+                // sits on the seam between them and cannot decide anything), one tree build and one
+                // descent per point instead of `src_loops.size()`.
+                Lines               src_lines;
+                std::vector<size_t> line_owner;
+                for (size_t s = 0; s < src_loops.size(); ++ s)
+                    for (const Line &l : src_loops[s]->polygon().lines()) {
+                        src_lines.emplace_back(l);
+                        line_owner.emplace_back(s);
+                    }
+                AABBTreeLines::LinesDistancer<Line> src_d(src_lines);
+                std::vector<int>    proto_of(res.loops.size(), -1);
+                std::vector<size_t> hits(src_loops.size());
+                for (size_t i = 0; src_lines.size() > 0 && i < res.loops.size(); ++ i) {
+                    std::fill(hits.begin(), hits.end(), size_t(0));
+                    for (const Point &pt : res.loops[i].points) {
+                        auto [d, idx, np] = src_d.distance_from_lines_extra<false>(pt);
+                        (void) np;
+                        if (d <= double(tol) && idx < line_owner.size())
+                            ++ hits[line_owner[idx]];
+                    }
                     size_t best_hits = 0;
-                    for (size_t s = 0; s < src_loops.size(); ++ s) {
-                        size_t hits = 0;
-                        for (const Point &pt : pts)
-                            if (src_d[s].distance_from_lines<false>(pt) <= double(tol))
-                                ++ hits;
-                        if (hits > best_hits) {
-                            best_hits = hits;
+                    for (size_t s = 0; s < src_loops.size(); ++ s)
+                        if (hits[s] > best_hits) {
+                            best_hits   = hits[s];
                             proto_of[i] = int(s);
                         }
-                    }
                 }
                 // One ring per source loop: the largest claimant wins, the rest are new curves.
                 std::vector<int> ring_of(src_loops.size(), -1);
@@ -1000,6 +1129,9 @@ void PrintObject::fuse_lightning_into_walls()
                             std::abs(res.loops[i].area()) > std::abs(res.loops[size_t(ring_of[s])].area()))
                             ring_of[s] = int(i);
                     }
+
+                prof_match.stop();
+                WallFusionTimer prof_rebuild(g_wall_fusion_profile.rebuild, profiling);
 
                 if (! no_replace) {
                     // Deep copy first: this rewrites the island's whole entity list, and the next
@@ -1064,6 +1196,7 @@ void PrintObject::fuse_lightning_into_walls()
             // solid/top/bottom surface, which is real material sitting on the fused wall - the
             // surface is only carved along the gorges.
             stage = "carve";
+            WallFusionTimer prof_surfaces(g_wall_fusion_profile.surfaces, profiling);
             // ...unless the user wants the sparse ring on every layer: then the fused island keeps
             // its surface, and the fill lays that ring around the gorges instead of nothing.
             const bool keep_ring = cfg.single_path_infill_ring_always;
@@ -1089,10 +1222,16 @@ void PrintObject::fuse_lightning_into_walls()
             }
         }
     }
+    }); // tbb::parallel_for over the layers
 
     if (fusion_debug)
         std::fprintf(stderr, "[FUSION] islands=%zu fused=%zu complete=%zu gorges=%zu extra_loops=%zu\n",
-                     stat_islands, stat_fused, stat_complete, stat_gorges, stat_extra_loops);
+                     stat_islands.load(), stat_fused.load(), stat_complete.load(),
+                     stat_gorges.load(), stat_extra_loops.load());
+    if (profiling)
+        g_wall_fusion_profile.dump(this->model_object()->name.c_str(),
+                                   std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                       std::chrono::steady_clock::now() - prof_t0).count());
     BOOST_LOG_TRIVIAL(debug) << "Fusing lightning into walls - end";
 }
 
@@ -1351,6 +1490,7 @@ void PrintObject::infill()
             }
         );
         m_print->throw_if_canceled();
+        determinism_probe(this, "11 make_fills");
         BOOST_LOG_TRIVIAL(debug) << "Filling layers in parallel - end";
         /*  we could free memory now, but this would make this step not idempotent
         ### $_->fill_surfaces->clear for map @{$_->regions}, @{$object->layers};
@@ -2996,7 +3136,17 @@ void PrintObject::bridge_over_infill()
 
     // SECTION to gather and filter surfaces for expanding, and then cluster them by layer
     {
-        tbb::concurrent_vector<CandidateSurface> candidate_surfaces;
+        // Ginger: gathered per layer, NOT into one shared concurrent_vector. A concurrent_vector's
+        // element order is the thread interleaving order, and that order survives into the presort
+        // below, whose comparator looks at the bounding box MIN only - so two candidates sharing a
+        // corner tie, and std::sort resolves the tie by input order. The winner then takes the
+        // anchoring sparse infill lines the loser needed (that competition is the whole reason the
+        // presort exists, see its comment), so a coin flip decided by the scheduler changes the
+        // bridge. Measured on the stool: five identical slices produced two distinct G-codes,
+        // differing on layers 3-14 only - the bridge moves at layer 14, the Lightning trees carry it
+        // down to the bottom, and with the wall fusion on the difference lands in the wall itself.
+        // Each layer writes only its own slot, so there is nothing to share and nothing to order.
+        std::vector<std::vector<CandidateSurface>> candidate_surfaces(this->layers().size());
         tbb::parallel_for(tbb::blocked_range<size_t>(0, this->layers().size()), [po = static_cast<const PrintObject *>(this), &candidate_surfaces, has_lightning_infill](tbb::blocked_range<size_t> r) {
             PRINT_OBJECT_TIME_LIMIT_MILLIS(PRINT_OBJECT_TIME_LIMIT_DEFAULT);
             for (size_t lidx = r.begin(); lidx < r.end(); lidx++) {
@@ -3045,7 +3195,7 @@ void PrintObject::bridge_over_infill()
                         if (po->config().dont_filter_internal_bridges.value == ibfNofilter){
                             // expand the unsupported area by 4x spacing to trigger internal bridging
                             unsupported = expand(unsupported, 4 * spacing);
-                            candidate_surfaces.push_back(CandidateSurface(s, lidx, unsupported, region, 0));
+                            candidate_surfaces[lidx].push_back(CandidateSurface(s, lidx, unsupported, region, 0));
                         }else{
                             // The following flag marks those surfaces, which overlap with unuspported area, but at least part of them is supported.
                             // These regions can be filtered by area, because they for sure are touching solids on lower layers, and it does not make sense to bridge their tiny overhangs
@@ -3060,7 +3210,7 @@ void PrintObject::bridge_over_infill()
                                     }
                                 }
                                 worth_bridging = intersection(closing(worth_bridging, float(SCALED_EPSILON)), s->expolygon);
-                                candidate_surfaces.push_back(CandidateSurface(s, lidx, worth_bridging, region, 0));
+                                candidate_surfaces[lidx].push_back(CandidateSurface(s, lidx, worth_bridging, region, 0));
                                 
 #ifdef DEBUG_BRIDGE_OVER_INFILL
                                 debug_draw(std::to_string(lidx) + "_candidate_surface_" + std::to_string(area(s->expolygon)),
@@ -3080,9 +3230,9 @@ void PrintObject::bridge_over_infill()
             }
         });
 
-        for (const CandidateSurface &c : candidate_surfaces) {
-            surfaces_by_layer[c.layer_index].push_back(c);
-        }
+        for (size_t lidx = 0; lidx < candidate_surfaces.size(); ++ lidx)
+            for (const CandidateSurface &c : candidate_surfaces[lidx])
+                surfaces_by_layer[c.layer_index].push_back(c);
     }
 
     // LIGHTNING INFILL SECTION - If lightning infill is used somewhere, we check the areas that are going to be bridges, and those that rely on the 

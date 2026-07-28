@@ -14,16 +14,44 @@
 
 namespace Slic3r {
 
+WallFusionProfile g_wall_fusion_profile;
+
+bool wall_fusion_profiling()
+{
+    static const bool on = std::getenv("GINGER_FUSION_PROFILE") != nullptr;
+    return on;
+}
+
+void WallFusionProfile::reset()
+{
+    for (std::atomic<int64_t> *a : { &convert, &clip, &prepare, &link, &boolean, &carve, &match,
+                                     &rebuild, &surfaces, &islands, &branches })
+        a->store(0, std::memory_order_relaxed);
+}
+
+void WallFusionProfile::dump(const char *tag, const int64_t total_ns) const
+{
+    auto ms = [](const std::atomic<int64_t> &a) { return double(a.load(std::memory_order_relaxed)) * 1e-6; };
+    std::fprintf(stderr,
+                 "[FUSION-PROF] %s wall=%.0fms | convert=%.0f clip=%.0f prepare=%.0f link=%.0f "
+                 "boolean=%.0f carve=%.0f match=%.0f rebuild=%.0f surfaces=%.0f | islands=%lld branches=%lld\n",
+                 tag, double(total_ns) * 1e-6, ms(convert), ms(clip), ms(prepare), ms(link),
+                 ms(boolean), ms(carve), ms(match), ms(rebuild), ms(surfaces),
+                 (long long) islands.load(), (long long) branches.load());
+}
+
 // The branch tubes: every branch dilated by half a spacing, unioned. Round joins and round ends,
 // exactly like multiline_fill() - the round cap is what closes the gorge tip into a turn instead
 // of a corner, and the union is what merges branches that touch into one piece.
-static Polygons branch_tubes(const Polylines &branches, const coord_t half_width)
+static Polygons branch_tubes(const Polylines &branches, const coord_t half_width, const coord_t arc_tolerance)
 {
     if (branches.empty() || half_width <= 0)
         return {};
 
     Clipper2Lib::Paths64    subject = Slic3rPolylines_to_Paths64(branches);
-    Clipper2Lib::ClipperOffset offsetter(2.0);
+    // Explicit arc tolerance, or Clipper falls back to 1/500 of the radius - see the note on
+    // WallFusionParams::resolution.
+    Clipper2Lib::ClipperOffset offsetter(2.0, double(arc_tolerance));
     offsetter.AddPaths(subject, Clipper2Lib::JoinType::Round, Clipper2Lib::EndType::Round);
     Clipper2Lib::Paths64    solution;
     offsetter.Execute(double(half_width), solution);
@@ -72,6 +100,11 @@ static Polylines prepare_branches(const ExPolygon        &island,
                                   size_t                 &gorges,
                                   size_t                 &roots_before_prune)
 {
+    const bool      profiling = wall_fusion_profiling();
+    WallFusionTimer prof_prepare(g_wall_fusion_profile.prepare, profiling);
+    if (profiling)
+        g_wall_fusion_profile.branches.fetch_add(int64_t(in.size()), std::memory_order_relaxed);
+
     // Every ring of the island counts as wall: a branch rooted on the boundary of a HOLE opens its
     // gorge in the hole's loop, exactly like one rooted on the outer contour. Treating the outer
     // contour as the only wall is what used to leave the holed islands (the stool's base: an
@@ -167,6 +200,9 @@ static Polylines prepare_branches(const ExPolygon        &island,
     // wall otherwise. The bead it costs is a few mm; the travel it saves is the whole point of
     // single path.
     {
+        prof_prepare.stop();
+        WallFusionTimer prof_link(g_wall_fusion_profile.link, profiling);
+
         std::vector<AABBTreeLines::LinesDistancer<Line>> cand_d;
         cand_d.reserve(cands.size());
         for (const Cand &c : cands)
@@ -274,11 +310,16 @@ WallFusionResult fuse_wall_with_branches(const ExPolygon        &island,
                                                 res.pruned, res.dropped_roots, res.gorges,
                                                 res.roots_before_prune);
 
+    const bool      profiling = wall_fusion_profiling();
+    WallFusionTimer prof_bool(g_wall_fusion_profile.boolean, profiling);
+
     ExPolygons R;
+    Polygons   tubes;
     if (prepared.empty()) {
         R = P; // no demand on this layer: the wall is exactly the wall, bit for bit
     } else {
-        R = diff_ex(P, branch_tubes(prepared, params.spacing / 2));
+        tubes = branch_tubes(prepared, params.spacing / 2, params.resolution);
+        R     = diff_ex(P, tubes);
 
         // R5: the cleanup opening removes slivers and rounds the mouth, but run over the WHOLE
         // region it also eats stretches of wall wherever the eroded shape pulls away from the
@@ -293,12 +334,32 @@ WallFusionResult fuse_wall_with_branches(const ExPolygon        &island,
         R = union_ex(merged);
     }
 
-    res.loops          = to_polygons(R);
-    res.interior       = offset_ex(R, - float(params.spacing / 2));
+    res.loops = to_polygons(R);
+    // The rings go out at the print's own resolution, like every other loop in the slice. Douglas-
+    // Peucker and not simplify_polygons: this must not re-run Clipper and change the topology the
+    // caller is about to match against its source loops.
+    if (params.resolution > 0) {
+        for (Polygon &poly : res.loops)
+            poly.douglas_peucker(double(params.resolution));
+        res.loops.erase(std::remove_if(res.loops.begin(), res.loops.end(),
+                                       [](const Polygon &p) { return p.size() < 3; }),
+                        res.loops.end());
+    }
     // Nothing was refused: the caller may drop the island's sparse fill altogether.
     res.left_to_infill = res.pruned;
-    if (! prepared.empty())
-        res.carve = branch_tubes(prepared, coord_t(0.75 * double(params.spacing)));
+    prof_bool.stop();
+    if (! tubes.empty()) {
+        // The carve mask is the same tubes a quarter of a spacing wider. Growing the union we
+        // already have costs one offset over a handful of merged rings; re-running the offsetter
+        // over every branch polyline costs the whole dilation again.
+        WallFusionTimer prof_carve(g_wall_fusion_profile.carve, profiling);
+        // For jtRound Slic3r's offset() passes `miterLimit` on as Clipper's ArcTolerance, and
+        // Clipper caps it at a quarter of the delta - so handing it the spacing simply asks for the
+        // coarsest arc it will give, which is all a carve mask needs. Never DefaultMiterLimit: that
+        // is the number 3, and 3 scaled units is three nanometres of arc tolerance.
+        res.carve = offset(tubes, float(0.25 * double(params.spacing)), ClipperLib::jtRound,
+                           params.resolution > 0 ? double(params.resolution) : double(params.spacing));
+    }
 
     if (std::getenv("GINGER_FUSION_DEBUG") != nullptr) {
         BoundingBox in_bb = get_extents(shape.contour);

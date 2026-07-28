@@ -164,10 +164,40 @@ lone stub under a top shell, whose root is on the solid/sparse interface in the 
 — punches a hole instead: the island comes back with one more ring, for the rib planner to weld.
 That is the last 10 layers, and the reason the stool now prints **zero** sparse on all 527.
 
+**Nothing may float.** Whatever the tubes leave unconnected to a wall comes back as a closed ring in
+the middle of the island, and a 13 mm ring (a 3×5 mm dot) is below what the rib planner can weld, so
+it prints on its own between two travels — 45 of them on the stool's layer 7. Two ways in: a tip
+that stops just outside `root_reach` (the tree ends where the fill boundary is, not where the wall
+is: median 8 mm short) and a root R9 has just demoted. Both are linked — to the neighbouring branch
+when one is nearer than the wall (no second mouth, R9 still honoured), to the wall otherwise. The
+components are found by mutual tube proximity, tested in **both** directions: a child branch ends
+*on* its parent, and the parent has no vertex there, so a one-way test leaves whole sub-trees adrift.
+
+**Point budget.** The gorges are wall, and wall is walked by the rib planner, the seam, the cooling
+and the G-code writer, so their tessellation is not free. Clipper's default arc tolerance is
+*relative* — 1/500 of the radius, i.e. 0.0035 mm on a pellet bead — and the boolean adds its own
+points along the straight stretches, so the rings used to carry fourteen times the detail the user
+asked for: +96 k moves and +5.2 MB of G-code on the stool. The tube offsets now take an explicit arc
+tolerance and the rings come back Douglas-Peucker'd (never `simplify_polygons`: that re-runs Clipper
+and would change the topology the caller is about to match). The tolerance is the print `resolution`
+**clamped to spacing/500**, and the clamp is the whole point: simplifying all the way to 0.05 mm
+buys 21% fewer moves and costs 14 min of print, because the gorge tip stops being a turn and becomes
+a corner the motion planner brakes for. At the clamp: −10% moves, −2.7 MB, estimate unchanged.
+`GINGER_FUSION_RES_W=<n>` scales it.
+
+The layer loop is `tbb::parallel_for` — one layer never reads another (undo record, fused-island
+census and fill surfaces all belong to the layer, the Lightning generator is only read). Together
+with the point budget: fusion 1290 ms → 224 ms, whole slice 9.9 s → 7.8 s against 6.3 s with the
+fusion off. Note that slicing is **not** reproducible run to run, fusion or no fusion — not caused
+by the parallel loop, and worth knowing before diffing two G-codes. One cause is fixed (the `rand()`
+that decided the Lightning polyline decomposition, now a hash of the node position); a second one is
+still unlocated, in the surface classification inside `prepare_infill`. See [[Wall fusion]] in the
+glossary for what has been ruled out.
+
 Price: **2 mm of bead per mm of branch** — and, measured end to end on the stool, that is a wash:
 4118 g against 4120 g with the fusion off, +25 min (wall speed instead of infill speed).
-Debug: `GINGER_FUSION_DEBUG=1` → `[FUSION]`, `complete=` counts the islands left with no fill.
-Tests: `tests/fff_print/test_wall_fusion.cpp` (`[WallFusion]`).
+Debug: `GINGER_FUSION_DEBUG=1` → `[FUSION]`, `complete=` counts the islands left with no fill;
+`GINGER_FUSION_PROFILE=1` → `[FUSION-PROF]`, per-stage CPU against wall clock.
 
 ---
 
@@ -278,7 +308,10 @@ schedule driver — massive short parts cool layer-bound, thin tall parts print 
 | `GINGER_SINGLE_PATH_DEBUG=1` | `[SPEXACT] [SPWELD] [SPBRIDGE] [SPDEVIATE] [SPOPEN] [SPCUT] [SPCLOSE] [SPDEFECT]` | sparse single-path decisions per island |
 | `GINGER_RIBS_DEBUG=1` | `[RIBSTAT]` per layer + emission drops | wall rib planning census |
 | `GINGER_FUSION_DEBUG=1` | `[FUSION]` per island and per object | wall/lightning fusion census (roots, gorges, pruned branches, dropped roots, extra loops) |
-| `GINGER_FUSION_PRUNE_W=<n>` / `_NOCARVE=1` / `_NOREPLACE=1` | — | fusion bisection: R3 threshold in wall spacings (default 2.5), skip the gorge carve, skip the loop replacement |
+| `GINGER_FUSION_PROFILE=1` | `[FUSION-PROF]` per object | fusion cost per stage (CPU, summed over threads) against the wall clock |
+| `GINGER_FUSION_PRUNE_W=<n>` / `_NOCARVE=1` / `_NOREPLACE=1` | — | fusion bisection: R3 threshold in wall spacings (default 0), skip the gorge carve, skip the loop replacement |
+| `GINGER_FUSION_RES_W=<n>` | — | scales the fused rings' simplification tolerance (default 1 = `resolution` clamped to spacing/500; 0 = no simplification) |
+| `GINGER_DETERMINISM_PROBE=1` | `[DET]` per step, per object | why two identical slices differ: hashes slices/perimeters/fill surfaces/rib plan/fills after every pipeline step, ordered **and** commutative, so a permutation is told apart from a geometric change. Slice twice, diff the streams, first differing line names the step |
 | `GINGER_SPCUT_Z=<z>` | per-hole detail near one z | racetrack cut inspection |
 | Headless slice | `Ginger-Slicer.exe --slice <plate> --outputdir <dir> project.3mf` | verify slicing changes without GUI (3MF must embed settings) |
 | `--sweep "opt:from:to:step"` | per-layer swept G-code | parameter calibration prints |

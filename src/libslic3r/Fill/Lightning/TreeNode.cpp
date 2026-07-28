@@ -3,6 +3,8 @@
 
 #include "TreeNode.hpp"
 
+#include <cstdint>
+
 #include "../../Geometry.hpp"
 
 namespace Slic3r::FillLightning {
@@ -347,6 +349,31 @@ coord_t Node::prune(const coord_t& pruning_distance)
     return max_distance_pruned;
 }
 
+// Ginger: which child of a fork continues the current polyline used to be `rand() % children`.
+// The tree itself is deterministic (generateTrees is a plain sequential loop), so that one call was
+// the only reason no slice was ever reproducible: on Windows every thread owns its own rand()
+// sequence, and TBB decides at every run which layer is drawn on which thread, so the same layer
+// drew different numbers each time. Measured on the stool, two identical slices differed by 0.4 g
+// and 130 mm of sparse spread over 15 layers of 527 - and with the wall fusion on, that wobble
+// lands in the WALL, because the branch is the wall.
+//
+// A hash of the node's own position keeps the choice spread over the children exactly as a draw did
+// (so no slice looks different in kind from what the old code could produce) while being a pure
+// function of the tree: same tree, same decomposition, every run, on any thread. It also makes the
+// SEVERAL calls per layer agree with each other - the fusion asks for the tree once to build its
+// carve mask and the fill asks again per sparse surface, and those two used to draw independently.
+// Murmur3's finalizer, for the avalanche: `% children` on a fork of two reads the lowest bit only.
+static inline size_t node_child_choice(const Point &p)
+{
+    uint64_t h = (uint64_t(uint32_t(p.x())) << 32) ^ uint64_t(uint32_t(p.y()));
+    h ^= h >> 33;
+    h *= 0xff51afd7ed558ccdULL;
+    h ^= h >> 33;
+    h *= 0xc4ceb9fe1a85ec53ULL;
+    h ^= h >> 33;
+    return size_t(h);
+}
+
 void Node::convertToPolylines(Polylines &output, const coord_t line_overlap) const
 {
     Polylines result;
@@ -362,7 +389,7 @@ void Node::convertToPolylines(size_t long_line_idx, Polylines &output) const
         output[long_line_idx].points.push_back(m_p);
         return;
     }
-    size_t first_child_idx = rand() % m_children.size();
+    size_t first_child_idx = node_child_choice(m_p) % m_children.size();
     m_children[first_child_idx]->convertToPolylines(long_line_idx, output);
     output[long_line_idx].points.push_back(m_p);
 

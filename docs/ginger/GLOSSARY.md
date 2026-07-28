@@ -356,8 +356,47 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   and accepting the ring a wall-less branch punches in the region — otherwise
   the holed base (26 layers) and the lone stubs under a top shell (10 more)
   keep their fill. Price of those rings: they are small, the rib planner does
-  not always weld them, and 68 travels come back (layer 7: 22 → 81).
-  Debug: `GINGER_FUSION_DEBUG=1` → `[FUSION]`, `complete=` counts them.
+  not always weld them, and 68 travels come back (layer 7: 22 → 81) — which is
+  why nothing is allowed to float: see [[Gorge]].
+  Cost: the layer loop is `tbb::parallel_for` (one layer never reads another),
+  and the rings are simplified to the print `resolution` clamped to
+  `spacing/500` — 1290 ms → 224 ms of fusion, 9.9 s → 7.8 s of slice against
+  6.3 s with it off. The clamp is not cosmetic: simplifying all the way to
+  0.05 mm buys 21% fewer moves and costs **14 minutes of print**, the gorge tip
+  turning from a curve into a corner the motion planner brakes for.
+  Debug: `GINGER_FUSION_DEBUG=1` → `[FUSION]`, `complete=` counts them;
+  `GINGER_FUSION_PROFILE=1` → `[FUSION-PROF]`, per-stage CPU vs wall clock.
+  Beware when diffing two slices: **no slice is reproducible run to run**,
+  fusion or not. One cause is fixed — `Lightning::Node::convertToPolylines`
+  used to pick which child continues the current polyline with `rand()`, and on
+  Windows each thread owns its rand() sequence, so the layer→thread assignment
+  decided the draw (±0.4 g, 6.6 k differing lines fusion off, 18 k on). It is
+  now a hash of the node's own position: same tree, same decomposition, on any
+  thread — and the several `convertToLines` calls per layer (the fusion's carve
+  mask, then the fill per sparse surface) finally agree with each other.
+  It is **not** enough on its own: the root cause is upstream of all of it, in
+  the **slicing step**. `GINGER_DETERMINISM_PROBE=1` hashes what every step of
+  the pipeline produces (`[DET]`, two hashes per collection: order-sensitive and
+  commutative, because a permutation and a real geometric change need telling
+  apart), and it says: `region->slices` already differs at `A after slice`. On
+  the small object the commutative hash is stable while the ordered one is not —
+  the same polygons in a different order or starting at another vertex — and
+  `make_perimeters` turns that permutation into genuinely different walls
+  (`per` splits in two at `B after perimeters`). Everything after is clean: the
+  fusion, the rib plan and the fills are all reproducible *given* the slices,
+  they only carry the variation faithfully. Chasing it further means entering
+  `TriangleMeshSlicer` (loop chaining / open-polyline ordering), the most shared
+  code in the tree — a much bigger call than anything downstream.
+  Ruled out along the way, all measured: `rand()` elsewhere (only a `#ifdef` and
+  two unused joint templates left), the G-code pipeline (every filter is
+  `serial_in_order`), the single-path connector (it happens with
+  `single_path_mode = 0`), and the bridge candidate gather (fixed anyway: it
+  used a `tbb::concurrent_vector`, whose interleaving order reached an unstable
+  presort that ties on the bbox corner and decides which bridge wins the
+  anchoring lines — a real coin flip, just not this one). Note
+  `GINGER_THREADS=1` cannot be used to check any of this on a part this size:
+  it does not finish one slice in 10 minutes. The practical test is N repeated
+  parallel slices, ~7.5 s each.
 
 - **Gorge** — The inward detour the fused wall makes around one branch: two
   flanks one spacing apart (flank contact = fusion, never a doubled
@@ -375,6 +414,19 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   prints no sparse infill, so a branch the fusion refuses is a branch nobody
   prints, and a dent in the wall beats a missing support. Non-pinching then
   comes from the caller taking every curve the boolean returns.
+  Last rule, and the one that pays for the demotion above: **nothing may
+  float**. A tube the boolean leaves unattached to any wall returns as a closed
+  ring in mid-island, too small for the rib planner to weld, so it prints alone
+  between two travels (stool layer 7: 45 dots, 81 travels against 22). A tip
+  stopping just outside `root_reach` does it — the tree ends where the fill
+  boundary is, not where the wall is, median 8 mm short — and so does a demoted
+  root. Both get linked, to the nearest wall-anchored branch when that is nearer
+  than the wall itself, to the wall otherwise. Components are found by mutual
+  tube proximity tested in **both** directions: a child ends *on* its parent
+  and the parent has no vertex there, so a one-way test sets whole sub-trees
+  adrift. Result on the whole stool: 4103 → 4016 travels, below the 4035 of a
+  slice with no fusion at all. The gorge tip's tessellation is capped at
+  `spacing/500` — see [[Wall fusion]] for why coarser costs print time.
 
 - **Always ring** (`single_path_infill_ring_always`) — Closes the sparse
   infill ring on every layer with a sparse area instead of leaving the choice
