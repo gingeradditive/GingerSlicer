@@ -69,13 +69,43 @@ GingerSlicer. Each entry points to the primary source file when applicable.
 
 - **Ramp profile** (`pellet_ers_ramp_profile`, enum `PelletERSRampProfile`)
   — Interpolation curve used to bridge the volumetric flow between current
-  and target rate. Values: `Linear`, `Sqrt`, others. `Sqrt` smooths the
-  high-rate end where the screw is more responsive.
+  and target rate. Values: `Linear`, `Sqrt`, `Exponential`. **Sqrt is the
+  only slope-exact profile** (constant dQ/dt equal to the configured slope —
+  the kinematic law). Linear/Exponential concentrate the slope locally, so
+  `apply_effective_slopes()` divides their effective slope by 2 / 3 to keep
+  the instantaneous peak bounded (Linear is exact after the correction;
+  Exponential still overshoots ~2.5x in space-parametrization — prefer Sqrt).
+  In the parameter sweep the profile is addressed numerically:
+  0=linear, 1=sqrt, 2=exponential.
 
 - **Deceleration slope** (`pellet_ers_deceleration_slope`) — Independent
-  slope for ramp-**down** transitions. `0` means use the same value as the
-  main slope. Allows asymmetric build-up vs release behavior (the screw
-  pressurizes slower than it depressurizes).
+  slope for **all negative flow transitions** in pellet mode (boundary
+  ramp-downs AND internal decelerations — overhangs, slower features, width
+  changes). `0` means use the same value as the main slope. The
+  pressurize/release asymmetry is a property of the screw, not of travels.
+  Applied via `apply_effective_slopes()` into the per-role slope table.
+
+- **Pressure time constant** (`pellet_ers_pressure_tau`, seconds) — τ of
+  the first-order melt-reservoir model (τ = R·C: nozzle resistance × melt
+  compressibility). Primary ramp flow compensation: the extruded amount in
+  every `;_ERS_RAMPUP`/`;_ERS_RAMPDOWN` segment is scaled by
+  `1 ± τ·slope/Q(x)` — the slicer-side equivalent of the ORNL BAAM
+  feedforward lead filter and of firmware pressure advance, but for screw
+  dynamics. Adapts automatically to the configured slope and to the
+  position along the ramp (stronger near min rate). Calibrate ONCE per
+  nozzle (sweep); stays valid for any slope. BAAM reference: τ ≈ 0.06–0.09 s
+  on a large-nozzle machine; expect more on small nozzles (R ∝ ~1/r⁴).
+  0 = disabled. Theory: `docs/ginger/EXTRUSION_DYNAMICS.md`.
+
+- **Ramp flow trim** (`pellet_ers_rampup_flow` /
+  `pellet_ers_rampdown_flow`, %) — Empirical multipliers applied on top of
+  the τ compensation inside the ramp zones (with τ = 0 they act alone as a
+  constant-percentage compensation). They absorb what the linear model does
+  not capture: shear-thinning τ(Q), screw feed non-linearity. The feedrate
+  ramp alone only redistributes the pressure mismatch — under-extrusion at
+  path start / over-extrusion at path end, the classic bad-seam signature
+  even with stringing solved. Both sweepable. Requires relative E.
+  100% = no trim.
 
 - **Min rate** (`pellet_ers_min_rate`) — Floor of the ramp in mm³/min. The
   ramp never goes below this even at the boundary of a travel; prevents the
@@ -92,6 +122,105 @@ GingerSlicer. Each entry points to the primary source file when applicable.
 - **`travel_before_polyline` / `travel_after_polyline`** — Per-line metadata
   in `GCodeLine` storing the travel distance immediately preceding/following
   the line. Drives the threshold check for whether a ramp must be inserted.
+
+- **ERS G-code tags** — Debug comments emitted by the PressureEqualizer on
+  every line it touches: `;_ERS_RAMPUP`, `;_ERS_RAMPDOWN`, `;_ERS_STEADY`
+  (zone of the ramp), `;_ERS_CALIB layer=N param=value` (active global sweep
+  value, one per layer), plus the `;_ERS_SWEEP` tags emitted by GCode for
+  per-object sweeps (see Calibration below). Grep these to analyze ramps
+  without the GUI.
+
+- **Feedrate quantization** — `push_line_to_output` rounds every re-emitted
+  feedrate to **0.1 mm/s** (was 1 mm/s upstream). With pellet bead
+  cross-sections (~3.8 mm² at 3.2×1.3) 1 mm/s of speed is ~1.9 mm³/s of
+  flow — enough to overshoot `filament_max_volumetric_speed` and to
+  staircase the ERS ramps. Historical bug: walls printed at alternating
+  150/151.89 mm³/s because 39.5 mm/s was rounded up to 40.
+
+- **`POLYLINE_START` / `POLYLINE_END` markers** — Comments emitted by
+  `GCode::_extrude()` when `pellet_ers_mode` is enabled. They delimit each
+  continuous extrusion polyline and carry `travel_mm=` so the
+  PressureEqualizer can detect segments and decide ramp-up/ramp-down without
+  re-deriving travel distances.
+
+---
+
+## Calibration (parameter sweep)
+
+- **Parameter sweep** (`CalibMode::Calib_Param_Sweep`) — The only calibration
+  exposed in the Ginger UI (menu **Calibration → Parameter tuning (per-layer
+  sweep)**). Varies ONE parameter layer by layer (no test model is loaded):
+  `value(layer) = start + step × layer`, clamped at `end`, direction inferred
+  from start/end. `step <= 0` (the default, empty field in the dialog) means
+  **automatic**: the step is derived from the target's layer count
+  (`calib_sweep_effective_step`) so the value reaches `end` exactly at the
+  last layer — i.e. the value is linear in Z over the whole object, and
+  objects of different heights each span the full range. The layer count is
+  resolved at G-code time (`PrintObject::layer_count()` per object,
+  `m_layer_count` for the global sweep, passed pre-resolved to the
+  PressureEqualizer ctor). The dialog's **Apply to** combo targets either
+  **All objects** (one global sweep for the whole plate) or a single object,
+  so several per-object sweeps (one per object, different parameters/ranges)
+  can run in the same print. Dialog: `Param_Sweep_Dlg` in
+  `src/slic3r/GUI/calib_dlg.cpp` (Apply = set & stay open, OK = set & close;
+  reads the print via `get_partplate_list().get_current_fff_print()`, NOT
+  `Plater::fff_print()` which is the legacy unused print); plumbing:
+  `Calib_Params` (`sweep_param`, `object_id`; -1 = global) in
+  `src/libslic3r/calib.hpp`; storage: `Print::m_calib_params` is a list —
+  one global entry OR per-object entries, never mixed
+  (`Print::set_calib_params` enforces it, `Calib_None` removes the target's
+  entry).
+
+- **Sweepable parameters** — Two application paths (`calib_is_writer_param` /
+  `calib_is_ers_param` in `calib.hpp`):
+  - retraction group (`retraction_length`, `retraction_speed`,
+    `deretraction_speed`, `retract_restart_extra`): applied to the G-code
+    writer config — global sweep at each layer change, per-object sweeps at
+    each object change (`GCode::apply_per_object_sweep`, which also restores
+    profile values on non-swept objects); comment
+    `; Calib_Param_Sweep: layer: N[, object: name], key: value`.
+  - ERS group (`max_volumetric_extrusion_rate_slope`,
+    `pellet_ers_deceleration_slope`, `pellet_ers_min_rate`,
+    `pellet_ers_ramp_profile`, `pellet_ers_rampup_flow`,
+    `pellet_ers_rampdown_flow`, `pellet_ers_pressure_tau`): applied inside
+    the PressureEqualizer (global sweep via ctor `const Calib_Params*`,
+    comment `;_ERS_CALIB`; per-object sweeps via `;_ERS_SWEEP` tags, see
+    below). Requires `max_volumetric_extrusion_rate_slope > 0` (otherwise
+    the PressureEqualizer is never instantiated). The pellet-only parameters
+    (decel slope, min rate, ramp profile) additionally require
+    `pellet_ers_mode = 1` to have any effect.
+
+- **`;_ERS_SWEEP` tags** — Per-object ERS sweep transport: GCode emits
+  `;_ERS_SWEEP obj=<ModelObject id> <key>=<value>` before each swept
+  object's extrusions and `;_ERS_SWEEP default` at layer changes / before
+  non-swept objects. The PressureEqualizer turns each tag into a
+  `SweepEvent` (line index + full `SweepSnapshot` built from the profile
+  baseline, `rebuild_sweep_events`) and replays events per extrusion segment
+  while processing and per line while outputting (ramp profile, flow factors
+  and τ are consumed at output time). The tags survive into the final
+  G-code: grep `;_ERS_SWEEP` for the object→value map.
+
+- **CLI sweep** — `--sweep "parameter:start:end"` (automatic step) or
+  `--sweep "parameter:start:end:step"` (explicit, step > 0), global or
+  per-object with `@Object name` (entries separated by `;`, matched by
+  ModelObject name) together with `--slice N`:
+  `Ginger-Slicer.exe --slice 2 --sweep "pellet_ers_deceleration_slope:5:40@Cube" --outputdir out project.3mf`.
+  Parsed in `GingerSlicer.cpp` (slice branch) → `Print::set_calib_params`.
+  With duplicate object names the first match wins. Fully headless: grep
+  `;_ERS_CALIB` (global) or `;_ERS_SWEEP` (per-object) in the output.
+
+- **Sweep lifecycle** — `Print::set_calib_params` invalidates `psGCodeExport`
+  so the next slice regenerates G-code. Loading new files resets the calib
+  mode to `Calib_None` (SoftFever legacy in `Plater::priv::load_files`):
+  load objects FIRST, then set the sweep. Sweeps are NOT saved in the 3MF.
+  Per-object sweeps reference `ModelObject::id()` (session-scoped ObjectID),
+  so they don't survive a project reload either; the dialog's "Active
+  sweeps" box shows what is currently set.
+
+- **One-layer output buffering** — The PressureEqualizer emits layer N−1
+  while processing layer N. The sweep keeps a `SweepSnapshot` of the
+  parameters each layer was processed with, so the output pass and the
+  `;_ERS_CALIB` comment always match the ramps actually generated.
 
 ---
 
@@ -141,6 +270,108 @@ GingerSlicer. Each entry points to the primary source file when applicable.
 - **`PrintObjectSlice.cpp`** — Where 3D mesh becomes per-layer 2D
   `ExPolygon`s. Entry point for any future feature-size pre-check based on
   Minkowski erosion.
+
+- **Host options vs invalidation** — The Ginger sidebar "Connection"
+  selector writes `print_host` into the **printer preset** (stock Orca keeps
+  it in the separate physical-printer config). `Print::apply` has TWO
+  invalidation paths: `print_diff` (routed through
+  `invalidate_state_by_config_options`, per-option granularity) and
+  `full_config_diff` (`PrintApply.cpp`, ANY changed key invalidates
+  `psGCodeExport`). The 9 `print_host`/`printhost_*` keys are excluded from
+  both, otherwise changing the printer IP would silently discard the sliced
+  G-code and its print statistics — breaking the output filename template
+  (`{filament_type[initial_tool]}` → "Non-integer index" error) right before
+  an upload.
+
+---
+
+## Single path & wall ribs (Ginger)
+
+Full rationale and implementation map in `docs/ginger/DFM.md`.
+
+- **Single path mode** (`single_path_mode`) — Print-wide toggle: walls and
+  sparse infill of each island chain into one continuous walk (travels are
+  the enemy on pellet: no true retract, melt degrades while idle). Drives
+  `FillParams::connect_polygons` for connectable sparse patterns and the
+  wall/seam routing in `GCode.cpp`.
+
+- **Euler connector** — `connect_infill_single_path()` in
+  `src/libslic3r/Fill/FillBase.cpp`: chords (scanlines) + boundary gap arcs
+  form a ring graph; an alternating gap *phase* makes every vertex even;
+  odd vertices (**defects**) are the open ends of the walk.
+
+- **Exact min-pieces solve** — For single-contour islands (m ≤ 160): a
+  selection with 0/2 defects is fully determined by the defect pair + one
+  phase bit, so all `2 + 2·C(m,2)` candidates are enumerated exactly.
+  Cost: pieces → blocked → defects → mouth; under lightning wall lining
+  (final emission) ties break toward max wall coverage — the lining. Runs
+  under lining too (the greedy's landing spot was rotation-sensitive and
+  flipped identical layers between wall-hug and floating blobs).
+  Debug line `[SPEXACT]` (incl. coverage).
+
+- **Physical link rule** — Any artificial connection (bridge over a
+  virtual edge, join of near-touching open ends, weld of a residual loop)
+  is an extruded bead allowed at ANY length provided it stays inside the
+  island and does not retrace an extruded line (parallel < 25° within
+  0.8 bead for > 1.5 bead accumulated). Links ≤ 1.5 bead skip the tests.
+  Canonical retrace rule ("stesso interasse"): same-layer centerlines
+  parallel closer than one width = doubled material; flank contact at
+  exactly one width = fusion, legal and often the goal.
+
+- **Wall lining** (`FillParams::sparse_wall_lining`) — Under lightning +
+  single path, the wall-hugging boundary stretch the connector keeps when
+  it costs no extra trail: the "second wall" bead fused to the perimeter,
+  the rail that carries the walk to the wall seam. It is the connector's
+  optimum choice, not an unconditional extra loop — layers whose tree is
+  empty print no sparse at all (lightning is demand-driven).
+
+- **Weld / splice** — `single_path_splice_loops()`: staggered double-link
+  merge of loops into the walk (ladder, never crossing); with the `island`
+  parameter it enforces the physical link rule.
+
+- **Deviation** — Boundary-grazing interior stretch of a scanline is
+  re-routed one bead off the contour so the arc under it stays legal
+  (`[SPDEVIATE]`). Scanline patterns only — under lightning wall lining a
+  wall-hugging row is the product, not an accident.
+
+- **Wall rib** (`single_path_wall_ribs`) — Two staggered link segments
+  welding two wall loops into one walk (the automated CAD "micro cut").
+  Planned per layer by Prim (`loops − 1` ribs) in
+  `PrintObject::generate_wall_ribs()` / `src/libslic3r/WallRibs.hpp`.
+  EVERY closed loop of the island is a candidate — no role/width/flow
+  partition (exact-equality grouping left Arachne's variable-width loops
+  each in its own group: zero ribs). Rib scalars and emission link flow
+  come from the DOMINANT (longest) source path.
+
+- **Rib obstacle field** (`rib_segment_conflicts`, `WallRibs.hpp`) — A
+  link/stub axis may not cross a foreign bead anywhere (own curves exempt
+  within one stagger of their attach) nor ride one (parallel < 0.9 width
+  for > one stagger = the interasse violation, sampled — intersection
+  tests are blind to it). Rebuilt live at every splice: growing walk +
+  unspliced loops + open thin walls (`extra_obstacles`).
+
+- **Rib column** — A rib re-anchored on the previous layer's attach pair;
+  columns are the self-standing vertical structure of ribs. Per-layer
+  drift budget: half a bead capped at one layer height (~45° lean).
+  Column memory is per island, superseded zone by zone (accepted plans
+  claim their zone; corpses elsewhere survive for near-dead re-founding).
+
+- **Free re-founding** — When a column dies, candidates near the dead column
+  are preferred ONLY because they may stand on yesterday's rib corridor
+  (self-support). A candidate standing on REAL material (solid/wall beads)
+  is position-free: the shortest wins outright, so a whole feature dying at
+  once (engraved text) cannot capture the new rib into a long chord.
+
+- **Foundation buttress** — Lightning-style stub chain grown downward
+  through the walls under a rib that starts over void; each stub 0.5 bead
+  shorter per layer, ends on real material or the bed. Sparse infill is
+  never treated as support.
+
+- **Rib corridor** — The rib footprint carved out of the layer's fill
+  surfaces so nothing else extrudes across the rib beads.
+
+- **`[RIBSTAT]`** (`GINGER_RIBS_DEBUG=1`) — Per-layer census of the rib
+  planner (loops, spliced, anchor_reused, founded, drop reasons).
 
 ---
 

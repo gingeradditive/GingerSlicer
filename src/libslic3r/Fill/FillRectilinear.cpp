@@ -3057,12 +3057,16 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
         // Cura order: connect BEFORE multiply (see fill_surface_trapezoidal for the rationale).
         ExPolygons inners = offset_ex(surface->expolygon, -float(scale_((0.5 * params.multiline + 0.15) * this->spacing)));
         Polylines  connected;
+        // The connector output here is an intermediate centerline for connect-before-multiply, which
+        // dilates and re-closes it below: plain trail-count objective, no mouth stitching.
+        FillParams row_params = params;
+        row_params.multiline_intermediate = true;
         for (const ExPolygon &inner : inners) {
             Polylines rows = intersection_pl(fill_lines, inner);
             if (rows.empty())
                 continue;
             Polylines joined;
-            connect_infill(std::move(rows), inner, joined, this->spacing, params);
+            connect_infill(std::move(rows), inner, joined, this->spacing, row_params);
             // With an EVEN multiline a closed centerline would widen into two concentric loops; open it
             // at its seam so the widened result stays one single ring. With an ODD multiline the
             // centerline itself is extruded (multiline_fill() inserts it at offset 0): keep it CLOSED,
@@ -3332,12 +3336,15 @@ bool FillRectilinear::fill_surface_trapezoidal(
         // generator starts an ExtrusionLoop wherever the previous wall ended).
         ExPolygons inners = offset_ex(expolygon, -float(scale_((0.5 * params.multiline + 0.15) * this->spacing)));
         Polylines  connected;
+        // Intermediate centerline for connect-before-multiply (see fill_surface_by_multilines).
+        FillParams row_params = params;
+        row_params.multiline_intermediate = true;
         for (const ExPolygon &inner : inners) {
             Polylines rows = intersection_pl(polylines, inner);
             if (rows.empty())
                 continue;
             Polylines joined;
-            connect_infill(std::move(rows), inner, joined, this->spacing, params);
+            connect_infill(std::move(rows), inner, joined, this->spacing, row_params);
             // With an EVEN multiline a closed centerline would widen into two concentric loops; open it
             // at its seam so the widened result stays one single ring. With an ODD multiline the
             // centerline itself is extruded (multiline_fill() inserts it at offset 0): keep it CLOSED,

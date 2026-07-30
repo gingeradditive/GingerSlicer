@@ -23,7 +23,15 @@ void Filler::_fill_surface_single(
     if (params.multiline > 1)
         fill_lines = intersection_pl(std::move(fill_lines), expolygon);
 
-    chain_or_connect_infill(std::move(fill_lines), expolygon, polylines_out, this->spacing, params);
+    // Ginger single-path: guarantee the wall-hugging "lining" loop. Lightning is demand-driven,
+    // so on layers with little demand above only a lone tree survives and the welded walk
+    // shrinks to a stub - the inner lining bead (the "second wall") that every other layer has
+    // disappears for a band of layers (banding on the inner surface) and the walk loses the
+    // rail that carries it to the wall seam (rib). The connector then prefers the contour
+    // phase with maximum wall coverage whenever it costs no extra trail.
+    FillParams lining_params = params;
+    lining_params.sparse_wall_lining = true;
+    chain_or_connect_infill(std::move(fill_lines), expolygon, polylines_out, this->spacing, lining_params);
 }
 
 void GeneratorDeleter::operator()(Generator *p) {

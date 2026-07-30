@@ -548,6 +548,9 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     toggle_line("pellet_ers_ramp_profile", have_pellet_ers_mode);
     toggle_line("pellet_ers_deceleration_slope", have_pellet_ers_mode);
     toggle_line("pellet_ers_min_rate", have_pellet_ers_mode);
+    toggle_line("pellet_ers_pressure_tau", have_pellet_ers_mode);
+    toggle_line("pellet_ers_rampup_flow", have_pellet_ers_mode);
+    toggle_line("pellet_ers_rampdown_flow", have_pellet_ers_mode);
     if(have_volumetric_extrusion_rate_slope) config->set_key_value("enable_arc_fitting", new ConfigOptionBool(false));
     if(have_volumetric_extrusion_rate_slope_segment_length < 0.5) {
         DynamicPrintConfig new_conf = *config;
@@ -583,6 +586,9 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     // print-wide travel/seam mode (it also drives the inner-wall and inter-island seam in GCode.cpp), so it stays
     // available even at 0% infill and for any pattern. The infill-CONNECT part only applies to line-based patterns
     // (gated in Fill.cpp by sparse_infill_pattern); the wall / inter-island seam part applies regardless.
+    // Its sub-options (rib connectors between wall loops) only make sense with single_path_mode on.
+    toggle_field("single_path_wall_ribs", config->opt_bool("single_path_mode"));
+    toggle_field("single_path_wall_rib_max_length", config->opt_bool("single_path_mode") && config->opt_bool("single_path_wall_ribs"));
     if (have_infill) {
         toggle_field("fill_multiline", have_multiline_infill_pattern);
         // If the infill pattern does not support multiline fill_multiline is changed to 1.

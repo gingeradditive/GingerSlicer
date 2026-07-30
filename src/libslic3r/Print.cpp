@@ -209,7 +209,21 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
         "filament_retraction_distances_when_cut"
     };
 
-    static std::unordered_set<std::string> steps_ignore;
+    static std::unordered_set<std::string> steps_ignore = {
+        // Printer host connection settings have no influence on the generated G-code:
+        // changing the printer IP from the sidebar must not invalidate the sliced print,
+        // otherwise printing right after the change fails (the print statistics needed by
+        // the output filename template are discarded together with the G-code).
+        "print_host",
+        "print_host_webui",
+        "printhost_apikey",
+        "printhost_authorization_type",
+        "printhost_cafile",
+        "printhost_password",
+        "printhost_port",
+        "printhost_ssl_ignore_revoke",
+        "printhost_user"
+    };
 
     std::vector<PrintStep> steps;
     std::vector<PrintObjectStep> osteps;
@@ -363,6 +377,61 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
             invalidated |= object->invalidate_step(ostep);
 
     return invalidated;
+}
+
+// Ginger: kept after upstream's calibration removal - the per-layer Parameter Sweep
+// (Calib_Param_Sweep) is Ginger's own calibration and still flows through here.
+// Semantics of one call:
+//  - mode == Calib_None, object_id == -1: remove every active sweep.
+//  - mode == Calib_None, object_id >= 0:  remove the sweep of that object only.
+//  - sweep,  object_id == -1: a global sweep replaces the whole list.
+//  - sweep,  object_id >= 0:  replaces that object's sweep and drops any global one,
+//    so the list is always either one global entry or per-object entries only.
+void Print::set_calib_params(const Calib_Params& params) {
+    // The calibration parameters are applied during G-code generation and are not part
+    // of the config diff: invalidate the export step explicitly, otherwise a print whose
+    // steps are all done would keep its previous G-code and the calibration would not
+    // take effect until something else invalidates it.
+    {
+        std::scoped_lock<std::mutex> lock(this->state_mutex());
+        this->invalidate_step(psGCodeExport);
+    }
+    if (params.mode != CalibMode::Calib_Param_Sweep) {
+        if (params.object_id < 0)
+            m_calib_params.clear();
+        else
+            m_calib_params.erase(std::remove_if(m_calib_params.begin(), m_calib_params.end(),
+                [&params](const Calib_Params &p) { return p.object_id == params.object_id; }),
+                m_calib_params.end());
+    } else if (params.object_id < 0) {
+        m_calib_params.assign(1, params);
+    } else {
+        m_calib_params.erase(std::remove_if(m_calib_params.begin(), m_calib_params.end(),
+            [&params](const Calib_Params &p) { return p.object_id < 0 || p.object_id == params.object_id; }),
+            m_calib_params.end());
+        m_calib_params.emplace_back(params);
+    }
+}
+
+const Calib_Params* Print::global_calib_params() const
+{
+    for (const Calib_Params &p : m_calib_params)
+        if (p.object_id < 0)
+            return &p;
+    return nullptr;
+}
+
+const Calib_Params* Print::calib_params_for_object(int object_id) const
+{
+    for (const Calib_Params &p : m_calib_params)
+        if (p.object_id == object_id)
+            return &p;
+    return nullptr;
+}
+
+bool Print::has_per_object_calib() const
+{
+    return !m_calib_params.empty() && m_calib_params.front().object_id >= 0;
 }
 
 bool Print::invalidate_step(PrintStep step)

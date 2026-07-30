@@ -4,7 +4,45 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-OrcaSlicer is an open-source 3D slicer application forked from Bambu Studio, built using C++ with wxWidgets for the GUI and CMake as the build system. The project uses a modular architecture with separate libraries for core slicing functionality, GUI components, and platform-specific code.
+GingerSlicer is Ginger Additive's pellet-focused fork of OrcaSlicer (itself forked from Bambu Studio), built using C++ with wxWidgets for the GUI and CMake as the build system. The project uses a modular architecture with separate libraries for core slicing functionality, GUI components, and platform-specific code.
+
+## GingerSlicer specifics (pellet fork)
+
+- **Domain glossary**: `docs/ginger/GLOSSARY.md` — read it before touching pellet ERS,
+  multiline infill, volume-based cooling, profiles/OTA or the calibration sweep.
+  Keep it updated when those areas change.
+- **DFM reference**: `docs/ginger/DFM.md` — the pellet design-for-manufacturing principles
+  and how the slicer implements them (single path, physical link rules, wall ribs/buttress,
+  overhang via layer height, ERS/cooling constraints, debug env vars). Read it before
+  touching `single_path_mode`, `connect_infill_single_path`, `single_path_splice_loops`
+  or the wall ribs planner; keep it updated when those areas change.
+- **Pellet ERS** lives in `src/libslic3r/GCode/PressureEqualizer.cpp` (tags
+  `;_ERS_RAMPUP/RAMPDOWN/STEADY`). Feedrates re-emitted by the PressureEqualizer are
+  quantized to 0.1 mm/s (NOT 1 mm/s as upstream Orca): pellet beads are several mm²,
+  so 1 mm/s of speed is mm³/s-scale flow error.
+- **Calibration**: the only exposed calibration is "Parameter tuning (per-layer sweep)"
+  (`CalibMode::Calib_Param_Sweep`, dialog `Param_Sweep_Dlg`). The stock filament
+  calibrations (temp tower, flow rate, PA, VFA…) are removed entirely — code, dialogs
+  and pattern generators; `calib.hpp` is sweep-only and `calib.cpp` no longer exists.
+  Load objects BEFORE setting a sweep (`load_files` resets calib mode).
+- **Headless slicing for testing** (works, use it to verify slicing changes without GUI):
+  ```
+  build/src/Release/Ginger-Slicer.exe --slice <plate|0> --outputdir <dir> project.3mf
+  build/src/Release/Ginger-Slicer.exe --slice 2 --sweep "pellet_ers_deceleration_slope:5:40:0.5" --outputdir out project.3mf
+  ```
+  The project 3MF must embed its settings (save the project from the GUI). Output:
+  `<dir>/plate_N.gcode`. CLI help does not print (GUI subsystem); logs go to stderr.
+  Ginger pellet profiles use `filament_diameter = 1.12838` → filament cross-section is
+  exactly 1 mm², so ΔE in mm equals extruded volume in mm³ (handy for G-code analysis).
+- **Windows build gotcha**: incremental builds fail at link with `LNK1104` if
+  Ginger-Slicer.exe is running (dll locked) — check the process first. When chaining
+  `cmake --build ... | tail`, the pipeline exit code is tail's, not the build's:
+  verify the `.dll ->` line or the absence of `LNK` errors in the output.
+- **Invalidation gotcha**: `Print::apply` has two invalidation paths — per-option
+  `print_diff` → `invalidate_state_by_config_options` (Print.cpp) and blanket
+  `full_config_diff` → `psGCodeExport` (PrintApply.cpp). Options that must not
+  invalidate the sliced G-code (e.g. `print_host`/`printhost_*`) must be excluded
+  from BOTH.
 
 ## Build Commands
 
@@ -81,36 +119,14 @@ build_release_vs2022.bat slicer
 - Linux builds use Ninja generator
 
 ### Testing
-Tests are located in the `tests/` directory and use the Catch2 testing framework. Test structure:
-- `tests/libslic3r/` - Core library tests (21 test files)
-  - Geometry processing, algorithms, file formats (STL, 3MF, AMF)
-  - Polygon operations, clipper utilities, Voronoi diagrams
-- `tests/fff_print/` - Fused Filament Fabrication tests (12 test files)
-  - Slicing algorithms, G-code generation, print mechanics
-  - Fill patterns, extrusion, support material
-- `tests/sla_print/` - Stereolithography tests (4 test files)
-  - SLA-specific printing algorithms, support generation
-- `tests/libnest2d/` - 2D nesting algorithm tests
-- `tests/slic3rutils/` - Utility function tests
-- `tests/sandboxes/` - Experimental/sandbox test code
-
-Run all tests after building:
-```bash
-cd build && ctest
-```
-
-Run tests with verbose output:
-```bash
-cd build && ctest --output-on-failure
-```
-
-Run individual test suites:
-```bash
-# From build directory
-./tests/libslic3r/libslic3r_tests
-./tests/fff_print/fff_print_tests
-./tests/sla_print/sla_print_tests
-```
+**Automated tests are no longer supported in this fork (2026-07-30).** The `tests/`
+directory (Catch2 suites, fixtures, CMake integration) has been removed entirely, and
+`BUILD_TESTS`/`add_subdirectory(tests)`/`enable_testing()` were stripped from the root
+`CMakeLists.txt`. Do not autonomously re-add a `tests/` directory, Catch2, `ctest`
+integration, or any other automated test scaffolding — verify changes by building and
+using the headless slicing CLI (see "Headless slicing for testing" above) or manual
+GUI checks instead. If the user explicitly asks for automated tests to come back,
+confirm scope with them first rather than reintroducing it unprompted.
 
 ## Architecture
 
@@ -207,7 +223,8 @@ Run individual test suites:
 2. Performance-critical code should be profiled and optimized
 3. Consider multi-threading implications (TBB integration)
 4. Validate changes don't break existing profiles
-5. Add regression tests where appropriate
+5. Verify via headless slicing / manual GUI checks (see "Testing" above — do not add
+   automated test scaffolding)
 
 #### GUI Development
 1. GUI code resides in `src/slic3r/GUI/` (not visible in current tree)
@@ -251,7 +268,8 @@ Run individual test suites:
 - **Profile migrations** needed when settings change significantly
 
 ### Quality and Testing
-- **Regression testing** important due to algorithm complexity
+- **No automated test suite** (see "Testing" above) — rely on manual/headless
+  verification; do not autonomously reintroduce automated tests
 - **Performance benchmarks** help catch performance regressions
 - **Memory leak** detection important for long-running GUI application
 - **Cross-platform** testing required before releases

@@ -31,6 +31,8 @@
 // BBS
 #include "Topbar.hpp"
 #include "PrinterWebView.hpp"
+// Ginger: parameter-sweep calibration dialog (the only calibration kept).
+#include "calib_dlg.hpp"
 #include "WebViewDialog.hpp"
 #include "GUI_App.hpp"
 
@@ -332,6 +334,8 @@ public:
     void        refresh_plugin_tips();
     void RunScript(wxString js);
 
+
+Param_Sweep_Dlg* m_param_sweep_dlg{ nullptr };
 
     // BBS. Replace title bar and menu bar with top bar.
     Topbar*               m_topbar{ nullptr };

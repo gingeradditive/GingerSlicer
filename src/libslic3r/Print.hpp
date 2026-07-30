@@ -18,6 +18,7 @@
 #include "GCode/GCodeProcessor.hpp"
 #include "MultiMaterialSegmentation.hpp"
 #include "libslic3r.h"
+#include "calib.hpp"
 
 #include <Eigen/Geometry>
 
@@ -515,6 +516,10 @@ private:
     void clip_fill_surfaces();
     void discover_horizontal_shells();
     void combine_infill();
+    // Ginger single_path_wall_ribs: plan the per-layer wall rib merges (sequential bottom-up so
+    // each rib column is anchored to the previous layer = self-standing) and subtract the rib
+    // corridors from the fill surfaces so no infill/top/bottom is extruded across the ribs.
+    void generate_wall_ribs();
     void _generate_support_material();
     std::pair<FillAdaptive::OctreePtr, FillAdaptive::OctreePtr> prepare_adaptive_infill_data(
         const std::vector<std::pair<const Surface*, float>>& surfaces_w_bottom_z) const;
@@ -972,6 +977,19 @@ public:
     // Return 4 wipe tower corners in the world coordinates (shifted and rotated), including the wipe tower brim.
     Points first_layer_wipe_tower_corners(bool check_wipe_tower_existance=true) const;
 
+    // Ginger: the per-layer Parameter Sweep (Calib_Param_Sweep) is Ginger's own calibration,
+    // kept after upstream removed the stock ones. The print holds a list of sweeps:
+    // either a single global one (object_id == -1) or several per-object ones
+    // (object_id >= 0, at most one per object) - never both at the same time.
+    const CalibMode calib_mode() const { return m_calib_params.empty() ? CalibMode::Calib_None : CalibMode::Calib_Param_Sweep; }
+    void set_calib_params(const Calib_Params& params);
+    const std::vector<Calib_Params>& calib_params() const { return m_calib_params; }
+    // The global (all objects) sweep, or nullptr if none / per-object sweeps are active.
+    const Calib_Params* global_calib_params() const;
+    // The sweep targeting the ModelObject with this ObjectID, or nullptr.
+    const Calib_Params* calib_params_for_object(int object_id) const;
+    bool has_per_object_calib() const;
+
     Vec2d translate_to_print_space(const Vec2d &point) const;
     // scaled point
     Vec2d translate_to_print_space(const Point &point) const;
@@ -1051,6 +1069,10 @@ private:
     //BBS
     ConflictResultOpt m_conflict_result;
     FakeWipeTower     m_fake_wipe_tower;
+
+    // Ginger: parameter-sweep calibration state (empty = no sweep; one global entry
+    // or several per-object entries, see set_calib_params()).
+    std::vector<Calib_Params> m_calib_params;
     
     // To allow GCode to set the Print's GCodeExport step status.
     friend class GCode;

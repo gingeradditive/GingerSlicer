@@ -9,6 +9,7 @@
 namespace Slic3r {
 
 struct LayerResult;
+struct Calib_Params;
 
 class GCodeG1Formatter;
 
@@ -21,7 +22,7 @@ class PressureEqualizer
 {
 public:
     PressureEqualizer() = delete;
-    explicit PressureEqualizer(const Slic3r::GCodeConfig &config);
+    explicit PressureEqualizer(const Slic3r::GCodeConfig &config, const Calib_Params *calib_params = nullptr);
     ~PressureEqualizer() = default;
 
     // Process a next batch of G-code lines.
@@ -65,8 +66,18 @@ private:
         float negative;
     };
     ExtrusionRateSlope              m_max_volumetric_extrusion_rate_slopes[size_t(ExtrusionRole::erCount)];
+    // Effective slopes (mm³/min²) actually used by the passes: derived from the raw
+    // configured values by apply_effective_slopes() (deceleration substitution on the
+    // negative side and ramp-profile peak correction, both pellet mode only).
     float                           m_max_volumetric_extrusion_rate_slope_positive;
     float                           m_max_volumetric_extrusion_rate_slope_negative;
+    // Raw configured slopes (mm³/min²), kept for the sweep and for re-deriving the
+    // effective values when a swept parameter changes.
+    float                           m_slope_positive_raw { 0.f };
+    float                           m_slope_negative_raw { 0.f };
+    // Derive the effective slopes + per-role table from the raw values, the deceleration
+    // slope and the ramp profile.
+    void                            apply_effective_slopes();
 
     // Configuration extracted from config.
     // Area of the crossestion of each filament. Necessary to calculate the volumetric flow rate.
@@ -97,6 +108,82 @@ private:
     float                          m_pellet_ers_deceleration_slope { 0.f };
     // Minimum volumetric rate at ramp boundaries (mm³/min, converted from mm³/s at init)
     float                          m_pellet_ers_min_rate { 30.f }; // 0.5 mm³/s * 60
+    // Flow compensation factors applied to the extruded amount (E) inside ramp zones.
+    // The feedrate ramp alone only redistributes the pressure mismatch along the path:
+    // during ramp-up part of the material charges the melt reservoir (under-extruded bead),
+    // during ramp-down the reservoir discharges into the bead (over-extruded).
+    // 1.0 = no compensation. Applied only with relative E distances.
+    float                          m_pellet_ers_rampup_flow { 1.f };
+    float                          m_pellet_ers_rampdown_flow { 1.f };
+    // Time constant τ of the melt pressure reservoir (seconds, 0 = disabled).
+    // Primary flow compensation: E_scale = 1 ± τ·slope/Q computed per segment;
+    // the rampup/rampdown flow factors act as an additional trim on top of it.
+    float                          m_pellet_ers_pressure_tau { 0.f };
+
+    // Parameter sweep (CalibMode::Calib_Param_Sweep): which ERS parameter is varied
+    // layer by layer from sweep_start towards sweep_end, changing by sweep_step at
+    // every layer. Values are in user units (mm³/s² for slopes, mm³/s for min rate,
+    // 0/1/2 = linear/sqrt/exponential for the ramp profile).
+    enum class SweepParam {
+        None,         // sweep disabled or handled elsewhere
+        Slope,        // max_volumetric_extrusion_rate_slope
+        DecelSlope,   // pellet_ers_deceleration_slope
+        MinRate,      // pellet_ers_min_rate
+        RampProfile,  // pellet_ers_ramp_profile
+        RampupFlow,   // pellet_ers_rampup_flow (%)
+        RampdownFlow, // pellet_ers_rampdown_flow (%)
+        PressureTau,  // pellet_ers_pressure_tau (s)
+    };
+    SweepParam                     m_sweep_param { SweepParam::None };
+    float                          m_sweep_start { 0.f };
+    float                          m_sweep_end { 0.f };
+    float                          m_sweep_step { 0.f };
+    // Index of the next layer to be processed (counts non-nop layers).
+    size_t                         m_sweep_layer_idx { 0 };
+    // Sweep comment for the last processed layer, emitted when that layer is output.
+    std::string                    m_sweep_comment_next;
+
+    // Snapshot of the ERS parameters the sweep can modify. Needed because the output
+    // of layer N-1 happens while layer N is being processed: the output pass must run
+    // with the parameters that were active when N-1 was processed.
+    struct SweepSnapshot {
+        float                slope_positive;   // raw, mm³/min²
+        float                slope_negative;   // raw, mm³/min²
+        float                decel_slope;      // raw, mm³/min²
+        float                min_rate;         // mm³/min
+        PelletERSRampProfile ramp_profile;
+        float                rampup_flow;      // factor, 1.0 = off
+        float                rampdown_flow;    // factor, 1.0 = off
+        float                pressure_tau;     // seconds, 0 = off
+    };
+    SweepSnapshot snapshot_sweep_params() const;
+    void          restore_sweep_params(const SweepSnapshot &params);
+    // Apply the sweep value for m_sweep_layer_idx and compose the G-code comment.
+    void          apply_param_sweep();
+    // Set `param` to `value` (user units) inside `params`, with the same clamps and
+    // guards as the per-layer sweep. Returns the "name=value" comment fragment, empty
+    // if the parameter is unknown.
+    std::string   sweep_apply_to_snapshot(SweepSnapshot &params, SweepParam param, float value) const;
+    static SweepParam sweep_param_from_key(const std::string &key);
+
+    // Ginger per-object Parameter Sweep: parameters are switched mid-stream through
+    // ;_ERS_SWEEP tags emitted by GCode at each object change ("obj=N key=value") and
+    // at each layer change ("default" = profile values). Each tag is turned into an
+    // event: a line index plus the full parameter snapshot to activate from that line
+    // on. Events are applied per extrusion segment while processing and per line while
+    // outputting (ramp profile, flow factors and tau are consumed at output time).
+    struct SweepEvent {
+        size_t        line_idx;
+        SweepSnapshot params;
+    };
+    // Parameter values coming from the config, the base every tag event starts from.
+    SweepSnapshot             m_sweep_baseline;
+    std::vector<SweepEvent>   m_sweep_events;
+    // Scan m_gcode_lines for ;_ERS_SWEEP tags and rebuild the event list (line indices
+    // are only valid until the buffer is erased, so this runs on every layer).
+    void rebuild_sweep_events();
+    // Apply all events up to and including line_idx; cursor advances monotonically.
+    void apply_sweep_events_up_to(size_t line_idx, size_t &cursor);
 
     // Indicate if extrude set speed block was opened using the tag ";_EXTRUDE_SET_SPEED"
     // or not (not opened, or it was closed using the tag ";_EXTRUDE_END").

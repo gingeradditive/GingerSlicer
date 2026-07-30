@@ -7,6 +7,7 @@
 #include "SurfaceCollection.hpp"
 #include "ExtrusionEntityCollection.hpp"
 #include "BoundingBox.hpp"
+#include "WallRibs.hpp"
 namespace Slic3r {
 
 class ExPolygon;
@@ -156,6 +157,13 @@ public:
     // BBS
     ExPolygons              loverhangs;
     BoundingBox             loverhangs_bbox;
+
+    // Ginger single_path_wall_ribs: per-layer rib plan. Computed sequentially (bottom-up, so
+    // each rib is anchored to the previous layer's position = self-standing column) at the end
+    // of PrintObject::prepare_infill, where the rib corridors are also subtracted from the fill
+    // surfaces; consumed by GCode::extrude_perimeters, which splices the referenced wall loops
+    // into the planned single walk instead of recomputing anything.
+    std::vector<WallRibMerge> wall_ribs;
     size_t                  region_count() const { return m_regions.size(); }
     const LayerRegion*      get_region(int idx) const { return m_regions[idx]; }
     LayerRegion*            get_region(int idx) { return m_regions[idx]; }

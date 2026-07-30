@@ -1014,6 +1014,8 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloatOrPercent,                infill_combination_max_layer_height))
     ((ConfigOptionInt,                  fill_multiline))
     ((ConfigOptionBool,                 single_path_mode))
+    ((ConfigOptionBool,                 single_path_wall_ribs))
+    ((ConfigOptionFloat,                single_path_wall_rib_max_length))
     // Ironing options
     ((ConfigOptionEnum<IroningType>, ironing_type))
     ((ConfigOptionEnum<InfillPattern>, ironing_pattern))
@@ -1189,6 +1191,9 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionEnum<PelletERSRampProfile>, pellet_ers_ramp_profile))
     ((ConfigOptionFloat,              pellet_ers_deceleration_slope))
     ((ConfigOptionFloat,              pellet_ers_min_rate))
+    ((ConfigOptionPercent,            pellet_ers_rampup_flow))
+    ((ConfigOptionPercent,            pellet_ers_rampdown_flow))
+    ((ConfigOptionFloat,              pellet_ers_pressure_tau))
 
     
     ((ConfigOptionPercents,            retract_before_wipe))

@@ -2673,6 +2673,19 @@ void MainFrame::init_menubar_as_editor()
     //m_topbar->AddDropDownMenuItem(config_item);
     m_topbar->AddDropDownSubMenu(helpMenu, _L("Help"));
 
+// Ginger: the stock filament-oriented calibrations (temp tower, flow rate, PA, VFA, ...)
+    // are not applicable to pellet machines. The only calibration exposed is the
+    // layer-by-layer parameter sweep, which works on the objects currently on the plate.
+    // Upstream's slimmed Topbar has no Calibration button, so the entry lives in the top menu.
+    append_menu_item(
+        m_topbar->GetTopMenu(), wxID_ANY, _L("Parameter tuning (per-layer sweep)"), _L("Vary one process parameter layer by layer on the current plate to find its best value"),
+        [this](wxCommandEvent&) {
+            if (!m_param_sweep_dlg)
+                m_param_sweep_dlg = new Param_Sweep_Dlg((wxWindow*)this, wxID_ANY, m_plater);
+            m_param_sweep_dlg->ShowModal();
+        }, "", nullptr,
+        [this]() {return m_plater->is_view3D_shown();; }, this);
+
 #else
     m_menubar->Append(fileMenu, wxString::Format("&%s", _L("File")));
     if (editMenu)
@@ -2682,6 +2695,18 @@ void MainFrame::init_menubar_as_editor()
     /*if (publishMenu)
         m_menubar->Append(publishMenu, wxString::Format("&%s", _L("3D Models")));*/
 
+    // Ginger: the stock filament-oriented calibrations (temp tower, flow rate, PA, VFA, ...)
+    // are not applicable to pellet machines. The only calibration exposed is the
+    // layer-by-layer parameter sweep, which works on the objects currently on the plate.
+    auto calib_menu = new wxMenu();
+    append_menu_item(calib_menu, wxID_ANY, _L("Parameter tuning (per-layer sweep)"), _L("Vary one process parameter layer by layer on the current plate to find its best value"),
+        [this](wxCommandEvent&) {
+            if (!m_param_sweep_dlg)
+                m_param_sweep_dlg = new Param_Sweep_Dlg((wxWindow*)this, wxID_ANY, m_plater);
+            m_param_sweep_dlg->ShowModal();
+        }, "", nullptr,
+        [this]() {return m_plater->is_view3D_shown();; }, this);
+    // m_menubar->Append(calib_menu,wxString::Format("&%s", _L("Calibration")));
     if (helpMenu)
         m_menubar->Append(helpMenu, wxString::Format("&%s", _L("Help")));
     SetMenuBar(m_menubar);

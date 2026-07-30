@@ -56,6 +56,16 @@ struct FillParams
     int   multiline{1};
     // Connect infill lines along the inner wall into a single continuous path (Cura-style).
     bool        connect_polygons { false };
+    // Ginger single-path: this connect_infill call produces INTERMEDIATE rows for the multiline
+    // pipeline (connect-before-multiply dilates and re-closes them afterwards), not the final
+    // emitted path. The Euler connector then keeps the plain minimize-the-trail-count objective
+    // and skips defect sliding / mouth stitching; for a FINAL emission it instead prefers a few
+    // CLOSED loops (free seam at G-code export) over one open trail with fixed ends.
+    bool        multiline_intermediate { false };
+    // Ginger single-path: guarantee the wall-hugging lining on the FINAL emission - among
+    // equal-cost contour phases prefer the one covering the most wall (set by lightning, whose
+    // demand-driven trees would otherwise drop the lining on low-demand layers).
+    bool        sparse_wall_lining     { false };
 
     // Length of an infill anchor along the perimeter.
     // 1000mm is roughly the maximum length line that fits into a 32bit coord_t.
@@ -162,6 +172,14 @@ public:
     // Do not sort the fill lines to optimize the print head path?
     virtual bool no_sort() const { return false; }
 
+    // Ginger single-path: whether a connected fill (params.connect_polygons) may drop no_sort so the
+    // G-code chainer can reorder the surface's paths by proximity and enter them from either end.
+    // True for the monotonic fillers: with connect_polygons a surface is one continuous serpentine
+    // (or a few chunks) whose reversal is still monotonic, and keeping no_sort would force entry at
+    // the fixed first end - up to a full region-length approach travel. False by default; concentric
+    // keeps its outer-to-inner ring order.
+    virtual bool reversible_when_connected() const { return false; }
+
     virtual bool is_self_crossing() = 0;
 
     // Return true if infill has a consistent pattern between layers.
@@ -218,7 +236,8 @@ public:
     static void connect_infill(Polylines &&infill_ordered, const Polygons &boundary, const BoundingBox& bbox, Polylines &polylines_out, const double spacing, const FillParams &params);
     static void connect_infill(Polylines &&infill_ordered, const std::vector<const Polygon*> &boundary, const BoundingBox &bbox, Polylines &polylines_out, double spacing, const FillParams &params);
 
-    static void chain_or_connect_infill(Polylines &&infill_ordered, const ExPolygon &boundary, Polylines &polylines_out, const double spacing, const FillParams &params);
+    // Non-static: needs this->z for the single-path debug prints.
+    void chain_or_connect_infill(Polylines &&infill_ordered, const ExPolygon &boundary, Polylines &polylines_out, const double spacing, const FillParams &params);
 
     static void connect_base_support(Polylines &&infill_ordered, const std::vector<const Polygon*> &boundary_src, const BoundingBox &bbox, Polylines &polylines_out, const double spacing, const FillParams &params);
     static void connect_base_support(Polylines &&infill_ordered, const Polygons &boundary_src, const BoundingBox &bbox, Polylines &polylines_out, const double spacing, const FillParams &params);
@@ -228,8 +247,11 @@ public:
    //Fill  Multiline
    void multiline_fill(Polylines& polylines, const FillParams& params, float spacing);
    // Cura-style single-path infill: splice closed loops (outline walls of a dilated band) into one
-   // closed loop with short staggered link segments (see FillBase.cpp).
-   void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger);
+   // closed loop with staggered link segments (see FillBase.cpp). When `island` is given, links obey
+   // the physical rule instead of any length policy: they must lie inside the island and must not
+   // retrace an already extruded line (gap_blocked-style coincidence test); `stagger` must then be
+   // the extrusion line width.
+   void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger, const Polygons *island = nullptr);
 } // namespace Slic3r
 
 #endif // slic3r_FillBase_hpp_

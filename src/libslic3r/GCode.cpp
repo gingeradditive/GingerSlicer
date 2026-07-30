@@ -15,6 +15,7 @@
 #include "ShortestPath.hpp"
 #include "Print.hpp"
 #include "Utils.hpp"
+#include "WallRibs.hpp"
 #include "ClipperUtils.hpp"
 #include "libslic3r.h"
 #include "LocalesUtils.hpp"
@@ -23,6 +24,7 @@
 #include "GCode/ExtrusionProcessor.hpp"
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <chrono>
 #include <iostream>
@@ -1886,7 +1888,19 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
         m_spiral_vase = make_unique<SpiralVase>(print.config());
 
     if (print.config().max_volumetric_extrusion_rate_slope.value > 0){
-    		m_pressure_equalizer = make_unique<PressureEqualizer>(print.config());
+    		// Only a global sweep is driven by the PressureEqualizer itself; per-object
+    		// sweeps are communicated through ;_ERS_SWEEP tags emitted at object changes.
+    		// An automatic step (step <= 0) is resolved here with the plate's layer
+    		// count (m_layer_count, computed above): the PressureEqualizer streams the
+    		// layers and cannot know the total by itself.
+    		const Calib_Params *global_sweep = print.global_calib_params();
+    		Calib_Params        global_sweep_resolved;
+    		if (global_sweep != nullptr && global_sweep->step <= 0.) {
+    			global_sweep_resolved      = *global_sweep;
+    			global_sweep_resolved.step = calib_sweep_effective_step(*global_sweep, size_t(m_layer_count));
+    			global_sweep               = &global_sweep_resolved;
+    		}
+    		m_pressure_equalizer = make_unique<PressureEqualizer>(print.config(), global_sweep);
     		m_enable_extrusion_role_markers = (bool)m_pressure_equalizer;
     } else
 	    m_enable_extrusion_role_markers = false;
@@ -3578,6 +3592,98 @@ static std::vector<size_t> order_islands_tour(const std::vector<std::vector<Poin
     return order;
 }
 
+// Ginger: swept value -> properly typed option for the keys applied to GCode::m_config.
+// wipe_speed is FloatOrPercent in the profile (% of travel speed); the sweep always
+// sets an absolute mm/s value. wipe_distance is per-extruder, one value covers all.
+static ConfigOption *sweep_gcode_config_option(const std::string &key, double value)
+{
+    if (key == "wipe_speed")
+        return new ConfigOptionFloatOrPercent(value, false);
+    return new ConfigOptionFloats{value};
+}
+
+// Ginger: per-object Parameter Sweep - bring every swept parameter back to its profile
+// value: writer and gcode-config parameters are restored directly (their profile value
+// is remembered the first time the key is seen, before anything overrode it), ERS
+// parameters through the returned ";_ERS_SWEEP default" tag (empty when none is swept).
+std::string GCode::restore_swept_defaults(const Print &print)
+{
+    bool need_ers_reset = false;
+    for (const Calib_Params &p : print.calib_params()) {
+        if (calib_is_ers_param(p.sweep_param)) {
+            need_ers_reset = true;
+            continue;
+        }
+        const bool is_writer = calib_is_writer_param(p.sweep_param);
+        if (!is_writer && !calib_is_gcode_param(p.sweep_param))
+            continue;
+        auto it = m_sweep_writer_defaults.find(p.sweep_param);
+        if (it == m_sweep_writer_defaults.end()) {
+            const ConfigOption *opt = is_writer ? writer().config.option(p.sweep_param) :
+                                                  m_config.option(p.sweep_param);
+            if (opt == nullptr)
+                continue;
+            it = m_sweep_writer_defaults.emplace(p.sweep_param, std::unique_ptr<ConfigOption>(opt->clone())).first;
+        }
+        DynamicConfig cfg;
+        cfg.set_key_value(p.sweep_param, it->second->clone());
+        if (is_writer)
+            writer().config.apply(cfg);
+        else {
+            m_config.apply(cfg);
+            m_sweep_gcode_overrides.erase(p.sweep_param);
+        }
+    }
+    return need_ers_reset ? std::string(";_ERS_SWEEP default\n") : std::string();
+}
+
+// Ginger: per-object Parameter Sweep. Called at each object change inside a layer:
+// activates the object's swept value (writer parameters directly, ERS parameters via a
+// ;_ERS_SWEEP tag consumed by the PressureEqualizer) and restores the profile values
+// for objects that have no sweep of their own - a previous instance in the same layer
+// may have left another object's value active.
+std::string GCode::apply_per_object_sweep(const Print &print, const PrintObject &print_object)
+{
+    const ModelObject *model_object = print_object.model_object();
+    const int obj_id = int(model_object->id().id);
+    const Calib_Params *cp = print.calib_params_for_object(obj_id);
+
+    std::string gcode = this->restore_swept_defaults(print);
+
+    if (cp != nullptr) {
+        // Automatic step (step <= 0): span the sweep over THIS object's own layers,
+        // so objects of different heights each cover the full start..end range.
+        // The layer index must be OBJECT-LOCAL (m_layer->id()), not the plate-global
+        // m_layer_index: in sequential mode (or for any object whose first layer is not
+        // plate layer 0) the global counter keeps accumulating, so start + step*global
+        // would overshoot immediately and clamp the whole object to `end`.
+        const int obj_layer_idx = m_layer != nullptr ? int(m_layer->id()) : m_layer_index;
+        const double value = calib_sweep_value_for_layer(*cp, obj_layer_idx, print_object.layer_count());
+        char valbuf[64];
+        snprintf(valbuf, sizeof(valbuf), "%g", value);
+        if (calib_is_writer_param(cp->sweep_param) || calib_is_gcode_param(cp->sweep_param)) {
+            DynamicConfig cfg;
+            if (calib_is_writer_param(cp->sweep_param)) {
+                cfg.set_key_value(cp->sweep_param, new ConfigOptionFloats{value});
+                writer().config.apply(cfg);
+            } else {
+                cfg.set_key_value(cp->sweep_param, sweep_gcode_config_option(cp->sweep_param, value));
+                m_config.apply(cfg);
+                // set_key_value: a bare DynamicConfig has no option definitions, so
+                // apply() could not create the key.
+                m_sweep_gcode_overrides.set_key_value(cp->sweep_param, sweep_gcode_config_option(cp->sweep_param, value));
+            }
+            gcode += std::string("; Calib_Param_Sweep: layer: ") + std::to_string(obj_layer_idx) +
+                     ", object: " + model_object->name + ", " + cp->sweep_param + ": " + valbuf + "\n";
+        } else if (calib_is_ers_param(cp->sweep_param)) {
+            // This object's tag replaces the "default" reset from above.
+            gcode = std::string(";_ERS_SWEEP obj=") + std::to_string(obj_id) + " " +
+                    cp->sweep_param + "=" + valbuf + "\n";
+        }
+    }
+    return gcode;
+}
+
 // In sequential mode, process_layer is called once per each object and its copy,
 // therefore layers will contain a single entry and single_object_instance_idx will point to the copy of the object.
 // In non-sequential mode, process_layer is called per each print_z height with all object and support layers accumulated.
@@ -3736,6 +3842,38 @@ LayerResult GCode::process_layer(
     }
     //BBS: set layer time fan speed after layer change gcode
     gcode += ";_SET_FAN_SPEED_CHANGING_LAYER\n";
+
+    // Ginger: layer-specific calibration G-code. Upstream removed the stock calibration
+    // towers (PA/temp/VFA/retraction/input-shaping); the per-layer Parameter Sweep is
+    // Ginger's own calibration and stays. ERS parameters (slope, decel slope, min rate,
+    // ramp profile) are swept inside the PressureEqualizer post-processor; here we handle
+    // the parameters applied through the G-code writer config.
+    // Per-object sweeps are applied at each object change instead (see
+    // apply_per_object_sweep()); at the layer change we only reset the ERS parameters
+    // to the profile values, so skirt/brim/wipe tower printed before the first object
+    // never inherit the previous object's swept value.
+    if (print.calib_mode() == CalibMode::Calib_Param_Sweep) {
+        if (const Calib_Params *cp = print.global_calib_params(); cp != nullptr) {
+            if (calib_is_writer_param(cp->sweep_param) || calib_is_gcode_param(cp->sweep_param)) {
+                const double value = calib_sweep_value_for_layer(*cp, m_layer_index, size_t(m_layer_count));
+                DynamicConfig _cfg;
+                if (calib_is_writer_param(cp->sweep_param)) {
+                    _cfg.set_key_value(cp->sweep_param, new ConfigOptionFloats{value});
+                    writer().config.apply(_cfg);
+                } else {
+                    _cfg.set_key_value(cp->sweep_param, sweep_gcode_config_option(cp->sweep_param, value));
+                    m_config.apply(_cfg);
+                    // set_key_value: a bare DynamicConfig has no option definitions, so
+                    // apply() could not create the key.
+                    m_sweep_gcode_overrides.set_key_value(cp->sweep_param, sweep_gcode_config_option(cp->sweep_param, value));
+                }
+                sprintf(buf, "; Calib_Param_Sweep: layer: %d, %s: %g\n", m_layer_index, cp->sweep_param.c_str(), value);
+                gcode += buf;
+            }
+        } else {
+            gcode += this->restore_swept_defaults(print);
+        }
+    }
 
     //BBS
     if (first_layer) {
@@ -4236,6 +4374,10 @@ LayerResult GCode::process_layer(
                              " id:" + std::to_string(instance_to_print.print_object.get_id()) + " copy " +
                              std::to_string(inst.id) + "\n";
                 }
+                // Ginger: per-object Parameter Sweep - switch the swept parameters to
+                // this object's values before its extrusions are emitted.
+                if (print.has_per_object_calib())
+                    gcode += this->apply_per_object_sweep(print, instance_to_print.print_object);
                 // exclude objects
                 if (m_enable_exclude_object) {
                     const auto gflavor = print.config().gcode_flavor.value;
@@ -4994,33 +5136,22 @@ std::string GCode::extrude_path(ExtrusionPath path, std::string description, dou
 }
 
 // Ginger single-path infill: the connected sparse-infill path/loop has its ends ON the inner wall
-// (they are projected onto the boundary). Return the connection point ("entry") of the region's
-// sparse infill that minimizes the travel cost: distance from `from` (the arrival point) to the entry
-// PLUS, when `to` is given (the look-ahead target = where the toolhead heads after this island),
-// distance from the corresponding EXIT to that target. An open path may only be entered at an end
-// point and exits at the other end (so choosing the entry also chooses the print direction); a closed
-// loop is entered and exited at the same seam point. Forcing the wall seam onto this entry makes the
-// wall end where the infill begins (zero wall->infill travel); accounting for the exit→next target
-// orients the whole pass so the unavoidable inter-island travel is as short as possible — this is the
-// one-step look-ahead that the previous "nearest to the previous feature only" logic was missing.
-static bool infill_connection_anchor(const ExtrusionEntitiesPtr &infills, const Point &from, const Point *to, Point &out)
+// (they are projected onto the boundary). An open path may only be entered at an end point and exits
+// at the other end (so choosing the entry also chooses the print direction); a closed loop is entered
+// and exited at the same seam point; the travel cost of a candidate is |entry - from| plus, with a
+// look-ahead target `to` (= where the toolhead heads after this island), |exit - to|.
+// infill_connection_anchor() returns the cheapest ENTRY (to pin the wall seam on it -> zero
+// wall->infill travel); infill_connection_min_cost() returns just the cost, to price a prospective
+// wall seam position (rib anchor choice) without committing to it.
+//
+// Enumerate every permissible (entry, exit) connection pair of the region's infill and feed it to
+// `consider`. Roles whose infill can be hooked: sparse (erInternalInfill, connected into one
+// path/loop) plus the solid surfaces (internal solid, top, bottom). Bridges and ironing are excluded
+// (special flow / finishing pass).
+static void for_each_infill_connection_candidate(const ExtrusionEntitiesPtr &infills, const std::function<void(const Point &entry, const Point &exit)> &consider)
 {
-    // Roles whose infill we try to start exactly where the wall ends (zero wall->infill travel).
-    // Sparse (erInternalInfill, connected into one path/loop) plus the solid surfaces: internal solid,
-    // top and bottom. Top/bottom/internal-solid are MONOTONIC-ordered open paths (not loops): their
-    // monotonic distribution over the island already is a single path, so we anchor the wall seam onto
-    // the START of that ordered sequence and report its END for the next feature's seam. Bridges and
-    // ironing are excluded (special flow / finishing pass).
     auto is_connectable = [](ExtrusionRole r) {
         return r == erInternalInfill || r == erSolidInfill || r == erTopSolidInfill || r == erBottomSurface;
-    };
-    bool   found     = false;
-    double best_cost = std::numeric_limits<double>::max();
-    auto   consider  = [&](const Point &entry, const Point &exit) {
-        double cost = (entry - from).cast<double>().norm();
-        if (to)
-            cost += (exit - *to).cast<double>().norm();
-        if (cost < best_cost) { best_cost = cost; out = entry; found = true; }
     };
     std::function<void(const ExtrusionEntity*)> visit = [&](const ExtrusionEntity *ee) {
         if (const auto *eec = dynamic_cast<const ExtrusionEntityCollection*>(ee)) {
@@ -5053,6 +5184,33 @@ static bool infill_connection_anchor(const ExtrusionEntitiesPtr &infills, const 
     };
     for (const ExtrusionEntity *ee : infills)
         visit(ee);
+}
+
+static bool infill_connection_anchor(const ExtrusionEntitiesPtr &infills, const Point &from, const Point *to, Point &out)
+{
+    bool   found     = false;
+    double best_cost = std::numeric_limits<double>::max();
+    for_each_infill_connection_candidate(infills, [&](const Point &entry, const Point &exit) {
+        double cost = (entry - from).cast<double>().norm();
+        if (to)
+            cost += (exit - *to).cast<double>().norm();
+        if (cost < best_cost) { best_cost = cost; out = entry; found = true; }
+    });
+    return found;
+}
+
+// Cheapest infill hook when the wall exits at `from`: min over the candidates of |entry - from|
+// (+ |exit - to| with a look-ahead target). Used to PRICE a seam position without committing to it.
+static bool infill_connection_min_cost(const ExtrusionEntitiesPtr &infills, const Point &from, const Point *to, double &cost_out)
+{
+    bool found = false;
+    cost_out   = std::numeric_limits<double>::max();
+    for_each_infill_connection_candidate(infills, [&](const Point &entry, const Point &exit) {
+        double cost = (entry - from).cast<double>().norm();
+        if (to)
+            cost += (exit - *to).cast<double>().norm();
+        if (cost < cost_out) { cost_out = cost; found = true; }
+    });
     return found;
 }
 
@@ -5063,54 +5221,446 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
     for (const ObjectByExtruder::Island::Region &region : by_region)
         if (! region.perimeters.empty()) {
             m_config.apply(print.get_print_region(&region - &by_region.front()).config());
+            // Ginger Parameter Sweep: the region config just restored profile values for
+            // any swept region-level key (wipe_speed) - keep the swept value active.
+            if (! m_sweep_gcode_overrides.keys().empty())
+                m_config.apply(m_sweep_gcode_overrides);
             // BBS: for first layer, we always print wall firstly to get better bed adhesive force
             // This behaviour is same with cura
             const bool should_print = is_first_layer ? !is_infill_first
                 : (m_config.is_infill_first == is_infill_first);
             if (!should_print) continue;
 
-            // Ginger single-path infill: when the sparse infill is connected into one path, force the
-            // seam of the LAST wall (the one printed right before the infill) onto the infill's
-            // connection point, so that wall ends exactly where the infill starts (no wall->infill
-            // travel). Only the last wall is forced - the other walls keep their normal cosmetic seam.
-            // The anchor is the infill point nearest to the current position, which also shortens the
-            // inevitable travel into this island.
-            const Point* anchor_ptr = nullptr;
-            Point        anchor;
-            if (m_config.single_path_mode) {
-                if (! region.infills.empty() &&
-                    infill_connection_anchor(region.infills, this->last_pos(), next_island_target, anchor)) {
-                    // Island with connectable infill: pin the last wall's seam to the infill connection so the
-                    // wall ends where the infill begins (0 wall->infill); the anchor already orients the infill
-                    // exit toward the next island (accounts for the infill being printed between wall and the
-                    // departure - a naive wall-only seam would ignore that and lengthen the travel).
-                    anchor_ptr = &anchor;
-                } else if (! region.perimeters.empty()) {
-                    // Wall-only island (no connectable infill - the separated prongs, the bulk of lightning's
-                    // long inter-island travels). Long travels degrade the pellet melt. Closest-point CHAIN
-                    // (Davide): place this island's wall seam at the perimeter point CLOSEST to where the
-                    // previous island ended (current toolhead pos) - "position the next start by the previous
-                    // end". Each island then enters at its closest approach to the one printed before it, so
-                    // the inter-island hop is the minimal curve-to-curve distance instead of a static
-                    // cosmetic-corner seam on the far side.
-                    Points pts;
-                    region.perimeters.back()->collect_points(pts);
-                    const Point from = this->last_pos();
-                    double best = std::numeric_limits<double>::max();
-                    for (const Point &p : pts) {
-                        double c = (p - from).cast<double>().squaredNorm();
-                        if (c < best) { best = c; anchor = p; }
+            // Ginger single-path infill: minimize travel by SEAM PLACEMENT only (no connector, no
+            // avoid-crossing detours). EVERY wall loop is started at the point CLOSEST to where the
+            // previous loop ended (closest-point chain) -> shortest possible loop-to-loop travel. This
+            // is what fixes a holed/ring cross-section: the outer ring and the hole ring (and every
+            // extra hole) each start at their nearest approach to the toolhead, so the hop between
+            // concentric/adjacent walls is the wall gap instead of a chord across the hole. The LAST
+            // wall (innermost, printed right before the infill) is instead pinned to the infill
+            // connection point so the wall ends exactly where the single-path infill begins (zero
+            // wall->infill travel); that anchor is the infill point nearest the current position and,
+            // when given, orients the infill exit toward the next island. last_pos() is re-read each
+            // iteration, so it already reflects where the previous loop ended.
+            const bool single_path = m_config.single_path_mode;
+            // Hook the last-printed wall onto the single-path infill ONLY when walls precede infill;
+            // with is_infill_first the infill is already extruded, so there is nothing to hook to and
+            // the wall is just chained by proximity like the others.
+            const bool hook_infill = single_path && ! is_infill_first && ! region.infills.empty();
+
+            // Ginger single_path_wall_ribs: the island's closed wall loops were PLANNED into one
+            // walk with rib connectors back in PrintObject::generate_wall_ribs (which also carved
+            // the rib corridors out of the fill surfaces and anchored each rib to the previous
+            // layer so the columns are self-standing). Here we only consume the stored plan: a
+            // merge applies when ALL its loop keys (source loop first points - the island holds
+            // pointers to the very same ExtrusionLoop objects) are present in this region; the
+            // merged loop inherits the role/flow of its source loops and is emitted at the LAST
+            // member's position so the wall order and the "last wall hooks onto the infill" seam
+            // semantics are preserved. Unmatched entities print as usual.
+            ExtrusionEntitiesPtr                        rib_perimeters;
+            std::vector<std::unique_ptr<ExtrusionLoop>> rib_owned;
+            // Rib anchors of each emitted merged loop (axis midpoints, one per rib): used
+            // below to pin the loop's SEAM inside a rib.
+            std::map<const ExtrusionEntity*, const Points*> rib_anchors_of;
+            const ExtrusionEntitiesPtr*                 perimeters = &region.perimeters;
+            // Even a single-loop island can carry a plan: a foundation buttress STUB spliced
+            // into its wall (one-key merge), so the gate is on the plans, not the loop count.
+            if (single_path && m_config.single_path_wall_ribs && m_layer != nullptr &&
+                ! m_layer->wall_ribs.empty() && ! region.perimeters.empty()) {
+                const std::vector<WallRibMerge> &merges = m_layer->wall_ribs;
+                std::vector<int> merge_of(region.perimeters.size(), -1);
+                std::vector<int> matched(merges.size(), 0);
+                std::vector<int> emit_at(merges.size(), -1);
+                // A planned key is consumed by AT MOST ONE entity, so a spurious hit can never
+                // inflate matched[m] past the plan's size. Counting hits per entity instead let a
+                // single stray coincidence look like a broken plan and killed the whole island's
+                // ribs - while their corridors had already been carved out of the fill surfaces
+                // back in PrintObject::generate_wall_ribs, leaving empty slots in the layer (the
+                // stool's first layer: 7 hits against 6 keys, ~200 mm3 of bottom surface missing).
+                std::vector<std::vector<char>> key_taken(merges.size());
+                std::vector<char>              ambiguous(merges.size(), 0);
+                for (size_t m = 0; m < merges.size(); ++ m)
+                    key_taken[m].assign(merges[m].loop_keys.size(), 0);
+                for (size_t i = 0; i < region.perimeters.size(); ++ i) {
+                    // Only closed loops can be plan members: generate_wall_ribs builds the plan
+                    // from the island's ExtrusionLoops alone, while Arachne's OPEN beads go into
+                    // the obstacle field. Such a bead often starts on a wall loop's first vertex
+                    // (both come out of the same skeletal graph), and testing every entity made
+                    // that coincidence count as a match. Worse, had the count still added up, the
+                    // open bead would have been treated as a consumed member and never printed.
+                    if (dynamic_cast<const ExtrusionLoop*>(region.perimeters[i]) == nullptr)
+                        continue;
+                    const Point fp = region.perimeters[i]->first_point();
+                    for (size_t m = 0; m < merges.size() && merge_of[i] < 0; ++ m)
+                        for (size_t k = 0; k < merges[m].loop_keys.size(); ++ k)
+                            if (merges[m].loop_keys[k] == fp) {
+                                // Two distinct loops starting on the same vertex: the key cannot
+                                // tell them apart, and consuming the wrong one would print the
+                                // other one ON TOP of the merged walk. Flag, never guess.
+                                if (key_taken[m][k])
+                                    ambiguous[m] = 1;
+                                else {
+                                    key_taken[m][k] = 1;
+                                    merge_of[i]     = int(m);
+                                    ++ matched[m];
+                                    emit_at[m]      = int(i);
+                                }
+                                break;
+                            }
+                }
+                bool merged_any = false;
+                std::vector<ExtrusionLoop*> merged_loop(merges.size(), nullptr);
+                for (size_t m = 0; m < merges.size(); ++ m) {
+                    if (matched[m] == 0)
+                        continue;
+                    // Use the plan only when every source loop is here AND each was identified
+                    // unambiguously (guards against island or extruder-override splits). The rib
+                    // corridors were carved out of the fill surfaces during slicing and cannot be
+                    // given back here, so a drop leaves the rib slots EMPTY - this has to stay a
+                    // rare, loud fallback rather than a routine outcome.
+                    if (ambiguous[m] != 0 || size_t(matched[m]) != merges[m].loop_keys.size()) {
+                        BOOST_LOG_TRIVIAL(warning) << "single_path_wall_ribs: planned merge "
+                            << (ambiguous[m] != 0 ? "is ambiguous (two wall loops share a start vertex)"
+                                                  : "only partially matched")
+                            << " at z=" << (m_layer != nullptr ? m_layer->print_z : -1.)
+                            << " - printing the loops separately; the carved rib corridors stay unfilled";
+                        if (std::getenv("GINGER_RIBS_DEBUG") != nullptr)
+                            std::fprintf(stderr, "[RIBSTAT] gcode z=%.2f merge %zu/%zu keys matched%s -> DROPPED at emission\n",
+                                         m_layer != nullptr ? m_layer->print_z : -1., size_t(matched[m]), merges[m].loop_keys.size(),
+                                         ambiguous[m] != 0 ? " AMBIGUOUS" : "");
+                        for (size_t i = 0; i < merge_of.size(); ++ i)
+                            if (merge_of[i] == int(m))
+                                merge_of[i] = -1;
+                        continue;
                     }
-                    if (! pts.empty())
-                        anchor_ptr = &anchor;
+                    // Flow-preserving re-emission: Arachne may have split a source loop into
+                    // variable-width paths (the wall thickens where two rings approach - measured
+                    // 3.2->4.3mm); flattening the merged walk to one uniform flow would underextrude
+                    // those stretches by up to a third. Attribute every merged segment back to the
+                    // nearest source path (within ~half a bead) and inherit its width/flow; segments
+                    // near no source path are the rib links and flow like the DOMINANT source path -
+                    // the longest across all merged loops, never whatever short special stretch (a
+                    // bridge, an overhang split) some member loop happens to start with. Runs of
+                    // equal attribution collapse into one ExtrusionPath, so the common all-uniform
+                    // case still emits the single path it always did.
+                    Lines                              src_lines;
+                    std::vector<const ExtrusionPath *> src_owner;
+                    const ExtrusionPath               *dom     = nullptr;
+                    double                             dom_len = -1.;
+                    for (size_t i = 0; i < region.perimeters.size(); ++ i)
+                        if (merge_of[i] == int(m))
+                            if (const auto *sl = dynamic_cast<const ExtrusionLoop*>(region.perimeters[i]))
+                                for (const ExtrusionPath &p : sl->paths) {
+                                    const double plen = p.polyline.length();
+                                    if (plen > dom_len) {
+                                        dom_len = plen;
+                                        dom     = &p;
+                                    }
+                                    for (size_t j = 1; j < p.polyline.points.size(); ++ j) {
+                                        src_lines.emplace_back(p.polyline.points[j - 1], p.polyline.points[j]);
+                                        src_owner.emplace_back(&p);
+                                    }
+                                }
+                    if (dom == nullptr)
+                        continue;
+                    const ExtrusionPath &pth = *dom;
+                    Points closed = merges[m].merged.points;
+                    closed.emplace_back(closed.front());
+                    auto merged = std::make_unique<ExtrusionLoop>();
+                    if (! src_lines.empty()) {
+                        AABBTreeLines::LinesDistancer<Line> src_dist(src_lines);
+                        const double tol = 0.6 * scale_(double(pth.width));
+                        const ExtrusionPath *cur_attr = nullptr;
+                        ExtrusionPath       *cur_path = nullptr;
+                        auto start_path = [&](const ExtrusionPath *attr, const Point &pt) {
+                            merged->paths.emplace_back(attr != nullptr ? attr->role() : pth.role(),
+                                                       attr != nullptr ? attr->mm3_per_mm : pth.mm3_per_mm,
+                                                       attr != nullptr ? attr->width : pth.width,
+                                                       attr != nullptr ? attr->height : pth.height);
+                            cur_path = &merged->paths.back();
+                            cur_path->polyline.points.emplace_back(pt);
+                            cur_attr = attr;
+                        };
+                        for (size_t j = 1; j < closed.size(); ++ j) {
+                            const Point mid((closed[j - 1] + closed[j]) / 2);
+                            auto [d, line_idx, np] = src_dist.distance_from_lines_extra<false>(mid);
+                            const ExtrusionPath *attr = std::abs(d) <= tol ? src_owner[size_t(line_idx)] : nullptr;
+                            const bool same = cur_path != nullptr &&
+                                (attr == cur_attr ||
+                                 (attr != nullptr && cur_attr != nullptr &&
+                                  attr->role() == cur_attr->role() && attr->width == cur_attr->width &&
+                                  attr->height == cur_attr->height && attr->mm3_per_mm == cur_attr->mm3_per_mm));
+                            if (! same)
+                                start_path(attr, closed[j - 1]);
+                            cur_path->polyline.points.emplace_back(closed[j]);
+                        }
+                    }
+                    if (merged->paths.empty()) {
+                        ExtrusionPath path(pth.role(), pth.mm3_per_mm, pth.width, pth.height);
+                        path.polyline.points = std::move(closed);
+                        merged->paths.emplace_back(std::move(path));
+                    }
+                    rib_owned.emplace_back(std::move(merged));
+                    merged_loop[m] = rib_owned.back().get();
+                    if (! merges[m].anchors.empty())
+                        rib_anchors_of[merged_loop[m]] = &merges[m].anchors;
+                    merged_any     = true;
+                }
+                if (merged_any) {
+                    rib_perimeters.reserve(region.perimeters.size());
+                    for (size_t i = 0; i < region.perimeters.size(); ++ i) {
+                        const int m = merge_of[i];
+                        if (m < 0 || merged_loop[m] == nullptr)
+                            rib_perimeters.emplace_back(region.perimeters[i]);
+                        else if (int(i) == emit_at[m])
+                            rib_perimeters.emplace_back(merged_loop[m]);
+                        // other merged members: consumed by the merged loop, emit nothing
+                    }
+                    perimeters = &rib_perimeters;
                 }
             }
 
-            for (const ExtrusionEntity* ee : region.perimeters) {
-                const bool is_last = ee == region.perimeters.back();
-                gcode += this->extrude_entity(*ee, "perimeter", -1., region.perimeters, is_last ? anchor_ptr : nullptr);
+            for (size_t i = 0; i < perimeters->size(); ++ i) {
+                const ExtrusionEntity* ee       = (*perimeters)[i];
+                const bool             is_last   = i + 1 == perimeters->size();
+                Point                  seam;
+                const Point*           seam_ptr = nullptr;
+                if (single_path) {
+                    const auto rib_it = rib_anchors_of.find(ee);
+                    // Ginger wall ribs: hide the SEAM inside a rib (Davide's "punto strategico").
+                    // The merged loop is entered and left mid-link, where the start/stop scar is
+                    // swallowed between the rib's two touching beads instead of sitting on a
+                    // visible wall - and since rib columns are vertical, the seam column hides
+                    // with them. This outranks the infill hook below (the seam MUST sit in a rib);
+                    // the infill is then chained from this seam by extrude_infill.
+                    //
+                    // Rib choice: the merged loop is closed, so it is entered AND left at the seam -
+                    // the seam prices the whole chain, not just the approach. Cost of a rib anchor =
+                    // |head -> rib| + the cheapest infill hook from that rib (entry plus, with a
+                    // look-ahead target, exit -> next island), or the straight |rib -> next island|
+                    // when no infill follows. Picking merely the rib nearest the head paid the
+                    // head->infill diagonal twice on the real part (+37% total travel: approach a
+                    // near rib, then cross the whole island to a far infill entry).
+                    if (rib_it != rib_anchors_of.end()) {
+                        const Points &anchors = *rib_it->second;
+                        const Point   cur     = this->last_pos();
+                        const bool    chain   = is_last && hook_infill;
+                        double best = std::numeric_limits<double>::max();
+                        for (const Point &a : anchors) {
+                            double cost = (a - cur).cast<double>().norm();
+                            double hook;
+                            if (chain && infill_connection_min_cost(region.infills, a, next_island_target, hook))
+                                cost += hook;
+                            else if (is_last && next_island_target != nullptr)
+                                cost += (*next_island_target - a).cast<double>().norm();
+                            if (cost < best) {
+                                best = cost;
+                                seam = a;
+                            }
+                        }
+                        seam_ptr = &seam;
+                    } else
+                    // The infill anchor is computed HERE (right before the last wall), so it uses the
+                    // real toolhead position AFTER the preceding walls, not a stale pre-walls position;
+                    // it picks the infill entry nearest that position (and, with a look-ahead target,
+                    // orients the infill exit toward the next island). The last wall is a closed loop
+                    // entered and left at its seam, so pinning the seam there makes the wall end exactly
+                    // where the infill begins (zero wall->infill travel).
+                    if (is_last && hook_infill &&
+                        infill_connection_anchor(region.infills, this->last_pos(), next_island_target, seam)) {
+                        seam_ptr = &seam;
+                    } else {
+                        // Closest-point chain: start this loop at the point closest to where the previous
+                        // loop/island ended. last_pos() is re-read each iteration and split_at() projects
+                        // it onto the loop (foot point, not just a vertex), so this is the true minimal
+                        // loop-to-loop travel - e.g. the hole ring starts at its nearest approach to the
+                        // outer ring instead of a chord across the hole.
+                        seam     = this->last_pos();
+                        seam_ptr = &seam;
+                    }
+                }
+                gcode += this->extrude_entity(*ee, "perimeter", -1., region.perimeters, seam_ptr);
             }
         }
+    return gcode;
+}
+
+// Ginger single-path infill router (single_path_mode): print the island's infill as ONE spatial
+// chain instead of feature-grouped blocks. Units = the individual continuous paths/loops (sortable
+// collections are flattened, no_sort collections stay atomic), routed greedy nearest-entry, plus
+// LOOP SUSPENSION: while a closed loop (connected sparse) is being laid down and it passes within
+// `touch` of another unprinted unit (a solid divider, a pocket of sparse behind it, a top patch),
+// the loop is interrupted right there, the touching cluster is printed (chained on by touch), the
+// head returns to the interruption point and the loop is completed. Without this, the big ring
+// loop is finished first and the head then travels back across the island to the pocket it passed
+// right next to (measured on the real part: 263mm + 49mm at Z=652 for a pocket the loop touches).
+std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions, const char *extrusion_name)
+{
+    std::string gcode;
+    struct Unit {
+        const ExtrusionEntity *ee;
+        const ExtrusionLoop   *loop;   // != nullptr for closed loops (free entry anywhere)
+        bool                   atomic; // no_sort collection: stored order, entered at first_point
+        bool                   done;
+    };
+    std::vector<Unit> units;
+    std::function<void(const ExtrusionEntity *)> flatten = [&](const ExtrusionEntity *e) {
+        if (const auto *c = dynamic_cast<const ExtrusionEntityCollection *>(e)) {
+            if (c->entities.empty())
+                return;
+            if (c->no_sort)
+                units.push_back({ e, nullptr, true, false });
+            else
+                for (const ExtrusionEntity *ch : c->entities)
+                    flatten(ch);
+            return;
+        }
+        units.push_back({ e, dynamic_cast<const ExtrusionLoop *>(e), false, false });
+    };
+    for (const ExtrusionEntity *ee : extrusions)
+        flatten(ee);
+
+    // Entry cost of a unit from `from`: loops may be entered anywhere (free seam), open paths at
+    // either end, atomic collections only at their stored front.
+    auto entry_cost = [](const Unit &u, const Point &from) -> double {
+        if (u.loop != nullptr) {
+            double best = std::numeric_limits<double>::max();
+            for (const ExtrusionPath &p : u.loop->paths)
+                for (const Point &pt : p.polyline.points)
+                    best = std::min(best, (pt - from).cast<double>().norm());
+            return best;
+        }
+        if (u.atomic)
+            return (u.ee->first_point() - from).cast<double>().norm();
+        return std::min((u.ee->first_point() - from).cast<double>().norm(),
+                        (u.ee->last_point()  - from).cast<double>().norm());
+    };
+
+    // Emit one unit from the current position; open paths pick the nearer end (reversed owned copy,
+    // the shared print data is never mutated), loops split at the current position inside
+    // extrude_loop, atomic collections print in stored order.
+    auto emit_unit = [this, &gcode, extrusion_name](Unit &u) {
+        u.done = true;
+        if (u.atomic) {
+            const auto *eec = static_cast<const ExtrusionEntityCollection *>(u.ee);
+            for (const ExtrusionEntity *ee : eec->chained_path_from(this->last_pos()).entities)
+                gcode += this->extrude_entity(*ee, extrusion_name);
+            return;
+        }
+        const Point cur = this->last_pos();
+        if (u.loop == nullptr && u.ee->can_reverse() &&
+            (u.ee->last_point() - cur).cast<double>().squaredNorm() <
+            (u.ee->first_point() - cur).cast<double>().squaredNorm()) {
+            std::unique_ptr<ExtrusionEntity> rev(u.ee->clone());
+            rev->reverse();
+            gcode += this->extrude_entity(*rev, extrusion_name);
+        } else
+            gcode += this->extrude_entity(*u.ee, extrusion_name);
+    };
+
+    // Print every unit reachable from the current position through a chain of touches (each hop
+    // <= touch). Loops inside a cluster print whole - no nested suspension, bounded complexity.
+    auto route_cluster = [&units, &entry_cost, &emit_unit, this](double touch) {
+        for (;;) {
+            const Point cur  = this->last_pos();
+            Unit       *best = nullptr;
+            double      bd   = touch;
+            for (Unit &u : units)
+                if (! u.done) {
+                    const double d = entry_cost(u, cur);
+                    if (d <= bd) { bd = d; best = &u; }
+                }
+            if (best == nullptr)
+                return;
+            emit_unit(*best);
+        }
+    };
+
+    for (;;) {
+        const Point cur  = this->last_pos();
+        Unit       *best = nullptr;
+        double      bd   = std::numeric_limits<double>::max();
+        for (Unit &u : units)
+            if (! u.done) {
+                const double d = entry_cost(u, cur);
+                if (d < bd) { bd = d; best = &u; }
+            }
+        if (best == nullptr)
+            break;
+        if (best->loop == nullptr || best->loop->paths.size() != 1) {
+            emit_unit(*best);
+            continue;
+        }
+        // Closed single-path loop: look for suspension opportunities before committing to it.
+        best->done = true;
+        const ExtrusionPath &proto = best->loop->paths.front();
+        const double         touch = 4. * scale_(double(proto.width));
+        // Rotate a copy of the loop so it starts at the point nearest the head (free seam).
+        ExtrusionLoop lp = *best->loop;
+        lp.split_at(cur, false);
+        const Polyline &poly = lp.paths.front().polyline;
+        // Contacts: for every unprinted unit, the loop vertex nearest to one of its entries.
+        struct Contact { size_t idx; Unit *unit; };
+        std::vector<Contact> contacts;
+        if (poly.size() >= 3)
+            for (Unit &u : units)
+                if (! u.done) {
+                    Points entries;
+                    if (u.loop != nullptr) {
+                        Points pts;
+                        u.ee->collect_points(pts);
+                        const size_t stride = std::max<size_t>(1, pts.size() / 64);
+                        for (size_t k = 0; k < pts.size(); k += stride)
+                            entries.emplace_back(pts[k]);
+                    } else if (u.atomic)
+                        entries.emplace_back(u.ee->first_point());
+                    else {
+                        entries.emplace_back(u.ee->first_point());
+                        entries.emplace_back(u.ee->last_point());
+                    }
+                    double bdist = touch;
+                    size_t bidx  = std::numeric_limits<size_t>::max();
+                    for (size_t i = 0; i < poly.size(); ++ i)
+                        for (const Point &e : entries) {
+                            const double d = (poly.points[i] - e).cast<double>().norm();
+                            if (d < bdist) { bdist = d; bidx = i; }
+                        }
+                    if (bidx != std::numeric_limits<size_t>::max())
+                        contacts.push_back({ bidx, &u });
+                }
+        if (contacts.empty()) {
+            // No neighbour to interleave: print the loop whole (identical to the plain path,
+            // including seam gap clipping and wipe handling).
+            gcode += this->extrude_entity(*best->ee, extrusion_name);
+            continue;
+        }
+        std::sort(contacts.begin(), contacts.end(), [](const Contact &l, const Contact &r) { return l.idx < r.idx; });
+        // Walk the loop as arcs, suspending at each contact; the final arc carries the seam gap.
+        auto emit_arc = [&](size_t i_from, size_t i_to, bool clip_tail) {
+            if (i_to <= i_from)
+                return;
+            ExtrusionPath arc(proto.role(), proto.mm3_per_mm, proto.width, proto.height);
+            arc.polyline.points.assign(poly.points.begin() + i_from, poly.points.begin() + i_to + 1);
+            if (clip_tail && m_enable_loop_clipping) {
+                const double seam_gap = scale_(m_config.seam_gap.get_abs_value(EXTRUDER_CONFIG(nozzle_diameter)));
+                if (arc.polyline.length() > 2. * seam_gap)
+                    arc.polyline.clip_end(seam_gap);
+            }
+            if (arc.polyline.size() >= 2)
+                gcode += this->extrude_path(arc, extrusion_name);
+        };
+        size_t seg_start = 0;
+        for (const Contact &c : contacts) {
+            if (c.unit->done)
+                continue; // consumed by an earlier cluster
+            if (c.idx > seg_start)
+                emit_arc(seg_start, c.idx, false);
+            seg_start = c.idx; // the loop resumes right where it was suspended
+            emit_unit(*c.unit);
+            route_cluster(touch);
+        }
+        emit_arc(seg_start, poly.size() - 1, true);
+    }
     return gcode;
 }
 
@@ -5129,6 +5679,16 @@ std::string GCode::extrude_infill(const Print &print, const std::vector<ObjectBy
                     extrusions.emplace_back(ee);
             if (! extrusions.empty()) {
                 m_config.apply(print.get_print_region(&region - &by_region.front()).config());
+                // Ginger Parameter Sweep: keep swept region-level keys (wipe_speed) active.
+                if (! m_sweep_gcode_overrides.keys().empty())
+                    m_config.apply(m_sweep_gcode_overrides);
+                if (m_config.single_path_mode && ! ironing) {
+                    // Ginger single-path: spatial routing with loop suspension replaces the
+                    // per-collection chaining (which printed feature-grouped blocks and then
+                    // travelled back across the island for pockets the sparse loop had touched).
+                    gcode += this->extrude_infill_routed(extrusions, extrusion_name);
+                    continue;
+                }
                 chain_and_reorder_extrusion_entities(extrusions, &m_last_pos);
                 for (const ExtrusionEntity *fill : extrusions) {
                     auto *eec = dynamic_cast<const ExtrusionEntityCollection*>(fill);

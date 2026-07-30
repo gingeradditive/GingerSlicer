@@ -30,6 +30,8 @@ set(SLIC3R_GUI_SOURCES
     GUI/StatusBarSend.hpp
     GUI/Topbar.cpp
     GUI/Topbar.hpp
+    GUI/calib_dlg.cpp
+    GUI/calib_dlg.hpp
     GUI/BedShapeDialog.cpp
     GUI/BedShapeDialog.hpp
     GUI/BitmapCache.cpp

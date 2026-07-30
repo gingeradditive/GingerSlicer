@@ -84,6 +84,7 @@ set(lisbslic3r_sources
     Brim.hpp
     BuildVolume.cpp
     BuildVolume.hpp
+    calib.hpp
     Circle.cpp
     Circle.hpp
     clipper.cpp
@@ -449,6 +450,8 @@ set(lisbslic3r_sources
     Utils.hpp
     VariableWidth.cpp
     VariableWidth.hpp
+    WallRibs.cpp
+    WallRibs.hpp
     Zipper.cpp
     Zipper.hpp
 )

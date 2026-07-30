@@ -2313,6 +2313,9 @@ void TabPrint::build()
         optgroup->append_single_option_line("pellet_ers_ramp_profile", "speed_settings_advanced");
         optgroup->append_single_option_line("pellet_ers_deceleration_slope", "speed_settings_advanced");
         optgroup->append_single_option_line("pellet_ers_min_rate", "speed_settings_advanced");
+        optgroup->append_single_option_line("pellet_ers_pressure_tau", "speed_settings_advanced");
+        optgroup->append_single_option_line("pellet_ers_rampup_flow", "speed_settings_advanced");
+        optgroup->append_single_option_line("pellet_ers_rampdown_flow", "speed_settings_advanced");
 
     page = add_options_page(L("Support"), "custom-gcode_support"); // ORCA: icon only visible on placeholders
         optgroup = page->new_optgroup(L("Support"), L"param_support");
@@ -2412,6 +2415,8 @@ optgroup->append_single_option_line("skirt_loops", "others_settings_skirt#loops"
         optgroup->append_single_option_line("spiral_finishing_flow_ratio", "others_settings_special_mode#spiral-finishing-flow-ratio");
 
         optgroup->append_single_option_line("single_path_mode", "others_settings_special_mode#single-path");
+        optgroup->append_single_option_line("single_path_wall_ribs", "others_settings_special_mode#single-path");
+        optgroup->append_single_option_line("single_path_wall_rib_max_length", "others_settings_special_mode#single-path");
 
         optgroup->append_single_option_line("timelapse_type", "others_settings_special_mode#timelapse");
 

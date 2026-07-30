@@ -359,6 +359,10 @@ private:
     std::string     preamble();
     // BBS
     std::string     change_layer(coordf_t print_z);
+    // Ginger: per-object Parameter Sweep - switch swept parameters at object changes.
+    std::string     apply_per_object_sweep(const Print &print, const PrintObject &print_object);
+    // Restore profile values for every swept parameter (returns the ERS reset tag).
+    std::string     restore_swept_defaults(const Print &print);
     // Orca: pass the complete collection of region perimeters to the extrude loop to check whether the wipe before external loop
     // should be executed
     std::string     extrude_entity(const ExtrusionEntity &entity, std::string description = "", double speed = -1., const ExtrusionEntitiesPtr& region_perimeters = ExtrusionEntitiesPtr(), const Point* start_point = nullptr);
@@ -367,6 +371,8 @@ private:
     std::string     extrude_loop(ExtrusionLoop loop, std::string description, double speed = -1., const ExtrusionEntitiesPtr& region_perimeters = ExtrusionEntitiesPtr(), const Point* start_point = nullptr);
     std::string     extrude_multi_path(ExtrusionMultiPath multipath, std::string description = "", double speed = -1.);
     std::string     extrude_path(ExtrusionPath path, std::string description = "", double speed = -1.);
+    // Ginger single-path: spatial router for an island's infill with loop suspension (see .cpp).
+    std::string     extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions, const char *extrusion_name);
     
     // Orca: Adaptive PA variables
     // Used for adaptive PA when extruding paths with multiple, varying flow segments.
@@ -527,6 +533,15 @@ private:
     unsigned int                        m_layer_count;
     // Progress bar indicator. Increments from -1 up to layer_count.
     int                                 m_layer_index;
+    // Ginger: per-object Parameter Sweep - profile values of the writer keys swept by
+    // some object, captured before the first override so they can be restored on
+    // objects without their own sweep.
+    std::map<std::string, std::unique_ptr<ConfigOption>> m_sweep_writer_defaults;
+    // Ginger Parameter Sweep: gcode-config keys currently overridden by a sweep. Some
+    // of them live in PrintRegionConfig (wipe_speed), so every region-config apply
+    // would bring the profile value back into m_config: these overrides are re-applied
+    // right after each of those applies (extrude_perimeters / extrude_infill).
+    DynamicConfig                       m_sweep_gcode_overrides;
     // Current layer processed. In sequential printing mode, only a single copy will be printed.
     // In non-sequential mode, all its copies will be printed.
     const Layer*                        m_layer;

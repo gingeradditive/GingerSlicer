@@ -243,7 +243,7 @@ void Topbar::Init(wxFrame* parent)
     wxBitmap redo_inactive_bitmap = create_scaled_bitmap("topbar_redo_inactive", nullptr, TOPBAR_ICON_SIZE);
     m_redo_item->SetDisabledBitmap(redo_inactive_bitmap);
 
-    //this->AddSpacer(FromDIP(10));
+    this->AddSpacer(FromDIP(10));
 
 
     this->AddSpacer(FromDIP(10));

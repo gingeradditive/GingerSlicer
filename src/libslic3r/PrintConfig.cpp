@@ -2392,6 +2392,31 @@ void PrintConfigDef::init_fff_params()
     def->mode       = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
+    // Ginger: rib connectors between the wall loops of an island (single_path_mode sub-option).
+    def             = this->add("single_path_wall_ribs", coBool);
+    def->label      = L("Wall rib connectors");
+    def->category   = L("Others");
+    def->tooltip    = L("Merge all wall loops of an island (outer wall and hole walls) into one continuous "
+                        "extrusion path by adding short rib connectors at their closest approach: two touching "
+                        "beads side by side, like a thin internal rib. Eliminates the travel moves between the "
+                        "outer wall and each hole wall at the cost of a small amount of extra material, and adds "
+                        "stiffness. Only walls printed as closed loops with the same role and width are merged. "
+                        "Requires Single path mode.");
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def             = this->add("single_path_wall_rib_max_length", coFloat);
+    def->label      = L("Wall rib max length");
+    def->category   = L("Others");
+    def->tooltip    = L("Maximum length of a wall rib connector. Wall loops farther apart than this are not "
+                        "merged: a very long rib would cross half the part (and everything below it), while "
+                        "the travel it replaces is already minimized by Single path mode. Keep it in the range "
+                        "of a sensible structural rib.");
+    def->sidetext   = L("mm");
+    def->min        = 0;
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(20.));
+
     def = this->add("sparse_infill_pattern", coEnum);
     def->label = L("Sparse infill pattern");
     def->category = L("Strength");
@@ -3932,14 +3957,17 @@ void PrintConfigDef::init_fff_params()
     def->label = L("ERS ramp profile");
     def->tooltip = L(
         "Shape of the feedrate curve during ramp-up and ramp-down in Pellet ERS mode.\n\n"
-        "• Linear: constant acceleration — feedrate increases at a fixed rate. "
-        "Simple but may feel sluggish at the start and abrupt at the end.\n\n"
-        "• Sqrt (recommended): based on the kinematic equation v² = v₀² + 2as. "
-        "Produces a concave curve — fast initial acceleration that gradually tapers off "
-        "as the target rate is approached. Best match for mechanical screw inertia.\n\n"
-        "• Exponential: first-order response model. Even faster initial ramp than Sqrt, "
-        "with a very gentle asymptotic approach to target. "
-        "Suitable for systems with high viscous damping in the barrel.\n\n"
+        "• Sqrt (recommended): kinematic law v² = v₀² + 2as — the ONLY profile with "
+        "constant flow acceleration, exactly equal to the configured slope, along the "
+        "whole ramp. Shortest possible ramp that respects the slope limit, and the only "
+        "shape for which the pressure time constant compensation is exact. Use this for "
+        "both calibration and production.\n\n"
+        "• Linear: linear feedrate over distance. The effective slope is halved "
+        "internally to keep the instantaneous peak within the configured limit, so ramps "
+        "are ~2x longer than Sqrt. Keep as a control experiment only.\n\n"
+        "• Exponential: not recommended — even with the internal 3x slope reduction the "
+        "local peak still exceeds the configured limit, and the ramp never exactly "
+        "reaches the target rate.\n\n"
         "Only affects Pellet ERS mode."
     );
     def->enum_keys_map = &ConfigOptionEnum<PelletERSRampProfile>::get_enum_values();
@@ -3955,13 +3983,18 @@ void PrintConfigDef::init_fff_params()
     def = this->add("pellet_ers_deceleration_slope", coFloat);
     def->label = L("ERS deceleration slope");
     def->tooltip = L(
-        "Separate volumetric extrusion rate slope for ramp-down (deceleration).\n\n"
-        "When set to 0, ramp-down uses the same slope as ramp-up "
+        "Separate volumetric extrusion rate slope for ALL flow decelerations: boundary "
+        "ramp-downs before travels AND internal slowdowns (overhangs, slower features, "
+        "width changes).\n\n"
+        "When set to 0, decelerations use the same slope as accelerations "
         "(the main 'Extrusion rate smoothing' value).\n\n"
-        "When set to a positive value, ramp-down uses this independent slope instead. "
-        "This is useful for pellet/screw extruders where the mechanical response "
-        "to deceleration differs from acceleration — for example, residual pressure "
-        "in the barrel may cause the flow to decay slower than it builds up.\n\n"
+        "The pressurize/release asymmetry is a property of the screw: residual pressure "
+        "in the barrel makes the flow decay slower than it builds up, so the deceleration "
+        "slope is typically LOWER than the main slope.\n\n"
+        "Reference values:\n"
+        "• 0: symmetric response (start here, sweep only if the seam shows residual "
+        "defects with a calibrated main slope)\n"
+        "• 0.3–0.7 × main slope: typical range for screw extruders\n\n"
         "Only affects Pellet ERS mode."
     );
     def->sidetext = u8"mm³/s²";
@@ -3986,6 +4019,89 @@ void PrintConfigDef::init_fff_params()
     def->max = 50;
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(0.5));
+
+    def = this->add("pellet_ers_rampup_flow", coPercent);
+    def->label = L("ERS ramp-up flow");
+    def->tooltip = L(
+        "Extrusion amount multiplier applied along the ERS ramp-up zones (Pellet mode).\n\n"
+        "The feedrate ramp alone cannot rebuild the screw pressure: while the commanded flow "
+        "rises, part of the extruded material charges the melt reservoir instead of forming "
+        "the bead, leaving the start of the path under-extruded (visible at the seam).\n"
+        "Values above 100% feed extra material during ramp-up so the pressure builds faster "
+        "and the bead stays at nominal volume.\n\n"
+        "With the Sqrt ramp profile the flow acceleration is constant along the ramp, so a "
+        "constant percentage is the physically correct compensation.\n\n"
+        "Reference values:\n"
+        "• 100%: no trim (recommended starting point — calibrate the pressure time "
+        "constant τ first, this trim is only for the residual)\n"
+        "• 105–130%: typical trim if some under-extrusion remains at path starts after "
+        "calibrating τ\n"
+        "• >150%: suspicious — usually means τ is set too low, recalibrate τ instead\n\n"
+        "Requires relative extruder addressing. 100% = no compensation."
+    );
+    def->sidetext = "%";
+    def->min = 10;
+    def->max = 300;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionPercent(100));
+
+    def = this->add("pellet_ers_rampdown_flow", coPercent);
+    def->label = L("ERS ramp-down flow");
+    def->tooltip = L(
+        "Extrusion amount multiplier applied along the ERS ramp-down zones (Pellet mode).\n\n"
+        "During ramp-down the melt reservoir keeps pushing material out while the commanded "
+        "flow decreases, leaving the end of the path over-extruded (visible at the seam).\n"
+        "Values below 100% feed less material during ramp-down, letting the stored pressure "
+        "supply the missing volume so the bead stays nominal.\n\n"
+        "With the Sqrt ramp profile the flow deceleration is constant along the ramp, so a "
+        "constant percentage is the physically correct compensation.\n\n"
+        "Reference values:\n"
+        "• 100%: no trim (recommended starting point — calibrate the pressure time "
+        "constant τ first, this trim is only for the residual)\n"
+        "• 60–90%: typical trim if some over-extrusion remains at path ends after "
+        "calibrating τ\n"
+        "• <50%: suspicious — usually means τ is set too low, recalibrate τ instead\n\n"
+        "Requires relative extruder addressing. 100% = no compensation."
+    );
+    def->sidetext = "%";
+    def->min = 10;
+    def->max = 300;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionPercent(100));
+
+    def = this->add("pellet_ers_pressure_tau", coFloat);
+    def->label = L("ERS pressure time constant");
+    def->tooltip = L(
+        "Time constant τ of the melt pressure reservoir (screw + barrel + nozzle), in seconds. "
+        "0 = disabled.\n\n"
+        "When set, the extruded amount inside ERS ramps is compensated point by point with "
+        "the first-order model: E_scale = 1 ± τ·slope/Q. During ramp-up extra material "
+        "charges the reservoir, during ramp-down the stored pressure supplies part of the "
+        "bead. The compensation automatically adapts to the configured slope and to the "
+        "position along the ramp (stronger near the minimum flow rate).\n\n"
+        "τ is a physical property of the machine/material/nozzle: calibrate it once per "
+        "nozzle (expect it to grow steeply as the nozzle gets smaller) and it stays valid "
+        "for any slope. The ramp-up/ramp-down flow percentages act as an additional trim "
+        "on top of this compensation for what the linear model does not capture "
+        "(shear-thinning, screw feed non-linearity).\n\n"
+        "Reference values:\n"
+        "• 0: disabled (no compensation)\n"
+        "• 0.05–0.15 s: typical starting range for large nozzles (4–8 mm); the ORNL BAAM "
+        "extruder was measured at τ ≈ 0.06–0.09 s\n"
+        "• 0.2–1 s: expected range for small nozzles (1–2 mm), where the flow resistance "
+        "is much higher\n"
+        "Calibration: sweep 0 → 0.5 s (step 0.005) on a seam tower and pick the height "
+        "where the seam under/over-extrusion disappears.\n\n"
+        "Physical limit: when τ × slope exceeds the ERS minimum flow rate, the ramp-down "
+        "tail would require negative extrusion (suction) and the compensation saturates. "
+        "Keep τ ≤ min_rate/slope, or raise the minimum flow rate / lower the slope.\n\n"
+        "Requires relative extruder addressing. Only affects Pellet ERS mode."
+    );
+    def->sidetext = "s";
+    def->min = 0;
+    def->max = 10;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloat(0));
 
     def = this->add("fan_min_speed", coFloats);
     def->label = L("Fan speed");
@@ -8093,6 +8209,17 @@ CLIMiscConfigDef::CLIMiscConfigDef()
     def->tooltip = L("Load filament settings from the specified file list.");
     def->cli_params = "\"filament1.json;filament2.json;...\"";
     def->set_default_value(new ConfigOptionStrings());
+
+    def = this->add("sweep", coString);
+    def->label = L("Parameter sweep");
+    def->tooltip = L("Layer-by-layer parameter sweep for calibration, format \"parameter:start:end:step\". "
+                     "The value starts at 'start', changes by 'step' at every layer and holds once 'end' is reached. "
+                     "Supported parameters: retraction_length, retraction_speed, deretraction_speed, retract_restart_extra, "
+                     "max_volumetric_extrusion_rate_slope, pellet_ers_deceleration_slope, pellet_ers_min_rate, "
+                     "pellet_ers_ramp_profile (0=linear 1=sqrt 2=exponential).");
+    def->cli = "sweep";
+    def->cli_params = "\"parameter:start:end:step\"";
+    def->set_default_value(new ConfigOptionString(""));
 
     def = this->add("skip_objects", coInts);
     def->label = L("Skip Objects");

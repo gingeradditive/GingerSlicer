@@ -22,6 +22,8 @@
 #include "Format/STL.hpp"
 #include "format.hpp"
 
+#include <cstdio>
+#include <cstdlib>
 #include <float.h>
 #include <oneapi/tbb/blocked_range.h>
 #include <oneapi/tbb/concurrent_vector.h>
@@ -520,6 +522,11 @@ void PrintObject::prepare_infill()
     this->combine_infill();
     m_print->throw_if_canceled();
 
+    // Ginger single_path_wall_ribs: plan the wall rib merges and carve their corridors out of
+    // the final fill surfaces (must run last, when fill_surfaces are final).
+    this->generate_wall_ribs();
+    m_print->throw_if_canceled();
+
 #ifdef SLIC3R_DEBUG_SLICE_PROCESSING
     for (size_t region_id = 0; region_id < this->num_printing_regions(); ++ region_id) {
         for (const Layer *layer : m_layers) {
@@ -535,6 +542,434 @@ void PrintObject::prepare_infill()
 #endif /* SLIC3R_DEBUG_SLICE_PROCESSING */
 
     this->set_done(posPrepareInfill);
+}
+
+// Ginger single_path_wall_ribs: dry-run (materialize=false) or grow (materialize=true) the
+// foundation BUTTRESS of one rib link. The rib at `rib_layer` spans `link_a` (on the walk) to
+// `link_b` (on the spliced loop) but stands on nothing - with a big nozzle the sparse infill
+// is far too coarse to catch it, and one solidified pad below would itself bridge over air.
+// Instead, on each layer below, ONE of the two walls grows an out-and-back stub of the same
+// staggered bead pair (part of the wall, printed in the wall phase, zero travel) whose tip
+// pulls back by the self-support step per layer: a lightning-style branch leaning on the
+// wall, needing no material under the gap at all - it works even over true void. The chain
+// ends when the stub melts back into its wall, rests on real material of the layer below it,
+// or reaches the bed. Returns false when neither wall carries the buttress down (wall not
+// continuing, or a stub would cross another wall).
+static bool build_rib_buttress(Layer *rib_layer, const Point &link_a, const Point &link_b,
+                               float width, bool materialize)
+{
+    const coord_t stagger = coord_t(scale_(width));
+
+    auto try_side = [&](const Point &from, const Point &toward, bool mutate) -> bool {
+        const Vec2d  whole = (toward - from).cast<double>();
+        const double gap   = whole.norm();
+        if (gap <= 2. * double(stagger))
+            return true; // the loops nearly touch: the rib hangs off both walls as it is
+        const Vec2d dir  = whole / gap;
+        double      len  = gap;
+        Point       base = from;
+        for (Layer *below = rib_layer->lower_layer; below != nullptr; below = below->lower_layer) {
+            // Lightning-style regression: a bead may overhang the one below it by about half
+            // its width, so the stub tip pulls back by that much on every layer going down.
+            len -= 0.5 * double(stagger);
+            if (len <= double(stagger))
+                return true; // melted back into the wall: the buttress rests on the wall itself
+            // The stub rides the wall nearest to the base. Search what this layer will EMIT:
+            // merged rib walks (cuts, links and earlier stubs included) and the plain loops
+            // not consumed by any merge - consumed loops are represented by their walk, whose
+            // cut gaps are real gaps and whose links are real beads. These walks/loops are
+            // both the ride candidates and the obstacle field; the island's open printed
+            // beads (thin-wall multipaths) join the field as foreign.
+            std::vector<Polygon>      bead_polys;
+            std::vector<const void *> bead_tag;
+            Lines                     open_lines;
+            WallRibMerge             *ride_merge = nullptr;
+            const ExtrusionLoop      *ride_loop  = nullptr;
+            Point                     foot;
+            double                    best = std::numeric_limits<double>::max();
+            for (WallRibMerge &m : below->wall_ribs) {
+                bead_polys.emplace_back(m.merged);
+                bead_tag.emplace_back(&m);
+                const Point  pr = m.merged.point_projection(base);
+                const double d  = (pr - base).cast<double>().norm();
+                if (d < best) {
+                    best       = d;
+                    foot       = pr;
+                    ride_merge = &m;
+                    ride_loop  = nullptr;
+                }
+            }
+            for (LayerRegion *layerm : below->regions())
+                for (const ExtrusionEntity *island_ee : layerm->perimeters.entities)
+                    if (const auto *island = dynamic_cast<const ExtrusionEntityCollection *>(island_ee))
+                        for (const ExtrusionEntity *ee : island->entities)
+                            if (const auto *loop = dynamic_cast<const ExtrusionLoop *>(ee)) {
+                                // Multi-path loops ride stubs like any other: the emission
+                                // re-attributes every merged segment to its source path (role,
+                                // flow, width, height preserved), so nothing gets flattened.
+                                bool        consumed = false;
+                                const Point fp       = loop->first_point();
+                                for (const WallRibMerge &m : below->wall_ribs)
+                                    for (const Point &key : m.loop_keys)
+                                        if (key == fp) {
+                                            consumed = true;
+                                            break;
+                                        }
+                                if (consumed)
+                                    continue;
+                                bead_polys.emplace_back(loop->polygon());
+                                bead_tag.emplace_back(loop);
+                                const Point  pr = bead_polys.back().point_projection(base);
+                                const double d  = (pr - base).cast<double>().norm();
+                                if (d < best) {
+                                    best       = d;
+                                    foot       = pr;
+                                    ride_loop  = loop;
+                                    ride_merge = nullptr;
+                                }
+                            } else if (! ee->is_collection())
+                                append(open_lines, ee->as_polyline().lines());
+            if (best > double(stagger))
+                return false; // no wall continues under the base: this side cannot carry it
+            const Point tip = foot + (dir * len).cast<coord_t>();
+            // The ride walk is the stub's OWN curve (contact legal near the foot); every
+            // other bead is foreign - the stub must neither cross nor ride any of them.
+            const void *ride_tag = ride_merge != nullptr ? (const void *) ride_merge : (const void *) ride_loop;
+            Lines own;
+            Lines foreign = std::move(open_lines);
+            for (size_t i = 0; i < bead_polys.size(); ++ i)
+                if (bead_tag[i] == ride_tag)
+                    own = bead_polys[i].lines();
+                else
+                    append(foreign, bead_polys[i].lines());
+            if (rib_segment_conflicts(foot, tip, stagger, own, Lines(), foreign))
+                return false; // the stub would extrude across or along another bead down here
+            // A stub resting on real material of the layer below it ends the chain.
+            bool grounded = below->lower_layer == nullptr; // prints on the bed
+            if (! grounded) {
+                Layer     *under = below->lower_layer;
+                Polygons   under_walls;
+                Polygons   under_corridors;
+                ExPolygons under_solid;
+                for (const WallRibMerge &m : under->wall_ribs)
+                    append(under_corridors, m.corridors);
+                for (LayerRegion *um : under->regions()) {
+                    for (const ExtrusionEntity *island_ee : um->perimeters.entities)
+                        if (const auto *island = dynamic_cast<const ExtrusionEntityCollection *>(island_ee))
+                            for (const ExtrusionEntity *ee : island->entities)
+                                if (const auto *loop = dynamic_cast<const ExtrusionLoop *>(ee))
+                                    under_walls.emplace_back(loop->polygon());
+                    for (const Surface &s : um->fill_surfaces.surfaces)
+                        if (s.is_solid())
+                            under_solid.emplace_back(s.expolygon);
+                }
+                WallRibSupport under_support;
+                under_support.prev_corridors = &under_corridors;
+                under_support.prev_walls     = &under_walls;
+                under_support.prev_solid     = &under_solid;
+                grounded = wall_rib_link_supported(foot, tip, stagger, under_support);
+            }
+            // The stub must be spliceable into the ride walk. Tested on a COPY in the dry-run
+            // too, so dry-run and mutate share the SAME predicate: a walk too short to host
+            // the cut (or a melted/degenerate stub) used to be a materialize-only failure -
+            // accepted at dry-run, then failing mid-descent at grow time and leaving the rib
+            // standing on air with nothing but a log line.
+            Polygon  quad;
+            Polygon  fresh;
+            Polygon *walk_src = ride_merge != nullptr ? &ride_merge->merged : nullptr;
+            if (walk_src == nullptr) {
+                fresh    = ride_loop->polygon();
+                walk_src = &fresh;
+            }
+            Polygon spliced = *walk_src;
+            if (! splice_wall_stub(spliced, foot, tip, stagger, quad))
+                return false;
+            if (mutate) {
+                // Corridor = the stub quad expanded by the bead half width - the beads' true
+                // footprint, exactly like a rib corridor (the raw quad understated the support
+                // the stub offers to the column above by half a bead all around).
+                Polygons stub_corridors = offset(quad, float(scale_(0.5 * width)));
+                if (ride_merge != nullptr) {
+                    ride_merge->merged = std::move(spliced);
+                    append(ride_merge->corridors, std::move(stub_corridors));
+                } else {
+                    WallRibMerge stub_merge;
+                    stub_merge.loop_keys.emplace_back(ride_loop->polygon().points.front());
+                    stub_merge.merged = std::move(spliced);
+                    stub_merge.corridors = std::move(stub_corridors);
+                    below->wall_ribs.emplace_back(std::move(stub_merge));
+                }
+                // Nothing may be extruded across the stub: carve its footprint out of this
+                // layer's fill (final by now; its own rib corridors were carved earlier).
+                // A quarter bead less than the beads' true footprint, so the surrounding
+                // fill fuses into the stub flanks instead of leaving a jagged gap.
+                const Polygons carve = offset(quad, float(scale_(0.25 * width)));
+                for (LayerRegion *layerm : below->regions()) {
+                    Surfaces out;
+                    out.reserve(layerm->fill_surfaces.surfaces.size());
+                    for (const Surface &s : layerm->fill_surfaces.surfaces)
+                        for (ExPolygon &e : diff_ex(s.expolygon, carve))
+                            out.emplace_back(Surface(s, std::move(e)));
+                    layerm->fill_surfaces.surfaces = std::move(out);
+                }
+            }
+            if (grounded)
+                return true;
+            base = foot;
+        }
+        return true; // walked out at the bottom of the object: the last stub sat on the bed
+    };
+
+    // One wall is enough to carry the buttress down (the walk side is tried first, then the
+    // spliced loop's side); a side is fully dry-run before anything is mutated on it.
+    if (try_side(link_a, link_b, false))
+        return ! materialize || try_side(link_a, link_b, true);
+    if (try_side(link_b, link_a, false))
+        return ! materialize || try_side(link_b, link_a, true);
+    return false;
+}
+
+// Ginger single_path_wall_ribs. For every layer (sequential, bottom-up), the closed wall loops
+// of each island are planned into ONE walk with rib connectors (plan_wall_ribs, Prim over the
+// loops). Running here - instead of at G-code time - buys the two properties the ribs need:
+//  - the rib CORRIDORS are subtracted from the layer's fill surfaces, so sparse/solid/top/bottom
+//    never extrude across the rib beads (the rib itself fills the slot);
+//  - each rib is anchored to the PREVIOUS layer's rib position when the local geometry still
+//    allows it, so the rib columns stack and are self-standing instead of landing on air over
+//    sparse infill.
+// GCode::extrude_perimeters consumes the stored plan by matching loop first points.
+void PrintObject::generate_wall_ribs()
+{
+    for (Layer *layer : m_layers)
+        layer->wall_ribs.clear();
+    bool enabled = false;
+    for (size_t region_id = 0; region_id < this->num_printing_regions(); ++ region_id) {
+        const PrintRegionConfig &cfg = this->printing_region(region_id).config();
+        if (cfg.single_path_mode && cfg.single_path_wall_ribs) {
+            enabled = true;
+            break;
+        }
+    }
+    if (! enabled)
+        return;
+    BOOST_LOG_TRIVIAL(debug) << "Planning wall ribs - start";
+    // GINGER_RIBS_DEBUG=1: per-layer census of what the planner did with every wall loop
+    // (spliced / dropped and why) on stderr - the tool for "why is this hole not connected".
+    const bool ribs_debug = std::getenv("GINGER_RIBS_DEBUG") != nullptr;
+
+    std::vector<std::pair<Point, Point>> prev_links;
+    Polygons   prev_corridors;
+    Polygons   prev_walls;
+    ExPolygons prev_solid;
+    size_t     layer_idx = 0;
+    for (Layer *layer : m_layers) {
+        ++ layer_idx;
+        m_print->throw_if_canceled();
+        Points   layer_anchors;
+        std::vector<std::pair<Point, Point>> layer_links;
+        std::vector<BoundingBox> claimed_zones;
+        Polygons corridors;
+        Polygons carve;
+        WallRibStats lstat;
+        size_t l_islands = 0, l_loops = 0, l_multipath = 0, l_group_single = 0;
+        // What the previous layer offers to stand on. Collected for EVERY layer (also rib-less
+        // ones) so the next layer's support test always sees the real material below.
+        WallRibSupport support;
+        support.first_layer    = layer->lower_layer == nullptr;
+        support.prev_corridors = &prev_corridors;
+        support.prev_walls     = &prev_walls;
+        support.prev_solid     = &prev_solid;
+        Polygons   layer_walls;
+        ExPolygons layer_solid;
+        for (LayerRegion *layerm : layer->regions()) {
+            for (const ExtrusionEntity *island_ee : layerm->perimeters.entities)
+                if (const auto *island = dynamic_cast<const ExtrusionEntityCollection*>(island_ee))
+                    for (const ExtrusionEntity *ee : island->entities)
+                        if (const auto *loop = dynamic_cast<const ExtrusionLoop*>(ee))
+                            layer_walls.emplace_back(loop->polygon());
+            for (const Surface &s : layerm->fill_surfaces.surfaces)
+                if (s.is_solid())
+                    layer_solid.emplace_back(s.expolygon);
+        }
+        for (LayerRegion *layerm : layer->regions()) {
+            const PrintRegionConfig &cfg = layerm->region().config();
+            if (! (cfg.single_path_mode && cfg.single_path_wall_ribs))
+                continue;
+            // One collection per island inside LayerRegion::perimeters.
+            for (const ExtrusionEntity *island_ee : layerm->perimeters.entities) {
+                const auto *island = dynamic_cast<const ExtrusionEntityCollection*>(island_ee);
+                if (island == nullptr || island->entities.size() < 2)
+                    continue;
+                ++ l_islands;
+                // ALL of the island's closed wall loops are rib candidates: single path is a
+                // CHAIN of features per island, not one uniform path. Every merged segment keeps
+                // its source path's role/flow/width at emission (the flow-preserving re-emission
+                // in GCode::extrude_perimeters), so heterogeneous loops - Arachne variable-width
+                // splits, the speed classifier, overhang/bridge stretches - all weld like any
+                // other; whether a rib can STAND somewhere is for the support/foundation tests
+                // alone, never the loop's attributes (D02 z=19.2: two 123mm bar bridges killed
+                // four healthy hub links 200mm away). Partitioning the loops by EXACT (role,
+                // width, height, mm3) equality was a leftover of the first implementation whose
+                // emission flattened the walk to ONE uniform flow: with Arachne the dominant
+                // widths of an island's loops differ by fractions of a percent (fantome LOUNGE2:
+                // 4.345/4.337/4.351 mm3/mm), every loop landed in its own group and the holes
+                // printed unattached. The rib's own scalars (stagger, corridor, buttress width)
+                // come from the island's DOMINANT path - the longest, never whatever short
+                // special stretch a loop happens to start with - and the emission picks the
+                // link flow the same way.
+                // The planner tracks the closed-loop obstacle field itself (growing walk +
+                // not-yet-spliced loops); what it cannot see are the island's OPEN printed
+                // beads - Arachne thin-wall multipaths and the like - passed as extra
+                // obstacles: a rib link must neither cross nor ride them.
+                Polygons             loops;
+                Lines                extra_obstacles;
+                const ExtrusionPath *dom     = nullptr;
+                double               dom_len = -1.;
+                for (const ExtrusionEntity *ee : island->entities)
+                    if (const auto *loop = dynamic_cast<const ExtrusionLoop*>(ee)) {
+                        ++ l_loops;
+                        if (loop->paths.empty())
+                            continue;
+                        bool mixed = false;
+                        for (const ExtrusionPath &p : loop->paths) {
+                            const double l = p.polyline.length();
+                            if (l > dom_len) {
+                                dom_len = l;
+                                dom     = &p;
+                            }
+                            if (p.role() != loop->paths.front().role() || p.height != loop->paths.front().height ||
+                                p.width != loop->paths.front().width)
+                                mixed = true;
+                        }
+                        if (mixed)
+                            ++ l_multipath; // census only: mixed-attribute loops merge like any other
+                        loops.emplace_back(loop->polygon());
+                    } else if (! ee->is_collection())
+                        append(extra_obstacles, ee->as_polyline().lines());
+                if (loops.size() < 2 || dom == nullptr) {
+                    l_group_single += loops.size(); // census: loops with no island partner
+                    continue;
+                }
+                const float width = dom->width;
+                WallRibParams params;
+                params.stagger         = coord_t(scale_(width));
+                // Corridor = rib quad expanded by the bead half width = the beads' true
+                // footprint (used as column support below); the fill is carved a quarter
+                // bead tighter than this, so it fuses into the rib flanks.
+                params.corridor_offset = coord_t(scale_(0.5 * width));
+                // A rib longer than this is worse than the short travel it replaces.
+                params.max_link_length = coord_t(scale_(cfg.single_path_wall_rib_max_length.value));
+                // Per-layer column drift budget: about 45 deg of lean, whichever of half a
+                // bead / one layer height is smaller.
+                params.max_drift       = std::min(coord_t(scale_(0.5 * width)), coord_t(scale_(layer->height)));
+                params.extra_obstacles = extra_obstacles.empty() ? nullptr : &extra_obstacles;
+                params.support         = &support;
+                params.stats           = &lstat;
+                // A rib standing on nothing is legal if a foundation buttress can be grown
+                // for it on the layers below (dry-run here, materialized after acceptance).
+                params.can_found       = [layer, w = width](const Point &a, const Point &b) {
+                    return build_rib_buttress(layer, a, b, w, false);
+                };
+                // Column memory is PER ISLAND: only links near this island's loops feed the
+                // reuse / near-dead logic. Passing the whole layer's links made a corpse on
+                // some other island flag a "died column" here and arm the free re-founding
+                // pass island-blind. The zone is the island bbox inflated by the near-dead
+                // proximity radius (8 staggers).
+                BoundingBox island_bb;
+                for (const Polygon &l : loops)
+                    island_bb.merge(get_extents(l));
+                island_bb.offset(coordf_t(8. * scale_(width)));
+                std::vector<std::pair<Point, Point>> island_prev;
+                for (const auto &link : prev_links)
+                    if (island_bb.contains(link.first) || island_bb.contains(link.second) ||
+                        island_bb.contains(Point((link.first + link.second) / 2)))
+                        island_prev.emplace_back(link);
+                WallRibMerge        merge;
+                std::vector<size_t> unmerged;
+                if (plan_wall_ribs(loops, params,
+                                   island_prev.empty() ? nullptr : &island_prev, merge, unmerged)) {
+                    // Materialize the foundation buttresses FIRST: only a fully grounded
+                    // plan may be accepted. The dry-run and the grow pass share the same
+                    // predicates, but earlier links of this very island mutate the lower
+                    // layers between the two, so a late failure is still possible - in
+                    // that case the whole island's plan is DROPPED (its loops print
+                    // unmerged: a travel more, never a rib over void). Stubs already
+                    // grown by this island's earlier links stay: each chain passed its own
+                    // descent, they are self-standing wall excursions - harmless extra
+                    // bead on pellet.
+                    bool founded_ok = true;
+                    for (const auto &link : merge.founded_links)
+                        if (! build_rib_buttress(layer, link.first, link.second, width, true)) {
+                            founded_ok = false;
+                            break;
+                        }
+                    if (! founded_ok) {
+                        BOOST_LOG_TRIVIAL(warning) << "single_path_wall_ribs: foundation buttress failed to"
+                            " materialize at z=" << layer->print_z << " - dropping the island's rib plan"
+                            " (its loops print unmerged this layer)";
+                    } else {
+                        claimed_zones.emplace_back(island_bb);
+                        append(corridors, merge.corridors);
+                        // The fill is carved a quarter bead LESS than the full corridor, so
+                        // its lines run into the rib flanks and fuse with them - carving
+                        // flush left jagged gaps along the rib in bottom/top skins.
+                        for (Polygon &e : offset(merge.corridors, -float(scale_(0.25 * width))))
+                            carve.emplace_back(std::move(e));
+                        append(layer_anchors, merge.anchors);
+                        append(layer_links, merge.links);
+                        layer->wall_ribs.emplace_back(std::move(merge));
+                    }
+                }
+            }
+        }
+        if (! carve.empty()) {
+            // Carve the rib footprints out of every region's fill surfaces of this layer
+            // (the shrunk variant: the full corridors stay in the plan for column support).
+            for (LayerRegion *layerm : layer->regions()) {
+                Surfaces out;
+                out.reserve(layerm->fill_surfaces.surfaces.size());
+                for (const Surface &s : layerm->fill_surfaces.surfaces)
+                    for (ExPolygon &e : diff_ex(s.expolygon, carve))
+                        out.emplace_back(Surface(s, std::move(e)));
+                layerm->fill_surfaces.surfaces = std::move(out);
+            }
+        }
+        if (ribs_debug && l_islands > 0)
+            std::fprintf(stderr,
+                         "[RIBSTAT] layer=%zu z=%.2f islands=%zu loops=%zu multipath=%zu group_single=%zu"
+                         " candidates=%zu spliced=%zu anchor_reused=%zu founded=%zu"
+                         " drop[too_short=%zu prim_far=%zu obstacle=%zu unsupported=%zu] a0=(%.1f,%.1f)\n",
+                         layer_idx, layer->print_z, l_islands, l_loops, l_multipath, l_group_single,
+                         lstat.loops_in, lstat.spliced, lstat.anchor_reused, lstat.founded,
+                         lstat.drop_too_short, lstat.drop_prim_far,
+                         lstat.drop_obstacle, lstat.drop_unsupported,
+                         layer_anchors.empty() ? 0. : unscale<double>(layer_anchors.front().x()),
+                         layer_anchors.empty() ? 0. : unscale<double>(layer_anchors.front().y()));
+        // Column memory: the new links supersede the old ones ZONE BY ZONE, never wholesale.
+        // An island whose plan was ACCEPTED claims its zone (old links there are replaced by
+        // its new ones); links elsewhere carry over - across rib-less layers (single-loop
+        // islands, transition layers: the next ribbed layer must re-plant its columns on the
+        // SAME verticals, a 1-2 layer merge gap used to reset them sideways) and across a
+        // founded-failure drop (the corpse must stay visible for next layer's near-dead
+        // re-founding; the old full replace erased it whenever any OTHER island planned).
+        std::vector<std::pair<Point, Point>> next_prev = std::move(layer_links);
+        for (const auto &link : prev_links) {
+            bool claimed = false;
+            for (const BoundingBox &zone : claimed_zones)
+                if (zone.contains(link.first) || zone.contains(link.second) ||
+                    zone.contains(Point((link.first + link.second) / 2))) {
+                    claimed = true;
+                    break;
+                }
+            if (! claimed)
+                next_prev.emplace_back(link);
+        }
+        prev_links = std::move(next_prev);
+        prev_corridors = std::move(corridors);
+        prev_walls     = std::move(layer_walls);
+        prev_solid     = std::move(layer_solid);
+    }
+    BOOST_LOG_TRIVIAL(debug) << "Planning wall ribs - end";
 }
 
 void PrintObject::infill()

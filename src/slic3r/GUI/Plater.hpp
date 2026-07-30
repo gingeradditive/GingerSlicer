@@ -264,6 +264,9 @@ public:
     void reload_gcode_from_disk();
     void refresh_print();
 
+// Ginger: the layer-by-layer parameter sweep is the only calibration kept after
+    // upstream removed the stock (filament-oriented) ones.
+    void calib_param_sweep(const Calib_Params& params);
 
     BuildVolume_Type get_build_volume_type() const;
 
