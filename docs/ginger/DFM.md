@@ -219,7 +219,6 @@ schedule driver — massive short parts cool layer-bound, thin tall parts print 
 | `GINGER_SPCUT_Z=<z>` | per-hole detail near one z | racetrack cut inspection |
 | Headless slice | `Ginger-Slicer.exe --slice <plate> --outputdir <dir> project.3mf` | verify slicing changes without GUI (3MF must embed settings) |
 | `--sweep "opt:from:to:step"` | per-layer swept G-code | parameter calibration prints |
-| `fff_print_tests "[Fill]"` | unit level | splice link rules, single-path guards |
 
 Filament diameter on Ginger pellet profiles is 1.12838 mm → 1 mm² cross-section: ΔE in mm
 equals mm³ extruded (convenient for G-code analysis).

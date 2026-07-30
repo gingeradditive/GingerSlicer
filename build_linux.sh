@@ -7,7 +7,7 @@ SCRIPT_PATH=$(dirname "$(readlink -f "${0}")")
 pushd "${SCRIPT_PATH}" > /dev/null
 
 function usage() {
-    echo "Usage: ./${SCRIPT_NAME} [-1][-b][-c][-d][-h][-i][-j N][-p][-r][-s][-t][-u][-l][-L]"
+    echo "Usage: ./${SCRIPT_NAME} [-1][-b][-c][-d][-h][-i][-j N][-p][-r][-s][-u][-l][-L]"
     echo "   -1: limit builds to one core (where possible)"
     echo "   -j N: limit builds to N cores (where possible)"
     echo "   -b: build in debug mode"
@@ -19,19 +19,17 @@ function usage() {
     echo "   -p: boost ccache hit rate by disabling precompiled headers (default: ON)"
     echo "   -r: skip RAM and disk checks (low RAM compiling)"
     echo "   -s: build the Ginger Slicer (optional)"
-    echo "   -t: build tests (optional)"
     echo "   -u: install system dependencies (asks for sudo password; build prerequisite)"
     echo "   -l: use Clang instead of GCC (default: GCC)"
     echo "   -L: use ld.lld as linker (if available)"
     echo "For a first use, you want to './${SCRIPT_NAME} -u'"
     echo "   and then './${SCRIPT_NAME} -dsi'"
-    echo "To build with tests: './${SCRIPT_NAME} -st' or './${SCRIPT_NAME} -dst'"
 }
 
 SLIC3R_PRECOMPILED_HEADERS="ON"
 
 unset name
-while getopts ":1j:bcCdhiprstulL" opt ; do
+while getopts ":1j:bcCdhiprsulL" opt ; do
   case ${opt} in
     1 )
         export CMAKE_BUILD_PARALLEL_LEVEL=1
@@ -65,9 +63,6 @@ while getopts ":1j:bcCdhiprstulL" opt ; do
         ;;
     s )
         BUILD_ORCA="1"
-        ;;
-    t )
-        BUILD_TESTS="1"
         ;;
     u )
         export UPDATE_LIB="1"
@@ -221,9 +216,6 @@ if [[ -n "${BUILD_ORCA}" ]] ; then
         BUILD_ARGS+=(-DCMAKE_BUILD_TYPE=Debug -DBBL_INTERNAL_TESTING=1)
     else
         BUILD_ARGS+=(-DBBL_RELEASE_TO_PUBLIC=1 -DBBL_INTERNAL_TESTING=0)
-    fi
-    if [[ -n "${BUILD_TESTS}" ]] ; then
-        BUILD_ARGS+=(-DBUILD_TESTS=ON)
     fi
     if [[ -n "${ORCA_UPDATER_SIG_KEY}" ]] ; then
         BUILD_ARGS+=(-DORCA_UPDATER_SIG_KEY="${ORCA_UPDATER_SIG_KEY}")

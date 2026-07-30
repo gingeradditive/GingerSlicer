@@ -119,23 +119,14 @@ build_release_vs2022.bat slicer
 - Linux builds use Ninja generator
 
 ### Testing
-Tests use the Catch2 framework. The tree was pruned (2026-07, aligned with upstream
-cleanup #63) to only the suites that guard the Ginger work — everything runs green,
-so ANY red is a real regression. Structure:
-- `tests/fff_print/` - the whole suite:
-  - `test_fill.cpp` - `[Fill]`: fill patterns, single-path connector guards,
-    `single_path_splice_loops` physical link rules
-  - `test_wall_ribs.cpp` - `[WallRibs]`: rib planner (Prim, columns, buttress, corridors)
-  - `test_data.cpp/.hpp` - fixture helpers (`Slic3r::Test::init_print`, in-code meshes)
-- The removed upstream suites (libslic3r, sla_print, libnest2d, slic3rutils, tests/data)
-  are recoverable from git history if ever needed.
-
-Run after building (all green expected):
-```bash
-build/tests/fff_print/Release/fff_print_tests.exe            # Windows
-./tests/fff_print/fff_print_tests "[Fill],[WallRibs]"        # from build dir, tag filter
-cd build && ctest --output-on-failure
-```
+**Automated tests are no longer supported in this fork (2026-07-30).** The `tests/`
+directory (Catch2 suites, fixtures, CMake integration) has been removed entirely, and
+`BUILD_TESTS`/`add_subdirectory(tests)`/`enable_testing()` were stripped from the root
+`CMakeLists.txt`. Do not autonomously re-add a `tests/` directory, Catch2, `ctest`
+integration, or any other automated test scaffolding — verify changes by building and
+using the headless slicing CLI (see "Headless slicing for testing" above) or manual
+GUI checks instead. If the user explicitly asks for automated tests to come back,
+confirm scope with them first rather than reintroducing it unprompted.
 
 ## Architecture
 
@@ -232,7 +223,8 @@ cd build && ctest --output-on-failure
 2. Performance-critical code should be profiled and optimized
 3. Consider multi-threading implications (TBB integration)
 4. Validate changes don't break existing profiles
-5. Add regression tests where appropriate
+5. Verify via headless slicing / manual GUI checks (see "Testing" above — do not add
+   automated test scaffolding)
 
 #### GUI Development
 1. GUI code resides in `src/slic3r/GUI/` (not visible in current tree)
@@ -276,7 +268,8 @@ cd build && ctest --output-on-failure
 - **Profile migrations** needed when settings change significantly
 
 ### Quality and Testing
-- **Regression testing** important due to algorithm complexity
+- **No automated test suite** (see "Testing" above) — rely on manual/headless
+  verification; do not autonomously reintroduce automated tests
 - **Performance benchmarks** help catch performance regressions
 - **Memory leak** detection important for long-running GUI application
 - **Cross-platform** testing required before releases

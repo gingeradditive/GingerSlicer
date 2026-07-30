@@ -132,15 +132,13 @@ if (APPLE)
     message(STATUS "Orca: IS_CROSS_COMPILE: ${IS_CROSS_COMPILE}")
 endif ()
 
-# Proposal for C++ unit tests and sandboxes
+# Proposal for C++ sandboxes
 option(SLIC3R_BUILD_SANDBOXES   "Build development sandboxes" OFF)
-option(BUILD_TESTS       "Build unit tests" OFF)
 option(ORCA_TOOLS       "Build Orca tools" OFF)
 
 if (IS_CROSS_COMPILE)
-    message("Detected cross compilation setup. Tests and encoding checks will be forcedly disabled!")
+    message("Detected cross compilation setup. Encoding checks will be forcedly disabled!")
     set(SLIC3R_PERL_XS OFF CACHE BOOL "" FORCE)
-    set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
 endif ()
 
 # Print out the SLIC3R_* cache options
@@ -227,8 +225,6 @@ endforeach ()
 list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules/)
 message(STATUS "PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
 message(STATUS "CMAKE_MODULE_PATH: ${CMAKE_MODULE_PATH}")
-
-enable_testing ()
 
 # Enable C++17 language standard.
 set(CMAKE_CXX_STANDARD 17)
@@ -812,10 +808,6 @@ endif ()
 
 if(SLIC3R_BUILD_SANDBOXES)
     add_subdirectory(sandboxes)
-endif()
-
-if(BUILD_TESTS)
-    add_subdirectory(tests)
 endif()
 
 if (NOT WIN32 AND NOT APPLE)
