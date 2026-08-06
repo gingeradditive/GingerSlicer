@@ -16,7 +16,6 @@
 #include "MainFrame.hpp"
 #include "Plater.hpp"
 #include "Camera.hpp"
-#include "I18N.hpp"
 #include "GUI_Utils.hpp"
 #include "GUI.hpp"
 #include "GLCanvas3D.hpp"

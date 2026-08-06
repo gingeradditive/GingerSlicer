@@ -6,7 +6,6 @@
 #include "GUI_Factories.hpp"
 #include "GUI_ObjectList.hpp"
 #include "GUI_App.hpp"
-#include "I18N.hpp"
 #include "Plater.hpp"
 #include "ObjectDataViewModel.hpp"
 

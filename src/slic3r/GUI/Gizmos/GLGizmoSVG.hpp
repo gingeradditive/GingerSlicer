@@ -1,7 +1,6 @@
 #ifndef slic3r_GLGizmoSVG_hpp_
 #define slic3r_GLGizmoSVG_hpp_
 
-// Include GLGizmoBase.hpp before I18N.hpp as it includes some libigl code,
 // which overrides our localization "L" macro.
 #include "GLGizmoBase.hpp"
 #include "GLGizmoRotate.hpp"

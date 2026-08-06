@@ -22,7 +22,6 @@
 
 #include "../GUI/GUI.hpp"
 #include "../GUI/GUI_App.hpp"
-#include "../GUI/I18N.hpp"
 #include "../GUI/MainFrame.hpp"
 #include "../GUI/MsgDialog.hpp"
 

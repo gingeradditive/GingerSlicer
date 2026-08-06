@@ -1,6 +1,5 @@
 #include <wx/button.h>
 #include "GUI_AuxiliaryList.hpp"
-#include "I18N.hpp"
 #include "wxExtensions.hpp"
 
 #include <boost/filesystem.hpp>

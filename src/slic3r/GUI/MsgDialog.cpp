@@ -17,7 +17,6 @@
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/Color.hpp"
 #include "GUI.hpp"
-#include "I18N.hpp"
 //#include "ConfigWizard.hpp"
 #include "wxExtensions.hpp"
 #include "slic3r/GUI/MainFrame.hpp"

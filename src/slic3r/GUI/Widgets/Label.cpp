@@ -1,7 +1,6 @@
 #include "libslic3r/Utils.hpp"
 #include "Label.hpp"
 #include "StaticBox.hpp"
-#include <wx/intl.h> // For wxLocale
 #include <wx/dcclient.h>
 #include <wx/settings.h>
 #include <boost/log/trivial.hpp>
@@ -17,12 +16,6 @@ wxFont Label::sysFont(int size, bool bold)
 #endif
 
     wxString face = "HarmonyOS Sans SC";
-
-    // Check if the current locale is Korean
-    if (wxLocale::GetSystemLanguage() == wxLANGUAGE_KOREAN) {
-        face = "NanumGothic";
-    }
-
     wxFont font{size, wxFONTFAMILY_SWISS, wxFONTSTYLE_NORMAL, bold ? wxFONTWEIGHT_BOLD : wxFONTWEIGHT_NORMAL, false, face};
     font.SetFaceName(face);
     if (!font.IsOk()) {

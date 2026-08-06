@@ -1,5 +1,4 @@
 #include "Utils.hpp"
-#include "I18N.hpp"
 
 #include <atomic>
 #include <locale>
@@ -237,18 +236,6 @@ const std::string& temporary_dir()
     return g_temporary_dir;
 }
 
-static std::string g_local_dir;
-
-void set_local_dir(const std::string &dir)
-{
-    g_local_dir = dir;
-}
-
-const std::string& localization_dir()
-{
-	return g_local_dir;
-}
-
 static std::string g_sys_shapes_dir;
 
 void set_sys_shapes_dir(const std::string &dir)
@@ -273,8 +260,6 @@ const std::string& custom_gcodes_dir()
     return g_custom_gcodes_dir;
 }
 
-// Translate function callback, to call wxWidgets translate function to convert non-localized UTF8 string to a localized one.
-Slic3r::I18N::translate_fn_type Slic3r::I18N::translate_fn = nullptr;
 static std::string g_data_dir;
 
 void set_data_dir(const std::string &dir)

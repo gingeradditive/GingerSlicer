@@ -8,7 +8,6 @@
 
 #include "GUI_App.hpp"
 
-#include "I18N.hpp"
 
 #include <iostream>
 

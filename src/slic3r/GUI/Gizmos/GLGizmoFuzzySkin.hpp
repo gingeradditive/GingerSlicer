@@ -3,7 +3,6 @@
 
 #include "GLGizmoPainterBase.hpp"
 
-#include "slic3r/GUI/I18N.hpp"
 
 namespace Slic3r::GUI {
 

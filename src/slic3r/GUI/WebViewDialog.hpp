@@ -2,9 +2,6 @@
 #define slic3r_WebViewDialog_hpp_
 
 
-#include "wx/artprov.h"
-#include "wx/cmdline.h"
-#include "wx/notifmsg.h"
 #include "wx/settings.h"
 #include <wx/webview.h>
 
@@ -14,13 +11,13 @@
 
 #include "wx/webviewarchivehandler.h"
 #include "wx/webviewfshandler.h"
-#include "wx/numdlg.h"
 #include "wx/infobar.h"
 #include "wx/filesys.h"
 #include "wx/fs_arc.h"
 #include "wx/fs_mem.h"
-#include "wx/stdpaths.h"
+#include <wx/dialog.h>
 #include <wx/panel.h>
+#include <wx/sizer.h>
 #include <wx/tbarbase.h>
 #include "wx/textctrl.h"
 #include <wx/timer.h>
@@ -93,12 +90,9 @@ public:
 public:
     void SendRecentList(int images);
     void SetLoginPanelVisibility(bool bshow);
-    void SendDesignStaffpick(bool on);
     void OpenModelDetail(std::string id);
-    void SendLoginInfo();
     void ShowNetpluginTip();
 
-    void get_design_staffpick(int offset, int limit, std::function<void(std::string)> callback);
     int  get_model_mall_detail_url(std::string *url, std::string id);
 
     void update_mode();
@@ -122,10 +116,6 @@ private:
     wxMenuItem* m_edit_undo;
     wxMenuItem* m_edit_redo;
     wxMenuItem* m_edit_mode;
-    wxMenuItem* m_scroll_line_up;
-    wxMenuItem* m_scroll_line_down;
-    wxMenuItem* m_scroll_page_up;
-    wxMenuItem* m_scroll_page_down;
     wxMenuItem* m_script_string;
     wxMenuItem* m_script_integer;
     wxMenuItem* m_script_double;
@@ -144,7 +134,6 @@ private:
     wxMenuItem* m_dev_tools;
 
     wxInfoBar *m_info;
-    wxStaticText* m_info_text;
 
     long m_zoomFactor;
 

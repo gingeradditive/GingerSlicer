@@ -16,7 +16,6 @@
 #include "OctoPrint.hpp"
 #include "../GUI/PrintHostDialogs.hpp"
 #include "../GUI/MainFrame.hpp"
-#include "../GUI/I18N.hpp"
 
 namespace fs = boost::filesystem;
 using boost::optional;

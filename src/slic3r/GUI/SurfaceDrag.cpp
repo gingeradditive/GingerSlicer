@@ -8,7 +8,6 @@
 #include "GLCanvas3D.hpp"
 #include "Camera.hpp"
 #include "CameraUtils.hpp"
-#include "I18N.hpp"
 #include "GUI_App.hpp"
 #include "Gizmos/GizmoObjectManipulation.hpp"
 

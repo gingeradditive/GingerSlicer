@@ -27,7 +27,6 @@
 #include "GUI_ObjectList.hpp"
 #include "GUI_Colors.hpp"
 #include "Mouse3DController.hpp"
-#include "I18N.hpp"
 #include "NotificationManager.hpp"
 #include "format.hpp"
 #include "slic3r/GUI/Gizmos/GLGizmoPainterBase.hpp"

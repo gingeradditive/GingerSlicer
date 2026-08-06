@@ -4,11 +4,9 @@
 #include "MainFrame.hpp"
 #include "Plater.hpp"
 #include "MsgDialog.hpp"
-#include "I18N.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include "Widgets/SwitchButton.hpp"
 #include "ReleaseNote.hpp"
-#include <wx/language.h>
 #include <wx/notebook.h>
 #include "Notebook.hpp"
 #include "OG_CustomCtrl.hpp"
@@ -137,163 +135,6 @@ wxBoxSizer *PreferencesDialog::create_item_combobox(wxString title, wxWindow *pa
     return sizer;
 }
 
-wxBoxSizer *PreferencesDialog::create_item_language_combobox(
-    wxString title, wxWindow *parent, wxString tooltip, int padding_left, std::string param, std::vector<const wxLanguageInfo *> vlist)
-{
-    wxBoxSizer *m_sizer_combox = new wxBoxSizer(wxHORIZONTAL);
-    m_sizer_combox->Add(0, 0, 0, wxEXPAND | wxLEFT, 23);
-
-    auto combo_title = new wxStaticText(parent, wxID_ANY, title, wxDefaultPosition, DESIGN_TITLE_SIZE, 0);
-    combo_title->SetForegroundColour(DESIGN_GRAY900_COLOR);
-    combo_title->SetFont(::Label::Body_13);
-    combo_title->SetToolTip(tooltip);
-    combo_title->Wrap(-1);
-    m_sizer_combox->Add(combo_title, 0, wxALIGN_CENTER | wxALL, 3);
-
-
-    auto combobox = new ::ComboBox(parent, wxID_ANY, wxEmptyString, wxDefaultPosition, DESIGN_LARGE_COMBOBOX_SIZE, 0, nullptr, wxCB_READONLY);
-    combobox->SetFont(::Label::Body_13);
-    combobox->GetDropDown().SetFont(::Label::Body_13);
-    auto language = app_config->get(param);
-    m_current_language_selected = -1;
-    std::vector<wxString>::iterator iter;
-    for (size_t i = 0; i < vlist.size(); ++i) {
-        auto language_name = vlist[i]->Description;
-
-        if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_CHINESE_SIMPLIFIED)) {
-            language_name = wxString::FromUTF8("\xe4\xb8\xad\xe6\x96\x87\x28\xe7\xae\x80\xe4\xbd\x93\x29");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_CHINESE)) {
-            language_name = wxString::FromUTF8("\xe4\xb8\xad\xe6\x96\x87\x28\xe7\xb9\x81\xe4\xbd\x93\x29");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_SPANISH)) {
-            language_name = wxString::FromUTF8("\x45\x73\x70\x61\xc3\xb1\x6f\x6c");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_GERMAN)) {
-            language_name = wxString::FromUTF8("Deutsch");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_CZECH)) {
-            language_name = wxString::FromUTF8("Czech");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_SWEDISH)) {
-            language_name = wxString::FromUTF8("\x53\x76\x65\x6e\x73\x6b\x61"); //Svenska
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_DUTCH)) {
-            language_name = wxString::FromUTF8("Nederlands");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_FRENCH)) {
-            language_name = wxString::FromUTF8("\x46\x72\x61\x6E\xC3\xA7\x61\x69\x73");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_HUNGARIAN)) {
-            language_name = wxString::FromUTF8("Magyar");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_JAPANESE)) {
-            language_name = wxString::FromUTF8("\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_ITALIAN)) {
-            language_name = wxString::FromUTF8("\x69\x74\x61\x6c\x69\x61\x6e\x6f");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_KOREAN)) {
-            language_name = wxString::FromUTF8("\xED\x95\x9C\xEA\xB5\xAD\xEC\x96\xB4");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_RUSSIAN)) {
-            language_name = wxString::FromUTF8("\xd0\xa0\xd1\x83\xd1\x81\xd1\x81\xd0\xba\xd0\xb8\xd0\xb9");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_UKRAINIAN)) {
-            language_name = wxString::FromUTF8("Ukrainian");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_TURKISH)) {
-            language_name = wxString::FromUTF8("Turkish");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_POLISH)) {
-            language_name = wxString::FromUTF8("Polski");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_CATALAN)) {
-            language_name = wxString::FromUTF8("Catalan");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_PORTUGUESE_BRAZILIAN)) {
-            language_name = wxString::FromUTF8("Português (Brasil)");
-        }
-        else if (vlist[i] == wxLocale::GetLanguageInfo(wxLANGUAGE_LITHUANIAN)) {
-            language_name = wxString::FromUTF8("Lietuvių");
-        }
-
-        if (app_config->get(param) == vlist[i]->CanonicalName) {
-            m_current_language_selected = i;
-        }
-        combobox->Append(language_name);
-    }
-    if (m_current_language_selected == -1 && language.size() >= 5) {
-        language = language.substr(0, 2);
-        for (size_t i = 0; i < vlist.size(); ++i) {
-            if (vlist[i]->CanonicalName.StartsWith(language)) {
-                m_current_language_selected = i;
-                break;
-            }
-        }
-    }
-    combobox->SetSelection(m_current_language_selected);
-
-    m_sizer_combox->Add(combobox, 0, wxALIGN_CENTER, 0);
-
-    combobox->Bind(wxEVT_LEFT_DOWN, [this, combobox](wxMouseEvent &e) {
-        m_current_language_selected = combobox->GetSelection();
-        e.Skip();
-    });
-
-    combobox->Bind(wxEVT_COMBOBOX, [this, param, vlist, combobox](wxCommandEvent &e) {
-        if (combobox->GetSelection() == m_current_language_selected)
-            return;
-
-        if (e.GetString().mb_str() != app_config->get(param)) {
-            {
-                //check if the project has changed
-                if (wxGetApp().plater()->is_project_dirty()) {
-                    auto result = MessageDialog(static_cast<wxWindow*>(this), _L("The current project has unsaved changes, save it before continue?"),
-                        wxString(SLIC3R_APP_FULL_NAME) + " - " + _L("Save"), wxYES_NO | wxCANCEL | wxYES_DEFAULT | wxCENTRE).ShowModal();
-
-                    if (result == wxID_YES) {
-                        wxGetApp().plater()->save_project();
-                    }
-                }
-
-
-                // the dialog needs to be destroyed before the call to switch_language()
-                // or sometimes the application crashes into wxDialogBase() destructor
-                // so we put it into an inner scope
-                MessageDialog msg_wingow(nullptr, _L("Switching the language requires application restart.\n") + "\n" + _L("Do you want to continue?"),
-                                         L("Language selection"), wxICON_QUESTION | wxOK | wxCANCEL);
-                if (msg_wingow.ShowModal() == wxID_CANCEL) {
-                    combobox->SetSelection(m_current_language_selected);
-                    return;
-                }
-            }
-
-            auto check = [this](bool yes_or_no) {
-                // if (yes_or_no)
-                //    return true;
-                int act_btns = ActionButtons::SAVE;
-                return wxGetApp().check_and_keep_current_preset_changes(_L("Switching application language"),
-                                                                        _L("Switching application language while some presets are modified."), act_btns);
-            };
-
-            m_current_language_selected = combobox->GetSelection();
-            if (m_current_language_selected >= 0 && m_current_language_selected < vlist.size()) {
-                app_config->set(param, vlist[m_current_language_selected]->CanonicalName.ToUTF8().data());
-
-                wxGetApp().load_language(vlist[m_current_language_selected]->CanonicalName, false);
-                Close();
-                // Reparent(nullptr);
-                GetParent()->RemoveChild(this);
-                wxGetApp().recreate_GUI(_L("Changing application language"));
-            }
-        }
-
-        e.Skip();
-    });
-
-    return m_sizer_combox;
-}
 
 wxBoxSizer *PreferencesDialog::create_item_region_combobox(wxString title, wxWindow *parent, wxString tooltip, std::vector<wxString> vlist)
 {
@@ -948,49 +789,6 @@ wxWindow* PreferencesDialog::create_general_page()
 
     auto title_general_settings = create_item_title(_L("General Settings"), page, _L("General Settings"));
 
-    // bbs supported languages
-    wxLanguage supported_languages[]{
-        wxLANGUAGE_ENGLISH,
-        wxLANGUAGE_CHINESE_SIMPLIFIED,
-        wxLANGUAGE_CHINESE,
-        wxLANGUAGE_GERMAN,
-        wxLANGUAGE_CZECH,
-        wxLANGUAGE_FRENCH,
-        wxLANGUAGE_SPANISH,
-        wxLANGUAGE_SWEDISH,
-        wxLANGUAGE_DUTCH,
-        wxLANGUAGE_HUNGARIAN,
-        wxLANGUAGE_JAPANESE,
-        wxLANGUAGE_ITALIAN,
-        wxLANGUAGE_KOREAN,
-        wxLANGUAGE_RUSSIAN,
-        wxLANGUAGE_UKRAINIAN,
-        wxLANGUAGE_TURKISH,
-        wxLANGUAGE_POLISH,
-        wxLANGUAGE_CATALAN,
-        wxLANGUAGE_PORTUGUESE_BRAZILIAN,
-        wxLANGUAGE_LITHUANIAN,
-    };
-
-    auto translations = wxTranslations::Get()->GetAvailableTranslations(SLIC3R_APP_KEY);
-    std::vector<const wxLanguageInfo *> language_infos;
-    language_infos.emplace_back(wxLocale::GetLanguageInfo(wxLANGUAGE_ENGLISH));
-    for (size_t i = 0; i < translations.GetCount(); ++i) {
-        const wxLanguageInfo *langinfo = wxLocale::FindLanguageInfo(translations[i]);
-
-        if (langinfo == nullptr) continue;
-        int language_num = sizeof(supported_languages) / sizeof(supported_languages[0]);
-        for (auto si = 0; si < language_num; si++) {
-            if (langinfo == wxLocale::GetLanguageInfo(supported_languages[si])) {
-                language_infos.emplace_back(langinfo);
-            }
-        }
-        //if (langinfo != nullptr) language_infos.emplace_back(langinfo);
-    }
-    sort_remove_duplicates(language_infos);
-    std::sort(language_infos.begin(), language_infos.end(), [](const wxLanguageInfo *l, const wxLanguageInfo *r) { return l->Description < r->Description; });
-    auto item_language = create_item_language_combobox(_L("Language"), page, _L("Language"), 50, "language", language_infos);
-
     std::vector<wxString> Regions         = {_L("Asia-Pacific"), _L("China"), _L("Europe"), _L("North America"), _L("Others")};
     auto                  item_region= create_item_region_combobox(_L("Login Region"), page, _L("Login Region"), Regions);
 
@@ -1082,7 +880,6 @@ wxWindow* PreferencesDialog::create_general_page()
     auto item_develop_mode  = create_item_checkbox(_L("Develop mode"), page, _L("Develop mode"), 50, "developer_mode");
 
     sizer_page->Add(title_general_settings, 0, wxEXPAND, 0);
-    sizer_page->Add(item_language, 0, wxTOP, FromDIP(3));
     sizer_page->Add(item_region, 0, wxTOP, FromDIP(3));
     sizer_page->Add(item_currency, 0, wxTOP, FromDIP(3));
     sizer_page->Add(item_default_page, 0, wxTOP, FromDIP(3));

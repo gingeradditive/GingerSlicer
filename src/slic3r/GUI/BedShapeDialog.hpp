@@ -5,7 +5,6 @@
 
 #include "GUI_Utils.hpp"
 #include "2DBed.hpp"
-#include "I18N.hpp"
 
 #include <libslic3r/BuildVolume.hpp>
 

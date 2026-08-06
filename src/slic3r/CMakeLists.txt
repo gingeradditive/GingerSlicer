@@ -155,10 +155,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/GUI_Utils.hpp
     GUI/HintNotification.cpp
     GUI/HintNotification.hpp
-    GUI/HttpServer.cpp
-    GUI/HttpServer.hpp
-    GUI/I18N.cpp
-    GUI/I18N.hpp
     GUI/IconManager.cpp
     GUI/IconManager.hpp
     GUI/ImGuiWrapper.cpp
@@ -185,17 +181,12 @@ set(SLIC3R_GUI_SOURCES
     GUI/Jobs/Job.hpp
     GUI/Jobs/NotificationProgressIndicator.cpp
     GUI/Jobs/NotificationProgressIndicator.hpp
-    GUI/Jobs/OAuthJob.cpp
-    GUI/Jobs/OAuthJob.hpp
     GUI/Jobs/OrientJob.cpp
     GUI/Jobs/OrientJob.hpp
     GUI/Jobs/PlaterWorker.hpp
     GUI/Jobs/ProgressIndicator.hpp
     GUI/Jobs/RotoptimizeJob.cpp
     GUI/Jobs/RotoptimizeJob.hpp
-    GUI/Jobs/SLAImportDialog.hpp
-    GUI/Jobs/SLAImportJob.cpp
-    GUI/Jobs/SLAImportJob.hpp
     GUI/Jobs/ThreadSafeQueue.hpp
     GUI/Jobs/Worker.hpp
     GUI/KBShortcutsDialog.cpp
@@ -218,8 +209,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/Notebook.hpp
     GUI/NotificationManager.cpp
     GUI/NotificationManager.hpp
-    GUI/OAuthDialog.cpp
-    GUI/OAuthDialog.hpp
     GUI/ObjColorDialog.cpp
     GUI/ObjColorDialog.hpp
     GUI/ObjectDataViewModel.cpp
@@ -236,8 +225,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/ParamsPanel.hpp
     GUI/PartPlate.cpp
     GUI/PartPlate.hpp
-    GUI/PhysicalPrinterDialog.cpp
-    GUI/PhysicalPrinterDialog.hpp
     GUI/Plater.cpp
     GUI/Plater.hpp
     GUI/PlateSettingsDialog.cpp
@@ -256,16 +243,10 @@ set(SLIC3R_GUI_SOURCES
     GUI/PrintHostDialogs.hpp
     GUI/PrivacyUpdateDialog.cpp
     GUI/PrivacyUpdateDialog.hpp
-    GUI/ProgressStatusBar.cpp
-    GUI/ProgressStatusBar.hpp
     GUI/Project.cpp
     GUI/ProjectDirtyStateManager.cpp
     GUI/ProjectDirtyStateManager.hpp
     GUI/Project.hpp
-    GUI/PublishDialog.cpp
-    GUI/PublishDialog.hpp
-    GUI/RammingChart.cpp
-    GUI/RammingChart.hpp
     GUI/RecenterDialog.cpp
     GUI/RecenterDialog.hpp
     GUI/ReleaseNote.cpp
@@ -304,8 +285,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/UnsavedChangesDialog.hpp
     GUI/UpdateDialogs.cpp
     GUI/UpdateDialogs.hpp
-    GUI/UserNotification.cpp
-    GUI/UserNotification.hpp
     GUI/WebViewDialog.cpp
     GUI/WebViewDialog.hpp
     GUI/Widgets/AxisCtrlButton.cpp
@@ -370,7 +349,6 @@ set(SLIC3R_GUI_SOURCES
     GUI/Widgets/TextInput.hpp
     GUI/Widgets/WebView.cpp
     GUI/Widgets/WebView.hpp
-    GUI/WipeTowerDialog.cpp
     GUI/wxExtensions.cpp
     GUI/wxExtensions.hpp
     pchheader.cpp

@@ -1,6 +1,5 @@
 #include "RecenterDialog.hpp"
 #include "GUI_App.hpp"
-#include <slic3r/GUI/I18N.hpp>
 #include <wx/dcgraph.h>
 #include <wx/dcmemory.h>
 #include <slic3r/GUI/Widgets/Label.hpp>

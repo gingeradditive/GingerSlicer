@@ -5,7 +5,6 @@
 #include "GUI_App.hpp"
 #include "GUI_Factories.hpp"
 #include "GUI.hpp"
-#include "I18N.hpp"
 #include "PartPlate.hpp"
 
 #include "libslic3r/Model.hpp"

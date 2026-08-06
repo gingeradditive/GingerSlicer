@@ -46,23 +46,6 @@ const std::string AppConfig::SECTION_FILAMENTS = "filaments";
 const std::string AppConfig::SECTION_MATERIALS = "sla_materials";
 const std::string AppConfig::SECTION_EMBOSS_STYLE = "font";
 
-std::string AppConfig::get_language_code()
-{
-    std::string get_lang = get("language");
-    if (get_lang.empty()) return "";
-
-    if (get_lang == "zh_CN")
-    {
-        get_lang = "zh-cn";
-    }
-    else
-    {
-        if (get_lang.length() >= 2) { get_lang = get_lang.substr(0, 2); }
-    }
-
-    return get_lang;
-}
-
 void AppConfig::reset()
 {
     m_storage.clear();

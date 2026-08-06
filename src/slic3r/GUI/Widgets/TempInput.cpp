@@ -1,7 +1,6 @@
 #include "TempInput.hpp"
 #include "Label.hpp"
 #include "PopupWindow.hpp"
-#include "../I18N.hpp"
 #include <wx/dcgraph.h>
 #include "../GUI.hpp"
 #include "../GUI_App.hpp"

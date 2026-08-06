@@ -9,7 +9,6 @@
 #include <wx/utils.h>
 #include <boost/algorithm/string/split.hpp>
 #include "libslic3r/Utils.hpp"
-#include "I18N.hpp"
 #include "format.hpp"
 #include <slic3r/GUI/Widgets/Label.hpp>
 

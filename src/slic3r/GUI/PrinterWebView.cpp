@@ -1,6 +1,5 @@
 #include "PrinterWebView.hpp"
 
-#include "I18N.hpp"
 #include "slic3r/GUI/PrinterWebView.hpp"
 #include "slic3r/GUI/wxExtensions.hpp"
 #include "slic3r/GUI/GUI_App.hpp"

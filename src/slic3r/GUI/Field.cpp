@@ -1,6 +1,5 @@
 #include "GUI.hpp"
 #include "GUI_App.hpp"
-#include "I18N.hpp"
 #include "Field.hpp"
 #include "libslic3r/GCode/Thumbnails.hpp"
 #include "wxExtensions.hpp"

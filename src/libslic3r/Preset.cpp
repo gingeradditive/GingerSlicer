@@ -12,7 +12,6 @@
     #include <Windows.h>
 #endif /* _MSC_VER */
 
-// instead of #include "slic3r/GUI/I18N.hpp" :
 #ifndef L
 // !!! If you needed to translate some string,
 // !!! please use _L(string)

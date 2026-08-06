@@ -92,13 +92,10 @@
 #include "Jobs/ArrangeJob.hpp"
 #include "Jobs/FillBedJob.hpp"
 #include "Jobs/RotoptimizeJob.hpp"
-#include "Jobs/SLAImportJob.hpp"
-#include "Jobs/SLAImportDialog.hpp"
 #include "Jobs/NotificationProgressIndicator.hpp"
 #include "Jobs/PlaterWorker.hpp"
 #include "Jobs/BoostThreadWorker.hpp"
 #include "BackgroundSlicingProcess.hpp"
-#include "PublishDialog.hpp"
 #include "ModelMall.hpp"
 #include "../Utils/ASCIIFolding.hpp"
 #include "../Utils/FixModelByWin10.hpp"
@@ -138,7 +135,6 @@
 #include <libslic3r/CutUtils.hpp>
 #include <wx/glcanvas.h>    // Needs to be last because reasons :-/
 #include <libslic3r/miniz_extension.hpp>
-#include "WipeTowerDialog.hpp"
 #include "ObjColorDialog.hpp"
 
 #include "libslic3r/CustomGCode.hpp"
@@ -171,7 +167,6 @@ wxDEFINE_EVENT(EVT_EXPORT_BEGAN,                    wxCommandEvent);
 wxDEFINE_EVENT(EVT_EXPORT_FINISHED,                 wxCommandEvent);
 wxDEFINE_EVENT(EVT_IMPORT_MODEL_ID,                 wxCommandEvent);
 wxDEFINE_EVENT(EVT_DOWNLOAD_PROJECT,                wxCommandEvent);
-wxDEFINE_EVENT(EVT_PUBLISH,                         wxCommandEvent);
 wxDEFINE_EVENT(EVT_OPEN_PLATESETTINGSDIALOG,        wxCommandEvent);
 // BBS: backup & restore
 wxDEFINE_EVENT(EVT_RESTORE_PROJECT,                 wxCommandEvent);
@@ -334,7 +329,6 @@ struct Sidebar::priv
     wxStaticLine* m_staticline2;
     wxPanel* m_panel_project_title;
     ScalableButton* m_filament_icon = nullptr;
-    Button * m_flushing_volume_btn = nullptr;
     TextInput* m_search_item = nullptr;
     StaticBox* m_search_bar = nullptr;
     Search::SearchObjectDialog* dia = nullptr;
@@ -939,45 +933,6 @@ Sidebar::Sidebar(Plater *parent)
 
     bSizer39->AddStretchSpacer(1);
 
-    // BBS
-    // add wiping dialog
-    //wiping_dialog_button->SetFont(wxGetApp().normal_font());
-    p->m_flushing_volume_btn = new Button(p->m_panel_filament_title, _L("Flushing volumes"));
-    p->m_flushing_volume_btn->SetStyle(ButtonStyle::Confirm, ButtonType::Compact);
-    p->m_flushing_volume_btn->SetId(wxID_RESET);
-    p->m_flushing_volume_btn->Bind(wxEVT_BUTTON, ([parent](wxCommandEvent &e)
-        {
-            auto& project_config = wxGetApp().preset_bundle->project_config;
-            const std::vector<double>& init_matrix = (project_config.option<ConfigOptionFloats>("flush_volumes_matrix"))->values;
-            const std::vector<double>& init_extruders = (project_config.option<ConfigOptionFloats>("flush_volumes_vector"))->values;
-            ConfigOptionFloat* flush_multi_opt = project_config.option<ConfigOptionFloat>("flush_multiplier");
-            float flush_multiplier = flush_multi_opt ? flush_multi_opt->getFloat() : 1.f;
-
-            const std::vector<std::string> extruder_colours = wxGetApp().plater()->get_extruder_colors_from_plater_config();
-            const auto& full_config = wxGetApp().preset_bundle->full_config();
-            const auto& extra_flush_volumes = get_min_flush_volumes(full_config);
-            WipingDialog dlg(parent, cast<float>(init_matrix), cast<float>(init_extruders), extruder_colours, extra_flush_volumes, flush_multiplier);
-            if (dlg.ShowModal() == wxID_OK) {
-                std::vector<float> matrix = dlg.get_matrix();
-                std::vector<float> extruders = dlg.get_extruders();
-                (project_config.option<ConfigOptionFloats>("flush_volumes_matrix"))->values = std::vector<double>(matrix.begin(), matrix.end());
-                (project_config.option<ConfigOptionFloats>("flush_volumes_vector"))->values = std::vector<double>(extruders.begin(), extruders.end());
-                (project_config.option<ConfigOptionFloat>("flush_multiplier"))->set(new ConfigOptionFloat(dlg.get_flush_multiplier()));
-
-                wxGetApp().preset_bundle->export_selections(*wxGetApp().app_config);
-
-                wxGetApp().plater()->update_project_dirty_from_presets();
-                wxPostEvent(parent, SimpleEvent(EVT_SCHEDULE_BACKGROUND_PROCESS, parent));
-            }
-        }));
-
-    bSizer39->Add(p->m_flushing_volume_btn, 0, wxALIGN_CENTER_VERTICAL | wxLEFT, FromDIP(5));
-    bSizer39->Hide(p->m_flushing_volume_btn);
-
-    if (p->combos_filament.size() <= 1) { // ORCA Fix Flushing button and Delete filament button not hidden on launch while only 1 filament exist
-        bSizer39->Hide(p->m_flushing_volume_btn);
-    }
-
     // add filament content
     p->m_panel_filament_content = new wxPanel( p->scrolled, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
     p->m_panel_filament_content->SetBackgroundColour( wxColour( 255, 255, 255 ) );
@@ -1485,7 +1440,6 @@ void Sidebar::msw_rescale()
     if (p->m_printer_setting)
         p->m_printer_setting->msw_rescale();
     p->m_filament_icon->msw_rescale();
-    p->m_flushing_volume_btn->Rescale();
 #if 0
     if (p->mode_sizer)
         p->mode_sizer->msw_rescale();
@@ -1548,7 +1502,6 @@ void Sidebar::sys_color_changed()
     if (p->m_printer_setting)
         p->m_printer_setting->msw_rescale();
     p->m_filament_icon->msw_rescale();
-    p->m_flushing_volume_btn->Rescale();
 
     // BBS
 #if 0
@@ -1644,15 +1597,6 @@ void Sidebar::on_filaments_change(size_t num_filaments)
     // remove unused choices if any
     remove_unused_filament_combos(num_filaments);
 
-    auto sizer = p->m_panel_filament_title->GetSizer();
-    if (p->m_flushing_volume_btn != nullptr && sizer != nullptr) {
-        if (num_filaments > 1) {
-            sizer->Show(p->m_flushing_volume_btn);
-        } else {
-            sizer->Hide(p->m_flushing_volume_btn);
-        }
-    }
-
     Layout();
     p->m_panel_filament_title->Refresh();
     update_ui_from_settings();
@@ -1698,8 +1642,6 @@ void Sidebar::add_custom_filament(wxColour new_col) {
 
 void Sidebar::show_SEMM_buttons(bool bshow)
 {
-    if (p->m_flushing_volume_btn && p->combos_filament.size() > 1) // ORCA add filament count as condition to prevent showing Flushing volumes and Del Filament icon visible while only 1 filament exist
-        p->m_flushing_volume_btn->Show(bshow);
     Layout();
 }
 
@@ -2037,8 +1979,6 @@ struct Plater::priv
 
     MenuFactory menus;
 
-    PublishDialog *m_publish_dlg = nullptr;
-
     // Data
     Slic3r::DynamicPrintConfig *config;        // FIXME: leak?
     Slic3r::Print               fff_print;
@@ -2067,7 +2007,6 @@ struct Plater::priv
     bool m_ignore_event{false};
     bool m_slice_all{false};
     bool m_is_slicing {false};
-    bool m_is_publishing {false};
     int m_is_RightClickInLeftUI{-1};
     int m_cur_slice_plate;
     //BBS: m_slice_all in .gcode.3mf file case, set true when slice all
@@ -2103,7 +2042,6 @@ struct Plater::priv
     // UIThreadWorker can be used as a replacement for BoostThreadWorker if
     // no additional worker threads are desired (useful for debugging or profiling)
     PlaterWorker<BoostThreadWorker> m_worker;
-    SLAImportDialog *               m_sla_import_dlg;
 
     int                         m_job_prepare_state;
 
@@ -2386,7 +2324,6 @@ struct Plater::priv
     void on_action_open_project(SimpleEvent&);
     void on_action_slice_plate(SimpleEvent&);
     void on_action_slice_all(SimpleEvent&);
-    void on_action_publish(wxCommandEvent &evt);
     void on_action_print_plate(SimpleEvent&);
     void on_action_print_all(SimpleEvent&);
     void on_action_export_gcode(SimpleEvent&);
@@ -2399,8 +2336,6 @@ struct Plater::priv
     void on_3dcanvas_mouse_dragging_finished(SimpleEvent&);
 
     //void show_action_buttons(const bool is_ready_to_slice) const;
-    bool show_publish_dlg(bool show = true);
-    void update_publish_dialog_status(wxString &msg, int percent = -1);
     void on_action_print_plate_from_sdcard(SimpleEvent&);
 
     void on_tab_selection_changing(wxBookCtrlEvent&);
@@ -2572,7 +2507,6 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     , sidebar(new Sidebar(q))
     , notification_manager(std::make_unique<NotificationManager>(q))
     , m_worker{q, std::make_unique<NotificationProgressIndicator>(notification_manager.get()), "ui_worker"}
-    , m_sla_import_dlg{new SLAImportDialog{q}}
     , m_job_prepare_state(Job::JobPrepareState::PREPARE_STATE_DEFAULT)
     , delayed_scene_refresh(false)
     , collapse_toolbar(GLToolbar::Normal, "Collapse")
@@ -2620,7 +2554,6 @@ Plater::priv::priv(Plater *q, MainFrame *main_frame)
     background_process.set_export_began_event(EVT_EXPORT_BEGAN);
     background_process.set_export_finished_event(EVT_EXPORT_FINISHED);
     this->q->Bind(EVT_SLICING_UPDATE, &priv::on_slicing_update, this);
-    this->q->Bind(EVT_PUBLISH, &priv::on_action_publish, this);
     this->q->Bind(EVT_REPAIR_MODEL, &priv::on_repair_model, this);
     this->q->Bind(EVT_FILAMENT_COLOR_CHANGED, &priv::on_filament_color_changed, this);
     this->q->Bind(EVT_PREVIEW_ONLY_MODE_HINT, &priv::show_preview_only_hint, this);
@@ -6711,10 +6644,6 @@ void Plater::priv::on_process_completed(SlicingProcessCompletedEvent &evt)
         ready_to_slice = true;
         //this->main_frame->update_slice_print_status(MainFrame::eEventSliceUpdate, true, true);
 
-        //BBS
-        if (m_is_publishing) {
-            m_publish_dlg->cancel();
-        }
     } else {
         if((ready_to_slice) || (wxGetApp().get_mode() == comSimple)) {
             //this means the current plate is not the slicing plate
@@ -6746,32 +6675,11 @@ void Plater::priv::on_process_completed(SlicingProcessCompletedEvent &evt)
     exporting_status = ExportingStatus::NOT_EXPORTING;
 
 
-    // BBS stop publishing if error occur
-    //if (m_is_publishing) {
-    //    GCodeProcessorResult *gcode_result = background_process.get_current_gcode_result();
-    //    m_publish_dlg->UpdateStatus(_L("Error occurred during slicing"), -1, false);
-    //    // if toolpath is outside
-    //    if (!gcode_result || gcode_result->toolpath_outside) {
-    //        m_is_publishing = false;
-    //    }
-    //}
-
-
     if (is_finished)
     {
         BOOST_LOG_TRIVIAL(info) << __FUNCTION__ << boost::format(":finished, reload print soon");
         m_is_slicing = false;
         this->preview->reload_print(false);
-        /* BBS if in publishing progress */
-        if (m_is_publishing) {
-            if (m_publish_dlg && !m_publish_dlg->was_cancelled()) {
-                if (m_publish_dlg->IsShown()) {
-                    q->publish_project();
-                } else {
-                    m_is_publishing = false;
-                }
-            }
-        }
         q->SetDropTarget(new PlaterDropTarget(*main_frame, *q));
     }
     else
@@ -6790,13 +6698,6 @@ void Plater::priv::on_process_completed(SlicingProcessCompletedEvent &evt)
         //not the last plate
         update_fff_scene_only_shells();
         q->Thaw();
-        if (m_is_publishing) {
-            if (m_publish_dlg && !m_publish_dlg->was_cancelled()) {
-                wxString msg = wxString::Format(_L("Slicing Plate %d"), m_cur_slice_plate + 1);
-                int percent  = 70 * m_cur_slice_plate / partplate_list.get_plate_count();
-                m_publish_dlg->UpdateStatus(msg, percent, false);
-            }
-        }
     }
     BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << boost::format(", exit.");
 }
@@ -6882,39 +6783,12 @@ void Plater::priv::on_action_slice_all(SimpleEvent&)
         //select plate
         q->select_plate(m_cur_slice_plate);
         q->reslice();
-        if (!m_is_publishing)
-            q->select_view_3D("Preview");
+        q->select_view_3D("Preview");
         //BBS: wish to select all plates stats item
         preview->get_canvas3d()->_update_select_plate_toolbar_stats_item(true);
     }
 }
 
-void Plater::priv::on_action_publish(wxCommandEvent &event)
-{
-    if (q != nullptr) {
-        if (event.GetInt() == EVT_PUBLISHING_START) {
-            // update by background slicing process
-            if (process_completed_with_error >= 0) {
-                wxString msg = _L("Please resolve the slicing errors and publish again.");
-                this->m_publish_dlg->UpdateStatus(msg, false);
-                return;
-            }
-
-            m_is_publishing = true;
-            // if slicing is ready publish project, else slicing first
-            if (partplate_list.is_all_slice_results_valid()) {
-                q->publish_project();
-            } else {
-                BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << ":received slice project in background event\n";
-                SimpleEvent evt = SimpleEvent(EVT_GLTOOLBAR_SLICE_ALL);
-                this->on_action_slice_all(evt);
-            }
-        } else {
-            m_is_publishing = false;
-            show_publish_dlg(false);
-        }
-    }
-}
 
 void Plater::priv::on_action_print_plate(SimpleEvent&)
 {
@@ -7697,30 +7571,6 @@ bool Plater::priv::can_reload_from_disk() const
     return !paths.empty();
 }
 
-void Plater::priv::update_publish_dialog_status(wxString &msg, int percent)
-{
-    if (m_publish_dlg)
-        m_publish_dlg->UpdateStatus(msg, percent);
-}
-
-bool Plater::priv::show_publish_dlg(bool show)
-{
-    if (q != nullptr) { BOOST_LOG_TRIVIAL(debug) << __FUNCTION__ << ":recevied publish event\n"; }
-
-    if (!m_publish_dlg) m_publish_dlg = new PublishDialog(q);
-    if (show) {
-        m_publish_dlg->reset();
-        m_publish_dlg->start_slicing();
-        //m_publish_dlg->Show();
-        m_publish_dlg->ShowModal();
-    } else {
-        m_publish_dlg->EndModal(wxID_OK);
-        //cancel the slicing
-        if (this->background_process.running())
-            this->background_process.stop();
-    }
-    return true;
-}
 
 //BBS: add bed exclude area
 void Plater::priv::set_bed_shape(const Pointfs& shape, const Pointfs& exclude_areas, const double printable_height, const std::string& custom_texture, const std::string& custom_model, bool force_as_custom)
@@ -8927,15 +8777,6 @@ void Plater::import_zip_archive()
     wxArrayString arr;
     arr.Add(input_file);
     load_files(arr);
-}
-
-void Plater::import_sl1_archive()
-{
-    auto &w = get_ui_job_worker();
-    if (w.is_idle() && p->m_sla_import_dlg->ShowModal() == wxID_OK) {
-        p->take_snapshot(_u8L("Import SLA archive"));
-        replace_job(w, std::make_unique<SLAImportJob>(p->m_sla_import_dlg));
-    }
 }
 
 void Plater::extract_config_from_project()
@@ -11003,12 +10844,6 @@ int Plater::export_3mf(const boost::filesystem::path& output_path, SaveStrategy 
     return ret;
 }
 
-void Plater::publish_project()
-{
-    return;
-}
-
-
 void Plater::reload_from_disk()
 {
     p->reload_from_disk();
@@ -12861,11 +12696,6 @@ void Plater::show_object_info()
     info_manifold = "<Error>" + info_manifold + "</Error>";
     info_text += into_u8(info_manifold);
     notify_manager->bbl_show_objectsinfo_notification(info_text, is_windows10()&&(non_manifold_edges > 0), !(p->current_panel == p->view3D));
-}
-
-bool Plater::show_publish_dialog(bool show)
-{
-    return p->show_publish_dlg(show);
 }
 
 void Plater::post_process_string_object_exception(StringObjectException &err)

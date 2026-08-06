@@ -3,7 +3,6 @@
 #include "GUI_App.hpp"
 #include "GUI.hpp"
 #include "format.hpp"
-#include "I18N.hpp"
 #include "NotificationManager.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include "libslic3r/Utils.hpp"

@@ -1,3 +1,5 @@
+#pragma once
+
 #ifdef WIN32
 	#ifndef WIN32_LEAN_AND_MEAN
 		#define WIN32_LEAN_AND_MEAN
@@ -197,5 +199,33 @@
 #ifdef _WIN32
 #include "GUI/format.hpp"
 #endif // _WIN32
+
+// String helpers: convert various types to wxString or std::string (English-only build)
+inline wxString _wxL(const char*          s) { return wxString(s, wxConvUTF8); }
+inline wxString _wxL(const wchar_t*       s) { return wxString(s); }
+inline wxString _wxL(const std::string&   s) { return wxString(s.c_str(), wxConvUTF8); }
+inline wxString _wxL(const std::wstring&  s) { return wxString(s.c_str()); }
+inline wxString _wxL(const wxString&      s) { return s; }
+inline wxString _wxL(const char* s, const char*, unsigned int) { return wxString(s, wxConvUTF8); }
+inline wxString _wxL(const std::string& s, const std::string&, unsigned int) { return wxString(s.c_str(), wxConvUTF8); }
+inline wxString _wxL(const wxString& s, const wxString&, unsigned int) { return s; }
+
+inline std::string _u8L(const char*         s) { return s; }
+inline std::string _u8L(const wchar_t*      s) { return wxString(s).ToUTF8().data(); }
+inline std::string _u8L(const std::string&  s) { return s; }
+inline std::string _u8L(const std::wstring& s) { return wxString(s.c_str()).ToUTF8().data(); }
+inline std::string _u8L(const wxString&     s) { return s.ToUTF8().data(); }
+
+#define _(s)              _wxL(s)
+#define _L(s)             _wxL(s)
+#define _devL(s)          wxString(s)
+#define _omitL(s)         ("")
+#define _utf8(s)          _u8L(s)
+#define _CTX(s, ctx)      _wxL(s)
+#define _CTX_utf8(s, ctx) _u8L(s)
+#define L(s)              s
+#define L_CONTEXT(s, ctx) s
+#define _CHB(s)           wxString(s, wxConvUTF8).utf8_str()
+#define _L_PLURAL(s,pl,n) _wxL(s)
 
 #endif // __cplusplus

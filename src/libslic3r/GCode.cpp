@@ -3,7 +3,6 @@
 #include "Polygon.hpp"
 #include "PrintConfig.hpp"
 #include "libslic3r.h"
-#include "I18N.hpp"
 #include "GCode.hpp"
 #include "Exception.hpp"
 #include "ExtrusionEntity.hpp"
@@ -85,7 +84,6 @@ namespace Slic3r {
     //! macro used to mark string used at localization,
     //! return same string
 #define L(s) (s)
-#define _(s) Slic3r::I18N::translate(s)
 
 static const float g_min_purge_volume = 100.f;
 static const float g_purge_volume_one_time = 135.f;
@@ -1195,7 +1193,7 @@ std::vector<GCode::LayerToPrint> GCode::collect_layers_to_print(const PrintObjec
         // first layer may result in skirt/brim in the air and maybe other issues.
         if (layers_to_print.size() == 1u) {
             if (!has_extrusions)
-                throw Slic3r::SlicingError(_(L("One object has empty initial layer and can't be printed. Please Cut the bottom or enable supports.")), object.id().id);
+                throw Slic3r::SlicingError("One object has empty initial layer and can't be printed. Please Cut the bottom or enable supports.", object.id().id);
         }
 
         // In case there are extrusions on this layer, check there is a layer to lay it on.
@@ -1237,10 +1235,10 @@ std::vector<GCode::LayerToPrint> GCode::collect_layers_to_print(const PrintObjec
         std::string warning;
         size_t i = 0;
         for (i = 0; i < std::min(warning_ranges.size(), size_t(5)); ++i)
-            warning += Slic3r::format(_(L("Object can't be printed for empty layer between %1% and %2%.")),
+            warning += Slic3r::format("Object can't be printed for empty layer between %1% and %2%.",
                                       warning_ranges[i].first, warning_ranges[i].second) + "\n";
-        warning += Slic3r::format(_(L("Object: %1%")), object.model_object()->name) + "\n"
-            + _(L("Maybe parts of the object at these height are too thin, or the object has faulty mesh"));
+        warning += Slic3r::format("Object: %1%", object.model_object()->name) + "\n"
+            + "Maybe parts of the object at these height are too thin, or the object has faulty mesh";
 
         const_cast<Print*>(object.print())->active_step_add_warning(
             PrintStateBase::WarningLevel::CRITICAL, warning, PrintStateBase::SlicingEmptyGcodeLayers);
@@ -1384,28 +1382,28 @@ namespace DoExport {
         };
 
         const GCodeConfig& config = print.config();
-        check(_(L("Machine start G-code")), config.machine_start_gcode.value);
-        if (ret.size() < MAX_TAGS_COUNT) check(_(L("Machine end G-code")), config.machine_end_gcode.value);
-        if (ret.size() < MAX_TAGS_COUNT) check(_(L("Before layer change G-code")), config.before_layer_change_gcode.value);
-        if (ret.size() < MAX_TAGS_COUNT) check(_(L("Layer change G-code")), config.layer_change_gcode.value);
-        if (ret.size() < MAX_TAGS_COUNT) check(_(L("Timelapse G-code")), config.time_lapse_gcode.value);
-        if (ret.size() < MAX_TAGS_COUNT) check(_(L("Change filament G-code")), config.change_filament_gcode.value);
-        if (ret.size() < MAX_TAGS_COUNT) check(_(L("Printing by object G-code")), config.printing_by_object_gcode.value);
-        //if (ret.size() < MAX_TAGS_COUNT) check(_(L("Color Change G-code")), config.color_change_gcode.value);
+        check("Machine start G-code", config.machine_start_gcode.value);
+        if (ret.size() < MAX_TAGS_COUNT) check("Machine end G-code", config.machine_end_gcode.value);
+        if (ret.size() < MAX_TAGS_COUNT) check("Before layer change G-code", config.before_layer_change_gcode.value);
+        if (ret.size() < MAX_TAGS_COUNT) check("Layer change G-code", config.layer_change_gcode.value);
+        if (ret.size() < MAX_TAGS_COUNT) check("Timelapse G-code", config.time_lapse_gcode.value);
+        if (ret.size() < MAX_TAGS_COUNT) check("Change filament G-code", config.change_filament_gcode.value);
+        if (ret.size() < MAX_TAGS_COUNT) check("Printing by object G-code", config.printing_by_object_gcode.value);
+        //if (ret.size() < MAX_TAGS_COUNT) check("Color Change G-code", config.color_change_gcode.value);
         //Orca
-        if (ret.size() < MAX_TAGS_COUNT) check(_(L("Change extrusion role G-code")), config.change_extrusion_role_gcode.value);
-        if (ret.size() < MAX_TAGS_COUNT) check(_(L("Pause G-code")), config.machine_pause_gcode.value);
-        if (ret.size() < MAX_TAGS_COUNT) check(_(L("Template Custom G-code")), config.template_custom_gcode.value);
+        if (ret.size() < MAX_TAGS_COUNT) check("Change extrusion role G-code", config.change_extrusion_role_gcode.value);
+        if (ret.size() < MAX_TAGS_COUNT) check("Pause G-code", config.machine_pause_gcode.value);
+        if (ret.size() < MAX_TAGS_COUNT) check("Template Custom G-code", config.template_custom_gcode.value);
         if (ret.size() < MAX_TAGS_COUNT) {
             for (const std::string& value : config.filament_start_gcode.values) {
-                check(_(L("Filament start G-code")), value);
+                check("Filament start G-code", value);
                 if (ret.size() == MAX_TAGS_COUNT)
                     break;
             }
         }
         if (ret.size() < MAX_TAGS_COUNT) {
             for (const std::string& value : config.filament_end_gcode.values) {
-                check(_(L("Filament end G-code")), value);
+                check("Filament end G-code", value);
                 if (ret.size() == MAX_TAGS_COUNT)
                     break;
             }
@@ -1414,7 +1412,7 @@ namespace DoExport {
         //if (ret.size() < MAX_TAGS_COUNT) {
         //    const CustomGCode::Info& custom_gcode_per_print_z = print.model().custom_gcode_per_print_z;
         //    for (const auto& gcode : custom_gcode_per_print_z.gcodes) {
-        //        check(_(L("Custom G-code")), gcode.extra);
+        //        check("Custom G-code", gcode.extra);
         //        if (ret.size() == MAX_TAGS_COUNT)
         //            break;
         //    }
@@ -1450,9 +1448,9 @@ void GCode::do_export(Print* print, const char* path, GCodeProcessorResult* resu
             reports += source + ": \"" + keyword + "\"\n";
         }
         //print->active_step_add_warning(PrintStateBase::WarningLevel::NON_CRITICAL,
-        //    _(L("In the custom G-code were found reserved keywords:")) + "\n" +
+        //    "In the custom G-code were found reserved keywords:" + "\n" +
         //    reports +
-        //    _(L("This may cause problems in g-code visualization and printing time estimation.")));
+        //    "This may cause problems in g-code visualization and printing time estimation.");
         std::string temp = "Dangerous keywords in custom Gcode: " + reports + "\nThis may cause problems in g-code visualization and printing time estimation.";
         BOOST_LOG_TRIVIAL(warning) << temp;
     }
@@ -2065,7 +2063,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
         }
         if (initial_extruder_id == static_cast<unsigned int>(-1))
             // No object to print was found, cancel the G-code export.
-            throw Slic3r::SlicingError(_(L("No object can be printed. Maybe too small")));
+            throw Slic3r::SlicingError("No object can be printed. Maybe too small");
         // We don't allow switching of extruders per layer by Model::custom_gcode_per_print_z in sequential mode.
         // Use the extruder IDs collected from Regions.
         this->set_extruders(print.extruders());
@@ -2078,7 +2076,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
         tool_ordering.assign_custom_gcodes(print);
         if (tool_ordering.all_extruders().empty())
             // No object to print was found, cancel the G-code export.
-            throw Slic3r::SlicingError(_(L("No object can be printed. Maybe too small")));
+            throw Slic3r::SlicingError("No object can be printed. Maybe too small");
         has_wipe_tower = print.has_wipe_tower() && tool_ordering.has_wipe_tower();
         // Orca: support all extruder priming
         initial_extruder_id = (has_wipe_tower && !print.config().single_extruder_multi_material_priming) ?
@@ -2513,8 +2511,8 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
                         // This is not Marlin, M1 command is probably not supported.
                         if (overlap) {
                            print.active_step_add_warning(PrintStateBase::WarningLevel::CRITICAL,
-                               _(L("Your print is very close to the priming regions. "
-                                 "Make sure there is no collision.")));
+                               "Your print is very close to the priming regions. "
+                                 "Make sure there is no collision.");
                         } else {
                            // Just continue printing, no action necessary.
                         }
@@ -2641,10 +2639,10 @@ void GCode::check_placeholder_parser_failed()
 {
     if (! m_placeholder_parser_integration.failed_templates.empty()) {
         // G-code export proceeded, but some of the PlaceholderParser substitutions failed.
-        std::string msg = Slic3r::format(_(L("Failed to generate G-code for invalid custom G-code.\n\n")));
+        std::string msg = Slic3r::format("Failed to generate G-code for invalid custom G-code.\n\n");
         for (const auto &name_and_error : m_placeholder_parser_integration.failed_templates)
             msg += name_and_error.first + " " + name_and_error.second + "\n";
-        msg += Slic3r::format(_(L("Please check the custom G-code or use the default custom G-code.")));
+        msg += Slic3r::format("Please check the custom G-code or use the default custom G-code.");
         throw Slic3r::PlaceholderParserError(msg);
     }
 }
@@ -2676,7 +2674,7 @@ void GCode::process_layers(
             } else {
                 const std::pair<coordf_t, std::vector<LayerToPrint>>& layer = layers_to_print[layer_to_print_idx++];
                 const LayerTools& layer_tools = tool_ordering.tools_for_layer(layer.first);
-                print.set_status(80, Slic3r::format(_(L("Generating G-code: layer %1%")), std::to_string(layer_to_print_idx)));
+                print.set_status(80, Slic3r::format("Generating G-code: layer %1%", std::to_string(layer_to_print_idx)));
                 if (m_wipe_tower && layer_tools.has_wipe_tower)
                     m_wipe_tower->next_layer();
                 //BBS
@@ -2778,7 +2776,7 @@ void GCode::process_layers(
                 }
             } else {
                 LayerToPrint &layer = layers_to_print[layer_to_print_idx ++];
-                print.set_status(80, Slic3r::format(_(L("Generating G-code: layer %1%")), std::to_string(layer_to_print_idx)));
+                print.set_status(80, Slic3r::format("Generating G-code: layer %1%", std::to_string(layer_to_print_idx)));
                 //BBS
                 check_placeholder_parser_failed();
                 print.throw_if_canceled();

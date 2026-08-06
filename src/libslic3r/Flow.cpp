@@ -1,5 +1,4 @@
 #include "Flow.hpp"
-#include "I18N.hpp"
 #include "Print.hpp"
 #include <cmath>
 #include <assert.h>
@@ -7,7 +6,6 @@
 #include <boost/algorithm/string/predicate.hpp>
 
 // Mark string for localization and translate.
-#define L(s) Slic3r::I18N::translate(s)
 
 namespace Slic3r {
 

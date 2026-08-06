@@ -4,7 +4,6 @@
 
 #include "ClipperUtils.hpp"
 #include "ElephantFootCompensation.hpp"
-#include "I18N.hpp"
 #include "Layer.hpp"
 #include "MultiMaterialSegmentation.hpp"
 #include "Print.hpp"
@@ -14,7 +13,6 @@
 #include "libslic3r/Feature/Interlocking/InterlockingGenerator.hpp"
 
 //! macro used to mark string used at localization, return same string
-#define L(s) Slic3r::I18N::translate(s)
 
 namespace Slic3r {
 

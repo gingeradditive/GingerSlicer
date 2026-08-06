@@ -17,7 +17,6 @@
 #include "libslic3r/Exception.hpp"
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/AppConfig.hpp"
-#include "I18N.hpp"
 #include <locale>
 
 namespace Slic3r { namespace GUI {

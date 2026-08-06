@@ -318,7 +318,7 @@ void GLGizmoFdmSupports::on_render_input_window(float x, float y, float bottom_l
 
         ImGui::AlignTextToFramePadding();
         m_imgui->text(m_desc.at("smart_fill_angle"));
-        std::string format_str = std::string("%.f") + I18N::translate_utf8("", "Face angle threshold, placed after the number with no whitespace in between.");
+        std::string format_str = std::string("%.f") + std::string("");
         ImGui::SameLine(sliders_left_width);
         ImGui::PushItemWidth(sliders_width);
         if (m_imgui->bbl_slider_float_style("##smart_fill_angle", &m_smart_fill_angle, SmartFillAngleMin, SmartFillAngleMax, format_str.data(), 1.0f, true))
@@ -337,7 +337,7 @@ void GLGizmoFdmSupports::on_render_input_window(float x, float y, float bottom_l
         m_imgui->text(m_desc["gap_area"]);
         ImGui::SameLine(sliders_left_width);
         ImGui::PushItemWidth(sliders_width);
-        std::string format_str = std::string("%.2f") + I18N::translate_utf8("", "Triangle patch area threshold,""triangle patch will be merged to neighbor if its area is less than threshold");
+        std::string format_str = std::string("%.2f") + std::string("");
         m_imgui->bbl_slider_float_style("##gap_area", &TriangleSelectorPatch::gap_area, TriangleSelectorPatch::GapAreaMin, TriangleSelectorPatch::GapAreaMax, format_str.data(), 1.0f, true);
         ImGui::SameLine(drag_left_width);
         ImGui::PushItemWidth(1.5 * slider_icon_width);

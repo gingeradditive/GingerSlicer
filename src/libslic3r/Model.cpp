@@ -35,14 +35,12 @@
 #include "Format/3mf.hpp"
 
 // Transtltion
-#include "I18N.hpp"
 
 // ModelIO support
 #ifdef __APPLE__
 #include "Format/ModelIO.hpp"
 #endif
 
-#define _L(s) Slic3r::I18N::translate(s)
 
 namespace Slic3r {
 const std::vector<std::string> CONST_FILAMENTS = {
@@ -191,13 +189,13 @@ Model Model::read_from_step(const std::string&                                  
 
     if (!result) {
         if (message.empty())
-            throw Slic3r::RuntimeError(_L("Loading of a model file failed."));
+            throw Slic3r::RuntimeError("Loading of a model file failed.");
         else
             throw Slic3r::RuntimeError(message);
     }
 
     if (model.objects.empty())
-        throw Slic3r::RuntimeError(_L("The supplied file couldn't be read because it's empty"));
+        throw Slic3r::RuntimeError("The supplied file couldn't be read because it's empty");
 
     for (ModelObject *o : model.objects)
         o->input_file = input_file;
@@ -277,7 +275,7 @@ Model Model::read_from_file(const std::string&                                  
                 std::string             obj_directory = full_path.parent_path().string();
                 obj_info.obj_dircetory = obj_directory;
                 result = false;
-                message = _L("Importing obj with png function is developing.");
+                message = "Importing obj with png function is developing.";
             }*/
         }
     }
@@ -307,7 +305,7 @@ Model Model::read_from_file(const std::string&                                  
     }
 #endif
     else
-        throw Slic3r::RuntimeError(_L("Unknown file format. Input file must have .stl, .obj, .amf(.xml) extension."));
+        throw Slic3r::RuntimeError("Unknown file format. Input file must have .stl, .obj, .amf(.xml) extension.");
 
     if (is_cb_cancel) {
         Model empty_model;
@@ -316,13 +314,13 @@ Model Model::read_from_file(const std::string&                                  
 
     if (!result) {
         if (message.empty())
-            throw Slic3r::RuntimeError(_L("Loading of a model file failed."));
+            throw Slic3r::RuntimeError("Loading of a model file failed.");
         else
             throw Slic3r::RuntimeError(message);
     }
 
     if (model.objects.empty())
-        throw Slic3r::RuntimeError(_L("The supplied file couldn't be read because it's empty"));
+        throw Slic3r::RuntimeError("The supplied file couldn't be read because it's empty");
 
     for (ModelObject *o : model.objects)
         o->input_file = input_file;
@@ -368,14 +366,14 @@ Model Model::read_from_archive(const std::string& input_file, DynamicPrintConfig
     else if (boost::algorithm::iends_with(input_file, ".zip.amf"))
         result = load_amf(input_file.c_str(), config, config_substitutions, &model, &is_bbl_3mf);
     else
-        throw Slic3r::RuntimeError(_L("Unknown file format. Input file must have .3mf or .zip.amf extension."));
+        throw Slic3r::RuntimeError("Unknown file format. Input file must have .3mf or .zip.amf extension.");
 
     if (out_file_type != En3mfType::From_Prusa) {
         out_file_type = is_bbl_3mf ? En3mfType::From_BBS : En3mfType::From_Other;
     }
 
     if (!result)
-        throw Slic3r::RuntimeError(_L("Loading of a model file failed."));
+        throw Slic3r::RuntimeError("Loading of a model file failed.");
 
     for (ModelObject *o : model.objects) {
 //        if (boost::algorithm::iends_with(input_file, ".zip.amf"))
@@ -394,7 +392,7 @@ Model Model::read_from_archive(const std::string& input_file, DynamicPrintConfig
         if (proFn) {
             proFn(IMPORT_STAGE_ADD_INSTANCE, 0, 1, cb_cancel);
             if (cb_cancel)
-                throw Slic3r::RuntimeError(_L("Canceled"));
+                throw Slic3r::RuntimeError("Canceled");
         }
     }
 
@@ -405,7 +403,7 @@ Model Model::read_from_archive(const std::string& input_file, DynamicPrintConfig
     if (proFn) {
         proFn(IMPORT_STAGE_UPDATE_GCODE, 0, 1, cb_cancel);
         if (cb_cancel)
-            throw Slic3r::RuntimeError(_L("Canceled"));
+            throw Slic3r::RuntimeError("Canceled");
     }
 
     //BBS
@@ -416,7 +414,7 @@ Model Model::read_from_archive(const std::string& input_file, DynamicPrintConfig
     if (proFn) {
         proFn(IMPORT_STAGE_CHECK_MODE_GCODE, 0, 1, cb_cancel);
         if (cb_cancel)
-            throw Slic3r::RuntimeError(_L("Canceled"));
+            throw Slic3r::RuntimeError("Canceled");
     }
 
     handle_legacy_sla(*config);

@@ -8,7 +8,6 @@
 #include "wx/sizer.h"
 #include "wx/event.h"
 #include "wx/gauge.h"
-#include "wx/intl.h"
 #include "wx/dcclient.h"
 #include "wx/timer.h"
 #include "wx/settings.h"
@@ -17,7 +16,6 @@
 
 #include "../GUI.hpp"
 #include "../GUI_App.hpp"
-#include "../I18N.hpp"
 #include "ProgressDialog.hpp"
 #include "wx/evtloop.h"
 #include "Label.hpp"
@@ -373,7 +371,7 @@ bool ProgressDialog::Create(const wxString &title, const wxString &message, int 
     //    m_button_sizer->SetBackgroundColour(DESIGN_RESOUTION_DEF_BK_COLOR);
     //
     //    if (HasPDFlag(wxPD_CAN_SKIP)) {
-    //        m_btnSkip = new wxButton(this, wxID_SKIP, wxGetTranslation("&Skip"));
+    //        m_btnSkip = new wxButton(this, wxID_SKIP, wxString("&Skip"));
     //        m_btnSkip->Bind(wxEVT_COMMAND_BUTTON_CLICKED, &ProgressDialog::OnSkip, this);
     //        buttonSizer->SetNegativeButton(m_btnSkip);
     //    }
@@ -465,7 +463,7 @@ wxString ProgressDialog::GetFormattedTime(unsigned long timeInSec)
     wxString timeAsHMS;
 
     if (timeInSec == (unsigned long) -1) {
-        timeAsHMS = wxGetTranslation("Unknown");
+        timeAsHMS = wxString("Unknown");
     } else {
         unsigned hours   = timeInSec / 3600;
         unsigned minutes = (timeInSec % 3600) / 60;
@@ -487,7 +485,7 @@ void ProgressDialog::EnsureActiveEventLoopExists()
 wxStaticText *ProgressDialog::CreateLabel(const wxString &text, wxSizer *sizer)
 {
     wxStaticText *label = new wxStaticText(this, wxID_ANY, text);
-    wxStaticText *value = new wxStaticText(this, wxID_ANY, wxGetTranslation("unknown"));
+    wxStaticText *value = new wxStaticText(this, wxID_ANY, wxString("unknown"));
 
     // select placement most native or nice on target GUI
 #if defined(__WXMSW__) || defined(__WXMAC__) || defined(__WXGTK20__)
@@ -555,7 +553,7 @@ bool ProgressDialog::Update(int value, const wxString &newmsg, bool *skip)
 
             if (newmsg.empty()) {
                 // also provide the finishing message if the application didn't
-                m_msg->SetLabel(wxGetTranslation("Done."));
+                m_msg->SetLabel(wxString("Done."));
             }
 
             // allow the window to repaint:
@@ -717,7 +715,7 @@ void ProgressDialog::SetTimeLabel(unsigned long val, wxStaticText *label)
         if (val != (unsigned long) -1) {
             s = GetFormattedTime(val);
         } else {
-            s = wxGetTranslation("Unknown");
+            s = wxString("Unknown");
         }
 
         if (s != label->GetLabel()) label->SetLabel(s);
@@ -867,7 +865,7 @@ void ProgressDialog::EnableClose()
     if (HasPDFlag(wxPD_CAN_ABORT)) {
         if (m_btnAbort) {
             m_btnAbort->Enable();
-            m_btnAbort->SetLabel(wxGetTranslation("Close"));
+            m_btnAbort->SetLabel(wxString("Close"));
         }
     }
 }

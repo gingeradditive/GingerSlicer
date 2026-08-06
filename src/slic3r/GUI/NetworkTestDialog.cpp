@@ -1,10 +1,8 @@
 #include "NetworkTestDialog.hpp"
-#include "I18N.hpp"
 
 #include "libslic3r/Utils.hpp"
 #include "GUI.hpp"
 #include "GUI_App.hpp"
-#include "I18N.hpp"
 #include "slic3r/Utils/Http.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include <boost/asio/ip/address.hpp>

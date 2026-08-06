@@ -5,7 +5,6 @@
 #include "slic3r/GUI/GLModel.hpp"
 #include "slic3r/GUI/GUI_Utils.hpp"
 #include "slic3r/GUI/MeshUtils.hpp"
-#include "slic3r/GUI/I18N.hpp"
 #include "libslic3r/Measure.hpp"
 #include "libslic3r/Model.hpp"
 

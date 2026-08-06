@@ -23,7 +23,6 @@
 #include "GUI.hpp"
 #include "GUI_App.hpp"
 #include "MsgDialog.hpp"
-#include "I18N.hpp"
 #include "MainFrame.hpp"
 #include "libslic3r/AppConfig.hpp"
 #include "NotificationManager.hpp"

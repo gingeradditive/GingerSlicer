@@ -6,7 +6,6 @@
 // for file_wildcards()
 #include "../GUI/GUI_App.hpp"
 // localization
-#include "../GUI/I18N.hpp"
 
 #include <iostream>
 #include <fstream>

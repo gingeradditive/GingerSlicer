@@ -10,8 +10,7 @@
 // (boost::format("template") % arg1 %arg2).str()
 // This wrapper allows for a nicer syntax:
 // Slic3r::format("template", arg1, arg2)
-// One can also override Slic3r::internal::format::cook() function to convert a Slic3r::format() argument to something that
-// boost::format may convert to string, see slic3r/GUI/I18N.hpp for a "cook" function to convert wxString to UTF8.
+// One can also override Slic3r::internal::format::cook() function to convert a Slic3r::format() argument to something that boost::format may convert to string.
 
 #include <boost/format.hpp>
 

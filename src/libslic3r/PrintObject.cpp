@@ -5,7 +5,6 @@
 #include "ClipperUtils.hpp"
 #include "ElephantFootCompensation.hpp"
 #include "Geometry.hpp"
-#include "I18N.hpp"
 #include "Layer.hpp"
 #include "MutablePolygon.hpp"
 #include "PrintConfig.hpp"
@@ -42,7 +41,6 @@ using namespace std::literals;
 
 //! macro used to mark string used at localization,
 //! return same string
-#define L(s) Slic3r::I18N::translate(s)
 
 // #define PRINT_OBJECT_TIMING
 

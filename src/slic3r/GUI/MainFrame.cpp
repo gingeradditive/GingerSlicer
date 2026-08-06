@@ -26,7 +26,6 @@
 #include "libslic3r/PresetBundle.hpp"
 
 #include "Tab.hpp"
-#include "ProgressStatusBar.hpp"
 #include "3DScene.hpp"
 #include "ParamsDialog.hpp"
 #include "PrintHostDialogs.hpp"
@@ -35,7 +34,6 @@
 #include "Mouse3DController.hpp"
 //#include "RemovableDriveManager.hpp"
 #include "InstanceCheck.hpp"
-#include "I18N.hpp"
 #include "GLCanvas3D.hpp"
 #include "Plater.hpp"
 #include "WebViewDialog.hpp"

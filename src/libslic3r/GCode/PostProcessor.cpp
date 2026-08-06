@@ -2,7 +2,6 @@
 
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/format.hpp"
-#include "libslic3r/I18N.hpp"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/log/trivial.hpp>
@@ -192,7 +191,6 @@ namespace Slic3r {
 //! macro used to mark string used at localization,
 //! return same string
 #define L(s) (s)
-#define _(s) Slic3r::I18N::translate(s)
 
 // BBS
 void gcode_add_line_number(const std::string& path, const DynamicPrintConfig& config)
@@ -320,10 +318,9 @@ bool run_post_process_scripts(std::string &src_path, bool make_copy, const std::
                     throw Slic3r::RuntimeError(msg);
                 }
                 if (! boost::filesystem::exists(gcode_file)) {
-                    const std::string msg = (boost::format(_(L(
-                        "Post-processing script %1% failed.\n\n"
+                    const std::string msg = (boost::format("Post-processing script %1% failed.\n\n"
                         "The post-processing script is expected to change the G-code file %2% in place, but the G-code file was deleted and likely saved under a new name.\n"
-                        "Please adjust the post-processing script to change the G-code in place and consult the manual on how to optionally rename the post-processed G-code file.\n")))
+                        "Please adjust the post-processing script to change the G-code in place and consult the manual on how to optionally rename the post-processed G-code file.\n")
                         % script % path).str();
                     BOOST_LOG_TRIVIAL(error) << msg;
                     throw Slic3r::RuntimeError(msg);

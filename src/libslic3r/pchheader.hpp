@@ -1,3 +1,5 @@
+#pragma once
+
 #ifdef WIN32
 	#ifndef WIN32_LEAN_AND_MEAN
 		#define WIN32_LEAN_AND_MEAN
@@ -117,7 +119,12 @@
 #include "Config.hpp"
 #include "enum_bitmask.hpp"
 #include "format.hpp"
-#include "I18N.hpp"
+namespace {
+    [[maybe_unused]] const char* L(const char* s)           { return s; }
+    [[maybe_unused]] const char* L_CONTEXT(const char* s, const char*) { return s; }
+    [[maybe_unused]] std::string _u8L(const char* s)        { return s; }
+    [[maybe_unused]] std::string _u8L(const std::string& s) { return s; }
+}
 #include "MultiPoint.hpp"
 #include "Point.hpp"
 #include "Polygon.hpp"

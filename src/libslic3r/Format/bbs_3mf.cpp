@@ -10,7 +10,6 @@
 #include "../Semver.hpp"
 #include "../Time.hpp"
 
-#include "../I18N.hpp"
 
 #include "bbs_3mf.hpp"
 
@@ -608,7 +607,6 @@ void PlateData::parse_filament_info(GCodeProcessorResult *result)
 //! macro used to mark string used at localization,
 //! return same string
 #define L(s) (s)
-#define _(s) Slic3r::I18N::translate(s)
 
     // Base class with error messages management
     class _BBS_3MF_Base

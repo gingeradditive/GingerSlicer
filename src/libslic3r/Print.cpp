@@ -7,7 +7,6 @@
 #include "Extruder.hpp"
 #include "Flow.hpp"
 #include "Geometry/ConvexHull.hpp"
-#include "I18N.hpp"
 #include "ShortestPath.hpp"
 #include "Thread.hpp"
 #include "Time.hpp"
@@ -42,7 +41,6 @@
 using namespace nlohmann;
 
 // Mark string for localization and translate.
-#define L(s) Slic3r::I18N::translate(s)
 
 namespace Slic3r {
 
@@ -830,8 +828,8 @@ StringObjectException Print::sequential_print_clearance_valid(const Print &print
     for (auto p : left_right_pair) {
         auto &l         = print_instance_with_bounding_box[p(0)];
         auto &r         = print_instance_with_bounding_box[p(1)];
-        BOOST_LOG_TRIVIAL(debug) << "print_instance " << I18N::translate(l.print_instance->model_instance->get_object()->name) << "(" << l.arrange_score << ")"
-                                 << " -> " << I18N::translate(r.print_instance->model_instance->get_object()->name) << "(" << r.arrange_score << ")";
+        BOOST_LOG_TRIVIAL(debug) << "print_instance " << l.print_instance->model_instance->get_object(->name) << "(" << l.arrange_score << ")"
+                                 << " -> " << r.print_instance->model_instance->get_object(->name) << "(" << r.arrange_score << ")";
     }
     // sort the print instance
     std::sort(print_instance_with_bounding_box.begin(), print_instance_with_bounding_box.end(),

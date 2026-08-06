@@ -5,7 +5,6 @@
 #include "GLGizmoRotate.hpp"
 #include "slic3r/GUI/IconManager.hpp"
 #include "slic3r/GUI/SurfaceDrag.hpp"
-#include "slic3r/GUI/I18N.hpp" // TODO: not needed
 #include "slic3r/GUI/TextLines.hpp"
 #include "slic3r/Utils/RaycastManager.hpp"
 #include "slic3r/Utils/EmbossStyleManager.hpp"

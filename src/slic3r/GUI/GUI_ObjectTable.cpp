@@ -1,7 +1,6 @@
 #include "wx/clipbrd.h"
 #include "wx/display.h"
 
-#include "I18N.hpp"
 
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/PresetBundle.hpp"

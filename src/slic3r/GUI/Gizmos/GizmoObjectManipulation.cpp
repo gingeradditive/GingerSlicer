@@ -3,8 +3,7 @@
 
 #include "GizmoObjectManipulation.hpp"
 #include "slic3r/GUI/GUI_ObjectList.hpp"
-//#include "I18N.hpp"
-#include "GLGizmosManager.hpp"
+//#include "GLGizmosManager.hpp"
 #include "slic3r/GUI/GLCanvas3D.hpp"
 #include "slic3r/GUI/GUI_App.hpp"
 #include "slic3r/Utils/UndoRedo.hpp"

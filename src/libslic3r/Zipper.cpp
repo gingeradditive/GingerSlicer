@@ -4,11 +4,9 @@
 #include "Zipper.hpp"
 #include "miniz_extension.hpp"
 #include <boost/log/trivial.hpp>
-#include "I18N.hpp"
 
 //! macro used to mark string used at localization,
 //! return same string
-#define L(s) Slic3r::I18N::translate(s)
 
 #if defined(_MSC_VER) &&  _MSC_VER <= 1800 || __cplusplus < 201103L
     #define SLIC3R_NORETURN

@@ -7,14 +7,6 @@
 #include "format.hpp"
 #include "libslic3r_version.h"
 
-// Localization headers: include libslic3r version first so everything in this file
-// uses the slic3r/GUI version (the macros will take precedence over the functions).
-// Also, there is a check that the former is not included from slic3r module.
-// This is the only place where we want to allow that, so define an override macro.
-#define SLIC3R_ALLOW_LIBSLIC3R_I18N_IN_SLIC3R
-#include "libslic3r/I18N.hpp"
-#undef SLIC3R_ALLOW_LIBSLIC3R_I18N_IN_SLIC3R
-#include "slic3r/GUI/I18N.hpp"
 
 #include <algorithm>
 #include <iterator>
@@ -46,8 +38,6 @@
 #include <wx/sysopt.h>
 #include <wx/richmsgdlg.h>
 #include <wx/log.h>
-#include <wx/intl.h>
-
 #include <wx/dialog.h>
 #include <wx/textctrl.h>
 #include <wx/splash.h>
@@ -59,7 +49,6 @@
 
 #include "libslic3r/Utils.hpp"
 #include "libslic3r/Model.hpp"
-#include "libslic3r/I18N.hpp"
 #include "libslic3r/PresetBundle.hpp"
 #include "libslic3r/Thread.hpp"
 #include "libslic3r/miniz_extension.hpp"
@@ -546,8 +535,6 @@ wxString file_wildcards(FileType file_type, const std::string &custom_extension)
     return GUI::format_wxstr("%s (%s)|%s", data.title, title, mask);
 }
 
-static std::string libslic3r_translate_callback(const char *s) { return wxGetTranslation(wxString(s, wxConvUTF8)).utf8_str().data(); }
-
 #ifdef WIN32
 #if !wxVERSION_EQUAL_OR_GREATER_THAN(3,1,3)
 static void register_win32_dpi_event()
@@ -904,10 +891,9 @@ void GUI_App::post_init()
         CallAfter([this] {
             bool cw_showed = this->config_wizard_startup();
 
-            std::string language = GUI::into_u8(current_language_code());
             std::string network_ver;
             bool        sys_preset  = app_config->get("sync_system_preset") == "true";
-            this->preset_updater->sync(std::string(), language, network_ver, sys_preset ? preset_bundle : nullptr);
+            this->preset_updater->sync(std::string(), "en", network_ver, sys_preset ? preset_bundle : nullptr);
 
             this->check_new_version_sf();
         });
@@ -1442,11 +1428,9 @@ bool GUI_App::on_init_inner()
         }
     }
 
-    // !!! Initialization of UI settings as a language, application color mode, fonts... have to be done before first UI action.
-    // Like here, before the show InfoDialog in check_older_app_config()
-
-    // If load_language() fails, the application closes.
-    load_language(wxString(), true);
+    m_imgui->set_language("en_US");
+    Preset::update_suffix_modified("* ");
+    HintDatabase::get_instance().reinit();
     // initialize label colors and fonts
     init_label_colours();
     init_fonts();
@@ -1634,9 +1618,6 @@ bool GUI_App::on_init_inner()
 #endif // !wxVERSION_EQUAL_OR_GREATER_THAN
     register_win32_device_notification_event();
 #endif // WIN32
-
-    // Let the libslic3r know the callback, which will translate messages on demand.
-    Slic3r::I18N::set_translate_callback(libslic3r_translate_callback);
 
     BOOST_LOG_TRIVIAL(info) << "create the main window";
     mainframe = new MainFrame();
@@ -3124,12 +3105,6 @@ void GUI_App::stop_sync_user_preset()
 {
 }
 
-bool GUI_App::switch_language()
-{
-    // i18n removed: English only
-    return false;
-}
-
 int GUI_App::GetSingleChoiceIndex(const wxString& message,
                                 const wxString& caption,
                                 const wxArrayString& choices,
@@ -3144,29 +3119,6 @@ int GUI_App::GetSingleChoiceIndex(const wxString& message,
 #else
     return wxGetSingleChoiceIndex(message, caption, choices, initialSelection);
 #endif
-}
-
-// i18n removed: English only
-bool GUI_App::select_language()
-{
-    return false;
-}
-
-// i18n removed: force English locale, no translation catalogs loaded.
-bool GUI_App::load_language(wxString language, bool initial)
-{
-    BOOST_LOG_TRIVIAL(info) << "load_language: forcing English (en_US)";
-
-    const wxLanguageInfo *language_info = wxLocale::GetLanguageInfo(wxLANGUAGE_ENGLISH_US);
-
-    m_wxLocale.release();
-    m_wxLocale = Slic3r::make_unique<wxLocale>();
-    m_wxLocale->Init(language_info->Language);
-    m_imgui->set_language("en_US");
-
-    Preset::update_suffix_modified(("* "));
-    HintDatabase::get_instance().reinit();
-    return true;
 }
 
 Tab* GUI_App::get_tab(Preset::Type type)
@@ -3930,8 +3882,7 @@ void GUI_App::open_mall_page_dialog()
 
     //model url
 
-    wxString language_code = this->current_language_code().BeforeFirst('_');
-    model_url = language_code.ToStdString();
+    model_url = "en";
 
     if (result < 0) {
        link_url = host_url + model_url;
@@ -3958,8 +3909,7 @@ void GUI_App::open_publish_page_dialog()
     host_url = get_model_http_url(app_config->get_country_code());
 
     //publish url
-    wxString language_code = this->current_language_code().BeforeFirst('_');
-    model_url += (language_code.ToStdString() + "/my/models/publish");
+    model_url += "en/my/models/publish";
 
     if (result < 0) {
         link_url = host_url + model_url;
@@ -4043,13 +3993,12 @@ PrintSequence GUI_App::global_print_sequence() const
 
 wxString GUI_App::current_language_code_safe() const
 {
-    // i18n removed: English only
     return "en_US";
 }
 
 void GUI_App::open_web_page_localized(const std::string &http_address)
 {
-    open_browser_with_warning_dialog(http_address + "&lng=" + this->current_language_code_safe());
+    open_browser_with_warning_dialog(http_address + "&lng=en_US");
 }
 
 // If we are switching from the FFF-preset to the SLA, we should to control the printed objects if they have a part(s).

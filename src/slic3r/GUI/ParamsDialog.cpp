@@ -1,5 +1,4 @@
 #include "ParamsDialog.hpp"
-#include "I18N.hpp"
 #include "ParamsPanel.hpp"
 #include "GUI_App.hpp"
 #include "MainFrame.hpp"
