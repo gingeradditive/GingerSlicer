@@ -6,6 +6,7 @@
 #include <charconv>
 #include "Extruder.hpp"
 #include "Point.hpp"
+#include "Polygon.hpp"
 #include "PrintConfig.hpp"
 #include "GCode/CoolingBuffer.hpp"
 
@@ -92,6 +93,10 @@ public:
 
     //BBS: set offset for gcode writer
     void set_xy_offset(double x, double y) { m_x_offset = x; m_y_offset = y; }
+    // Ginger: area the spiral lift helix must stay inside, in G-code (plate) coordinates.
+    // Leave it empty to disable the check.
+    void set_spiral_lift_area(const Polygon &printable, const Polygons &excluded)
+        { m_spiral_lift_printable = printable; m_spiral_lift_excluded = excluded; }
     Vec2f get_xy_offset() { return Vec2f{m_x_offset, m_y_offset}; };
     // To be called by the CoolingBuffer from another thread.
     static std::string set_fan(const GCodeFlavor gcode_flavor, unsigned int speed);
@@ -153,6 +158,9 @@ public:
     // BBS
     double          m_to_lift;
     LiftType        m_to_lift_type;
+    //Ginger: bed limits the spiral lift must respect, in G-code coordinates (scaled).
+    Polygon         m_spiral_lift_printable;
+    Polygons        m_spiral_lift_excluded;
     Vec3d           m_pos = Vec3d::Zero();
     //BBS: this flag is used to indicate whether the m_pos is real.
     //A example that of the first move, the m_pos is zero, but the real position of extruder doesn't
@@ -176,6 +184,9 @@ public:
 
     std::string _travel_to_z(double z, const std::string &comment);
     std::string _spiral_travel_to_z(double z, const Vec2d &ij_offset, const std::string &comment);
+    // Ginger: true when the whole helix stays inside the printable area and clear of the
+    // excluded ones. See GCodeWriter.cpp for why this matters.
+    bool spiral_lift_fits(const Vec2d &center, double radius) const;
     std::string _retract(double length, double restart_extra, const std::string &comment);
     std::string set_acceleration_internal(Acceleration type, unsigned int acceleration);
 

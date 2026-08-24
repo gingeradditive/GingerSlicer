@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include <limits>
 #include <assert.h>
 #include <GCode/GCodeProcessor.hpp>
 
@@ -572,8 +573,13 @@ std::string GCodeWriter::travel_to_xyz(const Vec3d &point, const std::string &co
         if (delta(2) > 0 && delta_no_z.norm() != 0.0f)    {
             //BBS: SpiralLift
             if (m_to_lift_type == LiftType::SpiralLift && this->is_current_position_clear()) {
-                //BBS: todo: check the arc move all in bed area, if not, then use lazy lift
-                double radius = delta(2) / (2 * PI * atan(this->extruder()->travel_slope()));
+                // Ginger: travel_slope() already returns radians (Extruder.cpp), so the pitch of the
+                // helix is tan(slope), not atan(slope) - the other two users of the angle a few lines
+                // below get this right. The error is only 0.2% at the default 3 deg, but it grows fast
+                // and it broke the documented contract at the top of the range: with tan() a slope of
+                // 90 deg collapses the radius to zero, which _spiral_travel_to_z turns into a plain
+                // vertical lift, exactly as the tooltip promises ("90 deg results in Normal Lift").
+                double radius = delta(2) / (2 * PI * tan(this->extruder()->travel_slope()));
                 Vec2d ij_offset = radius * delta_no_z.normalized();
                 ij_offset = { -ij_offset(1), ij_offset(0) };
                 slop_move = this->_spiral_travel_to_z(target(2), ij_offset, "spiral lift Z");
@@ -697,6 +703,48 @@ std::string GCodeWriter::_travel_to_z(double z, const std::string &comment)
     return w.string();
 }
 
+// Ginger: below this radius the two half arcs collapse onto the start point once their end points
+// are quantized to the G-code export precision (3 decimals), which would bring back the full-circle
+// degeneracy documented in _spiral_travel_to_z. travel_slope = 90 deg lands exactly here, which is
+// how the documented "90 deg results in Normal Lift" behaviour is implemented.
+static constexpr double SPIRAL_LIFT_MIN_RADIUS = 0.005;
+
+// Unsigned distance from `pt` to the contour of `poly`, in scaled units.
+static double distance_to_contour(const Polygon &poly, const Point &pt)
+{
+    double min_sqr = std::numeric_limits<double>::max();
+    const size_t n = poly.points.size();
+    for (size_t i = 0; i < n; ++ i)
+        min_sqr = std::min(min_sqr, Line(poly.points[i], poly.points[(i + 1) % n]).distance_to_squared(pt));
+    return std::sqrt(min_sqr);
+}
+
+// Ginger: the helix sweeps a full circle of radius `radius` around a center that sits one radius
+// away from the current position, so the nozzle reaches up to two radii from where the travel
+// starts - 6 mm across at the default 3 deg slope with a 1 mm hop. Nothing used to check that
+// (upstream leaves a "todo: check the arc move all in bed area"), and the check only started to
+// matter once the arcs stopped degenerating into silent vertical hops. Returning false makes the
+// caller fall back to a plain vertical lift, which never moves in XY and is always safe.
+bool GCodeWriter::spiral_lift_fits(const Vec2d &center, double radius) const
+{
+    if (m_spiral_lift_printable.points.size() < 3)
+        // No printable area configured: keep the previous behaviour rather than silently
+        // downgrading every spiral lift.
+        return true;
+
+    const Point  c = Point::new_scale(center.x(), center.y());
+    const double r = scale_(radius);
+
+    if (! m_spiral_lift_printable.contains(c) || distance_to_contour(m_spiral_lift_printable, c) < r)
+        return false;
+
+    for (const Polygon &excluded : m_spiral_lift_excluded)
+        if (excluded.points.size() >= 3 && (excluded.contains(c) || distance_to_contour(excluded, c) < r))
+            return false;
+
+    return true;
+}
+
 std::string GCodeWriter::_spiral_travel_to_z(double z, const Vec2d &ij_offset, const std::string &comment)
 {
     // Ginger: the helix is emitted as two half arcs with explicit X/Y end points, not as a
@@ -712,9 +760,17 @@ std::string GCodeWriter::_spiral_travel_to_z(double z, const Vec2d &ij_offset, c
     // Each half arc has an angular travel of PI instead, where that normalization is
     // continuous, so the residue only perturbs the angle by ~1e-13 rad.
     const double radius = ij_offset.norm();
-    if (radius < 0.005)
+    if (radius < SPIRAL_LIFT_MIN_RADIUS)
         // Degenerate radius: the quantized end points would collapse onto the start point and
         // reintroduce the very degeneracy above. A plain vertical lift is the honest fallback.
+        return this->_travel_to_z(z, comment);
+
+    //BBS: take plate offset into consider
+    const Vec2d start_xy = { m_pos(0) - m_x_offset, m_pos(1) - m_y_offset };
+    if (! this->spiral_lift_fits(start_xy + ij_offset, radius))
+        // The helix would leave the bed or sweep an excluded area. This is the check the upstream
+        // "todo: check the arc move all in bed area" asks for, and it only started to matter once
+        // the arcs above stopped degenerating into silent vertical hops.
         return this->_travel_to_z(z, comment);
 
     const double z_start = m_pos(2);
@@ -726,8 +782,7 @@ std::string GCodeWriter::_spiral_travel_to_z(double z, const Vec2d &ij_offset, c
                                  : this->config.travel_speed.value;
     }
 
-    //BBS: take plate offset into consider
-    const Vec2d  cur      = { m_pos(0) - m_x_offset, m_pos(1) - m_y_offset };
+    const Vec2d  cur      = start_xy;
     const Vec2d  opposite = { cur.x() + 2. * ij_offset.x(), cur.y() + 2. * ij_offset.y() };
     const Vec2d  ij_back  = { -ij_offset.x(), -ij_offset.y() };
     const double z_mid    = 0.5 * (z_start + z);
