@@ -4621,6 +4621,24 @@ LayerResult GCode::process_layer(
 void GCode::apply_print_config(const PrintConfig &print_config)
 {
     m_writer.apply_print_config(print_config);
+    {
+        // Ginger: hand the bed outline to the writer so it can refuse a spiral lift whose helix
+        // would leave it. printable_area / bed_exclude_area live in plate coordinates, which is the
+        // same space the writer emits once the plate offset is subtracted.
+        auto to_polygon = [](const Pointfs &pts) {
+            Polygon out;
+            if (pts.size() >= 3) {
+                out.points.reserve(pts.size());
+                for (const Vec2d &pt : pts)
+                    out.points.emplace_back(Point::new_scale(pt.x(), pt.y()));
+            }
+            return out;
+        };
+        Polygons excluded;
+        if (Polygon area = to_polygon(print_config.bed_exclude_area.values); ! area.points.empty())
+            excluded.emplace_back(std::move(area));
+        m_writer.set_spiral_lift_area(to_polygon(print_config.printable_area.values), excluded);
+    }
     m_config.apply(print_config);
     m_scaled_resolution = scaled<double>(print_config.resolution.value);
     m_enable_exclude_object = m_config.exclude_object;

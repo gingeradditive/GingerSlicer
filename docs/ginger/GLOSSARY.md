@@ -445,6 +445,92 @@ Aligned to OrcaSlicer PR **#11435** (Clipper2 multiline), **#11765**
   during travels. Mitigated by: (a) brief screw reverse, (b) higher travel
   speeds, (c) wiping with `coast_at_end_speed`.
 
+- **Adhesion-bridging stringing (cord stringing)** — Distinct from oozing.
+  The molten cord inside a >1 mm nozzle stays physically welded to the
+  just-printed bead even after full screw decompression: retraction relieves
+  pressure but cannot *cut* a several-mm-wide cord. On travel the melt
+  separates — and polymer melt is strain-rate dependent, so a *slow* pull
+  strings while a *fast* pull snaps. Observed symptom: a ~2 mm vertical
+  "spike" (spina) at the path end during the in-place Z-hop, which then bends
+  into the travel direction; on stringy materials (PP, PETG) it thins into a
+  hair, on fibre-filled materials only the spike remains. Because the Z axis
+  is capped low (~8 mm/s), the fast separation must happen in XY. Levers:
+  Slope/Spiral lift (separate at XY travel speed instead of a slow vertical
+  hop), faster wipe (`role_based_wipe_speed=0` + high `wipe_speed`), and the
+  parked "string snap" idea (retrace the bead at travel speed before the hop).
+  Not the same failure ERS solves — ERS manages the flow reservoir, not the
+  melt-to-bead adhesion.
+
+- **Spiral lift** (`z_hop_types = Spiral Lift`) — Rises Z along a helix over
+  the just-printed area instead of a vertical hop, so separation happens at
+  XY travel speed (bypassing the ~8 mm/s Z cap) and any severed material lands
+  over existing material. Radius `= z_hop / (2π·tan(travel_slope))`, so a
+  smaller `travel_slope` widens the circle (1° → ~9 mm, 3° → ~3 mm). Ginger
+  emits the helix as **two half arcs with explicit X/Y end points**, not a
+  single full circle with the end point omitted: a full circle makes Klipper /
+  Marlin compute an angular travel of exactly 0, and a ~1e-14 float residue in
+  the radius round-trip then decides — by its sign — between "no arc" and "full
+  turn", so ~50 % of lifts silently degenerated into a plain vertical hop
+  (`GCodeWriter::_spiral_travel_to_z`). Half arcs sit at angle π, where the
+  angle normalization is continuous, so they are robust. Needs `[gcode_arcs]`
+  in the Klipper config; `resolution: 0.1–0.2` gives a smoother, faster arc
+  than the default.
+
+  Two guards sit in front of the helix, both falling back to a plain vertical
+  lift (which never moves in XY, so it is always safe):
+
+  - **Degenerate radius** (`SPIRAL_LIFT_MIN_RADIUS = 0.005 mm`) — below it the
+    quantized end points collapse onto the start point and the full-circle
+    degeneracy above comes back. `travel_slope = 90°` lands exactly here, which
+    is how the documented *"90° results in Normal Lift"* behaviour is
+    implemented. This only works because the radius uses `tan(travel_slope)`:
+    upstream wrote `atan()` on an angle that `Extruder::travel_slope()` already
+    returns in radians, which at 90° gave a 0.16 mm circle instead of a normal
+    lift (0.2 % error at the default 3°, −33 % at 45°).
+  - **Bed containment** (`GCodeWriter::spiral_lift_fits`) — the circle is
+    centred one radius away from the start point, so the nozzle reaches up to
+    *two* radii from it: ~6 mm across at 3° with a 1 mm hop. The whole circle
+    must stay inside `printable_area` and clear of `bed_exclude_area`
+    (`GCode::apply_print_config` hands both to the writer in plate
+    coordinates). This is the upstream `todo: check the arc move all in bed
+    area`, which only started to matter once the arcs stopped degenerating
+    into silent vertical hops.
+
+  **Gotcha: `filament_z_hop_types` wins.** The filament preset carries its own
+  copy of the setting and it overrides the printer one, so setting
+  `z_hop_types = Spiral Lift` alone changes *nothing* — the G-code footer will
+  even report `z_hop_types = Spiral Lift` while the slicer keeps lifting
+  vertically, because the footer prints the printer config and the lift reads
+  the filament override. Set **both** keys. Same trap for `z_hop` (capped at
+  5 mm) and `retract_lift_enforce`.
+
+  **Verification (no automated tests in this fork)** — slice with
+  `z_hop_types = Spiral Lift` **and** `filament_z_hop_types = Spiral Lift`,
+  then check the G-code: every lift must emit
+  `G17` followed by **two** `G3` moves, each carrying explicit `X`/`Y` **and**
+  `I`/`J`, and **no** `P` word (Marlin reads `P` as "extra full circles", which
+  would turn each half arc into a turn and a half):
+
+  ```
+  build/src/Release/Ginger-Slicer.exe --slice 0 --outputdir out project.3mf
+  grep -c "^G3 .*X.*Y.*I.*J" out/plate_1.gcode   # must be even, 2 per lift
+  grep -n "^G3.* P" out/plate_1.gcode            # must be empty
+  ```
+
+  A lift that emits a lone `G1 Z` where a spiral was expected is one of the two
+  guards firing, not the old bug — check the radius and the distance to the bed
+  edge before suspecting a regression.
+
+  **Open experiment: non-linear Z distribution.** Z is currently split evenly
+  between the two half arcs (`z_mid = (z_start + z) / 2`), so the climb is
+  linear in the sweep angle: after a quarter turn the nozzle is only `z_hop/4`
+  up while already `~r` away laterally, i.e. still below the top of the layer
+  it is sweeping over. Front-loading the climb — exponential or otherwise —
+  would clear the bead earlier while keeping the same XY separation speed that
+  makes the helix useful against **adhesion-bridging stringing** (above). To be tested
+  on a real print before fixing any profile; it also reduces the exposure the
+  bed-containment guard is protecting against.
+
 ---
 
 ## Volume-based cooling (h² × k model)
