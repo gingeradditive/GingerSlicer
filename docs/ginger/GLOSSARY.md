@@ -436,7 +436,23 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
 
 - **Weld / splice** — `single_path_splice_loops()`: staggered double-link
   merge of loops into the walk (ladder, never crossing); with the `island`
-  parameter it enforces the physical link rule.
+  parameter it enforces the physical link rule. Since 2026-08-26 a link
+  longer than 3 stagger is never a straight chord: it is routed as two
+  rails on the cordolo (island contour out, `offset(−stagger)` back —
+  fused flanks, the rib-link pattern), no-retrace validated; no valid
+  route, no weld. `[SPLINK]`, `[SPPIECE]`.
+
+- **Mouth / mouth closure** — When neither alternating gap phase connects
+  the Euler graph (a cycle has exactly two perfect matchings), the sparse
+  trail cannot close and keeps a fixed pair of far ends: the mouth. Its
+  position flips between modes as the section evolves, and each flip is a
+  ~250 mm arrival travel (retract+wipe+hop = stringing). The trail is
+  therefore closed into a loop by a mixed rail — island contour where
+  bare, inner (−1 stagger) contour ARCS where the boundary already
+  carries a bead — making the entry free on every layer. Stool: travels
+  122 → 4 for +473 g. `[SPCLOSEM]`; opt-out `GINGER_SP_NO_CLOSE=1`. The
+  scarf seam slope is suppressed on the wall hooked to the infill (that
+  seam is the junction, not a scar): wall→infill gap 5.05 → 2.50 mm.
 
 - **Deviation** — Boundary-grazing interior stretch of a scanline is
   re-routed one bead off the contour so the arc under it stays legal
@@ -502,6 +518,13 @@ Aligned to OrcaSlicer PR **#11435** (Clipper2 multiline), **#11765**
   `intersection_pl(...)` against the surface before
   `chain_or_connect_infill`, otherwise the unclipped rings crash the
   boundary-graph builder (`create_boundary_infill_graph`).
+  **Ginger exception (2026-08-29)**: under `connect_polygons && multiline > 1`
+  BOTH are skipped, and only together. The splice already returns one closed
+  ring per island, so the connector is not called at all — which is what makes
+  dropping the crop safe (no graph is built from the unclipped rings), and the
+  crop must go because the ring's wall-adjacent flank deliberately rides
+  outside the contracted surface. Re-enabling the connector there without
+  restoring the crop crashes the graph builder; see DFM §2.4b.
 
 - **Clipper2** — Vendored polygon-clipping lib v1.5.2 in
   `deps_src/clipper2/` (mirror of OrcaSlicer, incl. `clipper2_z`). Linked as

@@ -1713,6 +1713,9 @@ inline void sp_profile_count(std::atomic<uint64_t> SPProfile::*counter, uint64_t
 // the two loops are staggered by ~one extrusion width, so the links land in the cut gaps instead of
 // over already extruded material. Rings that remain (no other ring within reach) are attached to the
 // closest open polyline as a detour; open polylines are otherwise left untouched.
+// z del layer corrente, solo per i print di debug (il fill lavora un layer per thread).
+static thread_local double s_sp_debug_z = -1.;
+
 void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger, const Polygons *island)
 {
     // Separate the closed loops (normalized to an open ring representation) from open polylines.
@@ -1725,6 +1728,19 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
             open.emplace_back(std::move(pl));
     }
     loops.clear();
+
+    const bool splice_debug = ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr && island != nullptr;
+    if (splice_debug && (! rings.empty() || open.size() > 1)) {
+        for (size_t i = 0; i < rings.size(); ++ i)
+            std::fprintf(stderr, "[SPPIECE] ring %zu len=%.1fmm a=(%.1f,%.1f)\n", i,
+                         rings[i].length() * SCALING_FACTOR,
+                         rings[i].points.front().x() * SCALING_FACTOR, rings[i].points.front().y() * SCALING_FACTOR);
+        for (size_t i = 0; i < open.size(); ++ i)
+            std::fprintf(stderr, "[SPPIECE] open %zu len=%.1fmm a=(%.1f,%.1f) b=(%.1f,%.1f)\n", i,
+                         open[i].length() * SCALING_FACTOR,
+                         open[i].points.front().x() * SCALING_FACTOR, open[i].points.front().y() * SCALING_FACTOR,
+                         open[i].points.back().x() * SCALING_FACTOR, open[i].points.back().y() * SCALING_FACTOR);
+    }
 
     // The closest point on the segment (a, b) to p. Clipper outlines have vertices only at corners and
     // caps: the closest approach between two rings (or a ring and a path) usually falls in the middle
@@ -1801,6 +1817,117 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
             tot += l.length();
         return tot + SCALED_EPSILON >= 0.999 * len; // else: would extrude across void outside the part
     };
+    // Ginger (2026-08-26, stool): connections ride the WALL, never the open interior. A long
+    // straight attach link is a pair of near-parallel chords converging on the junction - at
+    // 60mm and one stagger apart they retrace each other for most of their length, in the
+    // middle of the island ("spina"). Long links are therefore ROUTED along the boundary:
+    // the outbound rail follows the island contour between the two nearest projections, the
+    // return rail follows the contour shrunk by one stagger - two staggered flanks hugging
+    // the wall, the same physical pattern as a rib link pair. The straight link stays legal
+    // only at anchor scale (<= 3 stagger).
+    const double straight_link_max = 3. * stagger;
+    Polygons     inner_rail;
+    bool         inner_rail_built = false;
+    auto inner_rail_polys = [&]() -> const Polygons & {
+        if (! inner_rail_built) {
+            inner_rail_built = true;
+            if (island != nullptr)
+                inner_rail = offset(*island, -float(stagger));
+        }
+        return inner_rail;
+    };
+    struct BProj { size_t poly, seg; Point pt; double d2; };
+    auto boundary_project = [](const Point &p, const Polygons &polys) -> BProj {
+        BProj best{ size_t(-1), 0, p, std::numeric_limits<double>::max() };
+        for (size_t pi = 0; pi < polys.size(); ++ pi) {
+            const Points &P = polys[pi].points;
+            for (size_t s = 0; s < P.size(); ++ s) {
+                const Point &a = P[s], &b = P[(s + 1) % P.size()];
+                Vec2d  ab   = (b - a).cast<double>();
+                double len2 = ab.squaredNorm();
+                double t    = len2 <= 0. ? 0. : std::clamp((p - a).cast<double>().dot(ab) / len2, 0., 1.);
+                Point  q((a.cast<double>() + ab * t).cast<coord_t>());
+                double d2 = (p - q).cast<double>().squaredNorm();
+                if (d2 < best.d2)
+                    best = { pi, s, q, d2 };
+            }
+        }
+        return best;
+    };
+    // Contour arc between two projections on the SAME polygon, in one direction (fwd = rising
+    // indices). Returns the points (projections included, ends excluded) and the arc length.
+    auto boundary_arc_dir = [](const BProj &from, const BProj &to, const Polygons &polys, bool fwd) -> std::pair<Points, double> {
+        if (from.poly != to.poly || from.poly == size_t(-1))
+            return { {}, std::numeric_limits<double>::max() };
+        const Points &P = polys[from.poly].points;
+        const size_t  m = P.size();
+        Points out;
+        double len = 0.;
+        out.emplace_back(from.pt);
+        size_t i = from.seg;
+        for (size_t guard = 0; guard <= m; ++ guard) {
+            if (i == to.seg && (guard > 0 || from.seg != to.seg ||
+                                (fwd ? (to.pt - from.pt).cast<double>().dot((P[(i + 1) % m] - P[i]).cast<double>()) >= 0.
+                                     : (to.pt - from.pt).cast<double>().dot((P[(i + 1) % m] - P[i]).cast<double>()) <= 0.)))
+                break;
+            const Point &nxt = fwd ? P[(i + 1) % m] : P[i];
+            len += (nxt - out.back()).cast<double>().norm();
+            out.emplace_back(nxt);
+            i = fwd ? (i + 1) % m : (i + m - 1) % m;
+        }
+        len += (to.pt - out.back()).cast<double>().norm();
+        out.emplace_back(to.pt);
+        return { std::move(out), len };
+    };
+    // The shorter of the two directions.
+    auto boundary_arc = [&boundary_arc_dir](const BProj &from, const BProj &to, const Polygons &polys) -> Points {
+        auto [pf, lf] = boundary_arc_dir(from, to, polys, true);
+        auto [pb, lb] = boundary_arc_dir(from, to, polys, false);
+        return lf <= lb ? std::move(pf) : std::move(pb);
+    };
+    // No-retrace over a whole routed polyline: the same sampled coincidence test link_valid
+    // runs on a straight link, per consecutive segment.
+    auto polyline_retraces = [&](const Points &pts) -> bool {
+        if (! retrace)
+            return false;
+        const double step    = 0.5 * stagger;
+        const double d_close = 0.8 * stagger;
+        const double cos_par = 0.90630779;
+        for (size_t k = 0; k + 1 < pts.size(); ++ k) {
+            const Vec2d  v   = (pts[k + 1] - pts[k]).cast<double>();
+            const double len = v.norm();
+            if (len <= 0.)
+                continue;
+            const Vec2d dir = v / len;
+            double coinc = 0.;
+            for (double s = 0.5 * step; s < len && coinc <= guard_free; s += step) {
+                const Point p((pts[k].cast<double>() + dir * s).cast<coord_t>());
+                const auto [d, idx, np] = retrace->distance_from_lines_extra<false>(p);
+                if (std::abs(d) < d_close) {
+                    const Vec2d  t  = (retrace_lines[size_t(idx)].b - retrace_lines[size_t(idx)].a).cast<double>();
+                    const double tn = t.norm();
+                    if (tn > 0. && std::abs(dir.dot(t)) > cos_par * tn)
+                        coinc += step;
+                }
+            }
+            if (coinc > guard_free)
+                return true;
+        }
+        return false;
+    };
+    // Build the two rails for one attach: out = junction -> entry along the island contour,
+    // ret = exit -> junction along the inner (shrunk) contour. Empty on failure.
+    // Ginger GORGE ATTACH (2026-08-27, pattern di Davide dalla wall fusion lightning): un
+    // pezzo chiuso raggiungibile solo da un cul-de-sac va visitato ENTRANDO E USCENDO con due
+    // FIANCHI PARALLELI a interasse esattamente 1 stagger - mai una V convergente (la vecchia
+    // "spina": i due link condividevano la junction e si ricalcavano per meta' lunghezza), mai
+    // rotaie appoggiate al muro sopra il lining (3 cordoni di parete). Come nel merge ring-ring,
+    // il taglio da 1 stagger sta su ENTRAMBI i lati: il ring si apre fra entry ed exit, e il
+    // PATH si apre fra J1 e J2 (J2 = 1 stagger piu' avanti lungo il path); i due link atterrano
+    // nei tagli e corrono paralleli. Spessore ovunque: 2 cordoni fusi, che si impilano in z
+    // come le gorge della fusion (il cul-de-sac evolve lentamente con la quota).
+    struct GorgePlan { size_t erase_from, erase_to; Points repl; };
+
     // A candidate scan validates at most this many (distance-ordered) candidates before giving
     // up for the round: on an unweldable piece every candidate fails, and each validation ends
     // in a Clipper call - unbounded, that is 100k+ clips on a single pathological layer. The
@@ -1808,7 +1935,11 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
     // invalid cluster around a void (hundreds of point pairs through the same notch, measured
     // on the H part) would otherwise exhaust any budget before the first geometrically distinct
     // candidate gets a chance.
-    constexpr size_t max_validations = 64;
+    // Ginger gorge: la coppia richiede una junction TRASVERSALE al link (dove il path e'
+    // parallelo la retta offset non incrocia e il candidato fallisce in cutJ2) - servono
+    // molti piu' candidati di prima per raggiungerla. Il costo per candidato resta basso
+    // (niente Clipper finche' i tagli non validano).
+    constexpr size_t max_validations = 256;
     const double     dedup_r  = 3. * stagger;
     std::vector<std::pair<Point, Point>> failed_links;
     auto near_failed = [&failed_links, dedup_r](const Point &a, const Point &b) -> bool {
@@ -1854,6 +1985,173 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
             out.emplace_back(R[walk_forward ? (first + cnt) % m : (first + m - cnt) % m]);
         out.emplace_back(exit_pt);
         return out;
+    };
+
+    // Costruisce il piano gorge per un candidato di attach: J2 a 1 stagger da J1 lungo il
+    // path (avanti, poi indietro come ripiego), walk del ring scelto per non-incrocio dei
+    // link, entrambi i link validati (inside island + no-retrace). Ritorna erase-span e
+    // punti sostitutivi per open[path_idx].
+    int    gorge_why[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+    double gorge_min_clen = std::numeric_limits<double>::max();
+    auto build_gorge = [&](size_t ring_idx, size_t path_idx, size_t c_k, size_t c_seg,
+                           const Point &entry, const Point &junction, bool insert_junction)
+            -> std::optional<GorgePlan> {
+        const Points &P = open[path_idx].points;
+        const Points &R = rings[ring_idx].points;
+        const size_t  mR = R.size();
+        (void) c_seg;
+        auto cross = [](const Point &a1, const Point &a2, const Point &b1, const Point &b2) -> bool {
+            auto ccw = [](const Point &p, const Point &q, const Point &r) -> double {
+                return double(q.x() - p.x()) * double(r.y() - p.y()) - double(q.y() - p.y()) * double(r.x() - p.x());
+            };
+            return ccw(a1, a2, b1) * ccw(a1, a2, b2) < 0. && ccw(b1, b2, a1) * ccw(b1, b2, a2) < 0.;
+        };
+        // I due fianchi sono TRASLATI: J2 = proiezione di J1+off sul path, X = proiezione di
+        // E+off sul ring, off = n * stagger perpendicolare al link. Cosi' l'interasse resta
+        // ~1 stagger per tutta la lunghezza (il taglio ad arco produceva coppie convergenti,
+        // interasse minimo misurato 0.71 w: retrace).
+        const Vec2d dlink = (entry - junction).cast<double>();
+        const double llen = dlink.norm();
+        if (llen <= 0.)
+            return std::nullopt;
+        const Vec2d nperp(-dlink.y() / llen, dlink.x() / llen);
+        // proiezione su un set di segmenti (indice segmento, punto, dist2)
+        auto project_near = [&](const Points &pts, bool ring, size_t s_lo, size_t s_hi, const Point &target)
+                -> std::tuple<size_t, Point, double> {
+            size_t bs = size_t(-1);
+            Point  bp;
+            double bd = std::numeric_limits<double>::max();
+            const size_t n = pts.size();
+            for (size_t s = s_lo; s <= s_hi; ++ s) {
+                const size_t i = ring ? s % n : s;
+                if (! ring && i + 1 >= n)
+                    break;
+                const Point &a = pts[i], &b = pts[ring ? (i + 1) % n : i + 1];
+                Point q = closest_on_segment(target, a, b);
+                double d = (target - q).cast<double>().squaredNorm();
+                if (d < bd) { bd = d; bp = q; bs = i; }
+            }
+            return { bs, bp, bd };
+        };
+        // giro LUNGO del ring da E a X (il corto e' il taglio)
+        auto ring_walk_between = [&](size_t segE, const Point &E, size_t segX, const Point &X) -> Points {
+            auto walk_dir = [&](bool fwd) -> std::pair<Points, double> {
+                Points out;
+                out.emplace_back(E);
+                double len = 0.;
+                size_t i = segE;
+                for (size_t guard = 0; guard <= mR; ++ guard) {
+                    if (i == segX && guard > 0)
+                        break;
+                    if (i == segX && segE != segX)
+                        break;
+                    const Point &nxt = fwd ? R[(i + 1) % mR] : R[i];
+                    len += (nxt - out.back()).cast<double>().norm();
+                    out.emplace_back(nxt);
+                    i = fwd ? (i + 1) % mR : (i + mR - 1) % mR;
+                }
+                len += (X - out.back()).cast<double>().norm();
+                out.emplace_back(X);
+                return { std::move(out), len };
+            };
+            auto [pf, lf] = walk_dir(true);
+            auto [pb, lb] = walk_dir(false);
+            return lf >= lb ? std::move(pf) : std::move(pb);
+        };
+        // Intersezione della retta L (origine o, direzione d) con un set di segmenti;
+        // ritorna l intersezione piu' vicina a `near_to`.
+        auto line_isect_near = [&](const Points &pts, bool ring, size_t s_lo, size_t s_hi,
+                                   const Vec2d &o, const Vec2d &d, const Point &near_to)
+                -> std::tuple<size_t, Point, double> {
+            size_t bs = size_t(-1);
+            Point  bp;
+            double bd = std::numeric_limits<double>::max();
+            const size_t n = pts.size();
+            for (size_t s = s_lo; s <= s_hi; ++ s) {
+                const size_t i = ring ? s % n : s;
+                if (! ring && i + 1 >= n)
+                    break;
+                const Vec2d a = pts[i].cast<double>();
+                const Vec2d b = pts[ring ? (i + 1) % n : i + 1].cast<double>();
+                const Vec2d ab = b - a;
+                const double den = d.x() * ab.y() - d.y() * ab.x();
+                if (std::abs(den) < 1e-9)
+                    continue;
+                const double t = ((a.x() - o.x()) * d.y() - (a.y() - o.y()) * d.x()) / den;
+                if (t < 0. || t > 1.)
+                    continue;
+                const Vec2d q = a + ab * t;
+                const double dd = (q - near_to.cast<double>()).squaredNorm();
+                if (dd < bd) { bd = dd; bp = Point(q.cast<coord_t>()); bs = i; }
+            }
+            return { bs, bp, bd };
+        };
+        for (int side = 0; side < 2; ++ side) {
+            const Vec2d off = nperp * (side == 0 ? stagger : -stagger);
+            const Vec2d oL  = junction.cast<double>() + off;   // la retta offset L: parallela al link a 1 stagger
+            // J2 = intersezione di L col path in una finestra locale attorno a c_k
+            const size_t lo = c_k > 6 ? c_k - 6 : 0;
+            const size_t hi = std::min(P.size() >= 2 ? P.size() - 2 : 0, c_k + 6);
+            auto [sj, j2, dj] = line_isect_near(P, false, lo, hi, oL, dlink, junction);
+            // il TAGLIO deve restare piccolo: J2 a non piu' di 2 stagger da J1, X a non piu'
+            // di 2 stagger da E - oltre, la "coppia" degenera in un cuneo (misurato: X a 32mm
+            // dall'entry quando la retta offset manca l'intorno e becca l'altro lato del ring)
+            if (sj == size_t(-1) || dj > (3. * stagger) * (3. * stagger)) {
+                ++ gorge_why[sj == size_t(-1) ? 0 : 1];
+                continue; // il path localmente non offre la sponda parallela
+            }
+            // X = intersezione di L col ring (scan completo, vicina a entry)
+            auto [sx, x, dx] = line_isect_near(R, true, 0, mR - 1, oL, dlink, entry);
+            if (sx == size_t(-1) || dx > (3. * stagger) * (3. * stagger)) {
+                ++ gorge_why[sx == size_t(-1) ? 2 : 3];
+                continue;
+            }
+            // interasse reale dei due fianchi (campionato): mai sotto 0.85 stagger
+            bool pinch = false;
+            for (double t = 0.; t <= 1.001; t += 0.25) {
+                const Vec2d p1 = junction.cast<double>() * (1. - t) + entry.cast<double>() * t;
+                const Vec2d p2 = j2.cast<double>() * (1. - t) + x.cast<double>() * t;
+                if ((p1 - p2).norm() < 0.85 * stagger) { pinch = true; break; }
+            }
+            if (pinch || cross(junction, entry, j2, x)) {
+                ++ gorge_why[pinch ? 4 : 5];
+                continue;
+            }
+            if (! link_valid(junction, entry)) { ++ gorge_why[6]; continue; }
+            if (! link_valid(j2, x))           { ++ gorge_why[7]; continue; }
+            // segmento E: serve l indice per il walk; E giace sul ring vicino a entry
+            auto [se, epr, de] = project_near(R, true, 0, mR - 1, entry);
+            if (se == size_t(-1))
+                continue;
+            Points walk = ring_walk_between(se, entry, sx, x);
+            if (walk.size() < 2)
+                continue;
+            // ordine lungo il path: J1 e' su c_k (vertice o proiezione), J2 su sj
+            const bool j2_after = sj > c_k || (sj == c_k && insert_junction &&
+                (j2 - P[c_k]).cast<double>().squaredNorm() > (junction - P[c_k]).cast<double>().squaredNorm());
+            GorgePlan plan;
+            if (j2_after) {
+                plan.erase_from = c_k + 1;
+                plan.erase_to   = std::min(sj + 1, P.size());
+                if (insert_junction)
+                    plan.repl.emplace_back(junction);
+                plan.repl.insert(plan.repl.end(), walk.begin(), walk.end()); // E ... X
+                plan.repl.emplace_back(j2);
+            } else {
+                plan.erase_from = sj + 1;
+                plan.erase_to   = insert_junction ? c_k + 1 : c_k;
+                if (plan.erase_from > plan.erase_to)
+                    continue;
+                plan.repl.emplace_back(j2);
+                plan.repl.insert(plan.repl.end(), walk.rbegin(), walk.rend()); // X ... E
+                if (insert_junction)
+                    plan.repl.emplace_back(junction);
+            }
+            if (plan.erase_to > P.size())
+                continue;
+            return plan;
+        }
+        return std::nullopt;
     };
 
     const double max_link2 = max_link_distance * max_link_distance;
@@ -1936,6 +2234,11 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         }
         if (! b_found)
             break;
+        if (splice_debug)
+            std::fprintf(stderr, "[SPLINK] ring-ring (%.1f,%.1f)->(%.1f,%.1f) len=%.1fmm\n",
+                         b_proj.x() * SCALING_FACTOR, b_proj.y() * SCALING_FACTOR,
+                         rings[bj].points[b_vert].x() * SCALING_FACTOR, rings[bj].points[b_vert].y() * SCALING_FACTOR,
+                         (rings[bj].points[b_vert] - b_proj).cast<double>().norm() * SCALING_FACTOR);
         const Points &A = rings[bi].points;
         const Points &B = rings[bj].points;
         // Cut B at its closest vertex, A at the projected point right across; stagger both cuts and
@@ -2003,6 +2306,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         size_t br = 0, bo = 0, bk = 0, b_seg = 0;
         Point  b_entry, b_junction;
         bool   b_insert_junction = false;
+        std::optional<GorgePlan> b_gorge;
         bool   b_found = false;
         size_t tried   = 0;
         failed_links.clear();
@@ -2044,42 +2348,185 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
             std::stable_sort(acands.begin(), acands.end(), [](const AttCand &l, const AttCand &r) { return l.d2 < r.d2; });
             bool budget_out = false;
             for (const AttCand &c : acands) {
-                if (near_failed(c.junction, c.entry))
+                // Ginger: oltre la scala anchor la V convergente non e' mai legale - il pezzo
+                // si visita col pattern GORGE: due fianchi paralleli a 1 stagger, taglio su
+                // entrambi i lati, i link atterrano nei tagli. La validazione gorge e' cheap
+                // (niente Clipper fino a link_valid) e la sua riuscita dipende dall'ANGOLO
+                // locale del path, non dalla regione: il veto di vicinato dei falliti (pensato
+                // per la validazione Clipper) qui NON si applica, o i capi trasversali dei
+                // chord vengono saltati perche' a 2mm da un candidato-parete fallito.
+                const double clen = (c.entry - c.junction).cast<double>().norm();
+                if (clen < gorge_min_clen) gorge_min_clen = clen;
+                const bool   gorge_path = ! (island == nullptr || clen <= straight_link_max);
+                if (! gorge_path && near_failed(c.junction, c.entry))
                     continue; // same invalid region: skip without spending budget
                 if (++ tried > max_validations) {
                     budget_out = true;
                     break;
                 }
-                if (link_valid(c.junction, c.entry)) {
+                bool ok = false;
+                std::optional<GorgePlan> plan;
+                if (! gorge_path) {
+                    ok = link_valid(c.junction, c.entry);
+                } else {
+                    plan = build_gorge(c.r, c.o, c.k, c.seg, c.entry, c.junction, c.insert_junction);
+                    ok   = plan.has_value();
+                }
+                if (ok) {
                     br = c.r; bo = c.o; bk = c.k; b_seg = c.seg;
                     b_entry = c.entry; b_junction = c.junction; b_insert_junction = c.insert_junction;
+                    b_gorge = std::move(plan);
                     b_found = true;
                     break;
                 }
-                failed_links.emplace_back(c.junction, c.entry);
+                if (! gorge_path)
+                    failed_links.emplace_back(c.junction, c.entry);
             }
             if (b_found || budget_out || rad >= max_link_distance)
                 break;
             r_prev2 = r2;
             rad     = std::min(rad * 4., max_link_distance);
         }
-        if (! b_found)
+        if (! b_found) {
+            if (splice_debug && ! rings.empty() && ! open.empty())
+                std::fprintf(stderr, "[SPGORGE] z=%.1f min_clen=%.1f attach FALLITO: noJ2=%d cutJ2=%d noX=%d cutX=%d pinch=%d cross=%d link1=%d link2=%d\n",
+                             s_sp_debug_z, gorge_min_clen * SCALING_FACTOR, gorge_why[0], gorge_why[1], gorge_why[2], gorge_why[3],
+                             gorge_why[4], gorge_why[5], gorge_why[6], gorge_why[7]);
             break;
-        const Points &R      = rings[br].points;
-        Points        walk_f = walk_ring(R, b_seg, b_entry, stagger, true);
-        Points        walk_b = walk_ring(R, b_seg, b_entry, stagger, false);
-        Points       &walk   = (walk_f.back() - b_junction).cast<double>().squaredNorm() <
-                               (walk_b.back() - b_junction).cast<double>().squaredNorm() ? walk_f : walk_b;
-        Points ins;
-        ins.reserve(walk.size() + 2);
-        if (b_insert_junction)
-            ins.emplace_back(b_junction);
-        ins.insert(ins.end(), walk.begin(), walk.end());
-        ins.emplace_back(b_junction); // return link, back to the junction point
-        open[bo].points.insert(open[bo].points.begin() + bk + 1, ins.begin(), ins.end());
+        }
+        if (splice_debug)
+            std::fprintf(stderr, "[SPLINK] attach junction=(%.1f,%.1f) entry=(%.1f,%.1f) len=%.1fmm ring_len=%.1fmm gorge=%d\n",
+                         b_junction.x() * SCALING_FACTOR, b_junction.y() * SCALING_FACTOR,
+                         b_entry.x() * SCALING_FACTOR, b_entry.y() * SCALING_FACTOR,
+                         (b_entry - b_junction).cast<double>().norm() * SCALING_FACTOR,
+                         rings[br].length() * SCALING_FACTOR, int(b_gorge.has_value()));
+        if (b_gorge) {
+            // Gorge: il tratto J1..J2 del path e' il taglio; al suo posto entra la sequenza
+            // [.. link1, ring aperto, link2 ..] a fianchi paralleli.
+            Points &P = open[bo].points;
+            P.erase(P.begin() + b_gorge->erase_from, P.begin() + b_gorge->erase_to);
+            P.insert(P.begin() + b_gorge->erase_from, b_gorge->repl.begin(), b_gorge->repl.end());
+        } else {
+            // Link corto (scala anchor): V semplice come sempre.
+            const Points &R      = rings[br].points;
+            Points        walk_f = walk_ring(R, b_seg, b_entry, stagger, true);
+            Points        walk_b = walk_ring(R, b_seg, b_entry, stagger, false);
+            Points       &walk   = (walk_f.back() - b_junction).cast<double>().squaredNorm() <
+                                   (walk_b.back() - b_junction).cast<double>().squaredNorm() ? walk_f : walk_b;
+            Points ins;
+            ins.reserve(walk.size() + 2);
+            if (b_insert_junction)
+                ins.emplace_back(b_junction);
+            ins.insert(ins.end(), walk.begin(), walk.end());
+            ins.emplace_back(b_junction); // return link, back to the junction point
+            open[bo].points.insert(open[bo].points.begin() + bk + 1, ins.begin(), ins.end());
+        }
         rings.erase(rings.begin() + br);
         attached_any = true;
         rebuild_retrace();
+    }
+
+    // Ginger (2026-08-26): CLOSE THE MOUTH. When the two alternating phases disconnect, the
+    // Euler graph structurally cannot make one closed circuit (a cycle has exactly two perfect
+    // matchings) and the trail stays open with a fixed pair of far ends - the "mouth". An open
+    // trail costs an arrival travel whenever the mouth MOVES between layers (measured on the
+    // stool: ~25 mode flips, 250-375mm each, all of them retract+wipe+hop stringing events).
+    // Closing it into a loop makes the entry FREE on every layer: the closing route rides the
+    // CORDOLO - the island contour where it is bare, the offset(-1 width) rail where the
+    // boundary already carries a bead (fused flank, the rib-pair pattern) - and is validated
+    // by the same no-retrace sampler as everything else. Material buys structural zero travel;
+    // on pellet that trade is explicitly wanted. Opt-out for A/B: GINGER_SP_NO_CLOSE=1.
+    // Default OFF (2026-08-27, protezione lightning): l'arco nudo non esiste mai sul grid
+    // (l'alternanza occupa un gap si' e uno no) e su lightning provava chiusure indesiderate.
+    // Riattivabile per esperimenti con GINGER_SP_CLOSE=1.
+    if (island != nullptr && ::getenv("GINGER_SP_CLOSE") != nullptr) {
+        const double mouth_min = 6. * stagger;
+        for (Polyline &P : open) {
+            if (P.size() < 3)
+                continue;
+            const double mouth = (P.points.back() - P.points.front()).cast<double>().norm();
+            if (mouth <= mouth_min)
+                continue;
+            const BProj pa = boundary_project(P.points.back(),  *island);
+            const BProj pb = boundary_project(P.points.front(), *island);
+            if (pa.poly != pb.poly || pa.poly == size_t(-1))
+                continue;
+            auto arc_f = boundary_arc_dir(pa, pb, *island, true);
+            auto arc_b = boundary_arc_dir(pa, pb, *island, false);
+            if (arc_b.second < arc_f.second)
+                std::swap(arc_f, arc_b); // arc_f = shorter first
+            bool closed = false;
+            for (auto *arc : { &arc_f, &arc_b }) {
+                if (arc->first.size() < 2 || arc->second == std::numeric_limits<double>::max())
+                    continue;
+                const Points &A = arc->first;
+                // Per-segment occupancy: a stretch of the contour already carrying a parallel
+                // bead cannot be ridden again - those vertices drop to the inner (-1 stagger)
+                // rail, the fused-flank position.
+                std::vector<char> seg_occ(A.size() > 0 ? A.size() - 1 : 0, 0);
+                if (retrace) {
+                    const double step    = 0.5 * stagger;
+                    const double d_close = 0.8 * stagger;
+                    const double cos_par = 0.90630779;
+                    for (size_t k = 0; k + 1 < A.size(); ++ k) {
+                        const Vec2d  v   = (A[k + 1] - A[k]).cast<double>();
+                        const double len = v.norm();
+                        if (len <= 0.)
+                            continue;
+                        const Vec2d dir = v / len;
+                        double coinc = 0.;
+                        for (double s = 0.5 * step; s < len; s += step) {
+                            const Point p((A[k].cast<double>() + dir * s).cast<coord_t>());
+                            const auto [d, idx, np] = retrace->distance_from_lines_extra<false>(p);
+                            if (std::abs(d) < d_close) {
+                                const Vec2d  t  = (retrace_lines[size_t(idx)].b - retrace_lines[size_t(idx)].a).cast<double>();
+                                const double tn = t.norm();
+                                if (tn > 0. && std::abs(dir.dot(t)) > cos_par * tn)
+                                    coinc += step;
+                            }
+                        }
+                        seg_occ[k] = coinc > std::min(guard_free, 0.5 * len) ? 1 : 0;
+                    }
+                }
+                // BARE ARC ONLY (2026-08-26, verdetto di Davide sul layer 235): la rotaia
+                // interna e' fusa solo di lato e ha ARIA sotto - e siccome archi e occupazione
+                // cambiano da layer a layer non si impila mai: ogni layer e' un cordone a sbalzo.
+                // La chiusura e' legale SOLO dove giace sul fill boundary nudo: li' sta dove
+                // starebbe il lining - fusa al muro (infill_wall_overlap), colonna verticale del
+                // boundary sotto - e stampa come il lining. Se l'arco porta gia' un cordone, il
+                // sampler no-retrace sotto lo boccia e la bocca resta aperta (meglio un travel
+                // pulito di un cordone in aria).
+                if (std::find(seg_occ.begin(), seg_occ.end(), char(1)) != seg_occ.end())
+                    continue; // arco non nudo: qualche tratto porta gia' un cordone
+                Points route;
+                route.reserve(A.size() + 2);
+                for (const Point &pt : A)
+                    if (route.empty() || (pt - route.back()).cast<double>().norm() > 0.1 * stagger)
+                        route.emplace_back(pt);
+                if (route.size() < 2)
+                    continue;
+                // Full closing polyline for the no-retrace check: trail end -> route -> trail start.
+                Points test;
+                test.reserve(route.size() + 2);
+                test.emplace_back(P.points.back());
+                test.insert(test.end(), route.begin(), route.end());
+                test.emplace_back(P.points.front());
+                if (polyline_retraces(test))
+                    continue;
+                for (const Point &pt : route)
+                    if ((pt - P.points.back()).cast<double>().norm() > SCALED_EPSILON)
+                        P.points.emplace_back(pt);
+                P.points.emplace_back(P.points.front()); // closed: downstream emits an ExtrusionLoop
+                closed = true;
+                if (splice_debug)
+                    std::fprintf(stderr, "[SPCLOSEM] mouth=%.1fmm arc=%.1fmm route_pts=%zu\n",
+                                 mouth * SCALING_FACTOR, arc->second * SCALING_FACTOR, route.size());
+                rebuild_retrace();
+                break;
+            }
+            if (! closed && splice_debug)
+                std::fprintf(stderr, "[SPCLOSEM] mouth=%.1fmm UNCLOSED (no valid rail)\n", mouth * SCALING_FACTOR);
+        }
     }
 
     // Re-close the rings and emit everything.
@@ -2129,7 +2576,68 @@ static inline void single_path_append_arc(Points &dst, const Points &contour, si
 // previous wall ended -> no wall->infill travel. Finally Hierholzer's algorithm extracts maximal trails;
 // every trail is one travel-free path (components with more than two odd-degree vertices decompose into
 // several trails gracefully).
-static void connect_infill_single_path(Polylines &&infill_ordered, const BoundaryInfillGraph &graph, const double spacing, Polylines &polylines_out, const bool final_emission, const double line_w, const double anchor_max, const bool wall_lining = false)
+// Ginger twin: rifila ~1w di percorso attorno ai due capi di ogni dogleg gemello, cosi' la
+// passata del gemello non tocca i vertici A/B (gia' coperti dalla passata del chord): via la
+// rientranza a V e il nodo a 4 rami in un punto. Gli span sono (idx_ta, idx_tb) in pl.points;
+// si rifila dal fondo per tenere validi gli indici.
+static void trim_doglegs(Polyline &pl, std::vector<std::pair<size_t, size_t>> &spans, double line_w)
+{
+    const double trim = 1.0 * line_w;
+    for (auto it = spans.rbegin(); it != spans.rend(); ++ it) {
+        const size_t ia = it->first, ib = it->second;
+        if (ib + 1 >= pl.points.size() || ia == 0)
+            continue;
+        // lato USCITA: consuma `trim` di lunghezza dopo tb (il vertice B e l'inizio del
+        // tratto successivo)
+        {
+            double left = trim;
+            size_t j = ib + 1;
+            while (j < pl.points.size() - 1 && left > 0.) {
+                const Vec2d v = (pl.points[j + 1] - pl.points[j]).cast<double>();
+                const double l = v.norm();
+                if (l <= left) {
+                    left -= l;
+                    pl.points.erase(pl.points.begin() + j);
+                } else {
+                    pl.points[j] = Point((pl.points[j].cast<double>() + v * (left / l)).cast<coord_t>());
+                    left = 0.;
+                }
+            }
+        }
+        // lato INGRESSO: consuma `trim` prima di ta (il vertice A e la coda del tratto precedente)
+        {
+            double left = trim;
+            size_t j = ia - 1;
+            while (j > 0 && left > 0.) {
+                const Vec2d v = (pl.points[j - 1] - pl.points[j]).cast<double>();
+                const double l = v.norm();
+                if (l <= left) {
+                    left -= l;
+                    pl.points.erase(pl.points.begin() + j);
+                    -- j;
+                } else {
+                    pl.points[j] = Point((pl.points[j].cast<double>() + v * (left / l)).cast<coord_t>());
+                    left = 0.;
+                }
+            }
+        }
+    }
+    spans.clear();
+}
+
+static void connect_infill_single_path(Polylines &&infill_ordered, const BoundaryInfillGraph &graph, const double spacing, Polylines &polylines_out, const bool final_emission, const double line_w, const double anchor_max, const bool wall_lining = false,
+                                       // Ginger crossing-weave (2026-08-27): quando l'exact solver chiude con
+                                       // comps >= 2, riporta l'etichetta di componente di ogni frammento (indice
+                                       // frammento -> radice union-find; -1 = standalone/fuori ring) e il punto
+                                       // medio della bocca, cosi' il chiamante puo' INTRECCIARE due frammenti di
+                                       // componenti diverse al loro incrocio e ritentare.
+                                       std::vector<int> *comp_out = nullptr, Point *mouth_mid_out = nullptr, bool *mouth_valid_out = nullptr,
+                                       // Ginger twin (2026-08-28, disegno di Davide): se il solver trova che
+                                       // RADDOPPIARE un chord (fianco gemello a 1w) rende l'anello un solo
+                                       // componente con 2 soli difetti, riporta l'indice del frammento: il
+                                       // chiamante inietta il gemello e ritenta - un solo segmento raddoppiato
+                                       // al posto di ponti, gorge e triangoli.
+                                       int *twin_frag_out = nullptr)
 {
     sp_profile_count(&SPProfile::islands);
     // Cost of one OPEN trail, measured in closed pieces (see count_trails below). For the final
@@ -2405,8 +2913,8 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 const size_t m = cv.size();
                 // Fragment (chord) connectivity is selection-independent: precompute per-vertex pairs.
                 std::vector<std::pair<size_t, size_t>> chord_pairs; // ring positions
+                std::vector<size_t> pos_of(n_vertices, std::numeric_limits<size_t>::max());
                 {
-                    std::vector<size_t> pos_of(n_vertices, std::numeric_limits<size_t>::max());
                     for (size_t p = 0; p < m; ++ p)
                         pos_of[cv[p]] = p;
                     for (size_t i = 0; i < n_fragments; ++ i)
@@ -2455,6 +2963,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 // (the lining "second wall" - material is explicitly not a concern on pellet).
                 struct ExactBest { size_t comps, blocked, defects; double mouth, coverage; std::vector<char> sel; };
                 ExactBest best { std::numeric_limits<size_t>::max(), 0, 0, 0., -1., {} };
+                size_t best_da = std::numeric_limits<size_t>::max(), best_db = std::numeric_limits<size_t>::max();
                 std::vector<char> sel(m);
                 auto consider = [&](size_t da, size_t db, bool phase) {
                     if (! build_sel(da, db, phase, sel))
@@ -2477,6 +2986,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                           (ndef == best.defects && (mouth < best.mouth ||
                            (lining_tiebreak && mouth == best.mouth && cov > best.coverage)))))))) {
                         best = { comps, blocked_used, ndef, mouth, cov, sel };
+                        best_da = da; best_db = db;
                     }
                 };
                 // 0-defect candidates: the sentinel matches no vertex, so the alternation runs the
@@ -2488,15 +2998,340 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     for (size_t db = da + 1; db < m; ++ db)
                         for (int phase = 0; phase < 2; ++ phase)
                             consider(da, db, phase != 0);
+                // Ginger TWIN (2026-08-28, IL disegno di Davide): prova a RADDOPPIARE un chord.
+                // Il gemello a 1 width aggiunge +1 grado ai due capi del chord: con 2 flip li'
+                // e 2 flip liberi altrove, l'anello puo' chiudersi in UN componente con 2 soli
+                // difetti (la bocca stabile che l'alternanza assorbe). Costo: un solo segmento
+                // raddoppiato (fianco fuso legale), niente ponti ne' triangoli. Verificato sul
+                // ring dello stool: l'unico twin vincente e' esattamente il chord indicato da
+                // Davide (42mm), bocca alla gola. MAI sotto wall lining (lightning intatto).
+                if (best.comps > 1 && m <= 48 && ! lining_tiebreak && twin_frag_out != nullptr) {
+                    SPTimer sp_timer_t_(SPProfile::phExactSolve);
+                    std::vector<char> selt(m);
+                    int    tw_frag  = -1;
+                    double tw_mouth = std::numeric_limits<double>::max();
+                    double tw_len   = std::numeric_limits<double>::max();
+                    for (size_t fi = 0; fi < n_fragments; ++ fi) {
+                        if (standalone[fi])
+                            continue;
+                        const size_t pf1 = pos_of[2 * fi], pf2 = pos_of[2 * fi + 1];
+                        if (pf1 == std::numeric_limits<size_t>::max() || pf2 == std::numeric_limits<size_t>::max())
+                            continue;
+                        const double flen = (vpt(pf1) - vpt(pf2)).cast<double>().norm();
+                        for (size_t da = 0; da < m; ++ da) {
+                            if (da == pf1 || da == pf2) continue;
+                            for (size_t db = da + 1; db < m; ++ db) {
+                                if (db == pf1 || db == pf2) continue;
+                                for (int phase = 0; phase < 2; ++ phase) {
+                                    size_t fl[4] = { pf1, pf2, da, db };
+                                    std::sort(fl, fl + 4);
+                                    bool cur = phase != 0;
+                                    for (size_t k = 0; k < m; ++ k) {
+                                        selt[k] = cur;
+                                        const size_t v = (k + 1) % m;
+                                        if (v != fl[0] && v != fl[1] && v != fl[2] && v != fl[3])
+                                            cur = ! cur;
+                                    }
+                                    const bool v0_defect = fl[0] == 0;
+                                    if (v0_defect ? (selt[0] != selt[m - 1]) : (selt[0] == selt[m - 1]))
+                                        continue;
+                                    // comps con il lato gemello (stessi capi del chord)
+                                    std::iota(uf.begin(), uf.end(), 0);
+                                    auto find2 = [&](size_t x) { while (uf[x] != x) { uf[x] = uf[uf[x]]; x = uf[x]; } return x; };
+                                    auto uni2  = [&](size_t x, size_t y) { x = find2(x); y = find2(y); if (x != y) uf[x] = y; };
+                                    for (size_t k = 0; k < m; ++ k)
+                                        if (selt[k]) uni2(k, (k + 1) % m);
+                                    for (const auto &cp : chord_pairs)
+                                        uni2(cp.first, cp.second);
+                                    size_t comps_t = 0;
+                                    for (size_t v = 0; v < m; ++ v)
+                                        if (find2(v) == v) ++ comps_t;
+                                    if (comps_t != 1)
+                                        continue;
+                                    size_t blocked_t = 0;
+                                    for (size_t k = 0; k < m; ++ k)
+                                        if (selt[k] && gap_blocked[0][k]) ++ blocked_t;
+                                    if (blocked_t > 0)
+                                        continue;
+                                    const double mo = (vpt(da) - vpt(db)).cast<double>().norm();
+                                    if (mo < tw_mouth || (mo == tw_mouth && flen < tw_len)) {
+                                        tw_mouth = mo; tw_len = flen; tw_frag = int(fi);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (tw_frag >= 0) {
+                        *twin_frag_out = tw_frag;
+                        if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+                            std::fprintf(stderr, "[SPTWIN] raddoppio frammento %d (len=%.1fmm), bocca residua %.1fmm - reinvio al chiamante\n",
+                                         tw_frag, tw_len * SCALING_FACTOR, tw_mouth * SCALING_FACTOR);
+                    }
+                }
+                // Ginger 4-FLIP (2026-08-27, dagli schizzi di Davide + simulatore esatto): con
+                // due soli flip un desiderio locale (i capi del trail alla punta) ribalta la fase
+                // su mezzo anello e frantuma il resto (misurato: comps 5-6), quindi il minimo
+                // resta comps=2 e la cella avanzata va pagata in attach o travel. Con QUATTRO
+                // flip esistono selezioni con comps=1 (375 sul ring dello stool, sia nei layer
+                // normali sia nei flip): un solo componente, quattro capi che il pairing greedy
+                // accoppia (punta ~34mm + gola) - stesse posizioni su OGNI layer, zero attach,
+                // zero cordoni extra. Enumerazione C(m,4)*2, gated su m piccolo e MAI sotto
+                // wall lining (lightning resta identico, per scelta esplicita).
+                if (best.comps > 1 && m <= 36 && ! lining_tiebreak &&
+                    ! (twin_frag_out != nullptr && *twin_frag_out >= 0)) {
+                    SPTimer sp_timer4_(SPProfile::phExactSolve);
+                    std::vector<char> sel4(m);
+                    size_t f[4];
+                    struct Cand4 { size_t blocked; double d_small, d_large; size_t f[4]; bool phase; };
+                    std::vector<Cand4> cand4;
+                    cand4.reserve(1024);
+                    auto build_sel4 = [&](const size_t fl[4], bool phase, std::vector<char> &out) -> bool {
+                        bool cur = phase;
+                        for (size_t k = 0; k < m; ++ k) {
+                            out[k] = cur;
+                            const size_t v = (k + 1) % m;
+                            if (v != fl[0] && v != fl[1] && v != fl[2] && v != fl[3])
+                                cur = ! cur;
+                        }
+                        const bool v0_defect = fl[0] == 0;
+                        return v0_defect ? (out[0] == out[m - 1]) : (out[0] != out[m - 1]);
+                    };
+                    for (f[0] = 0; f[0] + 3 < m; ++ f[0])
+                    for (f[1] = f[0] + 1; f[1] + 2 < m; ++ f[1])
+                    for (f[2] = f[1] + 1; f[2] + 1 < m; ++ f[2])
+                    for (f[3] = f[2] + 1; f[3] < m; ++ f[3])
+                        for (int phase = 0; phase < 2; ++ phase) {
+                            if (! build_sel4(f, phase != 0, sel4))
+                                continue;
+                            if (solve_components(sel4) != 1)
+                                continue; // solo il premio pieno giustifica 4 capi
+                            size_t blocked_used = 0;
+                            for (size_t k = 0; k < m; ++ k)
+                                if (sel4[k] && gap_blocked[0][k])
+                                    ++ blocked_used;
+                            // Costo di EMISSIONE, non di grafo: dei due virtual edge il router paga
+                            // come salto solo la bocca PICCOLA (l'accoppiamento greedy prende prima
+                            // la coppia piu' vicina), l'altra la assorbe l'alternanza fra layer
+                            // (arrivo su un capo, uscita dall'altro). Quindi: minimizza la bocca
+                            // piccola (il salto reale, ~34mm alla punta), a parita' la grande.
+                            auto dd = [&](size_t a, size_t b) { return (vpt(a) - vpt(b)).cast<double>().norm(); };
+                            double d_small = std::numeric_limits<double>::max(), d_large = 0.;
+                            {
+                                size_t bi = 0, bj = 1;
+                                for (size_t i = 0; i < 4; ++ i)
+                                    for (size_t j = i + 1; j < 4; ++ j)
+                                        if (dd(f[i], f[j]) < d_small) { d_small = dd(f[i], f[j]); bi = i; bj = j; }
+                                size_t rest[2], r = 0;
+                                for (size_t i = 0; i < 4; ++ i)
+                                    if (i != bi && i != bj)
+                                        rest[r ++] = i;
+                                d_large = dd(f[rest[0]], f[rest[1]]);
+                            }
+                            cand4.push_back({ blocked_used, d_small, d_large, { f[0], f[1], f[2], f[3] }, phase != 0 });
+                        }
+                    // Post-filtro (2026-08-27): il salto piccolo va ESTRUSO come diagonale Z
+                    // (schizzo di Davide), quindi la corda fra i suoi due difetti deve stare
+                    // DENTRO l'isola - la coppia geometricamente migliore puo' correre lungo un
+                    // bordo concavo e uscirne (misurato alla punta: entrambe sul lato destro).
+                    // Si ordina per (blocked, bocca piccola, bocca grande) e si prende il primo
+                    // quad col ponte interno; se nessuno, il migliore e basta (il salto resta
+                    // un travel corto).
+                    if (! cand4.empty()) {
+                        std::sort(cand4.begin(), cand4.end(), [](const Cand4 &a, const Cand4 &b) {
+                            return a.blocked != b.blocked ? a.blocked < b.blocked :
+                                   a.d_small != b.d_small ? a.d_small < b.d_small : a.d_large < b.d_large;
+                        });
+                        size_t pick = 0;
+                        bool   picked = false;
+                        int    tw_no_pair = 0, tw_pair_found = 0, tw_side_fail = 0;
+                        // PASSATA TWIN (il disegno di Davide): un quad la cui coppia piccola
+                        // sono i DUE CAPI di un chord si chiude RADDOPPIANDO quel chord (dogleg
+                        // gemello a 1w in emissione) - un solo segmento raddoppiato, zero
+                        // travel, zero diagonali. Se esiste, vince su tutto.
+                        for (size_t ci = 0; ci < std::min<size_t>(cand4.size(), 256) && ! picked; ++ ci) {
+                            const Cand4 &c4 = cand4[ci];
+                            size_t si = 0, sj = 1;
+                            double dmin = std::numeric_limits<double>::max();
+                            for (size_t i = 0; i < 4; ++ i)
+                                for (size_t j = i + 1; j < 4; ++ j) {
+                                    const double d = (vpt(c4.f[i]) - vpt(c4.f[j])).cast<double>().norm();
+                                    if (d < dmin) { dmin = d; si = i; sj = j; }
+                                }
+                            // vale per ENTRAMBE le coppie del pairing: se una delle due e'
+                            // formata dai capi dello stesso frammento, quel virtual si estrude
+                            // come gemello (l'altra coppia resta bocca/ponte come sempre)
+                            size_t oi = 4, oj = 4;
+                            {
+                                size_t rest[2], r = 0;
+                                for (size_t i = 0; i < 4; ++ i)
+                                    if (i != si && i != sj) rest[r ++] = i;
+                                oi = rest[0]; oj = rest[1];
+                            }
+                            size_t pa = si, pb = sj;
+                            if (cv[c4.f[pa]] / 2 != cv[c4.f[pb]] / 2) {
+                                pa = oi; pb = oj;
+                                if (cv[c4.f[pa]] / 2 != cv[c4.f[pb]] / 2) {
+                                    ++ tw_no_pair;
+                                    continue; // nessuna delle due coppie e' un frammento
+                                }
+                            }
+                            ++ tw_pair_found;
+                            // lato del gemello: dentro l'isola
+                            const Vec2d a2 = vpt(c4.f[pa]).cast<double>(), b2 = vpt(c4.f[pb]).cast<double>();
+                            const Vec2d dv = b2 - a2;
+                            const double dl = dv.norm();
+                            if (dl <= 0.) continue;
+                            const Vec2d np2(-dv.y() / dl, dv.x() / dl);
+                            bool ok_side = false;
+                            const Vec2d u2f = dv / dl;
+                            for (int sd = 0; sd < 2 && ! ok_side; ++ sd) {
+                                const Vec2d off = np2 * (sd == 0 ? line_w : -line_w);
+                                const Line  lt(Point((a2 + off + u2f * line_w).cast<coord_t>()),
+                                               Point((b2 + off - u2f * line_w).cast<coord_t>()));
+                                double kept = 0.;
+                                for (const Line &l : intersection_ln(lt, island_region()))
+                                    kept = std::max(kept, l.length());
+                                // basta che il TRATTO CENTRALE stia dentro: gli stub del dogleg
+                                // si inclinano verso i capi come la punta della gorge fusion
+                                ok_side = kept + SCALED_EPSILON >= 0.6 * dl;
+                            }
+                            if (ok_side) { pick = ci; picked = true; }
+                            else ++ tw_side_fail;
+                        }
+                        if (! picked && ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+                            std::fprintf(stderr, "[SPTW2] twin niet: cand=%zu no_pair=%d pair=%d side_fail=%d%s",
+                                         cand4.size(), tw_no_pair, tw_pair_found, tw_side_fail, "\n");
+                        for (size_t ci = 0; ci < std::min<size_t>(cand4.size(), 256) && ! picked; ++ ci) {
+                            const Cand4 &c4 = cand4[ci];
+                            // coppia piccola del quad
+                            size_t si = 0, sj = 1;
+                            double dmin = std::numeric_limits<double>::max();
+                            for (size_t i = 0; i < 4; ++ i)
+                                for (size_t j = i + 1; j < 4; ++ j) {
+                                    const double d = (vpt(c4.f[i]) - vpt(c4.f[j])).cast<double>().norm();
+                                    if (d < dmin) { dmin = d; si = i; sj = j; }
+                                }
+                            if (dmin > 22. * line_w)
+                                continue; // oltre il gate del ponte in emissione
+                            const Line lz(vpt(c4.f[si]), vpt(c4.f[sj]));
+                            double tot = 0.;
+                            for (const Line &l : intersection_ln(lz, island_region()))
+                                tot += l.length();
+                            if (tot + SCALED_EPSILON < 0.999 * dmin)
+                                continue; // esce dall'isola
+                            // ... e non deve RICALCARE un frammento esistente (la coppia
+                            // "migliore" e' spesso i due estremi di un chord adiacente: il
+                            // ponte sarebbe collineare col chord stesso).
+                            {
+                                const Vec2d va = lz.a.cast<double>(), vb = lz.b.cast<double>();
+                                const Vec2d dir = (vb - va) / std::max(1., (vb - va).norm());
+                                double coinc = 0.;
+                                const double step = 0.5 * line_w;
+                                const double len  = (vb - va).norm();
+                                for (double t = 0.5 * step; t < len && coinc <= 1.5 * line_w; t += step) {
+                                    const Vec2d p = va + dir * t;
+                                    for (size_t fi2 = 0; fi2 < n_fragments && coinc <= 1.5 * line_w; ++ fi2) {
+                                        if (standalone[fi2])
+                                            continue;
+                                        const Points &F = infill_ordered[fi2].points;
+                                        for (size_t k2 = 0; k2 + 1 < F.size(); ++ k2) {
+                                            const Vec2d fa = F[k2].cast<double>(), fb = F[k2 + 1].cast<double>();
+                                            const Vec2d fv = fb - fa;
+                                            const double fl = fv.norm();
+                                            if (fl <= 0.)
+                                                continue;
+                                            const double u = std::clamp((p - fa).dot(fv) / (fl * fl), 0., 1.);
+                                            const Vec2d q = fa + fv * u;
+                                            if ((p - q).norm() < 0.8 * line_w && std::abs(dir.dot(fv / fl)) > 0.90630779) {
+                                                coinc += step;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                if (coinc > 1.5 * line_w)
+                                    continue; // ricalca un chord: non estrudibile
+                            }
+                            pick = ci; picked = true;
+                        }
+                        if (! picked && ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+                            std::fprintf(stderr, "[SPQ4] nessun quad ponteggiabile (cand=%zu, migliore d_small=%.1fmm)\n",
+                                         cand4.size(), cand4.front().d_small * SCALING_FACTOR);
+                        const Cand4 &w = cand4[pick];
+                        if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr) {
+                            size_t si2 = 0, sj2 = 1; double dm2 = std::numeric_limits<double>::max();
+                            for (size_t i = 0; i < 4; ++ i)
+                                for (size_t j = i + 1; j < 4; ++ j) {
+                                    const double d = (vpt(w.f[i]) - vpt(w.f[j])).cast<double>().norm();
+                                    if (d < dm2) { dm2 = d; si2 = i; sj2 = j; }
+                                }
+                            std::fprintf(stderr, "[SPQPICK] z=%.1f picked=%d dsmall=%.1fmm coppia=(%.1f,%.1f)-(%.1f,%.1f)%s",
+                                         s_sp_debug_z, int(picked), dm2 * SCALING_FACTOR,
+                                         vpt(w.f[si2]).x() * SCALING_FACTOR, vpt(w.f[si2]).y() * SCALING_FACTOR,
+                                         vpt(w.f[sj2]).x() * SCALING_FACTOR, vpt(w.f[sj2]).y() * SCALING_FACTOR,
+                                         "\n");
+                        }
+                        size_t wf[4] = { w.f[0], w.f[1], w.f[2], w.f[3] };
+                        if (build_sel4(wf, w.phase, sel4)) {
+                            best = { 1, w.blocked, 4, w.d_small, w.d_large, sel4 };
+                            best_da = w.f[0]; best_db = w.f[1];
+                        }
+                    }
+                }
+                if (::getenv("GINGER_SP_DUMP") != nullptr && ! best.sel.empty()) {
+                    solve_components(best.sel);
+                    auto uf_find2 = [&uf](size_t x) { while (uf[x] != x) { uf[x] = uf[uf[x]]; x = uf[x]; } return x; };
+                    std::string dump;
+                    char buf[256];
+                    std::snprintf(buf, sizeof(buf), "[SPDUMP] m=%zu comps=%zu defects=%zu\n", m, best.comps, best.defects);
+                    dump += buf;
+                    for (size_t p = 0; p < m; ++ p) {
+                        const size_t v = cv[p];
+                        std::snprintf(buf, sizeof(buf), "[SPDUMP] pos=%2zu frag=%2zu %s pt=(%.1f,%.1f) comp=%zu gap_next=%s%s\n",
+                                      p, v / 2, (v & 1) ? "back " : "front",
+                                      vpt(p).x() * SCALING_FACTOR, vpt(p).y() * SCALING_FACTOR,
+                                      uf_find2(p),
+                                      best.sel[p] ? "TAKEN" : "free ",
+                                      gap_blocked[0][p] ? " BLOCKED" : "");
+                        dump += buf;
+                    }
+                    std::fwrite(dump.data(), 1, dump.size(), stderr);
+                }
+                if (comp_out != nullptr && ! best.sel.empty()) {
+                    // Etichette di componente per l'intreccio del chiamante: union-find della
+                    // selezione migliore, un'etichetta per frammento (la radice della posizione
+                    // ring del suo front).
+                    solve_components(best.sel); // uf <- stato della selezione migliore
+                    auto uf_find = [&uf](size_t x) { while (uf[x] != x) { uf[x] = uf[uf[x]]; x = uf[x]; } return x; };
+                    comp_out->assign(n_fragments, -1);
+                    for (size_t i = 0; i < n_fragments; ++ i)
+                        if (! standalone[i] && pos_of[2 * i] != std::numeric_limits<size_t>::max())
+                            (*comp_out)[i] = int(uf_find(pos_of[2 * i]));
+                    if (mouth_valid_out != nullptr) {
+                        *mouth_valid_out = false;
+                        if (best.defects == 2 && best_da != std::numeric_limits<size_t>::max() && mouth_mid_out != nullptr) {
+                            *mouth_mid_out   = Point(((vpt(best_da).cast<double>() + vpt(best_db).cast<double>()) / 2.).cast<coord_t>());
+                            *mouth_valid_out = true;
+                        }
+                    }
+                }
                 if (! best.sel.empty()) {
                     for (size_t k = 0; k < m; ++ k)
                         if (best.sel[k])
                             take_gap(0, k, /* force_blocked */ gap_blocked[0][k] != 0);
                     exact_solved = true;
-                    if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
-                        std::fprintf(stderr, "[SPEXACT] m=%zu pieces=%zu blocked=%zu defects=%zu mouth=%.1fmm coverage=%.1fmm\n",
-                                     m, best.comps, best.blocked, best.defects, best.mouth * SCALING_FACTOR,
-                                     best.coverage * SCALING_FACTOR);
+                    if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr) {
+                        if (best.defects == 2 && best_da != std::numeric_limits<size_t>::max())
+                            std::fprintf(stderr, "[SPEXACT] m=%zu pieces=%zu blocked=%zu defects=%zu mouth=%.1fmm coverage=%.1fmm da=(%.1f,%.1f) db=(%.1f,%.1f)\n",
+                                         m, best.comps, best.blocked, best.defects, best.mouth * SCALING_FACTOR,
+                                         best.coverage * SCALING_FACTOR,
+                                         vpt(best_da).x() * SCALING_FACTOR, vpt(best_da).y() * SCALING_FACTOR,
+                                         vpt(best_db).x() * SCALING_FACTOR, vpt(best_db).y() * SCALING_FACTOR);
+                        else
+                            std::fprintf(stderr, "[SPEXACT] m=%zu pieces=%zu blocked=%zu defects=%zu mouth=%.1fmm coverage=%.1fmm\n",
+                                         m, best.comps, best.blocked, best.defects, best.mouth * SCALING_FACTOR,
+                                         best.coverage * SCALING_FACTOR);
+                    }
                 }
             }
 
@@ -2961,7 +3796,15 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
         // segment so the trail is emitted as a closed loop (seam freely placeable at export). A few
         // line spacings covers ends facing each other across a hole / rib corridor, which the defect
         // sliding above brings together but can never merge exactly (different contours).
-        const double stitch_max = final_emission ? 2.5 * line_w : 0.;
+        // Ginger (2026-08-29, caso di Davide - lightning ml=2 all'80%): una bocca residua lascia
+        // il layer come path APERTO, e un path aperto si puo' entrare SOLO dai suoi due capi. Se
+        // quei capi cadono lontano da dove arriva l'utensile, il cambio layer paga un travel
+        // enorme: misurato sullo stool, bocca di 16.4mm -> 481mm di travel al layer 265, con i
+        // layer vicini a 2.5mm. Su pellet il cordone e' quasi gratis mentre il travel costa
+        // retract + z-hop + transizione ERS, quindi il tetto sale; sopra la soglia storica e'
+        // bridge_valid a decidere (dentro l'isola, senza ricalcare cordoni gia' posati).
+        const double stitch_free = 2.5 * line_w;
+        const double stitch_max  = final_emission ? 8. * line_w : 0.;
         // Virtual edges are extruded (bridged) instead of split whenever physically sound. Up to
         // 1.5 line widths no check is needed: too short to lay more doubled bead than a legal gap
         // arc is allowed anyway. Beyond that the PHYSICAL rule applies (no length policy): the
@@ -2971,8 +3814,46 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
         double sp_bridged_len = 0.;
         std::vector<Line> bridge_frag_lines;
         std::optional<AABBTreeLines::LinesDistancer<Line>> bridge_dist;
-        auto bridge_valid = [&](const Point &a, const Point &b) -> bool {
+        // Ginger (2026-08-26, stool): a bridge between defects on the SAME contour must ride
+        // the wall, never cut across the open interior - measured on the stool, the straight
+        // defect-to-defect chord in the curved leg ran up to 60mm from either wall AND the
+        // travel it was meant to replace survived anyway (paid twice). Different contours
+        // (hole to outer wall) keep the old rule: there the interior between them is real
+        // material and a crossing bead is anchor-like by nature.
+        std::vector<Line> boundary_hug_lines;
+        std::optional<AABBTreeLines::LinesDistancer<Line>> boundary_hug;
+        auto bridge_hugs_boundary = [&](const Point &a, const Point &b) -> bool {
+            if (! boundary_hug) {
+                for (const Points &c : graph.boundary)
+                    for (size_t i = 0; i < c.size(); ++ i)
+                        boundary_hug_lines.emplace_back(c[i], c[(i + 1) % c.size()]);
+                boundary_hug.emplace(boundary_hug_lines);
+            }
+            if (boundary_hug_lines.empty())
+                return false;
+            const Vec2d  v   = (b - a).cast<double>();
+            const double len = v.norm();
+            if (len <= 0.)
+                return true;
+            const Vec2d  dir  = v / len;
+            const double step = 0.5 * line_w;
+            for (double s = 0.5 * step; s < len; s += step) {
+                const Point p((a.cast<double>() + dir * s).cast<coord_t>());
+                if (std::abs(boundary_hug->distance_from_lines<false>(p)) > 2.0 * line_w)
+                    return false;
+            }
+            return true;
+        };
+        auto bridge_valid = [&](const Point &a, const Point &b, bool same_contour) -> bool {
             if (! final_emission)
+                return false;
+            // Ginger (2026-08-27, schizzo di Davide): un ponte CORTO fra due difetti e' la
+            // diagonale dello zigzag - trasversale ai chord (il no-retrace sotto lo garantisce),
+            // dentro materia, scala anchor: e' il tratto che fonde i due trail del 4-flip in un
+            // percorso unico (fino a ~20w: la Z della punta misura 34-62mm coi capi sul bordo). I ponti lunghi same-contour restano
+            // vietati fuori dal bordo (i 294mm dello stool tagliavano la gamba in aria).
+            const double jump_len = (b - a).cast<double>().norm();
+            if (same_contour && jump_len > 22. * line_w && ! bridge_hugs_boundary(a, b))
                 return false;
             const Vec2d  v   = (b - a).cast<double>();
             const double len = v.norm();
@@ -2984,7 +3865,13 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 double tot  = 0.;
                 for (const Line &l : kept)
                     tot += l.length();
-                if (tot + SCALED_EPSILON < 0.999 * len)
+                // Ginger (2026-08-29): un tratto che RASENTA il cordolo vive per definizione fuori
+                // dalla regione-isola (che e' inset di mezza larghezza abbondante): e' la rotaia
+                // fusa contro il muro, non un ponte in aria. Il test no-retrace qui sotto resta il
+                // guardiano. Senza questa eccezione la bocca di un trail aperto che finisce sul
+                // cordolo non si chiude MAI: misurato su lightning ml=2 all'80%, 16.4mm rifiutati
+                // con "dentro_isola=0%", il layer resta aperto e il cambio layer paga 481mm.
+                if (tot + SCALED_EPSILON < 0.999 * len && ! bridge_hugs_boundary(a, b))
                     return false;
             }
             if (! bridge_dist) {
@@ -3012,12 +3899,37 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             }
             return coinc <= 1.5 * line_w;
         };
-        auto run_trail = [&adjacency, &edges, &cps, &graph, &infill_ordered, &polylines_out, &next_unused, &vertex_point, stitch_max, bridge_free, &bridge_valid, &sp_bridged, &sp_bridged_len](size_t start) {
+        auto run_trail = [&adjacency, &edges, &cps, &graph, &infill_ordered, &polylines_out, &next_unused, &vertex_point, stitch_free, stitch_max, bridge_free, &bridge_valid, &sp_bridged, &sp_bridged_len, &island_region, line_w, final_emission](size_t start) {
             std::vector<std::pair<size_t, int>> stack, trail; // (vertex, edge used to arrive)
             stack.emplace_back(start, -1);
             while (! stack.empty()) {
                 std::pair<size_t, int> top = stack.back();
-                int e = next_unused(top.first);
+                int e = -1;
+                // Ginger HAIRPIN (Davide, 2026-08-28): al capo del segmento raddoppiato,
+                // accoppia gemello <-> il SUO chord: il doppio segmento si chiude su se
+                // stesso a forcina (come la foglia della gorge) e la linea che prima veniva
+                // incrociata dal tuffo del gemello tira dritta - un incrocio in meno.
+                if (top.second >= 0) {
+                    const SinglePathEdge &in = edges[size_t(top.second)];
+                    const bool in_twin = in.is_virtual && in.v1 / 2 == in.v2 / 2;
+                    const bool in_frag = ! in.is_virtual && ! in.is_gap;
+                    if (in_twin || in_frag) {
+                        for (size_t ei : adjacency[top.first]) {
+                            const SinglePathEdge &cand = edges[ei];
+                            if (cand.used || ! cand.active)
+                                continue;
+                            const bool cand_twin = cand.is_virtual && cand.v1 / 2 == cand.v2 / 2;
+                            const bool cand_frag = ! cand.is_virtual && ! cand.is_gap;
+                            if (in.v1 / 2 == cand.v1 / 2 &&
+                                ((in_twin && cand_frag) || (in_frag && cand_twin))) {
+                                e = int(ei);
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (e < 0)
+                    e = next_unused(top.first);
                 if (e < 0) {
                     trail.emplace_back(top);
                     stack.pop_back();
@@ -3031,6 +3943,10 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             std::reverse(trail.begin(), trail.end());
             Polylines pieces;
             Polyline  pl;
+            // Ginger twin: span (idx_ta, idx_tb) dei dogleg emessi in pl - il post-pass sotto
+            // rifila ~1w di percorso attorno ai vertici A/B cosi' la passata del gemello non
+            // tocca il punto esatto gia' usato dalla passata del chord (la "rientranza").
+            std::vector<std::pair<size_t, size_t>> dogleg_span;
             pl.points.emplace_back(vertex_point(trail.front().first));
             for (size_t i = 1; i < trail.size(); ++ i) {
                 size_t                v_from = trail[i - 1].first;
@@ -3038,7 +3954,59 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 const SinglePathEdge &e      = edges[size_t(trail[i].second)];
                 if (e.is_virtual) {
                     const double jump = (vertex_point(v_to) - vertex_point(v_from)).cast<double>().norm();
-                    if (jump <= bridge_free || bridge_valid(vertex_point(v_from), vertex_point(v_to))) {
+                    const bool same_contour = cps[v_from].contour_idx == cps[v_to].contour_idx;
+                    // Ginger TWIN DOGLEG (il disegno di Davide): il virtual fra i DUE CAPI dello
+                    // stesso frammento si estrude come RADDOPPIO del frammento - stub da 1w,
+                    // gemello parallelo a 1w, stub di rientro. Il ponte dritto qui sarebbe
+                    // collineare col frammento (retrace): il gemello e' il fianco fuso legale.
+                    if (final_emission && v_from / 2 == v_to / 2) {
+                        const Vec2d a2 = vertex_point(v_from).cast<double>();
+                        const Vec2d b2 = vertex_point(v_to).cast<double>();
+                        const Vec2d dv = b2 - a2;
+                        const double dl = dv.norm();
+                        if (dl > 0.) {
+                            const Vec2d np2(-dv.y() / dl, dv.x() / dl);
+                            bool done = false;
+                            const Vec2d u2 = dv / dl;
+                            for (int sd = 0; sd < 2 && ! done; ++ sd) {
+                                const Vec2d off = np2 * (sd == 0 ? line_w : -line_w);
+                                // gemello RIFILATO di 1w ai capi: gli stub partono a ~45 gradi
+                                // (chiusura a cuneo come i tip delle gorge della fusion) invece
+                                // del gradino perpendicolare - che, dove la parete e' ortogonale
+                                // al chord, ricalcava la lining appena stampata per ~1w.
+                                const Point ta((a2 + off + u2 * line_w).cast<coord_t>());
+                                const Point tb((b2 + off - u2 * line_w).cast<coord_t>());
+                                Line best_piece(ta, tb);
+                                double kept = 0.;
+                                {
+                                    sp_profile_count(&SPProfile::clipper_calls);
+                                    for (const Line &l : intersection_ln(Line(ta, tb), island_region()))
+                                        if (l.length() > kept) { kept = l.length(); best_piece = l; }
+                                }
+                                if (kept + SCALED_EPSILON < 0.6 * dl)
+                                    continue; // niente corridoio per il gemello
+                                // orienta il pezzo tenuto nel verso ta->tb
+                                if ((best_piece.a - ta).cast<double>().norm() > (best_piece.b - ta).cast<double>().norm())
+                                    std::swap(best_piece.a, best_piece.b);
+                                dogleg_span.emplace_back(pl.points.size(), pl.points.size() + 1);
+                                pl.points.emplace_back(best_piece.a);
+                                pl.points.emplace_back(best_piece.b);
+                                pl.points.emplace_back(vertex_point(v_to));
+                                ++ sp_bridged;
+                                sp_bridged_len += kept + 2. * line_w;
+                                done = true;
+                            }
+                            if (done)
+                                continue;
+                        }
+                    }
+                    const bool ok_bridge = jump <= bridge_free || bridge_valid(vertex_point(v_from), vertex_point(v_to), same_contour);
+                    if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+                        std::fprintf(stderr, "[SPVIRT] z=%.1f jump=%.1fmm same=%d bridge=%d (%.1f,%.1f)->(%.1f,%.1f)\n",
+                                     s_sp_debug_z, jump * SCALING_FACTOR, int(same_contour), int(ok_bridge),
+                                     vertex_point(v_from).x() * SCALING_FACTOR, vertex_point(v_from).y() * SCALING_FACTOR,
+                                     vertex_point(v_to).x() * SCALING_FACTOR, vertex_point(v_to).y() * SCALING_FACTOR);
+                    if (ok_bridge) {
                         // Bridge: extrude across the split instead of traveling (a hop costs a
                         // retract/wipe cycle and an ERS transition; the bead costs nothing on
                         // pellet). Also the only way to join defects on DIFFERENT contours,
@@ -3048,8 +4016,11 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                         sp_bridged_len += jump;
                     } else {
                         // Trail split point: never extruded, the printer travels here.
-                        if (pl.size() > 1)
+                        if (pl.size() > 1) {
+                            trim_doglegs(pl, dogleg_span, line_w);
                             pieces.emplace_back(std::move(pl));
+                        }
+                        dogleg_span.clear();
                         pl = Polyline();
                         pl.points.emplace_back(vertex_point(v_to));
                     }
@@ -3064,8 +4035,11 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                         pl.points.insert(pl.points.end(), frag.points.rbegin() + 1, frag.points.rend());
                 }
             }
-            if (pl.size() > 1)
+            if (pl.size() > 1) {
+                trim_doglegs(pl, dogleg_span, line_w);
                 pieces.emplace_back(std::move(pl));
+            }
+            dogleg_span.clear();
             // The circuit starts at an arbitrary vertex: when it was split by virtual edges, the first
             // and the last piece are the two halves of one and the same trail - join them back.
             if (pieces.size() > 1 && pieces.front().points.front() == pieces.back().points.back()) {
@@ -3082,11 +4056,20 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 for (Polyline &piece : pieces)
                     if (piece.size() > 2 && piece.points.front() != piece.points.back()) {
                         const double mouth = (piece.points.back() - piece.points.front()).cast<double>().norm();
-                        if (mouth <= stitch_max)
+                        const bool   ok    = mouth <= stitch_free ||
+                                             (mouth <= stitch_max &&
+                                              bridge_valid(piece.points.back(), piece.points.front(), true));
+                        if (ok)
                             piece.points.emplace_back(piece.points.front());
-                        else if (sp_debug)
-                            std::fprintf(stderr, "[SPOPEN] mouth=%.1fmm len=%.1fmm\n",
-                                         mouth * SCALING_FACTOR, piece.length() * SCALING_FACTOR);
+                        else if (sp_debug) {
+                            double inside = 0.;
+                            for (const Line &l : intersection_ln(Line(piece.points.back(), piece.points.front()), island_region()))
+                                inside += l.length();
+                            std::fprintf(stderr, "[SPOPEN] mouth=%.1fmm len=%.1fmm max=%.1fmm dentro_isola=%.0f%%\n",
+                                         mouth * SCALING_FACTOR, piece.length() * SCALING_FACTOR,
+                                         stitch_max * SCALING_FACTOR,
+                                         mouth > 0. ? 100. * inside / mouth : 0.);
+                        }
                     }
             }
             append(polylines_out, std::move(pieces));
@@ -3400,18 +4383,179 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
         }
     }
 
-    // Cura-style single-path infill: skip boundary trimming so the whole inner wall can be traced.
-    BoundaryInfillGraph graph = create_boundary_infill_graph(infill_ordered, boundary_src, bbox, spacing, params.connect_polygons);
-
     if (params.connect_polygons) {
         // Cura-style single-path infill: dedicated Eulerian-trail connector, replaces the greedy
         // anchor-based machinery below entirely.
-        connect_infill_single_path(std::move(infill_ordered), graph, spacing, polylines_out, ! params.multiline_intermediate,
-                                   params.flow.scaled_width() > 0 ? double(params.flow.scaled_width()) : scale_(spacing),
-                                   double(scale_(params.anchor_length_max)),
-                                   params.sparse_wall_lining);
-        return;
+        //
+        // Ginger CROSSING-WEAVE (idea di Davide, 2026-08-27): quando le due fasi alternanti della
+        // serpentina restano SCONNESSE (comps >= 2 -> bocca fissa, travel d'arrivo a ogni salto di
+        // modo), la connettivita' che manca al bordo c'e' gia' IN MEZZO: i chord delle due famiglie
+        // del grid si INCROCIANO. Un incrocio e' un vertice di grado 4 - pari - quindi aprire le
+        // due linee nel punto di incrocio e scambiare le continuazioni (la X diventa due gomiti che
+        // si baciano) unisce le componenti senza toccare la parita': circuito chiuso, zero
+        // materiale extra, zero travel. L'intreccio si fa sull'incrocio PIU' VICINO alla bocca e
+        // si ritenta il connettore da zero (le proiezioni e il grafo dipendono dall'accoppiamento).
+        const double line_w_arg = params.flow.scaled_width() > 0 ? double(params.flow.scaled_width()) : scale_(spacing);
+        const bool   sp_debug   = ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr;
+        auto seg_isect = [](const Point &a, const Point &b, const Point &c, const Point &d, Point &out) -> bool {
+            const Vec2d r = (b - a).cast<double>(), s = (d - c).cast<double>();
+            const double den = r.x() * s.y() - r.y() * s.x();
+            if (std::abs(den) < 1e-9 * std::max(1., r.norm() * s.norm()))
+                return false; // paralleli
+            const Vec2d ac = (c - a).cast<double>();
+            const double t = (ac.x() * s.y() - ac.y() * s.x()) / den;
+            const double u = (ac.x() * r.y() - ac.y() * r.x()) / den;
+            const double e = 0.02; // margine dagli estremi: un tocco d'estremita' non e' un incrocio
+            if (t <= e || t >= 1. - e || u <= e || u >= 1. - e)
+                return false;
+            out = Point((a.cast<double>() + r * t).cast<coord_t>());
+            return true;
+        };
+        for (int weave_round = 0; ; ++ weave_round) {
+            Polylines        attempt = infill_ordered; // il connettore consuma i frammenti
+            Polylines        out_tmp;
+            std::vector<int> comp_of;
+            Point            mouth_mid;
+            bool             mouth_valid = false;
+            BoundaryInfillGraph graph = create_boundary_infill_graph(attempt, boundary_src, bbox, spacing, params.connect_polygons);
+            connect_infill_single_path(std::move(attempt), graph, spacing, out_tmp, ! params.multiline_intermediate,
+                                       line_w_arg, double(scale_(params.anchor_length_max)),
+                                       params.sparse_wall_lining, &comp_of, &mouth_mid, &mouth_valid);
+            bool multi = false;
+            for (size_t i = 0; i < comp_of.size() && ! multi; ++ i)
+                for (size_t j = i + 1; j < comp_of.size() && ! multi; ++ j)
+                    multi = comp_of[i] >= 0 && comp_of[j] >= 0 && comp_of[i] != comp_of[j];
+            if (! multi || weave_round >= 4) {
+                append(polylines_out, std::move(out_tmp));
+                return;
+            }
+            // Cerca l'incrocio fra frammenti di componenti diverse piu' vicino alla bocca
+            // (o al centro dell'isola quando la bocca non c'e').
+            Point ref = mouth_valid ? mouth_mid : Point(bbox.center());
+            double best_d2 = std::numeric_limits<double>::max();
+            size_t bi = 0, bj = 0, bsi = 0, bsj = 0;
+            Point  bp;
+            bool   found = false;
+            for (size_t i = 0; i < infill_ordered.size(); ++ i) {
+                if (i >= comp_of.size() || comp_of[i] < 0)
+                    continue;
+                for (size_t j = i + 1; j < infill_ordered.size(); ++ j) {
+                    if (j >= comp_of.size() || comp_of[j] < 0 || comp_of[i] == comp_of[j])
+                        continue;
+                    const Points &A = infill_ordered[i].points;
+                    const Points &B = infill_ordered[j].points;
+                    for (size_t si = 0; si + 1 < A.size(); ++ si)
+                        for (size_t sj = 0; sj + 1 < B.size(); ++ sj) {
+                            Point p;
+                            if (! seg_isect(A[si], A[si + 1], B[sj], B[sj + 1], p))
+                                continue;
+                            const double d2 = (p - ref).cast<double>().squaredNorm();
+                            if (d2 < best_d2) {
+                                best_d2 = d2; bi = i; bj = j; bsi = si; bsj = sj; bp = p;
+                                found = true;
+                            }
+                        }
+                }
+            }
+            if (! found) {
+                // Niente incroci: le componenti vivono in regioni disgiunte e la strettoia fra
+                // loro e' rimasta VUOTA (a bassa densita' nessuna linea del reticolo cade nel
+                // collo). Seconda leva di Davide ("carta bianca sull'inizio del grid"): INIETTA
+                // il chord che il pattern ha mancato - una linea in direzione-famiglia, muro a
+                // muro, passante per la bocca. E' infill vero in una zona non campionata: corto,
+                // appoggiato alle due pareti, e da' al solver la connettivita' per chiudere.
+                double fam[2] = { 0., 0. };
+                {
+                    double best_len[2] = { 0., 0. };
+                    std::map<int, double> hist;
+                    for (const Polyline &pl : infill_ordered)
+                        for (size_t k = 0; k + 1 < pl.size(); ++ k) {
+                            const Vec2d v = (pl.points[k + 1] - pl.points[k]).cast<double>();
+                            const double l = v.norm();
+                            if (l < 2. * line_w_arg)
+                                continue;
+                            const int a = int(std::round(std::fmod(std::atan2(v.y(), v.x()) * 180. / M_PI + 180., 180.) / 3.)) * 3 % 180;
+                            hist[a] += l;
+                        }
+                    for (const auto &kv : hist) {
+                        for (int f = 0; f < 2; ++ f)
+                            if (kv.second > best_len[f] &&
+                                (f == 0 || std::min(std::abs(kv.first - fam[0]), 180. - std::abs(kv.first - fam[0])) > 20.)) {
+                                fam[f] = kv.first; best_len[f] = kv.second;
+                                break;
+                            }
+                    }
+                }
+                Polygons bpolys;
+                bpolys.reserve(boundary_src.size());
+                for (const Polygon *p : boundary_src)
+                    bpolys.emplace_back(*p);
+                const double diag = (bbox.max - bbox.min).cast<double>().norm();
+                Polyline inj;
+                double   inj_len = std::numeric_limits<double>::max();
+                for (int f = 0; f < 2; ++ f) {
+                    const double th = fam[f] * M_PI / 180.;
+                    const Vec2d  u(std::cos(th), std::sin(th));
+                    const Line   ln(Point((ref.cast<double>() - u * diag).cast<coord_t>()),
+                                    Point((ref.cast<double>() + u * diag).cast<coord_t>()));
+                    for (const Line &piece : intersection_ln(ln, bpolys)) {
+                        // solo il pezzo vicino alla bocca, e corto (il collo): un chord lungo
+                        // dimezzerebbe visibilmente il passo del reticolo dove non serve
+                        const double l = piece.length();
+                        if (l < 3. * line_w_arg || l > 30. * line_w_arg)
+                            continue;
+                        const Vec2d  mid = (piece.a.cast<double>() + piece.b.cast<double>()) / 2.;
+                        const double d   = (mid - ref.cast<double>()).norm();
+                        if (d > 40. * line_w_arg)
+                            continue;
+                        if (l < inj_len) {
+                            inj_len = l;
+                            inj.points = { piece.a, piece.b };
+                        }
+                    }
+                }
+                // Iniezione sperimentale (accorcia la bocca ma non fonde le componenti, e i
+                // chord fuori reticolo nel collo sono contestati): solo con GINGER_SP_INJECT=1.
+                // Le componenti separate senza incroci sono il caso normale del weld gorge.
+                if (::getenv("GINGER_SP_INJECT") == nullptr) {
+                    append(polylines_out, std::move(out_tmp));
+                    return;
+                }
+                if (inj.size() == 2 && weave_round < 4) {
+                    if (sp_debug)
+                        std::fprintf(stderr, "[SPWEAVE] round=%d inject chord (%.1f,%.1f)-(%.1f,%.1f) len=%.1fmm fam=%.0f/%.0f\n",
+                                     weave_round, inj.points.front().x() * SCALING_FACTOR, inj.points.front().y() * SCALING_FACTOR,
+                                     inj.points.back().x() * SCALING_FACTOR, inj.points.back().y() * SCALING_FACTOR,
+                                     inj_len * SCALING_FACTOR, fam[0], fam[1]);
+                    infill_ordered.emplace_back(std::move(inj));
+                    continue;
+                }
+                if (sp_debug)
+                    std::fprintf(stderr, "[SPWEAVE] comps>1, nessun incrocio e nessun chord iniettabile\n");
+                append(polylines_out, std::move(out_tmp));
+                return;
+            }
+            // Intreccio: A' = testa di A + coda di B, B' = testa di B + coda di A. La X in bp
+            // diventa due gomiti; il materiale stampato e' identico, cambia solo l'ordine.
+            Polyline &A = infill_ordered[bi];
+            Polyline &B = infill_ordered[bj];
+            Points na(A.points.begin(), A.points.begin() + bsi + 1);
+            na.emplace_back(bp);
+            na.insert(na.end(), B.points.begin() + bsj + 1, B.points.end());
+            Points nb(B.points.begin(), B.points.begin() + bsj + 1);
+            nb.emplace_back(bp);
+            nb.insert(nb.end(), A.points.begin() + bsi + 1, A.points.end());
+            if (sp_debug)
+                std::fprintf(stderr, "[SPWEAVE] round=%d incrocio=(%.1f,%.1f) frag %zu x %zu\n",
+                             weave_round, bp.x() * SCALING_FACTOR, bp.y() * SCALING_FACTOR, bi, bj);
+            A.points = std::move(na);
+            B.points = std::move(nb);
+        }
     }
+
+    // Greedy anchor-based machinery below: the boundary graph is built here (the single-path
+    // branch above builds its own per weave attempt).
+    BoundaryInfillGraph graph = create_boundary_infill_graph(infill_ordered, boundary_src, bbox, spacing, params.connect_polygons);
 
     std::vector<size_t> merged_with(infill_ordered.size());
     std::iota(merged_with.begin(), merged_with.end(), 0);
@@ -3639,6 +4783,7 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
 
 void Fill::chain_or_connect_infill(Polylines &&infill_ordered, const ExPolygon &boundary, Polylines &polylines_out, const double spacing, const FillParams &params)
 {
+    s_sp_debug_z = this->z;
     if (!infill_ordered.empty()) {
         if (params.dont_connect()) {
             if (infill_ordered.size() > 1)

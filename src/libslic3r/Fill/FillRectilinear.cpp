@@ -3055,7 +3055,11 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
 
     if (params.connect_polygons && params.multiline > 1) {
         // Cura order: connect BEFORE multiply (see fill_surface_trapezoidal for the rationale).
-        ExPolygons inners = offset_ex(surface->expolygon, -float(scale_((0.5 * params.multiline + 0.15) * this->spacing)));
+        // Ginger (2026-08-28, Davide): walk the centerline just inside the surface so the widened
+        // ring's outermost flank lands where the ml=1 anchors ride (fused-lining interasse from
+        // the wall) instead of a full line width short of it - the old (0.5*ml+0.15) inset left a
+        // 1-width air gap between the ring and the wall.
+        ExPolygons inners = offset_ex(surface->expolygon, -float(scale_((0.5 * (params.multiline - 2) + 1.0) * this->spacing)));
         Polylines  connected;
         // The connector output here is an intermediate centerline for connect-before-multiply, which
         // dilates and re-closes it below: plain trail-count objective, no mouth stitching.
@@ -3093,14 +3097,23 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
     // if contraction results in empty polygon, use original surface
     const ExPolygon &intersection_surface = contracted.empty() ? surface->expolygon : contracted.front();
 
-    // Intersect polylines with perimeter
-    fill_lines = intersection_pl(std::move(fill_lines), intersection_surface);
+    // Intersect polylines with perimeter. Ginger: skip for connect-before-multiply - the widened
+    // ring is contained by construction and its wall-adjacent flank deliberately rides at the
+    // fused-lining interasse, OUTSIDE the contracted surface: cropping would cut it away.
+    if (! (params.connect_polygons && params.multiline > 1))
+        fill_lines = intersection_pl(std::move(fill_lines), intersection_surface);
 
     if ((params.pattern == ipLateralLattice || params.pattern == ipLateralHoneycomb ) && params.multiline >1 )
     remove_overlapped(fill_lines, line_width);
 
     if (!fill_lines.empty()) {
-        if (params.dont_connect()) { 
+        // Ginger (2026-08-29, Davide): with connect-before-multiply the splice already returned one
+        // closed ring per island. Running the boundary connector on top of it would emit gap arcs
+        // along the ISLAND CONTOUR - and at ml>=2 that contour lies a fraction of a bead from the
+        // ring's own outer flank, so the arc retraces an already printed line (measured: 126mm of
+        // the 198mm right flank walked twice, both passes at x=727.49). At ml==1 the same arc is
+        // the legal fused rail against the wall; at ml>=2 there is already a bead there.
+        if (params.dont_connect() || (params.connect_polygons && params.multiline > 1)) {
             if (fill_lines.size() > 1)
                 fill_lines = chain_polylines(std::move(fill_lines));
             append(polylines_out, std::move(fill_lines));
@@ -3334,7 +3347,10 @@ bool FillRectilinear::fill_surface_trapezoidal(
         // path with multiline_fill(): for multiline == 2 the racetrack ring around the connected path
         // is a single CLOSED loop by construction - zero travel moves and a free seam (the G-code
         // generator starts an ExtrusionLoop wherever the previous wall ended).
-        ExPolygons inners = offset_ex(expolygon, -float(scale_((0.5 * params.multiline + 0.15) * this->spacing)));
+        // Ginger (2026-08-28, Davide): walk the centerline just inside the surface so the widened
+        // ring's outermost flank lands where the ml=1 anchors ride (fused-lining interasse from the
+        // wall) - the old (0.5*ml+0.15) inset left a 1-width air gap between ring and wall.
+        ExPolygons inners = offset_ex(expolygon, -float(scale_((0.5 * (params.multiline - 2) + 1.0) * this->spacing)));
         Polylines  connected;
         // Intermediate centerline for connect-before-multiply (see fill_surface_by_multilines).
         FillParams row_params = params;
@@ -3371,8 +3387,11 @@ bool FillRectilinear::fill_surface_trapezoidal(
     // if contraction results in empty polygon, use original surface
     const ExPolygon &intersection_surface = contracted.empty() ? expolygon : contracted.front();
 
-    // Intersect polylines with offset expolygon
-    polylines = intersection_pl(std::move(polylines), intersection_surface);
+    // Intersect polylines with offset expolygon. Ginger: skip for connect-before-multiply - the
+    // widened ring is contained by construction and its wall-adjacent flank deliberately rides at
+    // the fused-lining interasse, OUTSIDE the contracted surface: cropping would cut it away.
+    if (! (params.connect_polygons && params.multiline > 1))
+        polylines = intersection_pl(std::move(polylines), intersection_surface);
 
     // Remove very short segments that may cause connection issues
     const double minlength = scale_(0.8 * this->spacing);
@@ -3385,6 +3404,13 @@ bool FillRectilinear::fill_surface_trapezoidal(
     // Connect infill lines using offset expolygon
     int infill_start_idx = polylines_out.size();
     if (!polylines.empty()) {
+        // Ginger (2026-08-29, Davide): see fill_surface_by_multilines - at ml>=2 the boundary
+        // connector's gap arcs would retrace the widened ring's own outer flank.
+        if (params.connect_polygons && params.multiline > 1) {
+            if (polylines.size() > 1)
+                polylines = chain_polylines(std::move(polylines));
+            append(polylines_out, std::move(polylines));
+        } else
         Slic3r::Fill::chain_or_connect_infill(std::move(polylines), intersection_surface, polylines_out, this->spacing, params);
 
         // Rotate back the infill lines to original orientation

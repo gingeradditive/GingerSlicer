@@ -86,8 +86,44 @@ Every artificial connection is an extruded bead governed by D2, not by a length 
   welded into the walk by `single_path_splice_loops()` (staggered double link, non-crossing
   ladder orientation, candidate validation budgeted per distinct region).
 
+**Connections ride the wall (2026-08-26, stool).** Rules (a)+(b) alone still admitted straight
+chords through the open interior, and on a curved leg they are exactly what came out: the splice
+attach paid a 61 mm out-and-return "spine" down the middle (its two converging links retrace
+EACH OTHER — a case the per-link test never sees), and the same-contour micro-bridges ran up to
+60 mm from either wall while the travel they were meant to replace survived anyway. Two
+tightenings, both in `FillBase.cpp`:
+- a splice link longer than **3 stagger** is never a straight chord: it is ROUTED as a pair of
+  rails along the cordolo — outbound on the island contour between the nearest projections,
+  return on the `offset(island, −stagger)` contour (fused staggered flanks, the rib-link
+  pattern) — and validated with the usual no-retrace sampler; no valid route, no weld;
+- a virtual-edge bridge between defects on the **same contour** must hug the boundary (every
+  sample within 2 beads of it); different contours (hole↔outer) keep the plain rules, since
+  the interior between them is real material.
+
+**4-flip + Z-bridge (2026-08-28, the current mechanism).** With one gap per vertex (forced:
+a vertex has 1 chord + 2 gaps and even degree needs exactly one) the selection family is
+alternation with phase flips; two flips leave >= 2 components on real sections (a local wish -
+trail ends at the leg tip - inverts the phase over half the ring: measured comps 5-6). With
+FOUR flips one-component selections exist (375 on the stool ring, uniformly across layers):
+the exact solver enumerates quadruples (gated m <= 36 and never under wall lining - lightning
+is untouched by explicit choice), scoring by the EMISSION cost: the small defect-pair mouth is
+the one the router pays (the greedy virtual pairing takes the closest pair), the large one is
+absorbed by layer alternation. A post-filter walks the best ~256 quads and picks the first
+whose small pair is actually EXTRUDABLE as a Z-bridge: chord inside the island, not riding any
+fragment, within the bridge gate (22 line widths). At emission the virtual edge becomes a real
+diagonal bead - Davide's sketched zigzag, endpoints on the boundary, transverse to the chords -
+fusing the two trails into ONE open path whose far mouth the arrival alternation absorbs.
+Results (stool, grid 5%): travels 122/17.0m -> 26/3.27m, air 47m -> 0, doubled beads 212 -> 0,
+wall-to-infill 5.05 -> 2.50mm, and sparse SHRINKS 736 -> 688m (the weld/attach machinery is
+simply not needed on 267/277 layers). The gorge/weld attach remains as fallback for genuinely
+orphaned cells ([SPQ4] counts layers with no bridgeable quad: 10 on the stool, short stable
+travels). Debug: [SPVIRT] (virtual verdicts), [SPQPICK] (chosen quad), [SPBRIDGE], [SPQ4].
+
 Measured on the H-section production part (grid ml=1): 543 intra-island travels → 0 real ones
-(43 cosmetic hops ≤ 0.3 mm remain), sparse length −0.2 %.
+(43 cosmetic hops ≤ 0.3 mm remain), sparse length −0.2 %. On the stool (grid 5 %, two lobes +
+narrow curved leg): air-extrusions 47.1 m → 0.01 m, doubled beads 212 → 0, travels 122 → 4,
+wall→infill gap 5.05 → 2.50 mm (the scarf is suppressed on the hooked wall: that seam is the
+wall→infill junction, not a scar to hide).
 
 ### 2.4 Deviation of boundary-grazing scanlines (scanline patterns only)
 A chord running nearly tangent to the contour blocks the arc under it (double bead), which can
@@ -95,6 +131,30 @@ veto the only arcs that weld a region together. The grazing interior stretch is 
 sit exactly one bead off the boundary (endpoints untouched, graph unchanged), with a
 riding-only collision guard against the other fill lines. **Gated off under lightning wall
 lining**: there a wall-hugging stretch is the product (the "second wall"), not an accident.
+
+### 2.4b Multiline single path (`fill_multiline` ≥ 2, connect-before-multiply)
+With `single_path_mode` the connected pattern is built in Cura order: the row centerlines are
+joined into ONE path first, then `multiline_fill()` widens it into a closed ring and
+`single_path_splice_loops()` merges the ring with the walls of the pockets it encloses. The
+result is already a single closed loop per island, so three things must be done differently
+from `ml == 1` — all gated on `params.connect_polygons && params.multiline > 1`:
+
+- **No boundary connector afterwards.** `chain_or_connect_infill()` would emit gap arcs that
+  walk the *island contour* — and at `ml ≥ 2` that contour lies a fraction of a bead from the
+  ring's own outer flank, so the arc retraces an already-printed line. Measured on the stool:
+  126 mm of the 198 mm right flank walked twice, both passes at x = 727.49. At `ml == 1` that
+  same arc is the legal fused rail against the wall; at `ml ≥ 2` there is already a bead there.
+  Diagnostic signature: a run of ~1 mm segments (a dense contour walk) collinear with an
+  existing bead.
+- **Centerline inset `(0.5·(ml − 2) + 1.0)·spacing`.** The widened ring's outer flank must land
+  where the `ml == 1` anchor rides (≈ 2.5 mm from the wall centerline at 3.2 mm beads). The
+  natural-looking `0.5·ml + 0.15` leaves a full bead of air between ring and wall.
+- **No final `intersection_pl` crop.** The ring is contained by construction, and its
+  wall-adjacent flank deliberately rides *outside* the contracted surface — cropping cuts it off.
+
+Verification is by cross-section, not by eye: sample the x of every bead at a fixed y and read
+the spacings. A healthy `ml == 2` limb reads `S 727.77  S 730.66  W 733.17` — pattern pair at
+2.89 mm, outer flank 2.52 mm from the wall. A retrace reads two `S` at the same x.
 
 ### 2.5 Seams and chaining
 - A closed sparse path is emitted as an `ExtrusionLoop`: the G-code generator enters it at the
