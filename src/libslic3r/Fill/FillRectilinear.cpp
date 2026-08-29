@@ -3055,11 +3055,12 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
 
     if (params.connect_polygons && params.multiline > 1) {
         // Cura order: connect BEFORE multiply (see fill_surface_trapezoidal for the rationale).
-        // Ginger (2026-08-28, Davide): walk the centerline just inside the surface so the widened
-        // ring's outermost flank lands where the ml=1 anchors ride (fused-lining interasse from
-        // the wall) instead of a full line width short of it - the old (0.5*ml+0.15) inset left a
-        // 1-width air gap between the ring and the wall.
-        ExPolygons inners = offset_ex(surface->expolygon, -float(scale_((0.5 * (params.multiline - 2) + 1.0) * this->spacing)));
+        // Ginger (2026-08-28/29): inset = meta' della larghezza dell'anello allargato, cosi' il
+        // fianco esterno cade esattamente sul bordo della superficie - dove sta l'ancora a ml=1.
+        // Il valore precedente portava 0.15*spacing di margine in piu': toglierlo sposta il fianco
+        // di 0.44mm con bead da 3.2. (Il cordone d'aria che vedeva Davide NON era questo: era il
+        // crop intersection_pl finale che tagliava via il fianco adiacente al muro.)
+        ExPolygons inners = offset_ex(surface->expolygon, -float(scale_(0.5 * params.multiline * this->spacing)));
         Polylines  connected;
         // The connector output here is an intermediate centerline for connect-before-multiply, which
         // dilates and re-closes it below: plain trail-count objective, no mouth stitching.
@@ -3347,10 +3348,12 @@ bool FillRectilinear::fill_surface_trapezoidal(
         // path with multiline_fill(): for multiline == 2 the racetrack ring around the connected path
         // is a single CLOSED loop by construction - zero travel moves and a free seam (the G-code
         // generator starts an ExtrusionLoop wherever the previous wall ended).
-        // Ginger (2026-08-28, Davide): walk the centerline just inside the surface so the widened
-        // ring's outermost flank lands where the ml=1 anchors ride (fused-lining interasse from the
-        // wall) - the old (0.5*ml+0.15) inset left a 1-width air gap between ring and wall.
-        ExPolygons inners = offset_ex(expolygon, -float(scale_((0.5 * (params.multiline - 2) + 1.0) * this->spacing)));
+        // Ginger (2026-08-28/29): inset = meta' della larghezza dell'anello allargato, cosi' il
+        // fianco esterno cade esattamente sul bordo della superficie - dove sta l'ancora a ml=1.
+        // Il valore precedente portava 0.15*spacing di margine in piu': toglierlo sposta il fianco
+        // di 0.44mm con bead da 3.2. (Il cordone d'aria che vedeva Davide NON era questo: era il
+        // crop intersection_pl finale che tagliava via il fianco adiacente al muro.)
+        ExPolygons inners = offset_ex(expolygon, -float(scale_(0.5 * params.multiline * this->spacing)));
         Polylines  connected;
         // Intermediate centerline for connect-before-multiply (see fill_surface_by_multilines).
         FillParams row_params = params;
@@ -3410,8 +3413,9 @@ bool FillRectilinear::fill_surface_trapezoidal(
             if (polylines.size() > 1)
                 polylines = chain_polylines(std::move(polylines));
             append(polylines_out, std::move(polylines));
-        } else
-        Slic3r::Fill::chain_or_connect_infill(std::move(polylines), intersection_surface, polylines_out, this->spacing, params);
+        } else {
+            Slic3r::Fill::chain_or_connect_infill(std::move(polylines), intersection_surface, polylines_out, this->spacing, params);
+        }
 
         // Rotate back the infill lines to original orientation
         if (std::abs(base_angle) >= EPSILON) {

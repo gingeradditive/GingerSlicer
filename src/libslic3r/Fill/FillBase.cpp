@@ -2435,7 +2435,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
     // CORDOLO - the island contour where it is bare, the offset(-1 width) rail where the
     // boundary already carries a bead (fused flank, the rib-pair pattern) - and is validated
     // by the same no-retrace sampler as everything else. Material buys structural zero travel;
-    // on pellet that trade is explicitly wanted. Opt-out for A/B: GINGER_SP_NO_CLOSE=1.
+    // on pellet that trade is explicitly wanted.
     // Default OFF (2026-08-27, protezione lightning): l'arco nudo non esiste mai sul grid
     // (l'alternanza occupa un gap si' e uno no) e su lightning provava chiusure indesiderate.
     // Riattivabile per esperimenti con GINGER_SP_CLOSE=1.
@@ -2662,6 +2662,20 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 island_polys.emplace_back(c);
         }
         return island_polys;
+    };
+    // Ginger (2026-08-29, code review): la stessa isola DILATATA di mezzo cordone, per i test di
+    // contenimento di tratti che corrono SUL contorno (le rotaie fuse): li' island_region() e'
+    // collineare col segmento e Clipper torna lunghezza zero. La dilatazione stringe i fori della
+    // stessa misura, quindi non apre la strada ai ponti sopra i vuoti.
+    Polygons island_grown;
+    bool     island_grown_built = false;
+    auto island_region_grown = [&island_grown, &island_grown_built, &island_region, line_w]() -> const Polygons & {
+        if (! island_grown_built) {
+            island_grown_built = true;
+            if (! island_region().empty())
+                island_grown = offset(island_region(), float(0.5 * line_w));
+        }
+        return island_grown;
     };
 
     // Fragments that cannot take part in the graph: degenerate, closed (e.g. a ring lying fully inside
@@ -3272,7 +3286,13 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                          "\n");
                         }
                         size_t wf[4] = { w.f[0], w.f[1], w.f[2], w.f[3] };
-                        if (build_sel4(wf, w.phase, sel4)) {
+                        // Ginger (2026-08-29, code review): se NESSUN quad ha passato i due
+                        // filtri, non si committa niente. Il quad in testa alla lista e' stato
+                        // rifiutato: i suoi due virtual non passeranno bridge_valid e il layer
+                        // uscirebbe come DUE trail aperti con quattro capi fissi, al posto della
+                        // selezione comps=2/defects=0 gia' in `best` - due anelli CHIUSI a seam
+                        // libera. Nelle unita' del modulo (open_trail_cost=4) e' 8 contro 2.
+                        if (picked && build_sel4(wf, w.phase, sel4)) {
                             best = { 1, w.blocked, 4, w.d_small, w.d_large, sel4 };
                             best_da = w.f[0]; best_db = w.f[1];
                         }
@@ -3861,17 +3881,21 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 return true;
             {
                 sp_profile_count(&SPProfile::clipper_calls);
-                Lines  kept = intersection_ln(Line(a, b), island_region());
+                // Ginger (2026-08-29): contenimento sull'isola DILATATA di mezzo cordone.
+                // island_region() sono i contorni verbatim, quindi un tratto che giace ESATTAMENTE
+                // sul contorno (la rotaia fusa: capi proiettati sul bordo) e' un caso collineare
+                // degenere e Clipper lo riporta di lunghezza zero - misurato su lightning ml=2
+                // all'80%, una bocca di 16.4mm sul cordolo rifiutata con "dentro_isola=0%": il
+                // layer restava aperto e il cambio layer pagava 481mm. Mezzo cordone e' quanto un
+                // bead centrato sul contorno sporge davvero, e NON basta a scavalcare un vuoto:
+                // i fori si stringono della stessa misura, quindi un ponte sopra un foro piu'
+                // largo di una larghezza resta vietato (l'eccezione bridge_hugs_boundary provata
+                // prima era troppo larga: 2 line width di tolleranza = fori fino a ~4w passavano).
+                Lines  kept = intersection_ln(Line(a, b), island_region_grown());
                 double tot  = 0.;
                 for (const Line &l : kept)
                     tot += l.length();
-                // Ginger (2026-08-29): un tratto che RASENTA il cordolo vive per definizione fuori
-                // dalla regione-isola (che e' inset di mezza larghezza abbondante): e' la rotaia
-                // fusa contro il muro, non un ponte in aria. Il test no-retrace qui sotto resta il
-                // guardiano. Senza questa eccezione la bocca di un trail aperto che finisce sul
-                // cordolo non si chiude MAI: misurato su lightning ml=2 all'80%, 16.4mm rifiutati
-                // con "dentro_isola=0%", il layer resta aperto e il cambio layer paga 481mm.
-                if (tot + SCALED_EPSILON < 0.999 * len && ! bridge_hugs_boundary(a, b))
+                if (tot + SCALED_EPSILON < 0.999 * len)
                     return false;
             }
             if (! bridge_dist) {
@@ -3964,7 +3988,10 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                         const Vec2d b2 = vertex_point(v_to).cast<double>();
                         const Vec2d dv = b2 - a2;
                         const double dl = dv.norm();
-                        if (dl > 0.) {
+                        // Ginger (2026-08-29, code review): il gemello e' rifilato di 1w a OGNI
+                        // capo, quindi sotto 2w i due tagli si scavalcano e il segmento parte
+                        // all'indietro - un tratto incrociato piu' lungo del chord da raddoppiare.
+                        if (dl > 2.5 * line_w) {
                             const Vec2d np2(-dv.y() / dl, dv.x() / dl);
                             bool done = false;
                             const Vec2d u2 = dv / dl;
@@ -3988,6 +4015,15 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                 // orienta il pezzo tenuto nel verso ta->tb
                                 if ((best_piece.a - ta).cast<double>().norm() > (best_piece.b - ta).cast<double>().norm())
                                     std::swap(best_piece.a, best_piece.b);
+                                // Ginger (2026-08-29, code review): dalla clip esce SOLO il tratto
+                                // centrale; i due stub (v_from->a e b->v_to) non passano da nessun
+                                // test. Se il pezzo tenuto e' un frammento centrale - il gemello
+                                // esce dall'isola vicino a un capo - quegli stub sarebbero cordone
+                                // non validato fuori dal pezzo. Si accetta solo se il pezzo tenuto
+                                // arriva fino a entrambi gli estremi rifilati.
+                                if ((best_piece.a - ta).cast<double>().norm() > 1.5 * line_w ||
+                                    (best_piece.b - tb).cast<double>().norm() > 1.5 * line_w)
+                                    continue;
                                 dogleg_span.emplace_back(pl.points.size(), pl.points.size() + 1);
                                 pl.points.emplace_back(best_piece.a);
                                 pl.points.emplace_back(best_piece.b);

@@ -5169,11 +5169,17 @@ std::string GCode::extrude_path(ExtrusionPath path, std::string description, dou
 // `consider`. Roles whose infill can be hooked: sparse (erInternalInfill, connected into one
 // path/loop) plus the solid surfaces (internal solid, top, bottom). Bridges and ironing are excluded
 // (special flow / finishing pass).
+// Roles whose infill may be hooked to a wall seam: sparse plus the solid surfaces. Bridges and
+// ironing are excluded (special flow / finishing pass) - pinning the seam onto one of those puts
+// the wall's start on a pass the infill router will not begin at.
+static bool sp_role_connectable(ExtrusionRole r)
+{
+    return r == erInternalInfill || r == erSolidInfill || r == erTopSolidInfill || r == erBottomSurface;
+}
+
 static void for_each_infill_connection_candidate(const ExtrusionEntitiesPtr &infills, const std::function<void(const Point &entry, const Point &exit)> &consider)
 {
-    auto is_connectable = [](ExtrusionRole r) {
-        return r == erInternalInfill || r == erSolidInfill || r == erTopSolidInfill || r == erBottomSurface;
-    };
+    auto is_connectable = [](ExtrusionRole r) { return sp_role_connectable(r); };
     std::function<void(const ExtrusionEntity*)> visit = [&](const ExtrusionEntity *ee) {
         if (const auto *eec = dynamic_cast<const ExtrusionEntityCollection*>(ee)) {
             // A no_sort collection of a connectable role (monotonic solid/top/bottom) is ONE ordered
@@ -5244,6 +5250,12 @@ static bool infill_connection_anchor(const ExtrusionEntitiesPtr &infills, const 
                 return;
             }
             if (dynamic_cast<const ExtrusionLoop*>(ee) != nullptr) { only_open = false; return; }
+            // Ginger (2026-08-29, code review): stesso filtro di ruolo del percorso generale.
+            // Senza, una regione con un path sparse aperto piu' un bridge (o l'ironing, o un
+            // gap fill) cadeva in questo ramo e la seam del muro finiva puntata sulla passata
+            // di finitura - che il router dell'infill non usa come partenza.
+            if (! sp_role_connectable(ee->role()))
+                return;
             units.push_back({ ee->first_point(), ee->last_point() });
         };
         for (const ExtrusionEntity *ee : infills) scan(ee);
@@ -5548,17 +5560,27 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                     // Ginger: candidati entry dell'infill del LAYER SUCCESSIVO (i fill sono
                     // gia' tutti calcolati): l'exit di questo layer deve cadere li' vicino,
                     // cosi' fine-infill(N) == seam-wall(N+1) == start-infill(N+1).
+                    // Ginger (2026-08-29, code review): raccolti PIGRAMENTE. Il ramo dei rib qui
+                    // sotto non li legge, e collect_points materializza ogni punto di ogni fill
+                    // del layer sopra prima del campionamento: calcolarli sempre significava
+                    // buttarli via per intero su ogni isola con i wall ribs attivi.
                     Points next_layer_pts;
-                    if (is_last && hook_infill && m_layer != nullptr && m_layer->upper_layer != nullptr) {
-                        for (const LayerRegion *lr : m_layer->upper_layer->regions()) {
-                            Points pts;
-                            for (const ExtrusionEntity *ee2 : lr->fills.entities)
-                                ee2->collect_points(pts);
-                            const size_t stride = pts.empty() ? 1 : std::max<size_t>(1, pts.size() / 64);
-                            for (size_t k = 0; k < pts.size(); k += stride)
-                                next_layer_pts.emplace_back(pts[k]);
+                    bool   next_layer_pts_built = false;
+                    auto   next_layer_entries = [&]() -> const Points & {
+                        if (! next_layer_pts_built) {
+                            next_layer_pts_built = true;
+                            if (is_last && hook_infill && m_layer != nullptr && m_layer->upper_layer != nullptr)
+                                for (const LayerRegion *lr : m_layer->upper_layer->regions()) {
+                                    Points pts;
+                                    for (const ExtrusionEntity *ee2 : lr->fills.entities)
+                                        ee2->collect_points(pts);
+                                    const size_t stride = pts.empty() ? 1 : std::max<size_t>(1, pts.size() / 64);
+                                    for (size_t k = 0; k < pts.size(); k += stride)
+                                        next_layer_pts.emplace_back(pts[k]);
+                                }
                         }
-                    }
+                        return next_layer_pts;
+                    };
                     if (rib_it != rib_anchors_of.end()) {
                         const Points &anchors = *rib_it->second;
                         const Point   cur     = this->last_pos();
@@ -5586,7 +5608,7 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                     // where the infill begins (zero wall->infill travel).
                     if (is_last && hook_infill &&
                         infill_connection_anchor(region.infills, this->last_pos(), next_island_target, seam,
-                                                 next_layer_pts.empty() ? nullptr : &next_layer_pts)) {
+                                                 next_layer_entries().empty() ? nullptr : &next_layer_pts)) {
                         if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
                             std::fprintf(stderr, "[SPHOOK] pin z=%.1f from=(%.1f,%.1f) seam=(%.1f,%.1f) look=%d\n",
                                          this->m_layer ? this->m_layer->print_z : -1.,

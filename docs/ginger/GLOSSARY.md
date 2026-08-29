@@ -446,11 +446,16 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   the Euler graph (a cycle has exactly two perfect matchings), the sparse
   trail cannot close and keeps a fixed pair of far ends: the mouth. Its
   position flips between modes as the section evolves, and each flip is a
-  ~250 mm arrival travel (retract+wipe+hop = stringing). The trail is
-  therefore closed into a loop by a mixed rail — island contour where
+  ~250 mm arrival travel (retract+wipe+hop = stringing). The trail can
+  therefore be closed into a loop by a mixed rail — island contour where
   bare, inner (−1 stagger) contour ARCS where the boundary already
-  carries a bead — making the entry free on every layer. Stool: travels
-  122 → 4 for +473 g. `[SPCLOSEM]`; opt-out `GINGER_SP_NO_CLOSE=1`. The
+  carries a bead — making the entry free on every layer.
+  **Default OFF since 2026-08-27, opt-IN with `GINGER_SP_CLOSE=1`**
+  (lightning protection: on grid the bare arc never occurs because the
+  alternation takes every other gap, and on lightning it attempted
+  unwanted closures). The "travels 122 → 4 for +473 g" figure was measured
+  with it enabled and is NOT what a default build produces — the default
+  path is the 4-flip + Z-bridge above (122 → 26). `[SPCLOSEM]`. The
   scarf seam slope is suppressed on the wall hooked to the infill (that
   seam is the junction, not a scar): wall→infill gap 5.05 → 2.50 mm.
 

@@ -121,7 +121,7 @@ travels). Debug: [SPVIRT] (virtual verdicts), [SPQPICK] (chosen quad), [SPBRIDGE
 
 Measured on the H-section production part (grid ml=1): 543 intra-island travels → 0 real ones
 (43 cosmetic hops ≤ 0.3 mm remain), sparse length −0.2 %. On the stool (grid 5 %, two lobes +
-narrow curved leg): air-extrusions 47.1 m → 0.01 m, doubled beads 212 → 0, travels 122 → 4,
+narrow curved leg): air-extrusions 47.1 m → 0.01 m, doubled beads 212 → 0, travels 122 → 26,
 wall→infill gap 5.05 → 2.50 mm (the scarf is suppressed on the hooked wall: that seam is the
 wall→infill junction, not a scar to hide).
 
@@ -146,9 +146,11 @@ from `ml == 1` — all gated on `params.connect_polygons && params.multiline > 1
   same arc is the legal fused rail against the wall; at `ml ≥ 2` there is already a bead there.
   Diagnostic signature: a run of ~1 mm segments (a dense contour walk) collinear with an
   existing bead.
-- **Centerline inset `(0.5·(ml − 2) + 1.0)·spacing`.** The widened ring's outer flank must land
-  where the `ml == 1` anchor rides (≈ 2.5 mm from the wall centerline at 3.2 mm beads). The
-  natural-looking `0.5·ml + 0.15` leaves a full bead of air between ring and wall.
+- **Centerline inset `0.5·ml·spacing`.** Half the widened ring's own width, so its outer flank
+  lands exactly on the surface boundary — where the `ml == 1` anchor rides (≈ 2.5 mm from the
+  wall centerline at 3.2 mm beads). The previous value carried an extra `0.15·spacing` of margin;
+  removing it moves the flank by only 0.44 mm. It is the crop below, not this margin, that
+  produced the full bead of air.
 - **No final `intersection_pl` crop.** The ring is contained by construction, and its
   wall-adjacent flank deliberately rides *outside* the contracted surface — cropping cuts it off.
 
@@ -365,7 +367,11 @@ schedule driver — massive short parts cool layer-bound, thin tall parts print 
 
 | Env / tool | Output | Use for |
 |---|---|---|
-| `GINGER_SINGLE_PATH_DEBUG=1` | `[SPEXACT] [SPWELD] [SPBRIDGE] [SPDEVIATE] [SPOPEN] [SPCUT] [SPCLOSE] [SPDEFECT]` | sparse single-path decisions per island |
+| `GINGER_SINGLE_PATH_DEBUG=1` | `[SPEXACT] [SPWELD] [SPBRIDGE] [SPDEVIATE] [SPOPEN] [SPCUT] [SPDEFECT] [SPVIRT] [SPQPICK] [SPQ4] [SPGORGE] [SPHOOK]` | sparse single-path decisions per island. `[SPOPEN]` also reports `dentro_isola=%`: 0 % on a mouth that lies on the contour means the collinear-degenerate case, not a bridge over air |
+| `GINGER_SP_CLOSE=1` | `[SPCLOSEM]` | opt-IN, default OFF: mouth closure by boundary rails (see GLOSSARY) |
+| `GINGER_SP_DUMP=1` | `[SPDUMP]` | per-position dump of the exact solver's chosen selection |
+| `GINGER_SP_INJECT=1` | — | opt-IN: inject a crossing chord when the weave finds no crossing |
+| `GINGER_SP_PROFILE=1` | per-phase timings + Clipper call counts | where the connector spends its time |
 | `GINGER_RIBS_DEBUG=1` | `[RIBSTAT]` per layer + emission drops | wall rib planning census |
 | `GINGER_FUSION_DEBUG=1` | `[FUSION]` per island and per object | wall/lightning fusion census (roots, gorges, pruned branches, dropped roots, extra loops) |
 | `GINGER_FUSION_PROFILE=1` | `[FUSION-PROF]` per object | fusion cost per stage (CPU, summed over threads) against the wall clock |
