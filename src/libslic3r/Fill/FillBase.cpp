@@ -2704,8 +2704,25 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
     // contenimento di tratti che corrono SUL contorno (le rotaie fuse): li' island_region() e'
     // collineare col segmento e Clipper torna lunghezza zero. La dilatazione stringe i fori della
     // stessa misura, quindi non apre la strada ai ponti sopra i vuoti.
+    // Ginger (2026-08-30, Davide): la regione EROSA di un cordone pieno. Il cordone di infill che
+    // fodera il muro corre sul contorno, quindi restare dentro questa regione significa tenere
+    // l'asse della rotaia a un interasse pieno dal suo: i due fianchi si toccano e si fondono
+    // invece di sovrapporsi. Misurato prima: l'asse del giro stava a 0.54mm da quello del cordone
+    // di infill, cioe' 2.66mm di impronta sovrapposta su 270 forcine su 270. Stessa tecnica della
+    // fusione dei rami lightning in WallFusion.cpp (dilata il cordone e sottrailo dalla regione),
+    // invece di inseguire le intersezioni segmento per segmento.
+    Polygons island_inset;
+    bool     island_inset_built = false;
     Polygons island_grown;
     bool     island_grown_built = false;
+    auto island_region_inset = [&island_inset, &island_inset_built, &island_region, line_w]() -> const Polygons & {
+        if (! island_inset_built) {
+            island_inset_built = true;
+            if (! island_region().empty())
+                island_inset = offset(island_region(), - float(line_w));
+        }
+        return island_inset;
+    };
     auto island_region_grown = [&island_grown, &island_grown_built, &island_region, line_w]() -> const Polygons & {
         if (! island_grown_built) {
             island_grown_built = true;
@@ -3977,7 +3994,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             }
             return coinc <= 1.5 * line_w;
         };
-        auto run_trail = [&adjacency, &edges, &cps, &graph, &infill_ordered, &polylines_out, &next_unused, &vertex_point, stitch_free, stitch_max, bridge_free, &bridge_valid, &island_region_grown, &sp_bridged, &sp_bridged_len, &island_region, line_w, final_emission](size_t start) {
+        auto run_trail = [&adjacency, &edges, &cps, &graph, &infill_ordered, &polylines_out, &next_unused, &vertex_point, stitch_free, stitch_max, bridge_free, &bridge_valid, &island_region_grown, &island_region_inset, &sp_bridged, &sp_bridged_len, &island_region, line_w, final_emission](size_t start) {
             std::vector<std::pair<size_t, int>> stack, trail; // (vertex, edge used to arrive)
             stack.emplace_back(start, -1);
             while (! stack.empty()) {
@@ -4217,20 +4234,27 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                 if (sgn == 0.)
                                     sgn = 1.;
                                 const Vec2d nh = nrm * (h * sgn);
-                                const Point p1((A + u * h + nh).cast<coord_t>());
-                                const Point p2((B - u * h + nh).cast<coord_t>());
-                                const Point p3((B - u * h - nh).cast<coord_t>());
-                                const Point p4((A + u * h - nh).cast<coord_t>());
-                                auto rail_inside = [&](const Point &x, const Point &y) {
-                                    const double L = (y - x).cast<double>().norm();
-                                    if (L <= 0.) return true;
+                                Point p1((A + u * h + nh).cast<coord_t>());
+                                Point p2((B - u * h + nh).cast<coord_t>());
+                                Point p3((B - u * h - nh).cast<coord_t>());
+                                Point p4((A + u * h - nh).cast<coord_t>());
+                                // ogni rotaia si RITAGLIA nella regione erosa: si ferma da sola a un
+                                // interasse pieno dal cordone che fodera il muro, a tutti e due i capi.
+                                auto rail_clip = [&](Point &x, Point &y) -> bool {
                                     sp_profile_count(&SPProfile::clipper_calls);
-                                    double tot = 0.;
-                                    for (const Line &l : intersection_ln(Line(x, y), island_region_grown()))
-                                        tot += l.length();
-                                    return tot + SCALED_EPSILON >= 0.99 * L;
+                                    double best = 0.; Line keep(x, y);
+                                    for (const Line &l : intersection_ln(Line(x, y), island_region_inset()))
+                                        if (l.length() > best) { best = l.length(); keep = l; }
+                                    if (best + SCALED_EPSILON < 0.5 * (y - x).cast<double>().norm())
+                                        return false;             // corridoio troppo corto: niente raddoppio
+                                    if ((keep.a - x).cast<double>().norm() > (keep.b - x).cast<double>().norm())
+                                        std::swap(keep.a, keep.b);
+                                    x = keep.a; y = keep.b;
+                                    return true;
                                 };
-                                if (rail_inside(p1, p2) && rail_inside(p3, p4)) {
+                                Point q1 = p1, q2 = p2, q3 = p3, q4 = p4;
+                                if (rail_clip(q1, q2) && rail_clip(q4, q3)) {
+                                    p1 = q1; p2 = q2; p3 = q3; p4 = q4;
                                     pl.points.emplace_back(p1);
                                     pl.points.emplace_back(p2);
                                     sym_twin_edge = trail[i + 1].second;
