@@ -2588,6 +2588,106 @@ static inline void single_path_append_arc(Points &dst, const Points &contour, si
 // ma SOLO se la scorciatoia non taglia il percorso li' attorno (altrimenti si sposta il problema
 // da un accumulo a un incrocio). Il giro in punta della forcina e' lungo esattamente un cordone,
 // quindi la soglia stretta lo lascia stare.
+// Ginger RIPASSI (2026-08-30, Davide): un tratto CORTO che cade sull'interasse di un cordone
+// gia' posato e' materiale doppio nello stesso posto. Misurato al layer 1 dello stool: il percorso
+// scende lungo una diagonale (49.5 mm) e piu' avanti ci RISALE sopra con 10 passi da 1 mm, a
+// 0.04-0.51 mm dall'asse - 9.7 mm di cordone raddoppiato. Sono i punti fitti del contorno curvo,
+// che il percorso ripercorre. Qui il tratto si SPOSTA di lato fino a un interasse pieno, come fa
+// gia' la deviazione delle scansioni radenti: la traiettoria resta quella, cambia solo di quanto
+// sta discosta. Se lo spostamento uscirebbe dall'isola o finirebbe sopra un altro cordone, si
+// lascia com'e' (meglio un ripasso noto che un cordone in aria).
+static void offset_retracing_shorts(Polyline &pl, double line_w, const Polygons &island)
+{
+    const size_t n = pl.points.size();
+    if (n < 6)
+        return;
+    const double d_close = 0.9 * line_w;
+    const double cos_par = 0.90630779;   // cos 25 gradi
+    std::vector<Vec2d> want(n, Vec2d(0., 0.));
+    std::vector<int>   cnt(n, 0);
+    for (size_t i = 0; i + 1 < n; ++ i) {
+        const Vec2d a = pl.points[i].cast<double>(), b = pl.points[i + 1].cast<double>();
+        const double L = (b - a).norm();
+        if (L <= 0. || L >= 2.0 * line_w)
+            continue;                     // solo i tratti corti
+        const Vec2d m = 0.5 * (a + b), dir = (b - a) / L;
+        double best = d_close; Vec2d away(0., 0.); bool found = false;
+        for (size_t j = 0; j + 1 < n; ++ j) {
+            if (j + 4 >= i && i + 4 >= j)
+                continue;                 // vicini nell'indice: e' lo stesso tratto di percorso
+            const Vec2d c = pl.points[j].cast<double>(), d = pl.points[j + 1].cast<double>();
+            const Vec2d v = d - c; const double Lv = v.norm();
+            if (Lv <= 0.)
+                continue;
+            if (std::abs(dir.dot(v / Lv)) < cos_par)
+                continue;                 // non parallelo: e' un incrocio, non un ripasso
+            const double t  = std::clamp((m - c).dot(v) / (Lv * Lv), 0., 1.);
+            const Vec2d  q  = c + v * t;
+            const double dd = (m - q).norm();
+            if (dd >= best)
+                continue;
+            best = dd; away = m - q; found = true;
+        }
+        if (! found || away.norm() <= SCALED_EPSILON)
+            continue;
+        const Vec2d push = away.normalized() * (line_w - best);
+        want[i] += push;     ++ cnt[i];
+        want[i + 1] += push; ++ cnt[i + 1];
+    }
+    Points moved = pl.points;
+    bool any = false;
+    for (size_t i = 0; i < n; ++ i)
+        if (cnt[i] > 0) {
+            const Vec2d p = pl.points[i].cast<double>() + want[i] / double(cnt[i]);
+            moved[i] = p.cast<coord_t>();
+            any = true;
+        }
+    if (! any)
+        return;
+    // ogni tratto spostato deve restare dentro l'isola: il controllo e' PUNTUALE, chi non passa
+    // torna dov'era senza annullare gli spostamenti degli altri (con un veto globale restavano
+    // proprio i casi peggiori, quelli in cui un solo tratto sforava).
+    for (int pass = 0; pass < 3; ++ pass) {
+        bool reverted = false;
+        for (size_t i = 0; i + 1 < n; ++ i) {
+            if (cnt[i] == 0 && cnt[i + 1] == 0)
+                continue;
+            const double L = (moved[i + 1] - moved[i]).cast<double>().norm();
+            if (L <= 0.)
+                continue;
+            double tot = 0.;
+            for (const Line &l : intersection_ln(Line(moved[i], moved[i + 1]), island))
+                tot += l.length();
+            bool bad = tot + SCALED_EPSILON < 0.99 * L;
+            // ...e non deve tagliare il percorso li' attorno: spostare un punto puo' creare un
+            // incrocio che prima non c'era (misurati 10 layer su 277 al primo tentativo).
+            if (! bad) {
+                auto ccw = [](const Point &o, const Point &p, const Point &q) {
+                    return (double(p.x()) - o.x()) * (double(q.y()) - o.y()) -
+                           (double(p.y()) - o.y()) * (double(q.x()) - o.x());
+                };
+                const size_t lo = i > 10 ? i - 10 : 0, hi = std::min(n - 1, i + 11);
+                for (size_t k = lo; k + 1 < hi && ! bad; ++ k) {
+                    if (k + 1 >= i && i + 1 >= k)
+                        continue;
+                    const double d1 = ccw(moved[k], moved[k + 1], moved[i]);
+                    const double d2 = ccw(moved[k], moved[k + 1], moved[i + 1]);
+                    const double d3 = ccw(moved[i], moved[i + 1], moved[k]);
+                    const double d4 = ccw(moved[i], moved[i + 1], moved[k + 1]);
+                    bad = ((d1 > 0.) != (d2 > 0.)) && ((d3 > 0.) != (d4 > 0.));
+                }
+            }
+            if (! bad)
+                continue;
+            if (cnt[i] > 0)     { moved[i]     = pl.points[i];     cnt[i] = 0;     reverted = true; }
+            if (cnt[i + 1] > 0) { moved[i + 1] = pl.points[i + 1]; cnt[i + 1] = 0; reverted = true; }
+        }
+        if (! reverted)
+            break;
+    }
+    pl.points = std::move(moved);
+}
+
 static void trim_notches(Polyline &pl, double line_w)
 {
     const double arm_max = 0.95 * line_w;
@@ -4186,7 +4286,9 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                         if (pl.size() > 1) {
                             trim_doglegs(pl, dogleg_span, line_w);
                 trim_notches(pl, line_w);
+                offset_retracing_shorts(pl, line_w, island_region());
                             trim_notches(pl, line_w);
+                            offset_retracing_shorts(pl, line_w, island_region());
                             pieces.emplace_back(std::move(pl));
                         }
                         dogleg_span.clear();
