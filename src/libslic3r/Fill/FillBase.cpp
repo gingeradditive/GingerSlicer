@@ -2580,6 +2580,43 @@ static inline void single_path_append_arc(Points &dst, const Points &contour, si
 // passata del gemello non tocca i vertici A/B (gia' coperti dalla passata del chord): via la
 // rientranza a V e il nodo a 4 rami in un punto. Gli span sono (idx_ta, idx_tb) in pl.points;
 // si rifila dal fondo per tenere validi gli indici.
+// Ginger RIENTRANZE (2026-08-30, Davide): un vertice dove il percorso esce e rientra con DUE
+// tratti piu' corti del cordone e una svolta netta e' un dentino - il movimento sta tutto dentro
+// l'impronta di un bead, quindi non produce geometria: produce accumulo, e su pellet (tau
+// 0.15-0.5 s) l'ERS non fa in tempo a seguirlo. Misurati 499 tratti sotto i 3.2 mm attorno ai
+// capi della forcina, 1.10 m in totale. Qui il vertice si toglie e i due tratti diventano uno,
+// ma SOLO se la scorciatoia non taglia il percorso li' attorno (altrimenti si sposta il problema
+// da un accumulo a un incrocio). Il giro in punta della forcina e' lungo esattamente un cordone,
+// quindi la soglia stretta lo lascia stare.
+static void trim_notches(Polyline &pl, double line_w)
+{
+    const double arm_max = 0.95 * line_w;
+    auto seg_cross = [](const Point &a, const Point &b, const Point &c, const Point &d) {
+        auto cr = [](const Point &o, const Point &p, const Point &q) {
+            return (double(p.x()) - o.x()) * (double(q.y()) - o.y()) -
+                   (double(p.y()) - o.y()) * (double(q.x()) - o.x());
+        };
+        const double d1 = cr(c, d, a), d2 = cr(c, d, b), d3 = cr(a, b, c), d4 = cr(a, b, d);
+        return ((d1 > 0.) != (d2 > 0.)) && ((d3 > 0.) != (d4 > 0.));
+    };
+    for (size_t k = 1; k + 1 < pl.points.size(); ) {
+        const Vec2d a = pl.points[k - 1].cast<double>();
+        const Vec2d b = pl.points[k].cast<double>();
+        const Vec2d c = pl.points[k + 1].cast<double>();
+        const double l1 = (b - a).norm(), l2 = (c - b).norm();
+        if (l1 >= arm_max || l2 >= arm_max || l1 <= 0. || l2 <= 0.) { ++ k; continue; }
+        // svolta netta: i due bracci formano un angolo sotto i 120 gradi (dentino, non curva)
+        if ((b - a).dot(c - b) / (l1 * l2) > -0.5) { ++ k; continue; }
+        bool crosses = false;
+        const size_t lo = k > 6 ? k - 6 : 0, hi = std::min(pl.points.size() - 1, k + 7);
+        for (size_t m = lo; m + 1 < hi && ! crosses; ++ m)
+            if (m + 1 < k - 1 || m > k + 1)
+                crosses = seg_cross(pl.points[k - 1], pl.points[k + 1], pl.points[m], pl.points[m + 1]);
+        if (crosses) { ++ k; continue; }
+        pl.points.erase(pl.points.begin() + k);   // il vertice sparisce: i due tratti diventano uno
+    }
+}
+
 static void trim_doglegs(Polyline &pl, std::vector<std::pair<size_t, size_t>> &spans, double line_w)
 {
     const double trim = 1.0 * line_w;
@@ -4044,11 +4081,11 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                         // al capo invece di due che convergono.
                         // ...tranne quando l'uscita incrocerebbe davvero la rotaia d'andata:
                         // li' il giro dal vertice costa un raccordo in piu' ma niente incrocio.
-                        // ...tranne quando la feature SUCCESSIVA riparte dallo STESSO lato da cui
-                        // siamo entrati: allora uscire diretti significa attraversare il corridoio
-                        // d'ingresso, ed e' li' che restavano gli ultimi incroci (10 layer su 277,
-                        // es. L11: il tratto in arrivo tagliava il moncone d'uscita). In quel caso
-                        // si passa dal vertice: un raccordo in piu', ma nessun incrocio.
+                        // Ginger (2026-08-30, Davide): la RIENTRANZA non deve restare. Qui si
+                        // passa dal vertice solo quando serve a non incrociare (la prosecuzione
+                        // riparte dal lato d'ingresso); a valle trim_notches toglie il dentino
+                        // ovunque la scorciatoia non tagli il percorso - cosi' si ottengono sia
+                        // zero incroci sia il minimo di tratti sotto la larghezza del cordone.
                         if (i + 1 < trail.size()) {
                             const Vec2d W = vertex_point(trail[i + 1].first).cast<double>();
                             const Vec2d A = vertex_point(v_to).cast<double>();
@@ -4131,6 +4168,8 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                         // Trail split point: never extruded, the printer travels here.
                         if (pl.size() > 1) {
                             trim_doglegs(pl, dogleg_span, line_w);
+                trim_notches(pl, line_w);
+                            trim_notches(pl, line_w);
                             pieces.emplace_back(std::move(pl));
                         }
                         dogleg_span.clear();
