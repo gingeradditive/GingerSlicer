@@ -3996,7 +3996,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             // i layer, il lato scelto non sposta piu' la colonna di materiale. Stessa regola
             // della fusione dei wall: loop = d( P \ (rami (+) spacing/2) ).
             int   sym_twin_edge = -1;    // indice arco del gemello gia' pianificato
-            Point sym_p3, sym_p4;        // rotaia di ritorno (dopo il giro in punta)
+            Point sym_p1, sym_p2, sym_p3, sym_p4;   // le due rotaie della forcina
             // Ginger twin: span (idx_ta, idx_tb) dei dogleg emessi in pl - il post-pass sotto
             // rifila ~1w di percorso attorno ai vertici A/B cosi' la passata del gemello non
             // tocca il punto esatto gia' usato dalla passata del chord (la "rientranza").
@@ -4018,7 +4018,25 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                         // e rotaia di ritorno fino al vertice di partenza.
                         pl.points.emplace_back(sym_p3);
                         pl.points.emplace_back(sym_p4);
-                        pl.points.emplace_back(vertex_point(v_to));
+                        // Ginger (2026-08-30, Davide): NON si torna sul vertice. Con entrambi i
+                        // monconi ancorati allo stesso punto i due cordoni si coprivano quasi del
+                        // tutto e l'angolo veniva tirato verso l'asse della coppia: la spina che
+                        // Davide vede alla giunzione. Lasciando il percorso su p4, la feature
+                        // successiva riparte dal contorno subito dopo il vertice: un solo moncone
+                        // al capo invece di due che convergono.
+                        // ...tranne quando l'uscita incrocerebbe davvero la rotaia d'andata:
+                        // li' il giro dal vertice costa un raccordo in piu' ma niente incrocio.
+                        if (i + 1 < trail.size()) {
+                            const Point W = vertex_point(trail[i + 1].first);
+                            auto ccw = [](const Point &a, const Point &b, const Point &c) {
+                                return (double(b.x()) - a.x()) * (double(c.y()) - a.y()) -
+                                       (double(b.y()) - a.y()) * (double(c.x()) - a.x());
+                            };
+                            const double d1 = ccw(sym_p1, sym_p2, sym_p4), d2 = ccw(sym_p1, sym_p2, W);
+                            const double d3 = ccw(sym_p4, W, sym_p1),      d4 = ccw(sym_p4, W, sym_p2);
+                            if (((d1 > 0.) != (d2 > 0.)) && ((d3 > 0.) != (d4 > 0.)))
+                                pl.points.emplace_back(vertex_point(v_to));
+                        }
                         sym_twin_edge = -1;
                         ++ sp_bridged;
                         sp_bridged_len += (vertex_point(v_to) - vertex_point(v_from)).cast<double>().norm();
@@ -4122,10 +4140,30 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                             if (dl > 2.5 * line_w && straight) {
                                 const Vec2d u = dv / dl, nrm(-u.y(), u.x());
                                 const double h = 0.5 * line_w;
-                                const Point p1((A + u * h - nrm * h).cast<coord_t>());
-                                const Point p2((B - u * h - nrm * h).cast<coord_t>());
-                                const Point p3((B - u * h + nrm * h).cast<coord_t>());
-                                const Point p4((A + u * h + nrm * h).cast<coord_t>());
+                                // Capi a cuneo (45 gradi): la traversina perpendicolare provata
+                                // il 2026-08-30 toglieva sovrapposizione ma faceva incrociare la
+                                // prosecuzione con il fianco (pulite 270 -> 51). Il cuneo non
+                                // incrocia; per non farne una SPINA il percorso non torna sul
+                                // vertice a fine forcina - vedi la chiusura piu' sotto.
+                                // Ginger (2026-08-30, Davide): il LATO della rotaia d'andata non
+                                // e' libero - deve essere quello da cui il percorso ARRIVA. Se si
+                                // entra dal lato sbagliato bisogna scavalcare l'altra rotaia, ed
+                                // e' li' che nasce l'incrocio (misurato: 82 layer su 277). Si
+                                // legge la direzione d'arrivo dall'ultimo tratto gia' emesso.
+                                double sgn = 0.;
+                                if (pl.points.size() >= 2) {
+                                    const Vec2d prev = pl.points[pl.points.size() - 2].cast<double>();
+                                    const double side = nrm.dot(prev - A);
+                                    if (std::abs(side) > 0.05 * line_w)
+                                        sgn = side > 0. ? 1. : -1.;
+                                }
+                                if (sgn == 0.)
+                                    sgn = 1.;
+                                const Vec2d nh = nrm * (h * sgn);
+                                const Point p1((A + u * h + nh).cast<coord_t>());
+                                const Point p2((B - u * h + nh).cast<coord_t>());
+                                const Point p3((B - u * h - nh).cast<coord_t>());
+                                const Point p4((A + u * h - nh).cast<coord_t>());
                                 auto rail_inside = [&](const Point &x, const Point &y) {
                                     const double L = (y - x).cast<double>().norm();
                                     if (L <= 0.) return true;
@@ -4139,7 +4177,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                     pl.points.emplace_back(p1);
                                     pl.points.emplace_back(p2);
                                     sym_twin_edge = trail[i + 1].second;
-                                    sym_p3 = p3; sym_p4 = p4;
+                                    sym_p1 = p1; sym_p2 = p2; sym_p3 = p3; sym_p4 = p4;
                                     sym = true;
                                 }
                             }
