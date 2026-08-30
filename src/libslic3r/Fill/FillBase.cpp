@@ -3215,6 +3215,8 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                         if (! picked && ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
                             std::fprintf(stderr, "[SPTW2] twin niet: cand=%zu no_pair=%d pair=%d side_fail=%d%s",
                                          cand4.size(), tw_no_pair, tw_pair_found, tw_side_fail, "\n");
+                        int q_gate = 0, q_out = 0, q_retrace = 0;
+                        double q_best_inside = 0.;
                         for (size_t ci = 0; ci < std::min<size_t>(cand4.size(), 256) && ! picked; ++ ci) {
                             const Cand4 &c4 = cand4[ci];
                             // coppia piccola del quad
@@ -3225,14 +3227,26 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                     const double d = (vpt(c4.f[i]) - vpt(c4.f[j])).cast<double>().norm();
                                     if (d < dmin) { dmin = d; si = i; sj = j; }
                                 }
-                            if (dmin > 22. * line_w)
+                            if (dmin > 22. * line_w) {
+                                ++ q_gate;
                                 continue; // oltre il gate del ponte in emissione
+                            }
                             const Line lz(vpt(c4.f[si]), vpt(c4.f[sj]));
+                            // Ginger (2026-08-30): isola DILATATA di mezzo cordone, come in
+                            // bridge_valid. I capi del quad sono vertici SUL contorno, quindi la
+                            // corda fra due di essi e' spesso collineare al bordo: con l'isola
+                            // cruda Clipper la riporta "dentro allo 0%" e il quad viene buttato.
+                            // Misurato sullo stool: 33 quad su 256 scartati cosi', e nei 7 layer
+                            // dove il solver resta a 2 pezzi era proprio questo a impedire
+                            // l'unico percorso possibile (niente forcina, layer spezzato).
                             double tot = 0.;
-                            for (const Line &l : intersection_ln(lz, island_region()))
+                            for (const Line &l : intersection_ln(lz, island_region_grown()))
                                 tot += l.length();
-                            if (tot + SCALED_EPSILON < 0.999 * dmin)
+                            if (tot + SCALED_EPSILON < 0.999 * dmin) {
+                                ++ q_out;
+                                q_best_inside = std::max(q_best_inside, dmin > 0. ? tot / dmin : 0.);
                                 continue; // esce dall'isola
+                            }
                             // ... e non deve RICALCARE un frammento esistente (la coppia
                             // "migliore" e' spesso i due estremi di un chord adiacente: il
                             // ponte sarebbe collineare col chord stesso).
@@ -3263,14 +3277,17 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                         }
                                     }
                                 }
-                                if (coinc > 1.5 * line_w)
+                                if (coinc > 1.5 * line_w) {
+                                    ++ q_retrace;
                                     continue; // ricalca un chord: non estrudibile
+                                }
                             }
                             pick = ci; picked = true;
                         }
                         if (! picked && ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
-                            std::fprintf(stderr, "[SPQ4] nessun quad ponteggiabile (cand=%zu, migliore d_small=%.1fmm)\n",
-                                         cand4.size(), cand4.front().d_small * SCALING_FACTOR);
+                            std::fprintf(stderr, "[SPQ4] nessun quad ponteggiabile (cand=%zu, d_small=%.1fmm) motivi: gate=%d fuori_isola=%d (dentro al piu' %.0f%%) ricalco=%d\n",
+                                         cand4.size(), cand4.front().d_small * SCALING_FACTOR,
+                                         q_gate, q_out, 100. * q_best_inside, q_retrace);
                         const Cand4 &w = cand4[pick];
                         if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr) {
                             size_t si2 = 0, sj2 = 1; double dm2 = std::numeric_limits<double>::max();
@@ -3996,7 +4013,8 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             // i layer, il lato scelto non sposta piu' la colonna di materiale. Stessa regola
             // della fusione dei wall: loop = d( P \ (rami (+) spacing/2) ).
             int   sym_twin_edge = -1;    // indice arco del gemello gia' pianificato
-            Point sym_p1, sym_p2, sym_p3, sym_p4;   // le due rotaie della forcina
+            Point  sym_p1, sym_p2, sym_p3, sym_p4;  // le due rotaie della forcina
+            Vec2d  sym_n;                           // normale al chord, verso il lato d'ingresso
             // Ginger twin: span (idx_ta, idx_tb) dei dogleg emessi in pl - il post-pass sotto
             // rifila ~1w di percorso attorno ai vertici A/B cosi' la passata del gemello non
             // tocca il punto esatto gia' usato dalla passata del chord (la "rientranza").
@@ -4026,15 +4044,15 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                         // al capo invece di due che convergono.
                         // ...tranne quando l'uscita incrocerebbe davvero la rotaia d'andata:
                         // li' il giro dal vertice costa un raccordo in piu' ma niente incrocio.
+                        // ...tranne quando la feature SUCCESSIVA riparte dallo STESSO lato da cui
+                        // siamo entrati: allora uscire diretti significa attraversare il corridoio
+                        // d'ingresso, ed e' li' che restavano gli ultimi incroci (10 layer su 277,
+                        // es. L11: il tratto in arrivo tagliava il moncone d'uscita). In quel caso
+                        // si passa dal vertice: un raccordo in piu', ma nessun incrocio.
                         if (i + 1 < trail.size()) {
-                            const Point W = vertex_point(trail[i + 1].first);
-                            auto ccw = [](const Point &a, const Point &b, const Point &c) {
-                                return (double(b.x()) - a.x()) * (double(c.y()) - a.y()) -
-                                       (double(b.y()) - a.y()) * (double(c.x()) - a.x());
-                            };
-                            const double d1 = ccw(sym_p1, sym_p2, sym_p4), d2 = ccw(sym_p1, sym_p2, W);
-                            const double d3 = ccw(sym_p4, W, sym_p1),      d4 = ccw(sym_p4, W, sym_p2);
-                            if (((d1 > 0.) != (d2 > 0.)) && ((d3 > 0.) != (d4 > 0.)))
+                            const Vec2d W = vertex_point(trail[i + 1].first).cast<double>();
+                            const Vec2d A = vertex_point(v_to).cast<double>();
+                            if (sym_n.dot(W - A) > 0.)
                                 pl.points.emplace_back(vertex_point(v_to));
                         }
                         sym_twin_edge = -1;
@@ -4178,6 +4196,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                     pl.points.emplace_back(p2);
                                     sym_twin_edge = trail[i + 1].second;
                                     sym_p1 = p1; sym_p2 = p2; sym_p3 = p3; sym_p4 = p4;
+                                    sym_n = nrm * sgn;
                                     sym = true;
                                 }
                             }
