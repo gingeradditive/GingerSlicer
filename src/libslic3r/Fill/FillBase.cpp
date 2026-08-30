@@ -3923,7 +3923,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             }
             return coinc <= 1.5 * line_w;
         };
-        auto run_trail = [&adjacency, &edges, &cps, &graph, &infill_ordered, &polylines_out, &next_unused, &vertex_point, stitch_free, stitch_max, bridge_free, &bridge_valid, &sp_bridged, &sp_bridged_len, &island_region, line_w, final_emission](size_t start) {
+        auto run_trail = [&adjacency, &edges, &cps, &graph, &infill_ordered, &polylines_out, &next_unused, &vertex_point, stitch_free, stitch_max, bridge_free, &bridge_valid, &island_region_grown, &sp_bridged, &sp_bridged_len, &island_region, line_w, final_emission](size_t start) {
             std::vector<std::pair<size_t, int>> stack, trail; // (vertex, edge used to arrive)
             stack.emplace_back(start, -1);
             while (! stack.empty()) {
@@ -3940,15 +3940,16 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     if (in_twin || in_frag) {
                         for (size_t ei : adjacency[top.first]) {
                             const SinglePathEdge &cand = edges[ei];
-                            if (cand.used || ! cand.active)
-                                continue;
                             const bool cand_twin = cand.is_virtual && cand.v1 / 2 == cand.v2 / 2;
                             const bool cand_frag = ! cand.is_virtual && ! cand.is_gap;
-                            if (in.v1 / 2 == cand.v1 / 2 &&
-                                ((in_twin && cand_frag) || (in_frag && cand_twin))) {
-                                e = int(ei);
-                                break;
-                            }
+                            const bool is_partner = in.v1 / 2 == cand.v1 / 2 &&
+                                                    ((in_twin && cand_frag) || (in_frag && cand_twin));
+                            if (! is_partner)
+                                continue;
+                            if (cand.used || ! cand.active)
+                                continue;
+                            e = int(ei);
+                            break;
                         }
                     }
                 }
@@ -3965,8 +3966,37 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             if (trail.size() < 2)
                 return;
             std::reverse(trail.begin(), trail.end());
+            // Ginger (2026-08-30): a che distanza finiscono chord e gemello NEL PERCORSO EMESSO?
+            if (final_emission && ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr) {
+                std::vector<int> frag_at(infill_ordered.size(), -1), twin_at(infill_ordered.size(), -1);
+                for (size_t i = 1; i < trail.size(); ++ i) {
+                    const SinglePathEdge &te = edges[size_t(trail[i].second)];
+                    const size_t f = te.v1 / 2;
+                    if (f >= frag_at.size())
+                        continue;
+                    if (te.is_virtual && te.v1 / 2 == te.v2 / 2)
+                        twin_at[f] = int(i);
+                    else if (! te.is_virtual && ! te.is_gap)
+                        frag_at[f] = int(i);
+                }
+                for (size_t f = 0; f < twin_at.size(); ++ f)
+                    if (twin_at[f] >= 0)
+                        std::fprintf(stderr, "[SPHPD] z=%.1f frag=%zu pos_chord=%d pos_gemello=%d distanza=%d\n",
+                                     s_sp_debug_z, f, frag_at[f], twin_at[f],
+                                     frag_at[f] < 0 ? -9999 : twin_at[f] - frag_at[f]);
+            }
             Polylines pieces;
             Polyline  pl;
+            // Ginger FORCINA SIMMETRICA (2026-08-30, Davide): il raddoppio va CENTRATO sul
+            // segmento del reticolo, non appoggiato da un lato. Con l'offset a una larghezza
+            // piena il ritorno finiva 1w di lato (misurato al layer 10: capo a 4.5mm dalla
+            // partenza) e la prosecuzione doveva rientrare tagliando l'andata - la spina.
+            // Con due rotaie a mezza larghezza per parte l'interasse resta 1w ma l'asse della
+            // coppia coincide con la linea del reticolo: i capi tornano sui vertici e, impilando
+            // i layer, il lato scelto non sposta piu' la colonna di materiale. Stessa regola
+            // della fusione dei wall: loop = d( P \ (rami (+) spacing/2) ).
+            int   sym_twin_edge = -1;    // indice arco del gemello gia' pianificato
+            Point sym_p3, sym_p4;        // rotaia di ritorno (dopo il giro in punta)
             // Ginger twin: span (idx_ta, idx_tb) dei dogleg emessi in pl - il post-pass sotto
             // rifila ~1w di percorso attorno ai vertici A/B cosi' la passata del gemello non
             // tocca il punto esatto gia' usato dalla passata del chord (la "rientranza").
@@ -3983,6 +4013,17 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     // stesso frammento si estrude come RADDOPPIO del frammento - stub da 1w,
                     // gemello parallelo a 1w, stub di rientro. Il ponte dritto qui sarebbe
                     // collineare col frammento (retrace): il gemello e' il fianco fuso legale.
+                    if (sym_twin_edge >= 0 && trail[i].second == sym_twin_edge) {
+                        // chiusura della forcina simmetrica: giro in punta (gia' fatto da p2->p3)
+                        // e rotaia di ritorno fino al vertice di partenza.
+                        pl.points.emplace_back(sym_p3);
+                        pl.points.emplace_back(sym_p4);
+                        pl.points.emplace_back(vertex_point(v_to));
+                        sym_twin_edge = -1;
+                        ++ sp_bridged;
+                        sp_bridged_len += (vertex_point(v_to) - vertex_point(v_from)).cast<double>().norm();
+                        continue;
+                    }
                     if (final_emission && v_from / 2 == v_to / 2) {
                         const Vec2d a2 = vertex_point(v_from).cast<double>();
                         const Vec2d b2 = vertex_point(v_to).cast<double>();
@@ -4065,10 +4106,51 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                            cps[v_from].point_idx, cps[v_to].point_idx, /* forward */ v_from == e.v1);
                 else {
                     const Polyline &frag = infill_ordered[v_from / 2];
-                    if ((v_from & 1) == 0)
-                        pl.points.insert(pl.points.end(), frag.points.begin() + 1, frag.points.end());
-                    else
-                        pl.points.insert(pl.points.end(), frag.points.rbegin() + 1, frag.points.rend());
+                    // Il gemello di questo chord e' l'arco immediatamente successivo? (misurato:
+                    // lo e' sempre, 270 su 270 - la preferenza a forcina funziona). Allora la
+                    // coppia si emette qui, centrata: rotaia di andata a -w/2, giro, ritorno a +w/2.
+                    bool sym = false;
+                    if (final_emission && i + 1 < trail.size()) {
+                        const SinglePathEdge &nx = edges[size_t(trail[i + 1].second)];
+                        if (nx.is_virtual && nx.v1 / 2 == nx.v2 / 2 && nx.v1 / 2 == v_from / 2) {
+                            const Vec2d A = vertex_point(v_from).cast<double>();
+                            const Vec2d B = vertex_point(v_to).cast<double>();
+                            const Vec2d dv = B - A;
+                            const double dl = dv.norm();
+                            // solo su un chord dritto: la rotaia e' un segmento, non un offset di polilinea
+                            const bool straight = frag.length() <= 1.02 * dl + SCALED_EPSILON;
+                            if (dl > 2.5 * line_w && straight) {
+                                const Vec2d u = dv / dl, nrm(-u.y(), u.x());
+                                const double h = 0.5 * line_w;
+                                const Point p1((A + u * h - nrm * h).cast<coord_t>());
+                                const Point p2((B - u * h - nrm * h).cast<coord_t>());
+                                const Point p3((B - u * h + nrm * h).cast<coord_t>());
+                                const Point p4((A + u * h + nrm * h).cast<coord_t>());
+                                auto rail_inside = [&](const Point &x, const Point &y) {
+                                    const double L = (y - x).cast<double>().norm();
+                                    if (L <= 0.) return true;
+                                    sp_profile_count(&SPProfile::clipper_calls);
+                                    double tot = 0.;
+                                    for (const Line &l : intersection_ln(Line(x, y), island_region_grown()))
+                                        tot += l.length();
+                                    return tot + SCALED_EPSILON >= 0.99 * L;
+                                };
+                                if (rail_inside(p1, p2) && rail_inside(p3, p4)) {
+                                    pl.points.emplace_back(p1);
+                                    pl.points.emplace_back(p2);
+                                    sym_twin_edge = trail[i + 1].second;
+                                    sym_p3 = p3; sym_p4 = p4;
+                                    sym = true;
+                                }
+                            }
+                        }
+                    }
+                    if (! sym) {
+                        if ((v_from & 1) == 0)
+                            pl.points.insert(pl.points.end(), frag.points.begin() + 1, frag.points.end());
+                        else
+                            pl.points.insert(pl.points.end(), frag.points.rbegin() + 1, frag.points.rend());
+                    }
                 }
             }
             if (pl.size() > 1) {
