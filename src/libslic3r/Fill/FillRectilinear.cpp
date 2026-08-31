@@ -3066,12 +3066,35 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
         // dilates and re-closes it below: plain trail-count objective, no mouth stitching.
         FillParams row_params = params;
         row_params.multiline_intermediate = true;
+        // Ginger (2026-08-31): dump dei quattro stadi del connect-before-multiply su UN layer
+        // (GINGER_ML_DUMP=<layer_id>), per capire dove nasce il passaggio in piu' che compare a
+        // layer alterni dentro le appendici sottili. Le stesse polilinee, prima e dopo ogni stadio.
+        static const int ml_dump_layer = [] {
+            const char *e = ::getenv("GINGER_ML_DUMP");
+            return e == nullptr ? -1 : ::atoi(e);
+        }();
+        const bool ml_dump_on = ml_dump_layer >= 0 && int(this->layer_id) == ml_dump_layer;
+        if (ml_dump_layer >= 0)
+            std::fprintf(stderr, "[MLLAYER] layer_id=%d dump=%d\n", int(this->layer_id), int(ml_dump_on));
+        auto ml_dump = [ml_dump_on](const char *stage, const Polylines &pls) {
+            if (! ml_dump_on)
+                return;
+            for (size_t i = 0; i < pls.size(); ++ i) {
+                std::fprintf(stderr, "[MLDUMP] %s pl=%zu n=%zu chiusa=%d", stage, i, pls[i].size(),
+                             int(pls[i].size() > 2 && pls[i].points.front() == pls[i].points.back()));
+                for (const Point &p : pls[i].points)
+                    std::fprintf(stderr, " %.2f,%.2f", p.x() * SCALING_FACTOR, p.y() * SCALING_FACTOR);
+                std::fprintf(stderr, "\n");
+            }
+        };
         for (const ExPolygon &inner : inners) {
             Polylines rows = intersection_pl(fill_lines, inner);
             if (rows.empty())
                 continue;
+            ml_dump("righe", rows);
             Polylines joined;
             connect_infill(std::move(rows), inner, joined, this->spacing, row_params);
+            ml_dump("centerline", joined);
             // With an EVEN multiline a closed centerline would widen into two concentric loops; open it
             // at its seam so the widened result stays one single ring. With an ODD multiline the
             // centerline itself is extruded (multiline_fill() inserts it at offset 0): keep it CLOSED,
@@ -3081,10 +3104,13 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
                 for (Polyline &pl : joined)
                     if (pl.size() > 3 && pl.points.front() == pl.points.back())
                         pl.points.pop_back();
+            ml_dump("aperto", joined);
             // Widen the connected path; the union outline comes back as one outer wall plus the hole
             // walls of the pockets the path encloses - splice them into one single closed loop.
             multiline_fill(joined, params, spacing);
+            ml_dump("allargato", joined);
             single_path_splice_loops(joined, scale_(4. * this->spacing * params.multiline), scale_(this->spacing));
+            ml_dump("ricucito", joined);
             append(connected, std::move(joined));
         }
         fill_lines = std::move(connected);
@@ -3358,12 +3384,32 @@ bool FillRectilinear::fill_surface_trapezoidal(
         // Intermediate centerline for connect-before-multiply (see fill_surface_by_multilines).
         FillParams row_params = params;
         row_params.multiline_intermediate = true;
+        // Ginger (2026-08-31): stessi quattro stadi, stesso dump di fill_surface_by_multilines -
+        // il grid a ml>1 passa DA QUI (trapezoidal), non di la'.
+        static const int ml_dump_layer = [] {
+            const char *e = ::getenv("GINGER_ML_DUMP");
+            return e == nullptr ? -1 : ::atoi(e);
+        }();
+        const bool ml_dump_on = ml_dump_layer >= 0 && int(this->layer_id) == ml_dump_layer;
+        auto ml_dump = [ml_dump_on](const char *stage, const Polylines &pls) {
+            if (! ml_dump_on)
+                return;
+            for (size_t i = 0; i < pls.size(); ++ i) {
+                std::fprintf(stderr, "[MLDUMP] %s pl=%zu n=%zu chiusa=%d", stage, i, pls[i].size(),
+                             int(pls[i].size() > 2 && pls[i].points.front() == pls[i].points.back()));
+                for (const Point &p : pls[i].points)
+                    std::fprintf(stderr, " %.2f,%.2f", p.x() * SCALING_FACTOR, p.y() * SCALING_FACTOR);
+                std::fprintf(stderr, "\n");
+            }
+        };
         for (const ExPolygon &inner : inners) {
             Polylines rows = intersection_pl(polylines, inner);
             if (rows.empty())
                 continue;
+            ml_dump("righe", rows);
             Polylines joined;
             connect_infill(std::move(rows), inner, joined, this->spacing, row_params);
+            ml_dump("centerline", joined);
             // With an EVEN multiline a closed centerline would widen into two concentric loops; open it
             // at its seam so the widened result stays one single ring. With an ODD multiline the
             // centerline itself is extruded (multiline_fill() inserts it at offset 0): keep it CLOSED,
@@ -3375,8 +3421,11 @@ bool FillRectilinear::fill_surface_trapezoidal(
                         pl.points.pop_back();
             // Widen the connected path; the union outline comes back as one outer wall plus the hole
             // walls of the pockets the path encloses - splice them into one single closed loop.
+            ml_dump("aperto", joined);
             multiline_fill(joined, params, spacing);
+            ml_dump("allargato", joined);
             single_path_splice_loops(joined, scale_(4. * this->spacing * params.multiline), scale_(this->spacing));
+            ml_dump("ricucito", joined);
             append(connected, std::move(joined));
         }
         polylines = std::move(connected);

@@ -3087,6 +3087,32 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             // wall hug) and 2 closed blobs reached by 130-360mm travels, three layers out of sixty.
             bool exact_solved = false;
             const bool lining_tiebreak = wall_lining && final_emission;
+            // Ginger (2026-08-31, gamba dello stool a grid 5% ml=2): senza arbitro il pareggio fra
+            // due selezioni equivalenti lo vince quella che l'enumerazione incontra prima, e l'ordine
+            // dipende dalla ROTAZIONE del punto 0 del contorno, che cambia da un layer all'altro.
+            // Risultato misurato: la gamba prende la seconda fodera un layer si' e uno no (98 layer
+            // su 276), e la coppia in piu' resta a sbalzo perche' sotto non c'e' niente. Il muro
+            // percorso (cov) e' l'arbitro: nel passaggio intermedio vince chi ne cammina di MENO,
+            // perche' li' ogni millimetro di centerline diventa DUE cordoni. GINGER_SP_TIE=max
+            // rovescia la preferenza, qualunque altro valore ('off') spegne l'arbitro.
+            // Sotto wall lining (lightning) resta l'arbitro esistente, intatto.
+            static const int sp_tie_mode = [] {
+                const char *e = ::getenv("GINGER_SP_TIE");
+                if (e == nullptr)
+                    return -1;                      // predefinito: meno muro percorso
+                if (e[0] == 'm' && e[1] == 'a')     // "max"
+                    return 1;
+                if (e[0] == 'm' && e[1] == 'i')     // "min"
+                    return -1;
+                return 0;                           // "off"
+            }();
+            // L'arbitro vale SOLO nel passaggio intermedio del connect-before-multiply (ml>1):
+            // e' li' che nasce il centerline che verra' raddoppiato, ed e' li' che il passaggio in
+            // piu' dentro un'appendice costa due cordoni invece di uno. Sull'emissione finale
+            // (ml=1 e lightning) resta tutto com'era: misurato, accenderlo anche li' riporta i
+            // travel di G1_probe da 15/1.58m a 17/2.37m.
+            const int sp_tie = final_emission ? 0 : sp_tie_mode;
+            const bool cov_tiebreak = lining_tiebreak || sp_tie != 0;
             if (contour_vertices.size() == 1 && contour_vertices[0].size() >= 4 &&
                 contour_vertices[0].size() <= 160 && (contour_vertices[0].size() % 2) == 0) {
                 SPTimer sp_timer_(SPProfile::phExactSolve);
@@ -3157,15 +3183,18 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     const size_t ndef  = (da == db) ? 0 : 2;
                     const double mouth = ndef ? (vpt(da) - vpt(db)).cast<double>().norm() : 0.;
                     double       cov   = 0.;
-                    if (lining_tiebreak)
+                    if (cov_tiebreak)
                         for (size_t k = 0; k < m; ++ k)
                             if (sel[k])
                                 cov += gap_length(0, cv[k], cv[(k + 1) % m]);
+                    const bool tie_better = lining_tiebreak ? cov > best.coverage :
+                                            sp_tie > 0 ? cov > best.coverage :
+                                            sp_tie < 0 ? cov < best.coverage : false;
                     if (comps < best.comps ||
                         (comps == best.comps && (blocked_used < best.blocked ||
                          (blocked_used == best.blocked && (ndef < best.defects ||
                           (ndef == best.defects && (mouth < best.mouth ||
-                           (lining_tiebreak && mouth == best.mouth && cov > best.coverage)))))))) {
+                           (mouth == best.mouth && tie_better)))))))) {
                         best = { comps, blocked_used, ndef, mouth, cov, sel };
                         best_da = da; best_db = db;
                     }
@@ -3179,6 +3208,44 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     for (size_t db = da + 1; db < m; ++ db)
                         for (int phase = 0; phase < 2; ++ phase)
                             consider(da, db, phase != 0);
+                // Ginger (2026-08-31): chi ha perso, e di quanto? Rienumera i candidati con lo
+                // stesso (pezzi, blocked, difetti) del vincitore e stampa i tre con la bocca piu'
+                // corta col loro muro percorso: serve a capire se la scelta che alterna fra layer
+                // e' un pareggio vero (stessa bocca) o una gara vinta per pochi mm di bocca.
+                if (::getenv("GINGER_SP_TIEDBG") != nullptr && ! best.sel.empty()) {
+                    std::vector<std::pair<double, double>> rank; // (mouth, cov)
+                    std::vector<char> selq(m);
+                    auto collect = [&](size_t da, size_t db, bool phase) {
+                        if (! build_sel(da, db, phase, selq))
+                            return;
+                        if (solve_components(selq) != best.comps)
+                            return;
+                        size_t bl = 0;
+                        for (size_t k = 0; k < m; ++ k)
+                            if (selq[k] && gap_blocked[0][k])
+                                ++ bl;
+                        const size_t nd = (da == db) ? 0 : 2;
+                        if (bl != best.blocked || nd != best.defects)
+                            return;
+                        double c = 0.;
+                        for (size_t k = 0; k < m; ++ k)
+                            if (selq[k])
+                                c += gap_length(0, cv[k], cv[(k + 1) % m]);
+                        rank.emplace_back(nd ? (vpt(da) - vpt(db)).cast<double>().norm() : 0., c);
+                    };
+                    for (int phase = 0; phase < 2; ++ phase)
+                        collect(no_defect, no_defect, phase != 0);
+                    for (size_t da = 0; da < m; ++ da)
+                        for (size_t db = da + 1; db < m; ++ db)
+                            for (int phase = 0; phase < 2; ++ phase)
+                                collect(da, db, phase != 0);
+                    std::sort(rank.begin(), rank.end());
+                    std::fprintf(stderr, "[SPTIE] m=%zu pezzi=%zu candidati=%zu", m, best.comps, rank.size());
+                    for (size_t i = 0; i < rank.size() && i < 3; ++ i)
+                        std::fprintf(stderr, "  #%zu bocca=%.2fmm muro=%.1fmm", i + 1,
+                                     rank[i].first * SCALING_FACTOR, rank[i].second * SCALING_FACTOR);
+                    std::fprintf(stderr, "\n");
+                }
                 // Ginger TWIN (2026-08-28, IL disegno di Davide): prova a RADDOPPIARE un chord.
                 // Il gemello a 1 width aggiunge +1 grado ai due capi del chord: con 2 flip li'
                 // e 2 flip liberi altrove, l'anello puo' chiudersi in UN componente con 2 soli
@@ -3263,7 +3330,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     SPTimer sp_timer4_(SPProfile::phExactSolve);
                     std::vector<char> sel4(m);
                     size_t f[4];
-                    struct Cand4 { size_t blocked; double d_small, d_large; size_t f[4]; bool phase; };
+                    struct Cand4 { size_t blocked; double d_small, d_large, cov; size_t f[4]; bool phase; };
                     std::vector<Cand4> cand4;
                     cand4.reserve(1024);
                     auto build_sel4 = [&](const size_t fl[4], bool phase, std::vector<char> &out) -> bool {
@@ -3308,7 +3375,12 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                         rest[r ++] = i;
                                 d_large = dd(f[rest[0]], f[rest[1]]);
                             }
-                            cand4.push_back({ blocked_used, d_small, d_large, { f[0], f[1], f[2], f[3] }, phase != 0 });
+                            double cov4 = 0.;
+                            if (sp_tie != 0)
+                                for (size_t k = 0; k < m; ++ k)
+                                    if (sel4[k])
+                                        cov4 += gap_length(0, cv[k], cv[(k + 1) % m]);
+                            cand4.push_back({ blocked_used, d_small, d_large, cov4, { f[0], f[1], f[2], f[3] }, phase != 0 });
                         }
                     // Post-filtro (2026-08-27): il salto piccolo va ESTRUSO come diagonale Z
                     // (schizzo di Davide), quindi la corda fra i suoi due difetti deve stare
@@ -3318,9 +3390,19 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     // quad col ponte interno; se nessuno, il migliore e basta (il salto resta
                     // un travel corto).
                     if (! cand4.empty()) {
-                        std::sort(cand4.begin(), cand4.end(), [](const Cand4 &a, const Cand4 &b) {
-                            return a.blocked != b.blocked ? a.blocked < b.blocked :
-                                   a.d_small != b.d_small ? a.d_small < b.d_small : a.d_large < b.d_large;
+                        std::sort(cand4.begin(), cand4.end(), [sp_tie](const Cand4 &a, const Cand4 &b) {
+                            if (a.blocked != b.blocked)
+                                return a.blocked < b.blocked;
+                            // Nel passaggio intermedio (ml>1) il muro percorso viene PRIMA della
+                            // bocca: la bocca la riassorbono allargamento e ricucitura (misurato:
+                            // travel identici, 553 / 1.37 m), il muro percorso invece si paga
+                            // raddoppiato. Con la bocca davanti vinceva un quad diverso a ogni
+                            // layer e la gamba dello stool prendeva la seconda fodera a layer
+                            // alterni. Provata anche come tolleranza (10/30/100/200mm): l'effetto
+                            // satura a 100mm, cioe' proprio quando il muro passa davanti del tutto.
+                            if (sp_tie != 0 && a.cov != b.cov)
+                                return sp_tie > 0 ? a.cov > b.cov : a.cov < b.cov;
+                            return a.d_small != b.d_small ? a.d_small < b.d_small : a.d_large < b.d_large;
                         });
                         size_t pick = 0;
                         bool   picked = false;
@@ -3532,9 +3614,9 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                          vpt(best_da).x() * SCALING_FACTOR, vpt(best_da).y() * SCALING_FACTOR,
                                          vpt(best_db).x() * SCALING_FACTOR, vpt(best_db).y() * SCALING_FACTOR);
                         else
-                            std::fprintf(stderr, "[SPEXACT] m=%zu pieces=%zu blocked=%zu defects=%zu mouth=%.1fmm coverage=%.1fmm\n",
+                            std::fprintf(stderr, "[SPEXACT] m=%zu pieces=%zu blocked=%zu defects=%zu mouth=%.1fmm coverage=%.1fmm lin=%d fin=%d tie=%d\n",
                                          m, best.comps, best.blocked, best.defects, best.mouth * SCALING_FACTOR,
-                                         best.coverage * SCALING_FACTOR);
+                                         best.coverage * SCALING_FACTOR, int(lining_tiebreak), int(final_emission), sp_tie);
                     }
                 }
             }

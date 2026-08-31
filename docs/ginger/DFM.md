@@ -169,6 +169,23 @@ Verification is by cross-section, not by eye: sample the x of every bead at a fi
 the spacings. A healthy `ml == 2` limb reads `S 727.77  S 730.66  W 733.17` — pattern pair at
 2.89 mm, outer flank 2.52 mm from the wall. A retrace reads two `S` at the same x.
 
+**The intermediate centerline is priced DOUBLE (2026-08-31, stool leg).** In the intermediate
+pass every millimetre of centerline becomes two beads, so the 4-flip ranking cannot keep pricing
+by mouth there. With the mouth first, a different quad won on each layer, and a 32 mm leg — which
+at 5 % density carries no lattice line at all, only the walk along its own contour — got the
+second lining every OTHER layer: 98 layers of 276, and the inner rail of that pair hangs 2.2 mm
+off the wall below (its axis 5.4 mm = 1.7 beads from the axis underneath). Now the wall walked
+(`cov`) is ranked BEFORE the mouth in the intermediate pass only: the mouth is reabsorbed by the
+widening and the splice anyway. Measured on the stool (grid 5 %, ml = 2): sparse 1179.93 →
+1028.63 m (−12.8 %), travels IDENTICAL at 553 / 1.37 m, bead with nothing underneath 75.32 →
+17.71 m (−76 %), alternating layers 98 → 1; the wall-hugging share of the sparse is untouched
+(34.7 % → 33.1 %), so what goes away is the every-other-layer duplicate, not the lining. The rule
+is scoped to `! final_emission`: switching it on for the final emission too costs travels on
+`ml == 1` (G1_probe 15/1.58 m → 17/2.37 m). Lightning is doubly excluded (it never enters the
+4-flip, and its emission is final). `GINGER_SP_TIE=max` reverses the preference, `=off` restores
+the mouth-first ranking; whole sp_lab suite (37 cases) unchanged except GM2_stool_full, which
+improves.
+
 ### 2.5 Seams and chaining
 - A closed sparse path is emitted as an `ExtrusionLoop`: the G-code generator enters it at the
   point nearest the toolhead ("free seam") — closed loop = zero fixed ends.
@@ -382,6 +399,9 @@ schedule driver — massive short parts cool layer-bound, thin tall parts print 
 | `GINGER_SP_CLOSE=1` | `[SPCLOSEM]` | opt-IN, default OFF: mouth closure by boundary rails (see GLOSSARY) |
 | `GINGER_SP_DUMP=1` | `[SPDUMP]` | per-position dump of the exact solver's chosen selection |
 | `GINGER_SP_INJECT=1` | — | opt-IN: inject a crossing chord when the weave finds no crossing |
+| `GINGER_SP_TIE=max|off[:mm]` | — | flips (or disables) the intermediate-pass arbiter: which of two equal-cost 4-flip quads wins, by wall walked. Default prefers the LEAST wall (see 2.4b) |
+| `GINGER_SP_TIEDBG=1` | `[SPTIE]` | re-enumerates the candidates matching the winner's (pieces, blocked, defects) and prints the three shortest mouths with their wall walked: tells a real tie from a race won by a few mm |
+| `GINGER_ML_DUMP=<layer_id>` | `[MLDUMP]` | the four stages of connect-before-multiply for one layer (rows in, centerline, opened, widened, spliced) as raw polylines: says WHICH stage introduced a difference |
 | `GINGER_SP_LONG=1` | `[SPLONG]` | every emitted segment longer than 30 bead widths, with the edge that produced it (frammento / arco / virtual): tells a pattern chord from one of our connections when beads show up in mid-air |
 | `GINGER_SP_PROFILE=1` | per-phase timings + Clipper call counts | where the connector spends its time |
 | `GINGER_RIBS_DEBUG=1` | `[RIBSTAT]` per layer + emission drops | wall rib planning census |
