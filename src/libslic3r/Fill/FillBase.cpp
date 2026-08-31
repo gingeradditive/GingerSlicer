@@ -2220,6 +2220,19 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                     budget_out = true;
                     break;
                 }
+                // Ginger (2026-08-31, figure_knee lightning 70% ml=2): il merge fra anelli non
+                // aveva alcun tetto sulla lunghezza del link - solo l'attach ce l'ha
+                // (straight_link_max). Su lightning l'isola e' TUTTO l'interno del pezzo, che pero'
+                // e' vuoto: link_valid vede la corda "dentro l'isola" e la accetta, e il risultato
+                // e' un cordone teso sul niente. Misurato: 7.84 m di cordone senza appoggio sotto,
+                // il piu' lungo 221 mm, che scompaiono (0.04 m) disattivando la saldatura.
+                // Qui il link dritto porta lo stesso tetto dell'attach: piu' lungo di cosi' non e'
+                // un raccordo, e' un ponte - e i ponti si fanno sul cordolo, non in mezzo al vuoto.
+                if (island != nullptr &&
+                    (pb - c.proj).cast<double>().norm() > straight_link_max) {
+                    failed_links.emplace_back(c.proj, pb);
+                    continue;
+                }
                 if (link_valid(c.proj, pb)) {
                     bi = c.i; bj = c.j; b_vert = c.v; b_seg = c.s; b_proj = c.proj;
                     b_found = true;
@@ -4178,6 +4191,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 size_t                v_from = trail[i - 1].first;
                 size_t                v_to   = trail[i].first;
                 const SinglePathEdge &e      = edges[size_t(trail[i].second)];
+                const size_t sp_dbg_before = pl.points.size();
                 if (e.is_virtual) {
                     const double jump = (vertex_point(v_to) - vertex_point(v_from)).cast<double>().norm();
                     const bool same_contour = cps[v_from].contour_idx == cps[v_to].contour_idx;
@@ -4298,6 +4312,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 } else if (e.is_gap)
                     single_path_append_arc(pl.points, graph.boundary[e.contour_idx],
                                            cps[v_from].point_idx, cps[v_to].point_idx, /* forward */ v_from == e.v1);
+                // (diagnostica sotto)
                 else {
                     const Polyline &frag = infill_ordered[v_from / 2];
                     // Il gemello di questo chord e' l'arco immediatamente successivo? (misurato:
@@ -4374,6 +4389,18 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                             pl.points.insert(pl.points.end(), frag.points.rbegin() + 1, frag.points.rend());
                     }
                 }
+                // Ginger (2026-08-31): da dove esce un tratto LUNGO? Serve a distinguere il
+                // pattern dalle nostre connessioni quando compaiono cordoni in aria.
+                if (final_emission && ::getenv("GINGER_SP_LONG") != nullptr && sp_dbg_before > 0)
+                    for (size_t q = sp_dbg_before; q < pl.points.size(); ++ q) {
+                        const double d = (pl.points[q] - pl.points[q - 1]).cast<double>().norm();
+                        if (d > 30. * line_w)
+                            std::fprintf(stderr, "[SPLONG] z=%.1f %.1fmm tipo=%s (%.1f,%.1f)->(%.1f,%.1f)\n",
+                                         s_sp_debug_z, d * SCALING_FACTOR,
+                                         e.is_virtual ? "virtual" : (e.is_gap ? "arco" : "frammento"),
+                                         pl.points[q - 1].x() * SCALING_FACTOR, pl.points[q - 1].y() * SCALING_FACTOR,
+                                         pl.points[q].x() * SCALING_FACTOR, pl.points[q].y() * SCALING_FACTOR);
+                    }
             }
             if (pl.size() > 1) {
                 trim_doglegs(pl, dogleg_span, line_w);

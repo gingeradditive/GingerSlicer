@@ -100,6 +100,17 @@ tightenings, both in `FillBase.cpp`:
   sample within 2 beads of it); different contours (hole↔outer) keep the plain rules, since
   the interior between them is real material.
 
+**The same ceiling on the ring-to-ring merge (2026-08-31, figure_knee).** The 3-stagger rule
+above lived in the ATTACH loop only; the MERGE loop of `single_path_splice_loops()` had no
+length policy at all, and `link_valid` alone is not one: it asks "inside the island?" and on
+Lightning the island is the whole interior of the part - which is empty. The result on
+`figure_knee` (Lightning 70 %, multiline 2, 1.9 mm bead) was 116 beads extruded across the void,
+7.84 m of them, the longest 221 mm straight through the middle of the leg on 33 of 184 layers.
+The merge now carries the attach ceiling: longer than 3 stagger and the candidate is dropped
+(no cordolo routing here - riding the perimeter for 220 mm would cost more extruded bead than
+the travel it saves). Measured: air 7.84 m -> 0.15 m, longest 221 -> 30 mm, sparse 668 -> 656 m,
+travels 116.42 -> 116.66 m (+0.2 %), and the whole sp_lab suite (37 cases) byte-identical.
+
 **4-flip + Z-bridge (2026-08-28, the current mechanism).** With one gap per vertex (forced:
 a vertex has 1 chord + 2 gaps and even degree needs exactly one) the selection family is
 alternation with phase flips; two flips leave >= 2 components on real sections (a local wish -
@@ -371,6 +382,7 @@ schedule driver — massive short parts cool layer-bound, thin tall parts print 
 | `GINGER_SP_CLOSE=1` | `[SPCLOSEM]` | opt-IN, default OFF: mouth closure by boundary rails (see GLOSSARY) |
 | `GINGER_SP_DUMP=1` | `[SPDUMP]` | per-position dump of the exact solver's chosen selection |
 | `GINGER_SP_INJECT=1` | — | opt-IN: inject a crossing chord when the weave finds no crossing |
+| `GINGER_SP_LONG=1` | `[SPLONG]` | every emitted segment longer than 30 bead widths, with the edge that produced it (frammento / arco / virtual): tells a pattern chord from one of our connections when beads show up in mid-air |
 | `GINGER_SP_PROFILE=1` | per-phase timings + Clipper call counts | where the connector spends its time |
 | `GINGER_RIBS_DEBUG=1` | `[RIBSTAT]` per layer + emission drops | wall rib planning census |
 | `GINGER_FUSION_DEBUG=1` | `[FUSION]` per island and per object | wall/lightning fusion census (roots, gorges, pruned branches, dropped roots, extra loops) |

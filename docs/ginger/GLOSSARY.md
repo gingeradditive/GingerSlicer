@@ -440,7 +440,12 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   longer than 3 stagger is never a straight chord: it is routed as two
   rails on the cordolo (island contour out, `offset(−stagger)` back —
   fused flanks, the rib-link pattern), no-retrace validated; no valid
-  route, no weld. `[SPLINK]`, `[SPPIECE]`.
+  route, no weld. Since 2026-08-31 the same ceiling also applies to the
+  ring-to-ring MERGE, which had none: there it simply drops the candidate
+  (no routing). `link_valid` is not a length policy - on Lightning the
+  island is the whole empty interior, so a 221 mm chord across the void
+  passed it (figure_knee: 7.84 m of bead in mid-air -> 0.15 m).
+  `[SPLINK]`, `[SPPIECE]`.
 
 - **Mouth / mouth closure** — When neither alternating gap phase connects
   the Euler graph (a cycle has exactly two perfect matchings), the sparse
