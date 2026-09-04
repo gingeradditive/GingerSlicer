@@ -11,6 +11,7 @@
 #include <boost/static_assert.hpp>
 #include <boost/math/constants/constants.hpp>
 
+#include "../AABBTreeLines.hpp"
 #include "../ClipperUtils.hpp"
 #include "../ExPolygon.hpp"
 #include "../Geometry.hpp"
@@ -19,6 +20,8 @@
 #include "../VariableWidth.hpp"
 
 #include "FillRectilinear.hpp"
+
+namespace Slic3r { void single_path_splice_set_preferred(const Points *pts, double radius); }
 
 // #define SLIC3R_DEBUG
 // #define INFILL_DEBUG_OUTPUT
@@ -3029,6 +3032,170 @@ static inline void remove_overlapped(Polylines& polylines, coord_t line_width){
     polylines = std::move(cleaned);
 }
 
+// Ginger (2026-09-02): ricuce le righe che il ritaglio sull'isola ridotta ha spezzato in due
+// lasciando un buco piu' corto di un cordone. Misurato sullo stool (grid 5%, ml=2): il contorno
+// ridotto sfiora il gradino di una riga del grid e a un certo layer gli entra dentro di 0.3 mm -
+// la riga entra nel connettore come DUE frammenti (m 16 -> 18), la parita' del grafo cambia, e
+// l'unico raddoppio che chiude l'anello si sposta dalla diagonale della gamba al moncone nuovo:
+// la fodera della gamba cambia muro, e il cordone del layer sopra non ha piu' niente sotto.
+// Il tratto ricucito esce al massimo di un cordone dall'isola ridotta ma resta dentro la
+// superficie (che qui e' gia' dentro le pareti): e' un cordone appoggiato alla fodera, come
+// l'ancora. Solo capi fra loro vicini: righe diverse stanno a un passo di griglia.
+// Ginger (2026-09-04): i "salti" del layer sotto - tappi a U e raccordi a Z della saldatura: un
+// tratto corto (sotto 2.5 cordoni) che devia di oltre 50 gradi sia dal tratto prima sia da quello
+// dopo. Servono alla saldatura per restare in colonna con il layer sotto (il rilevamento delle sole
+// inversioni a U mancava le Z con i bracci lunghi e la preferenza restava senza ancora).
+static Points single_path_prev_jogs(const Polylines *prev, double w)
+{
+    Points out;
+    if (prev == nullptr)
+        return out;
+    const double cos50 = 0.6427876;
+    for (const Polyline &q : *prev)
+        for (size_t i = 1; i + 2 < q.size(); ++ i) {
+            const Vec2d va = (q.points[i] - q.points[i - 1]).cast<double>();
+            const Vec2d vb = (q.points[i + 1] - q.points[i]).cast<double>();
+            const Vec2d vc = (q.points[i + 2] - q.points[i + 1]).cast<double>();
+            const double la = va.norm(), lb = vb.norm(), lc = vc.norm();
+            // misurato: il criterio "devia da entrambi i vicini" peggiorava (incroci 17 -> 35);
+            // si tengono le sole inversioni a U corte (tratti sotto 2w, oltre 135 gradi)
+            (void) vc; (void) lc; (void) cos50;
+            if (la <= 0. || lb <= 0. || la > 2. * w || lb > 2. * w)
+                continue;
+            if (va.dot(vb) / (la * lb) < -0.7)
+                out.emplace_back(q.points[i]);
+        }
+    return out;
+}
+
+
+// Ginger (2026-09-03, Davide): un vertice INTERNO di una riga che sta entro mezzo cordone dal
+// contorno ridotto e' gia' dentro il cordone della lining: fisicamente la riga tocca la lining
+// li'. Trattarlo come capo di riga (spezzare, capi proiettati sul contorno) rende il grafo di
+// bordo uguale a quello dei layer in cui il contorno taglia davvero la riga. Sullo sgabolo il
+// lobo in punta alla gamba cambiava stato a un layer preciso (spigolo del jog a 0.69 -> 0.00 mm
+// dal contorno nei primi 5 layer, poi tagliato) e la lining ribaltava mezzo anello: 1.1 m di
+// cordone nel vuoto. Verificato per enumerazione sul grafo: con la riga spezzata la camminata
+// dei 268 layer di regime esiste anche nei layer di bordo (ricalco 99%). Si spezza solo se
+// la riga corre obliqua al contorno (i due capi nuovi distano almeno mezzo cordone lungo il
+// contorno) e se entrambi i pezzi restano lunghi almeno `min_piece`.
+static void split_rows_touching_contour(Polylines &rows, coord_t eps, coord_t min_piece, coord_t step, const ExPolygon &inner)
+{
+    AABBTreeLines::LinesDistancer<Line> dist(to_lines(inner));
+    Polylines out;
+    std::vector<Polyline> work(std::make_move_iterator(rows.begin()), std::make_move_iterator(rows.end()));
+    rows.clear();
+    while (! work.empty()) {
+        Polyline pl = std::move(work.back());
+        work.pop_back();
+        bool split = false;
+        for (size_t k = 1; k + 1 < pl.size() && ! split; ++ k) {
+            const auto [d, idx, nearest] = dist.distance_from_lines_extra<false>(pl.points[k]);
+            if (std::abs(d) >= double(eps))
+                continue;
+            // Ginger (2026-09-04, Davide "direzioni strane"): i capi nuovi NON si proiettano di lato
+            // (produceva due raccordi obliqui, una Z che si spostava a ogni layer e faceva serpeggiare
+            // la fodera): ogni pezzo prosegue DRITTO lungo il proprio ultimo tratto fino a bucare il
+            // contorno, come fa la riga quando e' il contorno a tagliarla. Se il raggio non trova il
+            // contorno entro pochi passi (riga quasi parallela al bordo) si ripiega sulla proiezione.
+            const Vec2d corner = pl.points[k].cast<double>();
+            auto ray_hit = [&](const Vec2d &dir, double max_len, Point &hit) -> bool {
+                const double dl = dir.norm();
+                if (dl <= 0.)
+                    return false;
+                const Vec2d u = dir / dl;
+                double best_t = max_len;
+                bool   found  = false;
+                for (size_t li : dist.all_lines_in_radius(Point(corner.cast<coord_t>()), max_len)) {
+                    const Line  &l  = dist.get_line(li);
+                    const Vec2d  la = l.a.cast<double>(), lb2 = l.b.cast<double>();
+                    const Vec2d  e  = lb2 - la;
+                    const double den = u.x() * e.y() - u.y() * e.x();
+                    if (std::abs(den) < 1e-9)
+                        continue;
+                    const Vec2d  w  = la - corner;
+                    const double t  = (w.x() * e.y() - w.y() * e.x()) / den;   // lungo il raggio
+                    const double sv = (w.x() * u.y() - w.y() * u.x()) / den;   // lungo il lato
+                    if (t > 0. && t < best_t && sv >= 0. && sv <= 1.) { best_t = t; found = true; }
+                }
+                if (found)
+                    hit = Point((corner + u * best_t).cast<coord_t>());
+                return found;
+            };
+            const double reach = 4. * double(step);
+            Point pa;
+            if (! ray_hit((pl.points[k] - pl.points[k - 1]).cast<double>(), reach, pa))
+                pa = Point(nearest.cast<coord_t>());
+            const Vec2d dirb = (pl.points[k + 1] - pl.points[k]).cast<double>();
+            const double lb = dirb.norm();
+            if (lb <= 0.)
+                continue;
+            Point pb;
+            bool  b_straight = ray_hit(-dirb, reach, pb);
+            Point q = pl.points[k + 1];
+            if (! b_straight) {
+                q = lb > double(step) ? Point((corner + dirb * (double(step) / lb)).cast<coord_t>()) : pl.points[k + 1];
+                const auto [d2, idx2, nearest2] = dist.distance_from_lines_extra<false>(q);
+                pb = Point(nearest2.cast<coord_t>());
+            }
+            if ((pb - pa).cast<double>().norm() < 0.5 * double(step))
+                continue; // contatto puntuale, la riga entra dritta: nessun moncone
+            Polyline a; a.points.assign(pl.points.begin(), pl.points.begin() + k + 1); a.points.emplace_back(pa);
+            Polyline b; b.points.emplace_back(pb);
+            if (! b_straight)
+                b.points.emplace_back(q);
+            b.points.insert(b.points.end(), pl.points.begin() + k + 1, pl.points.end());
+            if (a.length() < double(min_piece) || b.length() < double(min_piece))
+                continue;
+            out.emplace_back(std::move(a));
+            work.emplace_back(std::move(b)); // il resto puo' toccare ancora
+            split = true;
+        }
+        if (! split)
+            out.emplace_back(std::move(pl));
+    }
+    rows = std::move(out);
+}
+
+static void rejoin_split_rows(Polylines &rows, coord_t gap_max, const ExPolygon &surface)
+{
+    if (rows.size() < 2)
+        return;
+    const double gap2 = double(gap_max) * double(gap_max);
+    for (bool again = true; again; ) {
+        again = false;
+        for (size_t i = 0; i < rows.size() && ! again; ++ i) {
+            for (size_t j = i + 1; j < rows.size() && ! again; ++ j) {
+                Polyline &a = rows[i], &b = rows[j];
+                if (a.size() < 2 || b.size() < 2)
+                    continue;
+                // Le quattro combinazioni di capi: si orienta a in modo che finisca al buco e b
+                // in modo che cominci dal buco.
+                const Point *ends[4][2] = {
+                    { &a.points.back(),  &b.points.front() },
+                    { &a.points.back(),  &b.points.back()  },
+                    { &a.points.front(), &b.points.front() },
+                    { &a.points.front(), &b.points.back()  } };
+                int best = -1; double best_d2 = gap2;
+                for (int k = 0; k < 4; ++ k) {
+                    const double d2 = (ends[k][0]->cast<double>() - ends[k][1]->cast<double>()).squaredNorm();
+                    if (d2 <= best_d2) { best_d2 = d2; best = k; }
+                }
+                if (best < 0)
+                    continue;
+                const Line link(*ends[best][0], *ends[best][1]);
+                if (! surface.contains(link))
+                    continue;
+                if (best == 2 || best == 3) a.reverse();
+                if (best == 1 || best == 3) b.reverse();
+                a.points.insert(a.points.end(), b.points.begin(), b.points.end());
+                rows.erase(rows.begin() + j);
+                again = true;
+            }
+        }
+    }
+}
+
 bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillParams params, const std::initializer_list<SweepParams> &sweep_params, Polylines &polylines_out)
 {
     assert(sweep_params.size() >= 1);
@@ -3091,8 +3258,34 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
             Polylines rows = intersection_pl(fill_lines, inner);
             if (rows.empty())
                 continue;
+            {
+                // Ginger (2026-09-02): anche il contorno ridotto (anello del grafo di bordo),
+                // per ricostruire fuori dallo slicer le due fasi della camminata.
+                Polylines ring;
+                ring.emplace_back(inner.contour.points);
+                ring.back().points.emplace_back(inner.contour.points.front());
+                for (const Polygon &h : inner.holes) {
+                    ring.emplace_back(h.points);
+                    ring.back().points.emplace_back(h.points.front());
+                }
+                ml_dump("contorno", ring);
+            }
             ml_dump("righe", rows);
+            {
+                const size_t before = rows.size();
+                // soglia: rotaia della riga (mezzo cordone per rail, ml/2 cordoni) che tocca il fianco
+                // interno della lining (mezzo cordone), piu' un cordone di margine: la topologia deve
+                // essere quella del regime gia' dai primi layer (solo-infill: spigolo a 3.4 mm al layer 0)
+                split_rows_touching_contour(rows, coord_t(scale_(0.5 * this->spacing * (params.multiline + 2))),
+                                            coord_t(scale_(4.0 * this->spacing)), coord_t(scale_(this->spacing)), inner);
+                if (rows.size() != before) {
+                    if (::getenv("GINGER_SP_HYST") != nullptr)
+                        std::fprintf(stderr, "[SPSPLIT] z=%.1f righe %zu -> %zu\n", this->z, before, rows.size());
+                    ml_dump("spezzate", rows);
+                }
+            }
             Polylines joined;
+            single_path_debug_set_z(this->z);
             connect_infill(std::move(rows), inner, joined, this->spacing, row_params);
             ml_dump("centerline", joined);
             // With an EVEN multiline a closed centerline would widen into two concentric loops; open it
@@ -3102,14 +3295,37 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
             // would stay a separate open path: no free seam, one travel move to reach it.
             if ((params.multiline % 2) == 0)
                 for (Polyline &pl : joined)
-                    if (pl.size() > 3 && pl.points.front() == pl.points.back())
+                    if (pl.size() > 3 && pl.points.front() == pl.points.back()) {
                         pl.points.pop_back();
+                        // Ginger (2026-09-04, Davide "direzioni strane"): l'apertura avveniva dove il
+                        // connettore aveva iniziato il giro, un punto diverso a ogni layer: i due
+                        // tappi a U dell'anello allargato serpeggiavano lungo il muro (misurato:
+                        // 623 spostamenti oltre un cordone fra layer consecutivi) e a volte si
+                        // tagliavano a X. Si apre in un punto STABILE (il vertice piu' a sinistra,
+                        // poi il piu' basso, nel frame del pattern) e si lascia fra i due capi un
+                        // vuoto di almeno un cordone, cosi' i tappi non si sovrappongono.
+                        size_t imin = 0;
+                        for (size_t i = 1; i < pl.points.size(); ++ i)
+                            if (pl.points[i].x() < pl.points[imin].x() ||
+                                (pl.points[i].x() == pl.points[imin].x() && pl.points[i].y() < pl.points[imin].y()))
+                                imin = i;
+                        std::rotate(pl.points.begin(), pl.points.begin() + imin, pl.points.end());
+                        const double gap = scale_(this->spacing);
+                        while (pl.points.size() > 3 && (pl.points.back() - pl.points.front()).cast<double>().norm() < gap)
+                            pl.points.pop_back();
+                    }
             ml_dump("aperto", joined);
             // Widen the connected path; the union outline comes back as one outer wall plus the hole
             // walls of the pockets the path encloses - splice them into one single closed loop.
             multiline_fill(joined, params, spacing);
             ml_dump("allargato", joined);
-            single_path_splice_loops(joined, scale_(4. * this->spacing * params.multiline), scale_(this->spacing));
+            {
+                // tappi del layer sotto (inversioni a U corte nello sparse gia' emesso, stesso frame)
+                Points prev_caps = single_path_prev_jogs(row_params.prev_cover, scale_(this->spacing));
+                single_path_splice_set_preferred(prev_caps.empty() ? nullptr : &prev_caps, scale_(2. * this->spacing));
+                single_path_splice_loops(joined, scale_(4. * this->spacing * params.multiline), scale_(this->spacing));
+                single_path_splice_set_preferred(nullptr, 0.);
+            }
             ml_dump("ricucito", joined);
             append(connected, std::move(joined));
         }
@@ -3127,8 +3343,14 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
     // Intersect polylines with perimeter. Ginger: skip for connect-before-multiply - the widened
     // ring is contained by construction and its wall-adjacent flank deliberately rides at the
     // fused-lining interasse, OUTSIDE the contracted surface: cropping would cut it away.
-    if (! (params.connect_polygons && params.multiline > 1))
+    if (! (params.connect_polygons && params.multiline > 1)) {
         fill_lines = intersection_pl(std::move(fill_lines), intersection_surface);
+        // Ginger (2026-09-04): stessa regola del ramo multiline anche a ml=1 - il connettore di
+        // bordo vede la stessa topologia a tutte le quote (stool 2%: transizione al layer 33).
+        if (! params.dont_connect())
+            split_rows_touching_contour(fill_lines, coord_t(scale_(0.5 * this->spacing * (params.multiline + 2))),
+                                        coord_t(scale_(4.0 * this->spacing)), coord_t(scale_(this->spacing)), intersection_surface);
+    }
 
     if ((params.pattern == ipLateralLattice || params.pattern == ipLateralHoneycomb ) && params.multiline >1 )
     remove_overlapped(fill_lines, line_width);
@@ -3250,8 +3472,23 @@ bool FillRectilinear::fill_surface_trapezoidal(
             flip_vertical = !flip_vertical;
         }
 
-        // transpose points for odd layers
-        if (layer_id % 2 == 1) {
+        // Ginger (2026-09-01): la trasposizione sui layer dispari e' SPENTA sul grid.
+        // Il reticolo e' simmetrico rispetto allo scambio x/y, quindi trasporlo lo rimappa su se'
+        // stesso: i cordoni in campo aperto restano negli stessi identici posti (misurato sullo
+        // stool, sezione a y=620: 615.0 619.1 705.5 709.6 su ogni layer, con e senza). L'unico
+        // effetto vero e' DOVE le righe vengono troncate al bordo della regione, e li' cambia:
+        // i capi delle corde si spostano, con loro i vertici del grafo, e il percorso finisce a
+        // coprire l'altra meta' del contorno. Risultato, a ml=2: il cordolo rasente al muro
+        // compare un layer si' e uno no, e la rotaia interna della coppia resta senza niente
+        // sotto (impronta a zero, la coppia poggia su 0.7 mm di spigolo del muro).
+        // Misurato spegnendola, sui quattro pezzi grid ml=2 della suite:
+        //   cordone senza appoggio  7.29 -> 0.00 m | 0.15 -> 0.00 | 0.79 -> 0.00 | 17.71 -> 0.79
+        //   sparse                 +17% | -2% | +6% | +2.5%        travel: IDENTICI ovunque
+        // I layer pari smettono anche di essere piu' poveri dei dispari (3620 -> 3803 mm di
+        // sparse per layer, contro 3806 dei dispari). GINGER_GRID_TRANSPOSE=1 la riaccende.
+        // Vale solo per il grid: lateral lattice e triangoli hanno il loro traliccio in Z.
+        static const bool transpose = ::getenv("GINGER_GRID_TRANSPOSE") != nullptr;
+        if (transpose && layer_id % 2 == 1) {
             for (Polyline& pl : polylines) {
                 for (Point& p : pl.points) {
                     std::swap(p.x(), p.y());
@@ -3384,6 +3621,18 @@ bool FillRectilinear::fill_surface_trapezoidal(
         // Intermediate centerline for connect-before-multiply (see fill_surface_by_multilines).
         FillParams row_params = params;
         row_params.multiline_intermediate = true;
+        // Ginger (2026-09-02): qui si lavora nel sistema RUOTATO di -base_angle (vedi sopra), ma la
+        // copertura del layer sotto arriva nel sistema dell'oggetto: senza ruotarla anche lei
+        // l'isteresi misurava il ricalco contro un reticolo girato di 45 gradi (sotto ~110mm su un
+        // anello di ~1500mm sullo sgabello) e la scelta fra i candidati era di fatto casuale.
+        Polylines prev_cover_rot;
+        if (params.prev_cover != nullptr && ! params.prev_cover->empty()) {
+            prev_cover_rot = *params.prev_cover;
+            if (std::abs(base_angle) >= EPSILON)
+                for (Polyline &pl : prev_cover_rot)
+                    pl.rotate(-base_angle, rotate_vector.second);
+            row_params.prev_cover = &prev_cover_rot;
+        }
         // Ginger (2026-08-31): stessi quattro stadi, stesso dump di fill_surface_by_multilines -
         // il grid a ml>1 passa DA QUI (trapezoidal), non di la'.
         static const int ml_dump_layer = [] {
@@ -3391,6 +3640,9 @@ bool FillRectilinear::fill_surface_trapezoidal(
             return e == nullptr ? -1 : ::atoi(e);
         }();
         const bool ml_dump_on = ml_dump_layer >= 0 && int(this->layer_id) == ml_dump_layer;
+        if (ml_dump_on)
+            std::fprintf(stderr, "[MLROT] z=%.2f base_angle=%.6f cx=%.3f cy=%.3f\n", this->z, double(base_angle),
+                         rotate_vector.second.x() * SCALING_FACTOR, rotate_vector.second.y() * SCALING_FACTOR);
         auto ml_dump = [ml_dump_on](const char *stage, const Polylines &pls) {
             if (! ml_dump_on)
                 return;
@@ -3406,8 +3658,34 @@ bool FillRectilinear::fill_surface_trapezoidal(
             Polylines rows = intersection_pl(polylines, inner);
             if (rows.empty())
                 continue;
+            {
+                // Ginger (2026-09-02): anche il contorno ridotto (anello del grafo di bordo),
+                // per ricostruire fuori dallo slicer le due fasi della camminata.
+                Polylines ring;
+                ring.emplace_back(inner.contour.points);
+                ring.back().points.emplace_back(inner.contour.points.front());
+                for (const Polygon &h : inner.holes) {
+                    ring.emplace_back(h.points);
+                    ring.back().points.emplace_back(h.points.front());
+                }
+                ml_dump("contorno", ring);
+            }
             ml_dump("righe", rows);
+            {
+                const size_t before = rows.size();
+                // soglia: rotaia della riga (mezzo cordone per rail, ml/2 cordoni) che tocca il fianco
+                // interno della lining (mezzo cordone), piu' un cordone di margine: la topologia deve
+                // essere quella del regime gia' dai primi layer (solo-infill: spigolo a 3.4 mm al layer 0)
+                split_rows_touching_contour(rows, coord_t(scale_(0.5 * this->spacing * (params.multiline + 2))),
+                                            coord_t(scale_(4.0 * this->spacing)), coord_t(scale_(this->spacing)), inner);
+                if (rows.size() != before) {
+                    if (::getenv("GINGER_SP_HYST") != nullptr)
+                        std::fprintf(stderr, "[SPSPLIT] z=%.1f righe %zu -> %zu\n", this->z, before, rows.size());
+                    ml_dump("spezzate", rows);
+                }
+            }
             Polylines joined;
+            single_path_debug_set_z(this->z);
             connect_infill(std::move(rows), inner, joined, this->spacing, row_params);
             ml_dump("centerline", joined);
             // With an EVEN multiline a closed centerline would widen into two concentric loops; open it
@@ -3417,14 +3695,37 @@ bool FillRectilinear::fill_surface_trapezoidal(
             // would stay a separate open path: no free seam, one travel move to reach it.
             if ((params.multiline % 2) == 0)
                 for (Polyline &pl : joined)
-                    if (pl.size() > 3 && pl.points.front() == pl.points.back())
+                    if (pl.size() > 3 && pl.points.front() == pl.points.back()) {
                         pl.points.pop_back();
+                        // Ginger (2026-09-04, Davide "direzioni strane"): l'apertura avveniva dove il
+                        // connettore aveva iniziato il giro, un punto diverso a ogni layer: i due
+                        // tappi a U dell'anello allargato serpeggiavano lungo il muro (misurato:
+                        // 623 spostamenti oltre un cordone fra layer consecutivi) e a volte si
+                        // tagliavano a X. Si apre in un punto STABILE (il vertice piu' a sinistra,
+                        // poi il piu' basso, nel frame del pattern) e si lascia fra i due capi un
+                        // vuoto di almeno un cordone, cosi' i tappi non si sovrappongono.
+                        size_t imin = 0;
+                        for (size_t i = 1; i < pl.points.size(); ++ i)
+                            if (pl.points[i].x() < pl.points[imin].x() ||
+                                (pl.points[i].x() == pl.points[imin].x() && pl.points[i].y() < pl.points[imin].y()))
+                                imin = i;
+                        std::rotate(pl.points.begin(), pl.points.begin() + imin, pl.points.end());
+                        const double gap = scale_(this->spacing);
+                        while (pl.points.size() > 3 && (pl.points.back() - pl.points.front()).cast<double>().norm() < gap)
+                            pl.points.pop_back();
+                    }
             // Widen the connected path; the union outline comes back as one outer wall plus the hole
             // walls of the pockets the path encloses - splice them into one single closed loop.
             ml_dump("aperto", joined);
             multiline_fill(joined, params, spacing);
             ml_dump("allargato", joined);
-            single_path_splice_loops(joined, scale_(4. * this->spacing * params.multiline), scale_(this->spacing));
+            {
+                // tappi del layer sotto (inversioni a U corte nello sparse gia' emesso, stesso frame)
+                Points prev_caps = single_path_prev_jogs(row_params.prev_cover, scale_(this->spacing));
+                single_path_splice_set_preferred(prev_caps.empty() ? nullptr : &prev_caps, scale_(2. * this->spacing));
+                single_path_splice_loops(joined, scale_(4. * this->spacing * params.multiline), scale_(this->spacing));
+                single_path_splice_set_preferred(nullptr, 0.);
+            }
             ml_dump("ricucito", joined);
             append(connected, std::move(joined));
         }
@@ -3444,6 +3745,9 @@ bool FillRectilinear::fill_surface_trapezoidal(
     // the fused-lining interasse, OUTSIDE the contracted surface: cropping would cut it away.
     if (! (params.connect_polygons && params.multiline > 1))
         polylines = intersection_pl(std::move(polylines), intersection_surface);
+        if (! params.dont_connect() && ! (params.connect_polygons && params.multiline > 1))
+            split_rows_touching_contour(polylines, coord_t(scale_(0.5 * this->spacing * (params.multiline + 2))),
+                                        coord_t(scale_(4.0 * this->spacing)), coord_t(scale_(this->spacing)), intersection_surface);
 
     // Remove very short segments that may cause connection issues
     const double minlength = scale_(0.8 * this->spacing);

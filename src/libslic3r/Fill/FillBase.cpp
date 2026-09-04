@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <cstdlib>
+#include <unordered_map>
 #include <atomic>
 #include <chrono>
 #include <numeric>
@@ -1625,13 +1626,15 @@ struct SPProfile
         phGapBlocked, phExactSolve, phInitPhase, phPhaseSwap, phSectorFlips,
         phFreeRunClosure, phDefectSlide, phLastResort, phAugmentation, phHierholzerEmit,
         phJoinWeld, phSpliceRingScan, phSpliceAttachScan, phRebuildRetrace, phLinkValid,
+        phEmitTrims, phEmitRetraceShorts,
         N_PHASES
     };
     static const char *name(unsigned i) {
         static const char *names[N_PHASES] = {
             "gap_blocked", "exact_solve", "init_phase", "phase_swap", "sector_flips",
             "freerun_closure", "defect_slide", "last_resort", "augmentation", "hierholzer_emit",
-            "join_weld", "splice_ring_scan", "splice_attach_scan", "rebuild_retrace", "link_valid"
+            "join_weld", "splice_ring_scan", "splice_attach_scan", "rebuild_retrace", "link_valid",
+            "emit_trims", "emit_retrace_shorts"
         };
         return names[i];
     }
@@ -1715,6 +1718,21 @@ inline void sp_profile_count(std::atomic<uint64_t> SPProfile::*counter, uint64_t
 // closest open polyline as a detour; open polylines are otherwise left untouched.
 // z del layer corrente, solo per i print di debug (il fill lavora un layer per thread).
 static thread_local double s_sp_debug_z = -1.;
+
+void single_path_debug_set_z(double z) { s_sp_debug_z = z; }
+
+// Ginger (2026-09-04, Davide "direzioni strane"): la saldatura fra anelli sceglie il punto di
+// contatto piu' vicino, che cambia da un layer all'altro con la geometria; i due raccordi della
+// saldatura (una Z di 3-4 mm) serpeggiavano lungo il muro. Il chiamante puo' indicare i punti in
+// cui il layer sotto aveva le sue inversioni (i tappi): fra i candidati validi si provano prima
+// quelli entro `radius` da uno di questi punti, cosi' la saldatura resta in colonna.
+static thread_local const Points *s_splice_prefer   = nullptr;
+static thread_local double        s_splice_prefer_r = 0.;
+void single_path_splice_set_preferred(const Points *pts, double radius)
+{
+    s_splice_prefer   = pts;
+    s_splice_prefer_r = radius;
+}
 
 void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger, const Polygons *island)
 {
@@ -2155,6 +2173,22 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
     };
 
     const double max_link2 = max_link_distance * max_link_distance;
+    // Ginger (2026-09-04): alberi per anello e candidati per coppia PERSISTENTI fra le passate di
+    // fusione. A ogni fusione cambia solo l'anello fuso (bi) e sparisce bj: gli altri restano
+    // identici, ma tutto veniva ricostruito e riscansionato a ogni passata, O(fusioni x anelli x
+    // vertici) = 134 s di CPU sulla plate 2 di figure_production. Ogni anello ha un id stabile
+    // (nuovo id dopo una fusione) cosi' la cache regge anche quando gli indici scalano dopo un erase.
+    // L'ordine dei candidati resta (i, j, v, s) crescente sugli indici correnti: pareggi come prima.
+    std::vector<std::vector<Line>>                                  ring_lines_p(rings.size());
+    std::vector<std::optional<AABBTreeLines::LinesDistancer<Line>>> ring_tree_p(rings.size());
+    std::vector<size_t>                                             ring_id(rings.size());
+    size_t next_ring_id = 0;
+    for (size_t i = 0; i < rings.size(); ++ i)
+        ring_id[i] = next_ring_id ++;
+    struct CandKey { size_t id_i, id_j; unsigned step; bool operator==(const CandKey &o) const { return id_i == o.id_i && id_j == o.id_j && step == o.step; } };
+    struct CandKeyHash { size_t operator()(const CandKey &k) const { return (k.id_i * 1000003u) ^ (k.id_j * 7919u) ^ (size_t(k.step) * 0x9e3779b9u); } };
+    struct RingCandRaw { double d2; size_t v, s; Point proj; };
+    std::unordered_map<CandKey, std::vector<RingCandRaw>, CandKeyHash> cand_cache;
     for (bool merged_any = true; merged_any && rings.size() > 1; ) {
         merged_any = false;
         SPTimer sp_timer_(SPProfile::phSpliceRingScan);
@@ -2172,15 +2206,17 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         rcands.reserve(256);
         // Per-ring segment sets, index-aligned with the s of the original enumeration
         // (segment s = A[s] .. A[(s+1) % size], ring-closing seam included).
-        std::vector<std::vector<Line>>                                  ring_lines(rings.size());
-        std::vector<std::optional<AABBTreeLines::LinesDistancer<Line>>> ring_tree(rings.size());
-        for (size_t i = 0; i < rings.size(); ++ i) {
-            const Points &A = rings[i].points;
-            ring_lines[i].reserve(A.size());
-            for (size_t s = 0; s < A.size(); ++ s)
-                ring_lines[i].emplace_back(A[s], A[(s + 1) % A.size()]);
-            ring_tree[i].emplace(ring_lines[i]);
-        }
+        auto &ring_lines = ring_lines_p;
+        auto &ring_tree  = ring_tree_p;
+        for (size_t i = 0; i < rings.size(); ++ i)
+            if (! ring_tree[i]) {
+                const Points &A = rings[i].points;
+                ring_lines[i].clear();
+                ring_lines[i].reserve(A.size());
+                for (size_t s = 0; s < A.size(); ++ s)
+                    ring_lines[i].emplace_back(A[s], A[(s + 1) % A.size()]);
+                ring_tree[i].emplace(ring_lines[i]);
+            }
         size_t bi = 0, bj = 0, b_vert = 0, b_seg = 0;
         Point  b_proj;
         bool   b_found = false;
@@ -2188,6 +2224,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         failed_links.clear();
         std::vector<size_t> near_segs;
         double r_prev2 = 0.; // exclusive-below bound of the d2 window already processed
+        unsigned step = 0;   // indice della finestra di raggio: chiave della cache
         for (double r = std::min(std::max(8. * stagger, scale_(1.)), max_link_distance); ; ) {
             const double r2 = std::min(r * r, max_link2);
             rcands.clear();
@@ -2195,24 +2232,64 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                 for (size_t j = 0; j < rings.size(); ++ j) {
                     if (i == j)
                         continue;
-                    const Points &B = rings[j].points; // vertices
-                    for (size_t v = 0; v < B.size(); ++ v) {
-                        // Inflated superset query; the exact filter below uses the same
-                        // closest_on_segment arithmetic as the original full enumeration.
-                        near_segs = ring_tree[i]->all_lines_in_radius(B[v], r * 1.01);
-                        std::sort(near_segs.begin(), near_segs.end());
-                        for (size_t s : near_segs) {
-                            const Line &ln   = ring_lines[i][s];
-                            Point       proj = closest_on_segment(B[v], ln.a, ln.b);
-                            double      d    = (B[v] - proj).cast<double>().squaredNorm();
-                            if (d >= r_prev2 && d < r2)
-                                rcands.push_back({ d, i, j, v, s, proj });
+                    const CandKey key{ ring_id[i], ring_id[j], step };
+                    auto it = cand_cache.find(key);
+                    if (it == cand_cache.end()) {
+                        std::vector<RingCandRaw> raw;
+                        const Points &B = rings[j].points; // vertices
+                        if (step == 0) {
+                            for (size_t v = 0; v < B.size(); ++ v) {
+                                // Inflated superset query; the exact filter below uses the same
+                                // closest_on_segment arithmetic as the original full enumeration.
+                                near_segs = ring_tree[i]->all_lines_in_radius(B[v], r * 1.01);
+                                std::sort(near_segs.begin(), near_segs.end());
+                                for (size_t s : near_segs) {
+                                    const Line &ln   = ring_lines[i][s];
+                                    Point       proj = closest_on_segment(B[v], ln.a, ln.b);
+                                    double      d    = (B[v] - proj).cast<double>().squaredNorm();
+                                    if (d >= r_prev2 && d < r2)
+                                        raw.push_back({ d, v, s, proj });
+                                }
+                            }
+                        } else {
+                            // Ginger (2026-09-04): oltre la prima finestra il raggio arriva
+                            // all'estensione dell'isola (lightning: tutto il pezzo) e la query
+                            // "tutti i lati entro r" restituiva TUTTO l'anello per OGNI vertice:
+                            // O(V_i x V_j) candidati da ordinare, 150 s di CPU sulla plate 2 di
+                            // figure_production. Qui per ogni vertice entra solo il lato piu'
+                            // vicino: e' il candidato che verrebbe provato per primo da quel
+                            // vertice, e il budget di validazione e' di poche decine di prove.
+                            for (size_t v = 0; v < B.size(); ++ v) {
+                                const auto [dist, idx, np] = ring_tree[i]->distance_from_lines_extra<false>(B[v]);
+                                const double d = dist * dist;
+                                if (d >= r_prev2 && d < r2)
+                                    raw.push_back({ d, v, size_t(idx), Point(np.cast<coord_t>()) });
+                            }
                         }
+                        it = cand_cache.emplace(key, std::move(raw)).first;
                     }
+                    for (const RingCandRaw &c : it->second)
+                        rcands.push_back({ c.d2, i, j, c.v, c.s, c.proj });
                 }
             std::stable_sort(rcands.begin(), rcands.end(), [](const RingCand &l, const RingCand &r) { return l.d2 < r.d2; });
+            // ordine di prova: prima i candidati vicini ai tappi del layer sotto, poi gli altri
+            std::vector<size_t> order;
+            order.reserve(rcands.size());
+            if (s_splice_prefer != nullptr && ! s_splice_prefer->empty()) {
+                auto near_pref = [&](const RingCand &c) {
+                    const Vec2d mid = 0.5 * (c.proj.cast<double>() + rings[c.j].points[c.v].cast<double>());
+                    for (const Point &q : *s_splice_prefer)
+                        if ((q.cast<double>() - mid).norm() <= s_splice_prefer_r)
+                            return true;
+                    return false;
+                };
+                for (size_t i = 0; i < rcands.size(); ++ i) if (near_pref(rcands[i])) order.push_back(i);
+                for (size_t i = 0; i < rcands.size(); ++ i) if (! near_pref(rcands[i])) order.push_back(i);
+            } else
+                for (size_t i = 0; i < rcands.size(); ++ i) order.push_back(i);
             bool budget_out = false;
-            for (const RingCand &c : rcands) {
+            for (size_t oi : order) {
+                const RingCand &c = rcands[oi];
                 const Point &pb = rings[c.j].points[c.v];
                 if (near_failed(c.proj, pb))
                     continue; // same invalid region: skip without spending budget
@@ -2244,6 +2321,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                 break;
             r_prev2 = r2;
             r       = std::min(r * 4., max_link_distance);
+            ++ step;
         }
         if (! b_found)
             break;
@@ -2279,6 +2357,12 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         merged.points.insert(merged.points.end(), pieceA.begin(), pieceA.end());
         rings[bi] = std::move(merged);
         rings.erase(rings.begin() + bj);
+        ring_tree[bi].reset();
+        ring_lines[bi].clear();
+        ring_id[bi] = next_ring_id ++;
+        ring_tree.erase(ring_tree.begin() + bj);
+        ring_lines.erase(ring_lines.begin() + bj);
+        ring_id.erase(ring_id.begin() + bj);
         merged_any = true;
         sp_profile_count(&SPProfile::splice_merges);
         rebuild_retrace();
@@ -2332,8 +2416,20 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                 for (size_t o = 0; o < open.size(); ++ o) {
                     const Points &R = rings[r].points;
                     const Points &P = open[o].points;
+                    // Ginger (2026-09-04): stessa cura della scansione fra anelli - oltre la prima
+                    // finestra (r_prev2 > 0) il raggio arriva all'estensione dell'isola e "tutti i
+                    // lati entro r" era l'intero anello per ogni vertice: per ogni vertice entra
+                    // solo il lato piu' vicino (30 s di CPU sulla plate 2 di figure_production).
+                    const bool nearest_only = r_prev2 > 0.;
                     // Path vertex against ring segments...
                     for (size_t k = 0; k < P.size(); ++ k) {
+                        if (nearest_only) {
+                            const auto [dist, idx, np] = ring_tree[r]->distance_from_lines_extra<false>(P[k]);
+                            const double d = dist * dist;
+                            if (d >= r_prev2 && d < r2)
+                                acands.push_back({ d, r, o, k, size_t(idx), Point(np.cast<coord_t>()), P[k], false });
+                            continue;
+                        }
                         near_segs2 = ring_tree[r]->all_lines_in_radius(P[k], rad * 1.01);
                         std::sort(near_segs2.begin(), near_segs2.end());
                         for (size_t s : near_segs2) {
@@ -2347,6 +2443,13 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                     // ... and ring vertex against path segments (the junction is inserted into the path).
                     if (open_tree[o])
                         for (size_t v = 0; v < R.size(); ++ v) {
+                            if (nearest_only) {
+                                const auto [dist, idx, np] = open_tree[o]->distance_from_lines_extra<false>(R[v]);
+                                const double d = dist * dist;
+                                if (d >= r_prev2 && d < r2)
+                                    acands.push_back({ d, r, o, size_t(idx), v, R[v], Point(np.cast<coord_t>()), true });
+                                continue;
+                            }
                             near_segs2 = open_tree[o]->all_lines_in_radius(R[v], rad * 1.01);
                             std::sort(near_segs2.begin(), near_segs2.end());
                             for (size_t k : near_segs2) {
@@ -2609,8 +2712,31 @@ static inline void single_path_append_arc(Points &dst, const Points &contour, si
 // gia' la deviazione delle scansioni radenti: la traiettoria resta quella, cambia solo di quanto
 // sta discosta. Se lo spostamento uscirebbe dall'isola o finirebbe sopra un altro cordone, si
 // lascia com'e' (meglio un ripasso noto che un cordone in aria).
-static void offset_retracing_shorts(Polyline &pl, double line_w, const Polygons &island)
+static void offset_retracing_shorts(Polyline &pl, double line_w, const Polygons &island,
+                                    AABBTreeLines::LinesDistancer<Line> *island_tree = nullptr)
 {
+    // Ginger (2026-09-04): il test "il tratto spostato resta dentro l'isola" era una chiamata
+    // Clipper (intersection_ln) per OGNI tratto spostato e per ognuna delle 3 passate, contro
+    // l'intera isola (su lightning: tutto l'interno del pezzo, migliaia di vertici) - 160 s di
+    // CPU sulla plate 2 di figure_production, il 99% dell'emissione. Con l'albero dei lati
+    // dell'isola basta verificare che ne' il tratto spostato ne' i due spostamenti dei capi
+    // attraversino il bordo: il tratto originale era dentro, e un quadrilatero che non taglia
+    // il bordo resta dentro.
+    auto crosses_boundary = [island_tree](const Point &a, const Point &b) -> bool {
+        auto ccw = [](const Point &o, const Point &p, const Point &q) {
+            return (double(p.x()) - o.x()) * (double(q.y()) - o.y()) -
+                   (double(p.y()) - o.y()) * (double(q.x()) - o.x());
+        };
+        const Vec2d  mid  = 0.5 * (a.cast<double>() + b.cast<double>());
+        const double half = 0.5 * (b - a).cast<double>().norm();
+        for (size_t li : island_tree->all_lines_in_radius(Point(mid.cast<coord_t>()), half + 2. * SCALED_EPSILON)) {
+            const Line &l = island_tree->get_line(li);
+            const double d1 = ccw(l.a, l.b, a), d2 = ccw(l.a, l.b, b), d3 = ccw(a, b, l.a), d4 = ccw(a, b, l.b);
+            if (((d1 > 0.) != (d2 > 0.)) && ((d3 > 0.) != (d4 > 0.)))
+                return true;
+        }
+        return false;
+    };
     const size_t n = pl.points.size();
     if (n < 6)
         return;
@@ -2618,6 +2744,23 @@ static void offset_retracing_shorts(Polyline &pl, double line_w, const Polygons 
     const double cos_par = 0.90630779;   // cos 25 gradi
     std::vector<Vec2d> want(n, Vec2d(0., 0.));
     std::vector<int>   cnt(n, 0);
+    // Ginger (2026-09-04): griglia dei segmenti. La scansione di tutti i segmenti per ogni tratto
+    // corto era O(n^2): sui rami lightning (migliaia di punti per isola) valeva il 99% del tempo
+    // di emissione (159 s di CPU sulla plate 2 di figure_production). Un tratto candidato deve
+    // passare entro d_close dal punto medio m: basta guardare le celle attorno a m. L'ordine di
+    // visita resta crescente in j, cosi' i pareggi si risolvono come prima.
+    const double cell = 2.0 * line_w;
+    std::unordered_map<int64_t, std::vector<size_t>> grid;
+    auto cell_key = [](int64_t cx, int64_t cy) { return (cx << 32) ^ (cy & 0xffffffffLL); };
+    for (size_t j = 0; j + 1 < n; ++ j) {
+        const Vec2d c = pl.points[j].cast<double>(), d = pl.points[j + 1].cast<double>();
+        const int64_t x0 = int64_t(std::floor(std::min(c.x(), d.x()) / cell)), x1 = int64_t(std::floor(std::max(c.x(), d.x()) / cell));
+        const int64_t y0 = int64_t(std::floor(std::min(c.y(), d.y()) / cell)), y1 = int64_t(std::floor(std::max(c.y(), d.y()) / cell));
+        for (int64_t cx = x0; cx <= x1; ++ cx)
+            for (int64_t cy = y0; cy <= y1; ++ cy)
+                grid[cell_key(cx, cy)].emplace_back(j);
+    }
+    std::vector<size_t> cand;
     for (size_t i = 0; i + 1 < n; ++ i) {
         const Vec2d a = pl.points[i].cast<double>(), b = pl.points[i + 1].cast<double>();
         const double L = (b - a).norm();
@@ -2625,7 +2768,20 @@ static void offset_retracing_shorts(Polyline &pl, double line_w, const Polygons 
             continue;                     // solo i tratti corti
         const Vec2d m = 0.5 * (a + b), dir = (b - a) / L;
         double best = d_close; Vec2d away(0., 0.); bool found = false;
-        for (size_t j = 0; j + 1 < n; ++ j) {
+        cand.clear();
+        {
+            const int64_t cx0 = int64_t(std::floor((m.x() - d_close) / cell)), cx1 = int64_t(std::floor((m.x() + d_close) / cell));
+            const int64_t cy0 = int64_t(std::floor((m.y() - d_close) / cell)), cy1 = int64_t(std::floor((m.y() + d_close) / cell));
+            for (int64_t cx = cx0; cx <= cx1; ++ cx)
+                for (int64_t cy = cy0; cy <= cy1; ++ cy) {
+                    auto it = grid.find(cell_key(cx, cy));
+                    if (it != grid.end())
+                        cand.insert(cand.end(), it->second.begin(), it->second.end());
+                }
+            std::sort(cand.begin(), cand.end());
+            cand.erase(std::unique(cand.begin(), cand.end()), cand.end());
+        }
+        for (size_t j : cand) {
             if (j + 4 >= i && i + 4 >= j)
                 continue;                 // vicini nell'indice: e' lo stesso tratto di percorso
             const Vec2d c = pl.points[j].cast<double>(), d = pl.points[j + 1].cast<double>();
@@ -2644,8 +2800,15 @@ static void offset_retracing_shorts(Polyline &pl, double line_w, const Polygons 
         if (! found || away.norm() <= SCALED_EPSILON)
             continue;
         const Vec2d push = away.normalized() * (line_w - best);
-        want[i] += push;     ++ cnt[i];
-        want[i + 1] += push; ++ cnt[i + 1];
+        // Ginger (2026-09-03, Davide): un capo condiviso con un tratto LUNGO (una corda del
+        // reticolo) non si tocca. Spostarlo di un cordone ruotava l'intera corda: sullo sgabolo
+        // a ml=1 la diagonale da 237 mm usciva dalla linea del grid di 1.7-2.7 mm in 76 layer
+        // su 277 (capo trascinato dal tratto corto d'arco accanto al vertice), e vista dall'alto
+        // le corde non erano piu' impilate. Il tratto corto si sposta solo dal capo libero.
+        const bool i_pinned  = i > 0 && (pl.points[i] - pl.points[i - 1]).cast<double>().norm() >= 2.0 * line_w;
+        const bool i1_pinned = i + 2 < n && (pl.points[i + 2] - pl.points[i + 1]).cast<double>().norm() >= 2.0 * line_w;
+        if (! i_pinned)  { want[i] += push;     ++ cnt[i]; }
+        if (! i1_pinned) { want[i + 1] += push; ++ cnt[i + 1]; }
     }
     Points moved = pl.points;
     bool any = false;
@@ -2668,10 +2831,17 @@ static void offset_retracing_shorts(Polyline &pl, double line_w, const Polygons 
             const double L = (moved[i + 1] - moved[i]).cast<double>().norm();
             if (L <= 0.)
                 continue;
-            double tot = 0.;
-            for (const Line &l : intersection_ln(Line(moved[i], moved[i + 1]), island))
-                tot += l.length();
-            bool bad = tot + SCALED_EPSILON < 0.99 * L;
+            bool bad;
+            if (island_tree != nullptr) {
+                bad = crosses_boundary(moved[i], moved[i + 1]) ||
+                      (cnt[i] > 0     && crosses_boundary(pl.points[i], moved[i])) ||
+                      (cnt[i + 1] > 0 && crosses_boundary(pl.points[i + 1], moved[i + 1]));
+            } else {
+                double tot = 0.;
+                for (const Line &l : intersection_ln(Line(moved[i], moved[i + 1]), island))
+                    tot += l.length();
+                bad = tot + SCALED_EPSILON < 0.99 * L;
+            }
             // ...e non deve tagliare il percorso li' attorno: spostare un punto puo' creare un
             // incrocio che prima non c'era (misurati 10 layer su 277 al primo tentativo).
             if (! bad) {
@@ -2787,7 +2957,18 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                        // componente con 2 soli difetti, riporta l'indice del frammento: il
                                        // chiamante inietta il gemello e ritenta - un solo segmento raddoppiato
                                        // al posto di ponti, gorge e triangoli.
-                                       int *twin_frag_out = nullptr)
+                                       int *twin_frag_out = nullptr,
+                                       // Ginger (2026-09-01): copertura di contorno del layer sotto,
+                                       // per l'isteresi (vedi FillParams::prev_cover).
+                                       const Polylines *prev_cover = nullptr,
+                                       // Ginger (2026-09-04): nella passata intermedia (centerline da
+                                       // allargare a ml rotaie) la forcina simmetrica va emessa con le
+                                       // rotaie a +-(ml/2)w: dopo l'allargamento diventano ml*2 rotaie
+                                       // adiacenti centrate sulla linea del reticolo. Senza, il gemello
+                                       // restava uno split e il centerline usciva in due pezzi che la
+                                       // saldatura ricuciva con raccordi a Z lungo il muro, in un punto
+                                       // diverso a ogni layer ("direzioni strane", Davide).
+                                       int hairpin_mult = 1)
 {
     sp_profile_count(&SPProfile::islands);
     // Cost of one OPEN trail, measured in closed pieces (see count_trails below). For the final
@@ -2799,6 +2980,18 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
     const size_t open_trail_cost = final_emission ? 4 : 1;
     const std::vector<ContourIntersectionPoint> &cps = graph.map_infill_end_point_to_boundary;
     const size_t n_fragments = infill_ordered.size();
+    // Ginger (2026-09-01): che corde entrano davvero nel connettore? Una corda corta porta due
+    // vertici come una lunga, e due vertici ribaltano la parita' dell'alternanza a valle.
+    if (::getenv("GINGER_SP_FRAG") != nullptr) {
+        std::vector<double> ll;
+        for (const Polyline &q : infill_ordered)
+            ll.emplace_back(q.length() * SCALING_FACTOR);
+        std::sort(ll.begin(), ll.end());
+        std::fprintf(stderr, "[SPFRAG] corde=%zu  le piu' corte:", ll.size());
+        for (size_t i = 0; i < ll.size() && i < 6; ++ i)
+            std::fprintf(stderr, " %.1f", ll[i]);
+        std::fprintf(stderr, "  (la piu' lunga %.1f)\n", ll.empty() ? 0. : ll.back());
+    }
     const size_t n_vertices  = 2 * n_fragments;
     assert(cps.size() == n_vertices);
     const size_t out_begin = polylines_out.size();
@@ -2843,6 +3036,18 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 island_grown = offset(island_region(), float(0.5 * line_w));
         }
         return island_grown;
+    };
+    // Ginger (2026-09-04): albero dei lati dell'isola, costruito una volta per isola, per i test
+    // di attraversamento del bordo senza Clipper (offset_retracing_shorts).
+    std::optional<AABBTreeLines::LinesDistancer<Line>> island_tree_cache;
+    auto island_tree = [&island_tree_cache, &island_region]() -> AABBTreeLines::LinesDistancer<Line> * {
+        if (! island_tree_cache) {
+            Lines ls;
+            for (const Polygon &pg : island_region())
+                append(ls, pg.lines());
+            island_tree_cache.emplace(std::move(ls));
+        }
+        return &*island_tree_cache;
     };
 
     // Fragments that cannot take part in the graph: degenerate, closed (e.g. a ring lying fully inside
@@ -3164,12 +3369,67 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     const size_t v = cv[pos];
                     return graph.boundary[cps[v].contour_idx][cps[v].point_idx];
                 };
+                // Ginger (2026-09-01, Davide): ISTERESI. Per ogni arco, quanta della sua lunghezza
+                // ricalca la copertura del layer sotto (entro un cordone). A pari costo vince la
+                // selezione che ne ricalca di piu': cosi' il cordolo resta sullo stesso muro invece
+                // di saltare, e il layer sopra trova sempre materiale sotto.
+                std::vector<double> gap_prev(prev_cover != nullptr ? m : 0, 0.);
+                if (prev_cover != nullptr && ! prev_cover->empty()) {
+                    Lines pl;
+                    for (const Polyline &q : *prev_cover)
+                        append(pl, q.lines());
+                    if (! pl.empty()) {
+                        AABBTreeLines::LinesDistancer<Line> dist(std::move(pl));
+                        for (size_t k = 0; k < m; ++ k) {
+                            Points arc;
+                            single_path_append_arc(arc, graph.boundary[0], cps[cv[k]].point_idx,
+                                                   cps[cv[(k + 1) % m]].point_idx, /* forward */ true);
+                            if (arc.size() < 2)
+                                continue;
+                            double tot = 0., on = 0.;
+                            for (size_t i = 1; i < arc.size(); ++ i) {
+                                const double seg = (arc[i] - arc[i - 1]).cast<double>().norm();
+                                const Point  mid = (arc[i - 1] + arc[i]) / 2;
+                                tot += seg;
+                                if (std::get<0>(dist.distance_from_lines_extra<false>(mid)) < line_w)
+                                    on += seg;
+                            }
+                            gap_prev[k] = on;
+                        }
+                    }
+                }
+                // Ginger (2026-09-04, Davide "direzioni strane"): i TAPPI del layer sotto. Con ml pari
+                // l'anello viene aperto alla bocca e le due estremita' diventano due inversioni a U
+                // corte; se la bocca cambia posto a ogni layer i tappi serpeggiano lungo il muro e a
+                // volte si tagliano a X. Qui si cercano le inversioni corte del layer sotto (tratti
+                // sotto 2w che invertono di oltre 135 gradi) per preferire, a parita' di ricalco, la
+                // bocca che ci sta piu' vicina.
+                std::vector<Vec2d> prev_caps;
+                if (prev_cover != nullptr)
+                    for (const Polyline &q : *prev_cover)
+                        for (size_t i = 1; i + 1 < q.size(); ++ i) {
+                            const Vec2d va = (q.points[i] - q.points[i - 1]).cast<double>();
+                            const Vec2d vb = (q.points[i + 1] - q.points[i]).cast<double>();
+                            const double la = va.norm(), lb = vb.norm();
+                            if (la <= 0. || lb <= 0. || la > 2. * line_w || lb > 2. * line_w)
+                                continue;
+                            if (va.dot(vb) / (la * lb) < -0.7)
+                                prev_caps.emplace_back(q.points[i].cast<double>());
+                        }
+                auto cap_dist = [&prev_caps](const Point &p) -> double {
+                    double best = 0.;
+                    if (prev_caps.empty()) return 0.;
+                    best = std::numeric_limits<double>::max();
+                    const Vec2d pp = p.cast<double>();
+                    for (const Vec2d &c : prev_caps) best = std::min(best, (c - pp).norm());
+                    return best;
+                };
                 // Cost: pieces first, then blocked gaps taken (each is a stretch of doubled bead),
                 // then open ends, then the mouth span (shorter = cheaper arrival if unclosed); on
                 // the final lightning emission, ties break toward the selection covering MORE wall
                 // (the lining "second wall" - material is explicitly not a concern on pellet).
-                struct ExactBest { size_t comps, blocked, defects; double mouth, coverage; std::vector<char> sel; };
-                ExactBest best { std::numeric_limits<size_t>::max(), 0, 0, 0., -1., {} };
+                struct ExactBest { size_t comps, blocked, defects; double prev, mouth, coverage; std::vector<char> sel; };
+                ExactBest best { std::numeric_limits<size_t>::max(), 0, 0, -1., 0., -1., {} };
                 size_t best_da = std::numeric_limits<size_t>::max(), best_db = std::numeric_limits<size_t>::max();
                 std::vector<char> sel(m);
                 auto consider = [&](size_t da, size_t db, bool phase) {
@@ -3187,15 +3447,20 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                         for (size_t k = 0; k < m; ++ k)
                             if (sel[k])
                                 cov += gap_length(0, cv[k], cv[(k + 1) % m]);
+                    double prev_score = 0.;
+                    if (! gap_prev.empty())
+                        for (size_t k = 0; k < m; ++ k)
+                            if (sel[k]) prev_score += gap_prev[k];
                     const bool tie_better = lining_tiebreak ? cov > best.coverage :
                                             sp_tie > 0 ? cov > best.coverage :
                                             sp_tie < 0 ? cov < best.coverage : false;
                     if (comps < best.comps ||
                         (comps == best.comps && (blocked_used < best.blocked ||
                          (blocked_used == best.blocked && (ndef < best.defects ||
-                          (ndef == best.defects && (mouth < best.mouth ||
-                           (mouth == best.mouth && tie_better)))))))) {
-                        best = { comps, blocked_used, ndef, mouth, cov, sel };
+                          (ndef == best.defects && (prev_score > best.prev ||
+                           (prev_score == best.prev && (mouth < best.mouth ||
+                            (mouth == best.mouth && tie_better)))))))))) {
+                        best = { comps, blocked_used, ndef, prev_score, mouth, cov, sel };
                         best_da = da; best_db = db;
                     }
                 };
@@ -3330,7 +3595,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     SPTimer sp_timer4_(SPProfile::phExactSolve);
                     std::vector<char> sel4(m);
                     size_t f[4];
-                    struct Cand4 { size_t blocked; double d_small, d_large, cov; size_t f[4]; bool phase; };
+                    struct Cand4 { size_t blocked; double prev, d_small, d_large, cov; size_t f[4]; bool phase; double mouth_d; };
                     std::vector<Cand4> cand4;
                     cand4.reserve(1024);
                     auto build_sel4 = [&](const size_t fl[4], bool phase, std::vector<char> &out) -> bool {
@@ -3363,7 +3628,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                             // (arrivo su un capo, uscita dall'altro). Quindi: minimizza la bocca
                             // piccola (il salto reale, ~34mm alla punta), a parita' la grande.
                             auto dd = [&](size_t a, size_t b) { return (vpt(a) - vpt(b)).cast<double>().norm(); };
-                            double d_small = std::numeric_limits<double>::max(), d_large = 0.;
+                            double d_small = std::numeric_limits<double>::max(), d_large = 0., mouth_d = 0.;
                             {
                                 size_t bi = 0, bj = 1;
                                 for (size_t i = 0; i < 4; ++ i)
@@ -3374,13 +3639,18 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                     if (i != bi && i != bj)
                                         rest[r ++] = i;
                                 d_large = dd(f[rest[0]], f[rest[1]]);
+                                // bocca = la coppia grande: distanza dei suoi capi dai tappi del layer sotto
+                                mouth_d = cap_dist(vpt(f[rest[0]])) + cap_dist(vpt(f[rest[1]]));
                             }
                             double cov4 = 0.;
-                            if (sp_tie != 0)
+                            for (size_t k = 0; k < m; ++ k)
+                                if (sel4[k])
+                                    cov4 += gap_length(0, cv[k], cv[(k + 1) % m]);
+                            double prev4 = 0.;
+                            if (! gap_prev.empty())
                                 for (size_t k = 0; k < m; ++ k)
-                                    if (sel4[k])
-                                        cov4 += gap_length(0, cv[k], cv[(k + 1) % m]);
-                            cand4.push_back({ blocked_used, d_small, d_large, cov4, { f[0], f[1], f[2], f[3] }, phase != 0 });
+                                    if (sel4[k]) prev4 += gap_prev[k];
+                            cand4.push_back({ blocked_used, prev4, d_small, d_large, cov4, { f[0], f[1], f[2], f[3] }, phase != 0, mouth_d });
                         }
                     // Post-filtro (2026-08-27): il salto piccolo va ESTRUSO come diagonale Z
                     // (schizzo di Davide), quindi la corda fra i suoi due difetti deve stare
@@ -3390,9 +3660,40 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     // quad col ponte interno; se nessuno, il migliore e basta (il salto resta
                     // un travel corto).
                     if (! cand4.empty()) {
-                        std::sort(cand4.begin(), cand4.end(), [sp_tie](const Cand4 &a, const Cand4 &b) {
+                        const bool has_prev = ! gap_prev.empty();
+                        std::sort(cand4.begin(), cand4.end(), [sp_tie, has_prev](const Cand4 &a, const Cand4 &b) {
+                            // PROVA (GINGER_SP_PREVFIRST=1): la continuita' col layer sotto viene
+                            // prima dei gap bloccati, cioe' si accetta un tratto di cordone
+                            // raddoppiato pur di non spostare il cordolo.
+                            static const bool prev_first = ::getenv("GINGER_SP_PREVFIRST") != nullptr;
+                            if (prev_first && a.prev != b.prev)
+                                return a.prev > b.prev;
                             if (a.blocked != b.blocked)
                                 return a.blocked < b.blocked;
+                            // Ginger (2026-09-04, Davide): prima di tutto il cordone NUOVO nel vuoto,
+                            // cioe' muro percorso che il layer sotto non aveva (cov - prev). Con il solo
+                            // ricalco davanti, sullo sgabolo solo-infill un quad con 12 mm di ricalco in
+                            // piu' comprava 185 mm di forcina in aria in punta alla gamba (layer 10 e 19).
+                            // Misurato (stool solo-infill): col cordone nuovo davanti a TUTTO, quando
+                            // il layer sotto non e' riproducibile per intero il connettore ripiega su
+                            // un giro piu' corto (meno cordone nuovo = meno muro) e la fodera cala del
+                            // 10% per tutta la stampa. Quindi: il ricalco resta il primo criterio, ma
+                            // a PARITA' SOSTANZIALE di ricalco (entro 30 mm) vince chi posa meno nuovo.
+                            if (has_prev && std::abs(a.prev - b.prev) <= scale_(30.)) {
+                                const double na = a.cov - a.prev, nb = b.cov - b.prev;
+                                if (std::abs(na - nb) > scale_(0.5))
+                                    return na < nb;
+                                // stessa quantita' di nuovo: la bocca resta dov'era nel layer sotto
+                                if (std::abs(a.mouth_d - b.mouth_d) > scale_(1.))
+                                    return a.mouth_d < b.mouth_d;
+                            } else if (! has_prev && a.cov != b.cov) {
+                                // Primo layer (niente sotto): il muro percorso e' la seconda parete,
+                                // se ne prende il piu' possibile; da qui in su il criterio del
+                                // cordone nuovo tiene questa scelta per tutta la stampa.
+                                return a.cov > b.cov;
+                            }
+                            if (a.prev != b.prev)
+                                return a.prev > b.prev;
                             // Nel passaggio intermedio (ml>1) il muro percorso viene PRIMA della
                             // bocca: la bocca la riassorbono allargamento e ricucitura (misurato:
                             // travel identici, 553 / 1.37 m), il muro percorso invece si paga
@@ -3404,14 +3705,37 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                 return sp_tie > 0 ? a.cov > b.cov : a.cov < b.cov;
                             return a.d_small != b.d_small ? a.d_small < b.d_small : a.d_large < b.d_large;
                         });
+                        // Ginger (2026-09-01): quanto della copertura del layer sotto e'
+                        // RAGGIUNGIBILE? Fra tutti i quad che chiudono in un pezzo solo, il
+                        // migliore quanto la ricalca? Serve a distinguere "il solver ha scelto
+                        // male" da "quella copertura non esiste piu' con queste corde".
+                        if (! gap_prev.empty() && ::getenv("GINGER_SP_HYST") != nullptr) {
+                            double disponibile = 0.;
+                            for (double v : gap_prev) disponibile += v;
+                            double meglio = 0.;
+                            for (const Cand4 &c4 : cand4) meglio = std::max(meglio, c4.prev);
+                            std::fprintf(stderr, "[SPHYST] m=%zu quad_1pezzo=%zu  sotto=%.0fmm  "
+                                                 "max_ricalcabile=%.0fmm (%.0f%%)  scelto=%.0fmm\n",
+                                         m, cand4.size(), disponibile * SCALING_FACTOR,
+                                         meglio * SCALING_FACTOR,
+                                         disponibile > 0. ? 100. * meglio / disponibile : 0.,
+                                         cand4.empty() ? 0. : cand4.front().prev * SCALING_FACTOR);
+                        }
                         size_t pick = 0;
                         bool   picked = false;
                         int    tw_no_pair = 0, tw_pair_found = 0, tw_side_fail = 0;
+                        // Sonda (GINGER_SP_HYST): non fermarsi al primo quad accettato, contare
+                        // quanti altri passerebbero lo stesso filtro e con quanto ricalco.
+                        static const bool hyst_probe = ::getenv("GINGER_SP_HYST") != nullptr;
+                        int    pick_by = 0;            // 1 = twin, 2 = ponte
+                        int    ok_twin = 0, ok_bridge = 0;
+                        double alt_prev_twin = -1., alt_prev_bridge = -1.;
+                        size_t alt_ci_twin = 0, alt_ci_bridge = 0;
                         // PASSATA TWIN (il disegno di Davide): un quad la cui coppia piccola
                         // sono i DUE CAPI di un chord si chiude RADDOPPIANDO quel chord (dogleg
                         // gemello a 1w in emissione) - un solo segmento raddoppiato, zero
                         // travel, zero diagonali. Se esiste, vince su tutto.
-                        for (size_t ci = 0; ci < std::min<size_t>(cand4.size(), 256) && ! picked; ++ ci) {
+                        for (size_t ci = 0; ci < std::min<size_t>(cand4.size(), 256) && (! picked || hyst_probe); ++ ci) {
                             const Cand4 &c4 = cand4[ci];
                             size_t si = 0, sj = 1;
                             double dmin = std::numeric_limits<double>::max();
@@ -3458,15 +3782,23 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                 // si inclinano verso i capi come la punta della gorge fusion
                                 ok_side = kept + SCALED_EPSILON >= 0.6 * dl;
                             }
-                            if (ok_side) { pick = ci; picked = true; }
-                            else ++ tw_side_fail;
+                            if (hyst_probe)
+                                std::fprintf(stderr, "[SPTWOK] z=%.1f #%zu frag=%zu (%.1f,%.1f)-(%.1f,%.1f) len=%.0f ok_side=%d prev=%.0f cov=%.0f dsmall=%.0f\n",
+                                             s_sp_debug_z, ci, cv[c4.f[pa]] / 2,
+                                             a2.x() * SCALING_FACTOR, a2.y() * SCALING_FACTOR, b2.x() * SCALING_FACTOR, b2.y() * SCALING_FACTOR,
+                                             dl * SCALING_FACTOR, int(ok_side), c4.prev * SCALING_FACTOR, c4.cov * SCALING_FACTOR, c4.d_small * SCALING_FACTOR);
+                            if (ok_side) {
+                                ++ ok_twin;
+                                if (! picked) { pick = ci; picked = true; pick_by = 1; }
+                                else if (c4.prev > alt_prev_twin) { alt_prev_twin = c4.prev; alt_ci_twin = ci; }
+                            } else ++ tw_side_fail;
                         }
                         if (! picked && ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
                             std::fprintf(stderr, "[SPTW2] twin niet: cand=%zu no_pair=%d pair=%d side_fail=%d%s",
                                          cand4.size(), tw_no_pair, tw_pair_found, tw_side_fail, "\n");
                         int q_gate = 0, q_out = 0, q_retrace = 0;
                         double q_best_inside = 0.;
-                        for (size_t ci = 0; ci < std::min<size_t>(cand4.size(), 256) && ! picked; ++ ci) {
+                        for (size_t ci = 0; ci < std::min<size_t>(cand4.size(), 256) && (! picked || hyst_probe); ++ ci) {
                             const Cand4 &c4 = cand4[ci];
                             // coppia piccola del quad
                             size_t si = 0, sj = 1;
@@ -3476,11 +3808,37 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                     const double d = (vpt(c4.f[i]) - vpt(c4.f[j])).cast<double>().norm();
                                     if (d < dmin) { dmin = d; si = i; sj = j; }
                                 }
+                            const Line lz(vpt(c4.f[si]), vpt(c4.f[sj]));
+                            // Sonda (GINGER_SP_HYST): perche' i quad in testa alla lista vengono
+                            // scartati - coppia piccola, coppia grande, motivo.
+                            auto rej = [&](const char *why) {
+                                if (! hyst_probe || ci >= 24) return;
+                                size_t oi2 = 4, oj2 = 4;
+                                for (size_t i = 0; i < 4; ++ i)
+                                    if (i != si && i != sj) { if (oi2 == 4) oi2 = i; else oj2 = i; }
+                                std::fprintf(stderr, "[SPREJ] z=%.1f #%zu %s piccola=%.1fmm (%.1f,%.1f)-(%.1f,%.1f) frag=%zu/%zu grande=(%.1f,%.1f)-(%.1f,%.1f) frag=%zu/%zu prev=%.0f cov=%.0f\n",
+                                             s_sp_debug_z, ci, why, dmin * SCALING_FACTOR,
+                                             lz.a.x() * SCALING_FACTOR, lz.a.y() * SCALING_FACTOR, lz.b.x() * SCALING_FACTOR, lz.b.y() * SCALING_FACTOR,
+                                             cv[c4.f[si]] / 2, cv[c4.f[sj]] / 2,
+                                             vpt(c4.f[oi2]).x() * SCALING_FACTOR, vpt(c4.f[oi2]).y() * SCALING_FACTOR,
+                                             vpt(c4.f[oj2]).x() * SCALING_FACTOR, vpt(c4.f[oj2]).y() * SCALING_FACTOR,
+                                             cv[c4.f[oi2]] / 2, cv[c4.f[oj2]] / 2,
+                                             c4.prev * SCALING_FACTOR, c4.cov * SCALING_FACTOR);
+                            };
                             if (dmin > 22. * line_w) {
                                 ++ q_gate;
+                                rej("GATE>22w");
                                 continue; // oltre il gate del ponte in emissione
                             }
-                            const Line lz(vpt(c4.f[si]), vpt(c4.f[sj]));
+                            if (hyst_probe && dmin < 3. * line_w) {
+                                double tot_p = 0.;
+                                for (const Line &l : intersection_ln(lz, island_region_grown()))
+                                    tot_p += l.length();
+                                std::fprintf(stderr, "[SPBSHORT] z=%.1f #%zu ponte=%.1fmm (%.1f,%.1f)-(%.1f,%.1f) dentro=%.0f%% prev=%.0f\n",
+                                             s_sp_debug_z, ci, dmin * SCALING_FACTOR,
+                                             lz.a.x() * SCALING_FACTOR, lz.a.y() * SCALING_FACTOR, lz.b.x() * SCALING_FACTOR, lz.b.y() * SCALING_FACTOR,
+                                             dmin > 0. ? 100. * tot_p / dmin : 0., c4.prev * SCALING_FACTOR);
+                            }
                             // Ginger (2026-08-30): isola DILATATA di mezzo cordone, come in
                             // bridge_valid. I capi del quad sono vertici SUL contorno, quindi la
                             // corda fra due di essi e' spesso collineare al bordo: con l'isola
@@ -3494,6 +3852,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                             if (tot + SCALED_EPSILON < 0.999 * dmin) {
                                 ++ q_out;
                                 q_best_inside = std::max(q_best_inside, dmin > 0. ? tot / dmin : 0.);
+                                rej("FUORI_ISOLA");
                                 continue; // esce dall'isola
                             }
                             // ... e non deve RICALCARE un frammento esistente (la coppia
@@ -3528,10 +3887,30 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                 }
                                 if (coinc > 1.5 * line_w) {
                                     ++ q_retrace;
+                                    rej("RICALCO_CHORD");
                                     continue; // ricalca un chord: non estrudibile
                                 }
                             }
-                            pick = ci; picked = true;
+                            ++ ok_bridge;
+                            if (hyst_probe)
+                                std::fprintf(stderr, "[SPBROK] z=%.1f #%zu ponte=%.1fmm (%.1f,%.1f)-(%.1f,%.1f) prev=%.0f cov=%.0f dlarge=%.0f\n",
+                                             s_sp_debug_z, ci, dmin * SCALING_FACTOR,
+                                             lz.a.x() * SCALING_FACTOR, lz.a.y() * SCALING_FACTOR, lz.b.x() * SCALING_FACTOR, lz.b.y() * SCALING_FACTOR,
+                                             c4.prev * SCALING_FACTOR, c4.cov * SCALING_FACTOR, c4.d_large * SCALING_FACTOR);
+                            if (! picked) { pick = ci; picked = true; pick_by = 2; }
+                            else if (c4.prev > alt_prev_bridge) { alt_prev_bridge = c4.prev; alt_ci_bridge = ci; }
+                        }
+                        if (hyst_probe) {
+                            double sotto = 0.;
+                            for (double v : gap_prev) sotto += v;
+                            std::fprintf(stderr, "[SPDECIDE] z=%.1f m=%zu quad=%zu decide=%s pick=#%zu prev=%.0f/%.0fmm dsmall=%.0f blocked=%zu | "
+                                                 "twin_ok=%d (alt #%zu prev=%.0f) ponte_ok=%d (alt #%zu prev=%.0f)\n",
+                                         s_sp_debug_z, m, cand4.size(),
+                                         pick_by == 1 ? "TWIN" : pick_by == 2 ? "PONTE" : "NESSUNO",
+                                         pick, cand4[pick].prev * SCALING_FACTOR, sotto * SCALING_FACTOR,
+                                         cand4[pick].d_small * SCALING_FACTOR, cand4[pick].blocked,
+                                         ok_twin, alt_ci_twin, alt_prev_twin * SCALING_FACTOR,
+                                         ok_bridge, alt_ci_bridge, alt_prev_bridge * SCALING_FACTOR);
                         }
                         if (! picked && ::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
                             std::fprintf(stderr, "[SPQ4] nessun quad ponteggiabile (cand=%zu, d_small=%.1fmm) motivi: gate=%d fuori_isola=%d (dentro al piu' %.0f%%) ricalco=%d\n",
@@ -3559,7 +3938,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                         // selezione comps=2/defects=0 gia' in `best` - due anelli CHIUSI a seam
                         // libera. Nelle unita' del modulo (open_trail_cost=4) e' 8 contro 2.
                         if (picked && build_sel4(wf, w.phase, sel4)) {
-                            best = { 1, w.blocked, 4, w.d_small, w.d_large, sel4 };
+                            best = { 1, w.blocked, 4, w.prev, w.d_small, w.d_large, sel4 };
                             best_da = w.f[0]; best_db = w.f[1];
                         }
                     }
@@ -4189,7 +4568,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             }
             return coinc <= 1.5 * line_w;
         };
-        auto run_trail = [&adjacency, &edges, &cps, &graph, &infill_ordered, &polylines_out, &next_unused, &vertex_point, stitch_free, stitch_max, bridge_free, &bridge_valid, &island_region_grown, &island_region_inset, &sp_bridged, &sp_bridged_len, &island_region, line_w, final_emission](size_t start) {
+        auto run_trail = [&adjacency, &edges, &cps, &graph, &infill_ordered, &polylines_out, &next_unused, &vertex_point, stitch_free, stitch_max, bridge_free, &bridge_valid, &island_region_grown, &island_region_inset, &sp_bridged, &sp_bridged_len, &island_region, &island_tree, line_w, final_emission, hairpin_mult](size_t start) {
             std::vector<std::pair<size_t, int>> stack, trail; // (vertex, edge used to arrive)
             stack.emplace_back(start, -1);
             while (! stack.empty()) {
@@ -4380,11 +4759,21 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     } else {
                         // Trail split point: never extruded, the printer travels here.
                         if (pl.size() > 1) {
-                            trim_doglegs(pl, dogleg_span, line_w);
-                trim_notches(pl, line_w);
-                offset_retracing_shorts(pl, line_w, island_region());
-                            trim_notches(pl, line_w);
-                            offset_retracing_shorts(pl, line_w, island_region());
+                            // Ginger (2026-09-04): trim_notches + offset_retracing_shorts erano
+                            // chiamate DUE volte di seguito (righe duplicate): la seconda passata
+                            // costava un altro O(n^2) senza cambiare nulla.
+                            {
+                                SPTimer sp_timer_trim_(SPProfile::phEmitTrims);
+                                trim_doglegs(pl, dogleg_span, line_w);
+                                trim_notches(pl, line_w);
+                            }
+                            {
+                                SPTimer sp_timer_ors_(SPProfile::phEmitRetraceShorts);
+                                // Sonda (2026-09-04): GINGER_SP_NO_ORS=1 salta lo spostamento dei tratti corti.
+                                static const bool no_ors = ::getenv("GINGER_SP_NO_ORS") != nullptr;
+                                if (! no_ors)
+                                    offset_retracing_shorts(pl, line_w, island_region(), island_tree());
+                            }
                             pieces.emplace_back(std::move(pl));
                         }
                         dogleg_span.clear();
@@ -4401,7 +4790,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                     // lo e' sempre, 270 su 270 - la preferenza a forcina funziona). Allora la
                     // coppia si emette qui, centrata: rotaia di andata a -w/2, giro, ritorno a +w/2.
                     bool sym = false;
-                    if (final_emission && i + 1 < trail.size()) {
+                    if ((final_emission || hairpin_mult > 1) && i + 1 < trail.size()) {
                         const SinglePathEdge &nx = edges[size_t(trail[i + 1].second)];
                         if (nx.is_virtual && nx.v1 / 2 == nx.v2 / 2 && nx.v1 / 2 == v_from / 2) {
                             const Vec2d A = vertex_point(v_from).cast<double>();
@@ -4412,7 +4801,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                             const bool straight = frag.length() <= 1.02 * dl + SCALED_EPSILON;
                             if (dl > 2.5 * line_w && straight) {
                                 const Vec2d u = dv / dl, nrm(-u.y(), u.x());
-                                const double h = 0.5 * line_w;
+                                const double h = 0.5 * line_w * (final_emission ? 1. : double(hairpin_mult));
                                 // Capi a cuneo (45 gradi): la traversina perpendicolare provata
                                 // il 2026-08-30 toglieva sovrapposizione ma faceva incrociare la
                                 // prosecuzione con il fianco (pulite 270 -> 51). Il cuneo non
@@ -4869,7 +5258,12 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
             BoundaryInfillGraph graph = create_boundary_infill_graph(attempt, boundary_src, bbox, spacing, params.connect_polygons);
             connect_infill_single_path(std::move(attempt), graph, spacing, out_tmp, ! params.multiline_intermediate,
                                        line_w_arg, double(scale_(params.anchor_length_max)),
-                                       params.sparse_wall_lining, &comp_of, &mouth_mid, &mouth_valid);
+                                       params.sparse_wall_lining, &comp_of, &mouth_mid, &mouth_valid,
+                                       nullptr, params.prev_cover,
+                                       // forcina nella passata intermedia: PROVATA e disattivata (2026-09-04 sera):
+                                       // a ml=2 le 4 rotaie non stanno nella punta della gamba (rail_clip
+                                       // fallisce) e altrove ha raddoppiato i salti (241 -> 470). Resta 1.
+                                       1);
             bool multi = false;
             for (size_t i = 0; i < comp_of.size() && ! multi; ++ i)
                 for (size_t j = i + 1; j < comp_of.size() && ! multi; ++ j)

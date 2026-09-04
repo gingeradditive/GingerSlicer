@@ -5,7 +5,10 @@
 #include "Line.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <limits>
 #include <memory>
 
@@ -27,7 +30,14 @@ static PolyPos walk_along(const Polygon &poly, const PolyPos &pos, double dist, 
 {
     const size_t n = poly.size();
     PolyPos      cur = pos;
+    // Ginger (2026-09-02): un poligono degenere (meno di 2 punti o perimetro nullo) non
+    // consuma mai `dist`: il ciclo non terminava. Guardia anche sul numero di passi.
+    if (n < 2 || poly.length() <= 0.)
+        return cur;
+    size_t guard = 0;
     while (dist > 0.) {
+        if (++ guard > 4 * n + 4)
+            return cur;
         const Point &seg_start = poly[cur.seg];
         const Point &seg_end   = poly[(cur.seg + 1) % n];
         const Point &target    = forward ? seg_end : seg_start;
@@ -74,6 +84,40 @@ static double closest_approach(const Polygon &a, const Polygon &b, PolyPos &on_a
         }
     }
     AABBTreeLines::LinesDistancer<Line> dist_b(b.lines());
+    for (size_t i = 0; i < a.size(); ++ i) {
+        auto [d, line_idx, nearest] = dist_b.distance_from_lines_extra<false>(a[i]);
+        if (std::abs(d) < best) {
+            best  = std::abs(d);
+            on_a  = { i, a[i] };
+            on_b  = { size_t(line_idx), nearest.cast<coord_t>() };
+        }
+    }
+    return best;
+}
+
+// Ginger (2026-09-02): stesse due funzioni con i distancer gia' costruiti. Nel Prim il walk
+// (migliaia di punti su un vassoio a 33 loop) veniva ri-indicizzato per OGNI proiezione:
+// anelli x link precedenti x 2 versi x iterazioni = decine di migliaia di alberi per layer,
+// 6 s a layer - la GUI sembrava inchiodata su "Generating infill regions".
+using LineDist = AABBTreeLines::LinesDistancer<Line>;
+static double project_with(const LineDist &dist, const Point &pt, PolyPos &out)
+{
+    auto [d, line_idx, nearest] = dist.distance_from_lines_extra<false>(pt);
+    out = { size_t(line_idx), nearest.cast<coord_t>() };
+    return std::abs(d);
+}
+static double closest_approach_with(const LineDist &dist_a, const Polygon &a, const LineDist &dist_b, const Polygon &b,
+                                    PolyPos &on_a, PolyPos &on_b)
+{
+    double best = std::numeric_limits<double>::max();
+    for (size_t j = 0; j < b.size(); ++ j) {
+        auto [d, line_idx, nearest] = dist_a.distance_from_lines_extra<false>(b[j]);
+        if (std::abs(d) < best) {
+            best  = std::abs(d);
+            on_a  = { size_t(line_idx), nearest.cast<coord_t>() };
+            on_b  = { j, b[j] };
+        }
+    }
     for (size_t i = 0; i < a.size(); ++ i) {
         auto [d, line_idx, nearest] = dist_b.distance_from_lines_extra<false>(a[i]);
         if (std::abs(d) < best) {
@@ -407,7 +451,19 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
     // island, like a manual micro-cut in CAD would give); a candidate stays unmerged only
     // when its every link would be longer than the user cap, cross another wall, or hang
     // over true void where not even a foundation can be built.
+    static const bool rib_dbg = ::getenv("GINGER_RIBS_DEBUG") != nullptr;
+    size_t prim_iter = 0;
+    // Indici spaziali: uno per anello (gli anelli non cambiano nel layer), uno per il walk
+    // ricostruito solo quando il walk cambia (una splice per iterazione).
+    std::vector<std::unique_ptr<LineDist>> loop_dist(loops.size());
+    for (size_t i : candidates)
+        loop_dist[i] = std::make_unique<LineDist>(loops[i].lines());
+    const auto t_plan0 = std::chrono::steady_clock::now();
     while (! remaining.empty()) {
+        const LineDist merged_dist(merged.lines());
+        if (rib_dbg)
+            std::fprintf(stderr, "[RIBDBG] prim iter=%zu remaining=%zu merged_pts=%zu t=%lldms\n", prim_iter ++, remaining.size(), merged.size(),
+                         (long long) std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t_plan0).count());
         // COLUMN CONTINUITY outranks nearest-first: reproject the PHYSICAL link of the
         // previous layer (its two attach points) onto the walk and each remaining loop; the
         // column continues when both endpoints land within the caller's per-layer drift
@@ -434,8 +490,8 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
                         const Point &end_walk = flip ? link.second : link.first;
                         const Point &end_loop = flip ? link.first  : link.second;
                         PolyPos pa, qa;
-                        const double da = project_onto(merged, end_walk, pa);
-                        const double db = project_onto(cand, end_loop, qa);
+                        const double da = project_with(merged_dist, end_walk, pa);
+                        const double db = project_with(*loop_dist[remaining[k]], end_loop, qa);
                         if (da > reuse_tol || db > reuse_tol)
                             continue;
                         if ((pa.pt - qa.pt).cast<double>().norm() > double(params.max_link_length))
@@ -457,11 +513,11 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
         double  best_dist = std::numeric_limits<double>::max();
         PolyPos best_p, best_q;
         if (via_column) {
-            best_dist = closest_approach(merged, loops[remaining[best_pos]], best_p, best_q);
+            best_dist = closest_approach_with(merged_dist, merged, *loop_dist[remaining[best_pos]], loops[remaining[best_pos]], best_p, best_q);
         } else {
             for (size_t k = 0; k < remaining.size(); ++ k) {
                 PolyPos on_merged, on_loop;
-                double  d = closest_approach(merged, loops[remaining[k]], on_merged, on_loop);
+                double  d = closest_approach_with(merged_dist, merged, *loop_dist[remaining[k]], loops[remaining[k]], on_merged, on_loop);
                 if (d < best_dist) {
                     best_dist = d;
                     best_pos  = k;
@@ -535,7 +591,6 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
             const double step = std::min(loop.length() / 96., double(stagger));
             struct ScanPos { double gap; PolyPos p, q; };
             std::vector<ScanPos> scan;
-            AABBTreeLines::LinesDistancer<Line> merged_dist(merged.lines());
             PolyPos cursor { 0, loop.points.front() };
             for (double walked = 0.; walked < loop.length() - step * 0.5; walked += step) {
                 if (walked > 0.)
@@ -578,6 +633,7 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
         // supported - was never even reached.
         for (const CandPos &c : free_cands) {
             if ((c.p.pt - c.q.pt).cast<double>().norm() > double(params.max_link_length)
+                || (params.link_allowed && ! params.link_allowed(c.p.pt, c.q.pt))
                 || rib_segment_conflicts(c.p.pt, c.q.pt, stagger, walk_lines, target_lines, foreign_lines))
                 continue; // counted by the main pass below if nothing is accepted
             if (support.link_supported(c.p.pt, c.q.pt, 0.5 * double(stagger), /*corridors_count=*/false)) {
@@ -594,7 +650,8 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
                 ++ rej_long;
                 continue;
             }
-            if (rib_segment_conflicts(c.p.pt, c.q.pt, stagger, walk_lines, target_lines, foreign_lines)) {
+            if ((params.link_allowed && ! params.link_allowed(c.p.pt, c.q.pt)) ||
+                rib_segment_conflicts(c.p.pt, c.q.pt, stagger, walk_lines, target_lines, foreign_lines)) {
                 ++ rej_obstacle;
                 continue;
             }

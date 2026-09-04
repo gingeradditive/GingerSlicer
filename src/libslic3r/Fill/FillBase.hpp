@@ -72,6 +72,15 @@ struct FillParams
     // (stool: 366 layers of 527), and with nothing to connect the connector emits nothing. There
     // the ring is laid down on its own, along the same boundary the lining would have walked.
     bool        ring_always            { false };
+    // Ginger single-path (2026-09-01, Davide): ISTERESI FRA LAYER. La copertura del contorno e'
+    // una delle due meta' complementari e il costo fra le due e' quasi pari: basta che il reticolo
+    // perda una corda dall'altra parte del pezzo perche' la meta' piu' economica si ribalti, e il
+    // cordolo salti da un muro all'altro dell'appendice - il layer sopra ci stampa sul vuoto.
+    // Nessun criterio geometrico locale puo' evitarlo (provati ancora di parita' e lato fisso: la
+    // fase si propaga lungo tutto l'anello), quindi serve sapere cosa ha coperto il layer sotto.
+    // Qui ci sono le sue polilinee di sparse; il solver preferisce, a pari costo, la selezione che
+    // le ricalca. Popolato solo con single_path_mode, che per questo riempie i layer in fila.
+    const Polylines *prev_cover     { nullptr };
 
     // Length of an infill anchor along the perimeter.
     // 1000mm is roughly the maximum length line that fits into a 32bit coord_t.
@@ -258,6 +267,9 @@ public:
    // retrace an already extruded line (gap_blocked-style coincidence test); `stagger` must then be
    // the extrusion line width.
    void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger, const Polygons *island = nullptr);
+   // Z tag for the single-path debug traces ([SPQPICK], [SPDECIDE]...) when the connector is
+   // invoked through the static connect_infill() (trapezoidal multiline path).
+   void single_path_debug_set_z(double z);
 } // namespace Slic3r
 
 #endif // slic3r_FillBase_hpp_

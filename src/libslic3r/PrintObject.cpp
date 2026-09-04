@@ -35,6 +35,7 @@
 #include <utility>
 
 #include <boost/log/trivial.hpp>
+#include <chrono>
 
 #include <tbb/parallel_for.h>
 #include <tbb/spin_mutex.h>
@@ -724,6 +725,18 @@ static bool build_rib_buttress(Layer *rib_layer, const Point &link_a, const Poin
             if (best > double(stagger))
                 return false; // no wall continues under the base: this side cannot carry it
             const Point tip = foot + (dir * len).cast<coord_t>();
+            // Ginger (2026-09-04, Davide): il gradino deve stare DENTRO la sezione del pezzo a
+            // questo layer. Il rib in alto puo' collegare il muro a un anello che qui sotto non
+            // esiste ancora (la figura si allarga salendo): senza questo vincolo la fondazione
+            // cresceva fuori dal contorno, 37 mm di cordone nel vuoto per 58 layer sulla figura
+            // (forniturepallotta, z 365-416). Fuori dalla sezione = niente fondazione = niente rib.
+            if (! below->lslices.empty()) {
+                bool inside = false;
+                for (const ExPolygon &e : below->lslices)
+                    if (e.contains(Line(foot, tip))) { inside = true; break; }
+                if (! inside)
+                    return false;
+            }
             // The ride walk is the stub's OWN curve (contact legal near the foot); every
             // other bead is foreign - the stub must neither cross nor ride any of them.
             const void *ride_tag = ride_merge != nullptr ? (const void *) ride_merge : (const void *) ride_loop;
@@ -1361,6 +1374,17 @@ void PrintObject::generate_wall_ribs()
                 params.max_drift       = std::min(coord_t(scale_(0.5 * width)), coord_t(scale_(layer->height)));
                 params.extra_obstacles = extra_obstacles.empty() ? nullptr : &extra_obstacles;
                 params.support         = &support;
+                // Ginger (2026-09-04, Davide): il link del rib deve stare dentro la sezione del
+                // pezzo (lslices): mai un cordone attraverso una concavita' o fra due lobi.
+                params.link_allowed    = [layer](const Point &a, const Point &b) {
+                    if (layer->lslices.empty())
+                        return true;
+                    const Line l(a, b);
+                    for (const ExPolygon &e : layer->lslices)
+                        if (e.contains(l))
+                            return true;
+                    return false;
+                };
                 params.stats           = &lstat;
                 // A rib standing on nothing is legal if a foundation buttress can be grown
                 // for it on the layers below (dry-run here, materialized after acceptance).
@@ -1383,8 +1407,14 @@ void PrintObject::generate_wall_ribs()
                         island_prev.emplace_back(link);
                 WallRibMerge        merge;
                 std::vector<size_t> unmerged;
-                if (plan_wall_ribs(loops, params,
-                                   island_prev.empty() ? nullptr : &island_prev, merge, unmerged)) {
+                static const bool rib_dbg = ::getenv("GINGER_RIBS_DEBUG") != nullptr;
+                if (rib_dbg)
+                    std::fprintf(stderr, "[RIBDBG] z=%.2f island loops=%zu prev_links=%zu plan start\n", layer->print_z, loops.size(), island_prev.size());
+                const bool planned = plan_wall_ribs(loops, params,
+                                                    island_prev.empty() ? nullptr : &island_prev, merge, unmerged);
+                if (rib_dbg)
+                    std::fprintf(stderr, "[RIBDBG] z=%.2f plan done ok=%d founded=%zu\n", layer->print_z, int(planned), merge.founded_links.size());
+                if (planned) {
                     // Materialize the foundation buttresses FIRST: only a fully grounded
                     // plan may be accepted. The dry-run and the grow pass share the same
                     // predicates, but earlier links of this very island mutate the lower
@@ -1479,7 +1509,29 @@ void PrintObject::infill()
         const auto& adaptive_fill_octree = this->m_adaptive_fill_octrees.first;
         const auto& support_fill_octree = this->m_adaptive_fill_octrees.second;
 
-        BOOST_LOG_TRIVIAL(debug) << "Filling layers in parallel - start";
+        // Ginger (2026-09-01, Davide): con single_path_mode i layer si riempiono IN FILA.
+        // Il connettore sceglie una delle due meta' del contorno e, a pari costo, puo' ribaltarsi
+        // da un layer all'altro: il cordolo salta da un muro all'altro di un'appendice e il layer
+        // sopra ci stampa sul vuoto (misurato sullo stool: 2 transizioni, 0.59 m di plastica stesa
+        // nel niente). L'unico modo per non ribaltarsi e' guardare cosa ha coperto il layer sotto
+        // (FillParams::prev_cover), e per guardarlo bisogna che sia gia' stato riempito. Costa il
+        // parallelismo di questa fase, che sul connettore vale 1.7 s di CPU su 277 layer.
+        bool sequential_fill = false;
+        for (size_t ri = 0; ri < this->num_printing_regions(); ++ ri)
+            if (this->printing_region(ri).config().single_path_mode) { sequential_fill = true; break; }
+        // Sonda di misura (2026-09-03): GINGER_SP_PARALLEL_FILL=1 torna al riempimento parallelo
+        // (senza isteresi) per pesare quanto costa la sequenzialita'; GINGER_SP_PROFILE stampa il tempo.
+        if (::getenv("GINGER_SP_PARALLEL_FILL") != nullptr)
+            sequential_fill = false;
+        const auto sp_fill_t0 = std::chrono::steady_clock::now();
+        BOOST_LOG_TRIVIAL(debug) << (sequential_fill ? "Filling layers sequentially (single path) - start"
+                                                     : "Filling layers in parallel - start");
+        if (sequential_fill) {
+            for (size_t layer_idx = 0; layer_idx < m_layers.size(); ++ layer_idx) {
+                m_print->throw_if_canceled();
+                m_layers[layer_idx]->make_fills(adaptive_fill_octree.get(), support_fill_octree.get(), this->m_lightning_generator.get());
+            }
+        } else
         tbb::parallel_for(
             tbb::blocked_range<size_t>(0, m_layers.size()),
             [this, &adaptive_fill_octree = adaptive_fill_octree, &support_fill_octree = support_fill_octree](const tbb::blocked_range<size_t>& range) {
@@ -1492,6 +1544,10 @@ void PrintObject::infill()
         m_print->throw_if_canceled();
         determinism_probe(this, "11 make_fills");
         BOOST_LOG_TRIVIAL(debug) << "Filling layers in parallel - end";
+        if (::getenv("GINGER_SP_PROFILE") != nullptr)
+            std::fprintf(stderr, "[SPTIME] riempimento layer: %.1f s (%s, %zu layer)\n",
+                         std::chrono::duration<double>(std::chrono::steady_clock::now() - sp_fill_t0).count(),
+                         sequential_fill ? "sequenziale" : "parallelo", m_layers.size());
         /*  we could free memory now, but this would make this step not idempotent
         ### $_->fill_surfaces->clear for map @{$_->regions}, @{$object->layers};
         */

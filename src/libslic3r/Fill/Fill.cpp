@@ -1287,6 +1287,24 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         params.ring_always          = bool(region_config.single_path_mode) &&
                                       bool(region_config.single_path_infill_ring_always) &&
                                       surface_fill.params.extrusion_role == erInternalInfill;
+        // Ginger (2026-09-01, Davide): isteresi fra layer. Il connettore sceglie una delle due
+        // meta' complementari del contorno e a pari costo puo' ribaltarsi da un layer all'altro
+        // (basta che il reticolo cambi una corda dall'altra parte del pezzo): il cordolo salta da
+        // un muro all'altro dell'appendice e il layer sopra ci stampa sul vuoto. Qui gli passiamo
+        // lo sparse gia' emesso nel layer sotto, cosi' a pari costo ricalca quello. Vale solo con
+        // single_path_mode, che per questo riempie i layer in fila (PrintObject::infill).
+        Polylines prev_cover;
+        if (bool(region_config.single_path_mode) && surface_fill.params.extrusion_role == erInternalInfill &&
+            this->lower_layer != nullptr) {
+            for (const LayerRegion *lr : this->lower_layer->regions())
+                for (const ExtrusionEntity *ee : lr->fills.entities)
+                    if (const ExtrusionEntityCollection *ec = dynamic_cast<const ExtrusionEntityCollection*>(ee))
+                        for (const ExtrusionEntity *e : ec->entities)
+                            if (e->role() == erInternalInfill)
+                                append(prev_cover, e->as_polylines());
+            if (! prev_cover.empty())
+                params.prev_cover = &prev_cover;
+        }
         params.pattern              = surface_fill.params.pattern;
 
         if( surface_fill.params.pattern == ipLockedZag ) {

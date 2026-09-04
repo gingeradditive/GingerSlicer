@@ -130,6 +130,10 @@ struct WallRibParams
     // (wall continuity, obstacles) and answers; accepted links are reported in founded_links
     // and the caller materializes the buttresses afterwards. Empty = no foundations possible.
     std::function<bool(const Point &, const Point &)> can_found;
+    // Ginger (2026-09-04): veto geometrico sul link (a, b): il rib deve stare dentro la sezione
+    // del pezzo a questo layer. Senza, un rib fra due loop della stessa isola poteva attraversare
+    // una concavita' (aria fra due lobi della figura) e la fondazione lo seguiva nel vuoto.
+    std::function<bool(const Point &, const Point &)> link_allowed;
     // Optional diagnostic counters (filled, never read, by plan_wall_ribs).
     WallRibStats *stats { nullptr };
 };
