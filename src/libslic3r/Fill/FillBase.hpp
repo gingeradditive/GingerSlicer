@@ -266,7 +266,10 @@ public:
    // the physical rule instead of any length policy: they must lie inside the island and must not
    // retrace an already extruded line (gap_blocked-style coincidence test); `stagger` must then be
    // the extrusion line width.
-   void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger, const Polygons *island = nullptr);
+   // barrier_only: the island serves only as a barrier (containment of every link: no link across a
+   // wall), without the 3-stagger cap on merges, the gorge attach pattern or the no-retrace scan
+   // (lightning pockets: the rings ARE the material, links between adjacent rings are short).
+   void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger, const Polygons *island = nullptr, bool barrier_only = false);
    // Z tag for the single-path debug traces ([SPQPICK], [SPDECIDE]...) when the connector is
    // invoked through the static connect_infill() (trapezoidal multiline path).
    void single_path_debug_set_z(double z);

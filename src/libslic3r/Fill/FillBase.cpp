@@ -1,3 +1,4 @@
+#include <array>
 #include <stdio.h>
 #include <cstdlib>
 #include <unordered_map>
@@ -1733,8 +1734,26 @@ void single_path_splice_set_preferred(const Points *pts, double radius)
     s_splice_prefer   = pts;
     s_splice_prefer_r = radius;
 }
+// Ginger (2026-09-04, Davide "risolviamo questo problema"): posizione DETERMINISTICA dei raccordi.
+// Una coppia di rotaie (anello esterno + anello-foro) sta a un cordone di distanza lungo tutta la
+// coppia, quindi "massima vicinanza" e' ambigua e il raccordo cadeva in un punto arbitrario per
+// layer. Regola: fra i candidati entro mezzo cordone dal piu' vicino, si prova prima quello piu'
+// vicino a un raccordo del LAYER SOTTO (registrato qui, esplicitamente, non dedotto dalla
+// geometria); senza layer sotto, quello piu' vicino a un'ancora stabile dell'anello da fondere (il
+// suo vertice a x minima). Il riempimento single-path e' sequenziale per layer: begin_layer sposta
+// i raccordi registrati nel "layer sotto" quando cambia layer_id.
+static thread_local Points s_links_prev, s_links_cur;
+static thread_local long   s_links_layer = -1;
+void single_path_splice_begin_layer(long layer_id)
+{
+    if (layer_id != s_links_layer) {
+        s_links_prev.swap(s_links_cur);
+        s_links_cur.clear();
+        s_links_layer = layer_id;
+    }
+}
 
-void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger, const Polygons *island)
+void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger, const Polygons *island, bool barrier_only)
 {
     // Separate the closed loops (normalized to an open ring representation) from open polylines.
     Polylines rings, open;
@@ -1784,6 +1803,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
     const double guard_free = 1.5 * stagger;
     std::vector<Line> retrace_lines;
     std::optional<AABBTreeLines::LinesDistancer<Line>> retrace;
+    std::optional<AABBTreeLines::LinesDistancer<Line>> island_lines; // bordo dell'isola, per il test "lungo il bordo"
     auto rebuild_retrace = [&]() {
         if (island == nullptr)
             return;
@@ -1809,7 +1829,8 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
             return true;
         // No-retrace first: the AABB scan is much cheaper than the Clipper clip below, and it is
         // the test that rejects most invalid candidates (links riding an existing bead).
-        if (retrace) {
+        // barrier_only (tasche lightning): solo il test di contenimento nell'isola.
+        if (retrace && ! barrier_only) {
             const Vec2d  dir     = v / len;
             const double step    = 0.5 * stagger;
             const double d_close = 0.8 * stagger;
@@ -1827,6 +1848,27 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
             }
             if (coinc > guard_free)
                 return false;
+        }
+        // Ginger (2026-09-06, figure plate 3 di Davide, riga 613617): oltre la scala anchor un
+        // raccordo deve CORRERE LUNGO IL BORDO (ogni campione entro 2 stagger dal contorno), la
+        // stessa regola dei ponti del connettore (bridge_hugs_boundary). Sul lightning l'isola e'
+        // tutto l'interno del pezzo, vuoto: il solo contenimento lasciava passare la saldatura
+        // finale di un pezzo residuo con due fianchi da 86 mm nel nulla (94% senza materiale
+        // sotto). Come Cura: cio' che non e' adiacente si raggiunge con un travel.
+        if (! barrier_only && len > 3. * stagger) {
+            if (! island_lines) {
+                Lines ls;
+                for (const Polygon &pg : *island)
+                    append(ls, pg.lines());
+                island_lines.emplace(std::move(ls));
+            }
+            const Vec2d  dir  = v / len;
+            const double step = 0.5 * stagger;
+            for (double s = 0.5 * step; s < len; s += step) {
+                const Point p((la.cast<double>() + dir * s).cast<coord_t>());
+                if (std::abs(island_lines->distance_from_lines<false>(p)) > 2. * stagger)
+                    return false;
+            }
         }
         sp_profile_count(&SPProfile::clipper_calls);
         Lines  kept = intersection_ln(Line(la, lb), *island);
@@ -2173,6 +2215,53 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
     };
 
     const double max_link2 = max_link_distance * max_link_distance;
+    // Ginger (2026-09-04, Davide): la fusione di due anelli viene COSTRUITA gia' durante la scelta
+    // del candidato e scartata se il percorso fuso si taglia da solo vicino al raccordo (misurato:
+    // con il raccordo in posizione fissa il taglio a X compariva in 211 layer su 277 allo spigolo
+    // della gamba; a spostarlo di qualche mm non incrocia). Il candidato successivo prende il posto.
+    auto build_merge = [&](size_t ci, size_t cj, size_t cv, size_t cs, const Point &cproj, const Point &cpb, Polyline &out) -> bool {
+        const Points &A = rings[ci].points;
+        const Points &B = rings[cj].points;
+        Points pieceB   = walk_ring(B, cv, cpb, stagger, false);
+        Points pieceA_f = walk_ring(A, cs, cproj, stagger, true);
+        Points pieceA_b = walk_ring(A, cs, cproj, stagger, false);
+        auto segments_cross = [](const Point &a1, const Point &a2, const Point &b1, const Point &b2) -> bool {
+            auto ccw = [](const Point &p, const Point &q, const Point &r) -> double {
+                return double(q.x() - p.x()) * double(r.y() - p.y()) - double(q.y() - p.y()) * double(r.x() - p.x());
+            };
+            return ccw(a1, a2, b1) * ccw(a1, a2, b2) < 0. && ccw(b1, b2, a1) * ccw(b1, b2, a2) < 0.;
+        };
+        if (pieceB.empty() || pieceA_f.empty() || pieceA_b.empty())
+            return false;
+        bool   f_cross = segments_cross(pieceB.back(), cproj, pieceA_f.back(), pieceB.front());
+        bool   b_cross = segments_cross(pieceB.back(), cproj, pieceA_b.back(), pieceB.front());
+        double f_len   = (pieceA_f.back() - pieceB.front()).cast<double>().squaredNorm();
+        double b_len   = (pieceA_b.back() - pieceB.front()).cast<double>().squaredNorm();
+        Points &pieceA = (f_cross != b_cross) ? (b_cross ? pieceA_f : pieceA_b)
+                                              : (f_len <= b_len ? pieceA_f : pieceA_b);
+        out.points.clear();
+        out.points.reserve(pieceA.size() + pieceB.size());
+        out.points.insert(out.points.end(), pieceB.begin(), pieceB.end());
+        out.points.insert(out.points.end(), pieceA.begin(), pieceA.end());
+        // auto-incrocio locale: tutti i tratti del fuso entro 4 cordoni dal raccordo, a coppie
+        const size_t n = out.points.size();
+        std::vector<size_t> near;
+        const double rr = 4. * stagger;
+        for (size_t i = 0; i < n; ++ i) {
+            const Point &p0 = out.points[i], &p1 = out.points[(i + 1) % n];
+            if ((p0 - cproj).cast<double>().norm() < rr || (p1 - cproj).cast<double>().norm() < rr)
+                near.push_back(i);
+        }
+        for (size_t a = 0; a < near.size(); ++ a)
+            for (size_t b = a + 1; b < near.size(); ++ b) {
+                const size_t i = near[a], j = near[b];
+                if (j == i + 1 || (i == 0 && j == n - 1))
+                    continue;
+                if (segments_cross(out.points[i], out.points[(i + 1) % n], out.points[j], out.points[(j + 1) % n]))
+                    return false;
+            }
+        return true;
+    };
     // Ginger (2026-09-04): alberi per anello e candidati per coppia PERSISTENTI fra le passate di
     // fusione. A ogni fusione cambia solo l'anello fuso (bi) e sparisce bj: gli altri restano
     // identici, ma tutto veniva ricostruito e riscansionato a ogni passata, O(fusioni x anelli x
@@ -2187,7 +2276,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         ring_id[i] = next_ring_id ++;
     struct CandKey { size_t id_i, id_j; unsigned step; bool operator==(const CandKey &o) const { return id_i == o.id_i && id_j == o.id_j && step == o.step; } };
     struct CandKeyHash { size_t operator()(const CandKey &k) const { return (k.id_i * 1000003u) ^ (k.id_j * 7919u) ^ (size_t(k.step) * 0x9e3779b9u); } };
-    struct RingCandRaw { double d2; size_t v, s; Point proj; };
+    struct RingCandRaw { double d2; size_t v, s; Point proj; Point pb; }; // pb: punto su B (vertice o campione sul lato v)
     std::unordered_map<CandKey, std::vector<RingCandRaw>, CandKeyHash> cand_cache;
     for (bool merged_any = true; merged_any && rings.size() > 1; ) {
         merged_any = false;
@@ -2201,7 +2290,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         // grows while nothing within it validates and budget remains, and each pass processes the
         // exact d2 window [r_prev^2, r^2) so no candidate is seen twice. Ties on d2 order by
         // enumeration (i, j, v, s) via stable_sort: canonical, subset-independent.
-        struct RingCand { double d2; size_t i, j, v, s; Point proj; };
+        struct RingCand { double d2; size_t i, j, v, s; Point proj; Point pb; };
         std::vector<RingCand> rcands;
         rcands.reserve(256);
         // Per-ring segment sets, index-aligned with the s of the original enumeration
@@ -2218,8 +2307,9 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                 ring_tree[i].emplace(ring_lines[i]);
             }
         size_t bi = 0, bj = 0, b_vert = 0, b_seg = 0;
-        Point  b_proj;
+        Point  b_proj, b_pb;
         bool   b_found = false;
+        Polyline merged_best;
         size_t tried   = 0;
         failed_links.clear();
         std::vector<size_t> near_segs;
@@ -2237,18 +2327,34 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                     if (it == cand_cache.end()) {
                         std::vector<RingCandRaw> raw;
                         const Points &B = rings[j].points; // vertices
+                        // Ginger (2026-09-05, Davide): i candidati non sono solo i VERTICI di B ma anche
+                        // punti campionati ogni due cordoni lungo i lati lunghi. I vertici di un anello
+                        // di grid stanno tutti sugli spigoli (innesti delle corde, cappucci): con le
+                        // righe dritte il raccordo poteva cadere SOLO su uno spigolo, a nodo (misurato:
+                        // stool, 277 layer su 277 sull innesto della gamba; prima finiva a meta lato
+                        // solo grazie ai vertici della gobba "graze", ora tolta).
+                        std::vector<std::pair<size_t, Point>> samples;
+                        samples.reserve(B.size() * 2);
+                        for (size_t v = 0; v < B.size(); ++ v) {
+                            samples.emplace_back(v, B[v]);
+                            const Point &b1 = B[(v + 1) % B.size()];
+                            const Vec2d  dv = (b1 - B[v]).cast<double>();
+                            const double dl = dv.norm();
+                            for (double t = 2. * stagger; t < dl - stagger; t += 2. * stagger)
+                                samples.emplace_back(v, Point((B[v].cast<double>() + dv * (t / dl)).cast<coord_t>()));
+                        }
                         if (step == 0) {
-                            for (size_t v = 0; v < B.size(); ++ v) {
+                            for (const auto &[v, q] : samples) {
                                 // Inflated superset query; the exact filter below uses the same
                                 // closest_on_segment arithmetic as the original full enumeration.
-                                near_segs = ring_tree[i]->all_lines_in_radius(B[v], r * 1.01);
+                                near_segs = ring_tree[i]->all_lines_in_radius(q, r * 1.01);
                                 std::sort(near_segs.begin(), near_segs.end());
                                 for (size_t s : near_segs) {
                                     const Line &ln   = ring_lines[i][s];
-                                    Point       proj = closest_on_segment(B[v], ln.a, ln.b);
-                                    double      d    = (B[v] - proj).cast<double>().squaredNorm();
+                                    Point       proj = closest_on_segment(q, ln.a, ln.b);
+                                    double      d    = (q - proj).cast<double>().squaredNorm();
                                     if (d >= r_prev2 && d < r2)
-                                        raw.push_back({ d, v, s, proj });
+                                        raw.push_back({ d, v, s, proj, q });
                                 }
                             }
                         } else {
@@ -2259,38 +2365,132 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                             // figure_production. Qui per ogni vertice entra solo il lato piu'
                             // vicino: e' il candidato che verrebbe provato per primo da quel
                             // vertice, e il budget di validazione e' di poche decine di prove.
-                            for (size_t v = 0; v < B.size(); ++ v) {
-                                const auto [dist, idx, np] = ring_tree[i]->distance_from_lines_extra<false>(B[v]);
+                            for (const auto &[v, q] : samples) {
+                                const auto [dist, idx, np] = ring_tree[i]->distance_from_lines_extra<false>(q);
                                 const double d = dist * dist;
                                 if (d >= r_prev2 && d < r2)
-                                    raw.push_back({ d, v, size_t(idx), Point(np.cast<coord_t>()) });
+                                    raw.push_back({ d, v, size_t(idx), Point(np.cast<coord_t>()), q });
                             }
                         }
                         it = cand_cache.emplace(key, std::move(raw)).first;
                     }
                     for (const RingCandRaw &c : it->second)
-                        rcands.push_back({ c.d2, i, j, c.v, c.s, c.proj });
+                        rcands.push_back({ c.d2, i, j, c.v, c.s, c.proj, c.pb });
                 }
             std::stable_sort(rcands.begin(), rcands.end(), [](const RingCand &l, const RingCand &r) { return l.d2 < r.d2; });
-            // ordine di prova: prima i candidati vicini ai tappi del layer sotto, poi gli altri
+            // ordine di prova (deterministico): entro mezzo cordone dal candidato piu' vicino,
+            // prima il piu' vicino a un raccordo del layer sotto (entro 3 cordoni), poi il piu'
+            // vicino all'ancora stabile dell'anello da fondere; fuori dalla banda, per distanza.
             std::vector<size_t> order;
+            std::vector<int>    order_cls;   // diagnostica: classe di ogni candidato in ordine di prova
+            std::vector<double> order_val;
             order.reserve(rcands.size());
-            if (s_splice_prefer != nullptr && ! s_splice_prefer->empty()) {
-                auto near_pref = [&](const RingCand &c) {
-                    const Vec2d mid = 0.5 * (c.proj.cast<double>() + rings[c.j].points[c.v].cast<double>());
-                    for (const Point &q : *s_splice_prefer)
-                        if ((q.cast<double>() - mid).norm() <= s_splice_prefer_r)
-                            return true;
-                    return false;
-                };
-                for (size_t i = 0; i < rcands.size(); ++ i) if (near_pref(rcands[i])) order.push_back(i);
-                for (size_t i = 0; i < rcands.size(); ++ i) if (! near_pref(rcands[i])) order.push_back(i);
-            } else
-                for (size_t i = 0; i < rcands.size(); ++ i) order.push_back(i);
+            if (! rcands.empty()) {
+                // Ginger (2026-09-05, Davide): la banda parte dalla distanza NOMINALE fra rotaie
+                // gemelle (un cordone), non dal minimo assoluto. Dove due coppie si innestano ad
+                // angolo (stool: spigolo della gamba, corda a 135 gradi su corda a 77) le rotaie
+                // convergono a cuneo e la distanza scende sotto il cordone: il minimo assoluto
+                // stava li', la banda di mezzo cordone conteneva SOLO l'apice del cuneo e il
+                // raccordo ci finiva su tutti i 277 layer, a nodo sulla giunzione (link di 2.9 mm
+                // con cordone da 3.2). Sotto 0.9 cordoni non e' un affiancamento, e' un innesto.
+                double d_ref = -1.;
+                for (const RingCand &c : rcands)
+                    if (std::sqrt(c.d2) >= 0.9 * stagger) { d_ref = std::sqrt(c.d2); break; }
+                const double band_lo = d_ref < 0. ? 0. : 0.9 * stagger;
+                if (d_ref < 0.)
+                    d_ref = std::sqrt(rcands.front().d2);
+                const double band = d_ref + 0.5 * stagger;
+                // senza layer sotto: il raccordo va nel tratto piu' LISCIO, lontano dagli spigoli
+                // di entrambi gli anelli (misurato: l'ancora "vertice a x minima" lo metteva su un
+                // innesto e il raccordo tagliava la coppia di corde in 298 layer su 277... cioe'
+                // sempre; sulla parete piana invece non incrocia).
+                std::vector<Points> corners(rings.size());
+                for (size_t k = 0; k < rings.size(); ++ k) {
+                    const Points &P = rings[k].points;
+                    const size_t n = P.size();
+                    // "spigolo" = svolta di oltre 30 gradi accumulata su una finestra di due cordoni
+                    // (la punta della gamba e' un semicerchio di piccoli segmenti: nessun vertice
+                    // supera i 30 gradi, ma in 6 mm gira di 70 - e li' il raccordo tagliava le rotaie).
+                    // Ginger (2026-09-05, Davide): il riferimento e' il tratto che ENTRA nel vertice.
+                    // Con il tratto in uscita, su un lato lungo (76 mm) la finestra restava dentro
+                    // lo stesso lato e la svolta di 122 gradi all'innesto delle corde non veniva
+                    // mai vista: il raccordo finiva proprio li', a nodo, su 277 layer su 277.
+                    for (size_t i = 0; i < n && n >= 3; ++ i) {
+                        const Vec2d a = (P[i] - P[(i + n - 1) % n]).cast<double>();
+                        const double la = a.norm();
+                        if (la <= 0.)
+                            continue;
+                        double walked = 0.;
+                        size_t j = i;
+                        while (walked < 2. * stagger && j + 1 < i + n) {
+                            walked += (P[(j + 1) % n] - P[j % n]).cast<double>().norm();
+                            ++ j;
+                        }
+                        const Vec2d b = (P[(j + 1) % n] - P[j % n]).cast<double>();
+                        const double lb = b.norm();
+                        if (lb > 0. && a.dot(b) / (la * lb) < 0.866)
+                            corners[k].emplace_back(P[i]);
+                    }
+                }
+                struct Key { int cls; double v; size_t i; };
+                std::vector<Key> keys;
+                keys.reserve(rcands.size());
+                for (size_t i = 0; i < rcands.size(); ++ i) {
+                    const RingCand &c = rcands[i];
+                    const Vec2d mid = 0.5 * (c.proj.cast<double>() + c.pb.cast<double>());
+                    Key k { 2, c.d2, i };
+                    if (std::sqrt(c.d2) >= band_lo && std::sqrt(c.d2) <= band) {
+                        double dprev = std::numeric_limits<double>::max();
+                        for (const Point &q : s_links_prev)
+                            dprev = std::min(dprev, (q.cast<double>() - mid).norm());
+                        if (dprev <= 3. * stagger)
+                            k = { 0, dprev, i };
+                        else {
+                            double dcorner = std::numeric_limits<double>::max();
+                            for (size_t r2 : { c.i, c.j })
+                                for (const Point &q : corners[r2])
+                                    dcorner = std::min(dcorner, (q.cast<double>() - mid).norm());
+                            // ...e lontano da TERZI anelli: alla punta della gamba (arco liscio, zero
+                            // spigoli) convergono quattro rotaie e il raccordo le tagliava (76 layer).
+                            bool crowded = false;
+                            for (size_t r2 = 0; r2 < rings.size() && ! crowded; ++ r2)
+                                if (r2 != c.i && r2 != c.j && ring_tree[r2] &&
+                                    ! ring_tree[r2]->all_lines_in_radius(Point(mid.cast<coord_t>()), 1.5 * stagger).empty())
+                                    crowded = true;
+                            k = { 1, (crowded ? 1e12 : 0.) - dcorner, i }; // piu' lontano dagli spigoli = prima
+                        }
+                    }
+                    keys.push_back(k);
+                }
+                std::stable_sort(keys.begin(), keys.end(), [](const Key &l, const Key &r) {
+                    return l.cls != r.cls ? l.cls < r.cls : l.v < r.v;
+                });
+                for (const Key &k : keys) {
+                    order.push_back(k.i);
+                    order_cls.push_back(k.cls);
+                    order_val.push_back(k.v);
+                }
+                if (::getenv("GINGER_SP_HYST") != nullptr) {
+                    std::fprintf(stderr, "[SPRING] z=%.1f anelli=%zu cand=%zu d_ref=%.2f banda=[%.2f,%.2f] spigoli=%zu/%zu prev=%zu\n",
+                                 s_sp_debug_z, rings.size(), rcands.size(), d_ref * SCALING_FACTOR,
+                                 band_lo * SCALING_FACTOR, band * SCALING_FACTOR,
+                                 corners.size() > 0 ? corners[0].size() : size_t(0), corners.size() > 1 ? corners[1].size() : size_t(0),
+                                 s_links_prev.size());
+                    for (size_t q = 0; q < std::min<size_t>(6, keys.size()); ++ q) {
+                        const RingCand &c = rcands[keys[q].i];
+                        const Vec2d mid = 0.5 * (c.proj.cast<double>() + c.pb.cast<double>());
+                        std::fprintf(stderr, "[SPRING]   #%zu cls=%d v=%.2f d=%.2f mid=(%.1f,%.1f)\n", q, keys[q].cls,
+                                     keys[q].cls == 1 ? -keys[q].v * SCALING_FACTOR : keys[q].v * SCALING_FACTOR,
+                                     std::sqrt(c.d2) * SCALING_FACTOR, mid.x() * SCALING_FACTOR, mid.y() * SCALING_FACTOR);
+                    }
+                }
+            }
             bool budget_out = false;
+            size_t oi_pos = 0;
             for (size_t oi : order) {
+                const size_t    my_pos = oi_pos ++;
                 const RingCand &c = rcands[oi];
-                const Point &pb = rings[c.j].points[c.v];
+                const Point &pb = c.pb;
                 if (near_failed(c.proj, pb))
                     continue; // same invalid region: skip without spending budget
                 if (++ tried > max_validations) {
@@ -2305,14 +2505,24 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                 // il piu' lungo 221 mm, che scompaiono (0.04 m) disattivando la saldatura.
                 // Qui il link dritto porta lo stesso tetto dell'attach: piu' lungo di cosi' non e'
                 // un raccordo, e' un ponte - e i ponti si fanno sul cordolo, non in mezzo al vuoto.
-                if (island != nullptr &&
+                // barrier_only (2026-09-06, tasche lightning, figure plate 3 di Davide): l'isola serve
+                // solo da barriera (contenimento in link_valid: niente raccordi attraverso una
+                // parete), senza il tetto 3 stagger sul merge ne' il pattern gorge sull'attach.
+                // Misurato: isola piena 1092 unita / 21.4 m di travel, barriera 884 / 19.0 m,
+                // nessuna isola 751 / 18.3 m ma 110 raccordi attraverso un muro.
+                if (island != nullptr && ! barrier_only &&
                     (pb - c.proj).cast<double>().norm() > straight_link_max) {
                     failed_links.emplace_back(c.proj, pb);
                     continue;
                 }
-                if (link_valid(c.proj, pb)) {
-                    bi = c.i; bj = c.j; b_vert = c.v; b_seg = c.s; b_proj = c.proj;
+                if (link_valid(c.proj, pb) && build_merge(c.i, c.j, c.v, c.s, c.proj, pb, merged_best)) {
+                    bi = c.i; bj = c.j; b_vert = c.v; b_seg = c.s; b_proj = c.proj; b_pb = pb;
                     b_found = true;
+                    if (::getenv("GINGER_SP_HYST") != nullptr)
+                        std::fprintf(stderr, "[SPRING]   SCELTO pos=%zu cls=%d prove=%zu d=%.2f link=(%.1f,%.1f)-(%.1f,%.1f)\n",
+                                     my_pos, my_pos < order_cls.size() ? order_cls[my_pos] : -1, tried,
+                                     std::sqrt(c.d2) * SCALING_FACTOR,
+                                     c.proj.x() * SCALING_FACTOR, c.proj.y() * SCALING_FACTOR, pb.x() * SCALING_FACTOR, pb.y() * SCALING_FACTOR);
                     break;
                 }
                 failed_links.emplace_back(c.proj, pb);
@@ -2328,33 +2538,10 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         if (splice_debug)
             std::fprintf(stderr, "[SPLINK] ring-ring (%.1f,%.1f)->(%.1f,%.1f) len=%.1fmm\n",
                          b_proj.x() * SCALING_FACTOR, b_proj.y() * SCALING_FACTOR,
-                         rings[bj].points[b_vert].x() * SCALING_FACTOR, rings[bj].points[b_vert].y() * SCALING_FACTOR,
-                         (rings[bj].points[b_vert] - b_proj).cast<double>().norm() * SCALING_FACTOR);
-        const Points &A = rings[bi].points;
-        const Points &B = rings[bj].points;
-        // Cut B at its closest vertex, A at the projected point right across; stagger both cuts and
-        // pick the walk direction on A that keeps the closing link short. The merged sequence is
-        // B-walk, link, A-walk; the final re-close below adds the second link back to the B entry.
-        Points pieceB   = walk_ring(B, b_vert, B[b_vert], stagger, false);
-        Points pieceA_f = walk_ring(A, b_seg, b_proj, stagger, true);
-        Points pieceA_b = walk_ring(A, b_seg, b_proj, stagger, false);
-        // Prefer the A direction whose closing link does not cross the first link, then the shorter one.
-        auto segments_cross = [](const Point &a1, const Point &a2, const Point &b1, const Point &b2) -> bool {
-            auto ccw = [](const Point &p, const Point &q, const Point &r) -> double {
-                return double(q.x() - p.x()) * double(r.y() - p.y()) - double(q.y() - p.y()) * double(r.x() - p.x());
-            };
-            return ccw(a1, a2, b1) * ccw(a1, a2, b2) < 0. && ccw(b1, b2, a1) * ccw(b1, b2, a2) < 0.;
-        };
-        bool   f_cross = segments_cross(pieceB.back(), b_proj, pieceA_f.back(), pieceB.front());
-        bool   b_cross = segments_cross(pieceB.back(), b_proj, pieceA_b.back(), pieceB.front());
-        double f_len   = (pieceA_f.back() - pieceB.front()).cast<double>().squaredNorm();
-        double b_len   = (pieceA_b.back() - pieceB.front()).cast<double>().squaredNorm();
-        Points &pieceA = (f_cross != b_cross) ? (b_cross ? pieceA_f : pieceA_b)
-                                              : (f_len <= b_len ? pieceA_f : pieceA_b);
-        Polyline merged;
-        merged.points.reserve(pieceA.size() + pieceB.size());
-        merged.points.insert(merged.points.end(), pieceB.begin(), pieceB.end());
-        merged.points.insert(merged.points.end(), pieceA.begin(), pieceA.end());
+                         b_pb.x() * SCALING_FACTOR, b_pb.y() * SCALING_FACTOR,
+                         (b_pb - b_proj).cast<double>().norm() * SCALING_FACTOR);
+        Polyline merged = std::move(merged_best);
+        s_links_cur.emplace_back((b_proj + b_pb) / 2);
         rings[bi] = std::move(merged);
         rings.erase(rings.begin() + bj);
         ring_tree[bi].reset();
@@ -2473,7 +2660,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                 // chord vengono saltati perche' a 2mm da un candidato-parete fallito.
                 const double clen = (c.entry - c.junction).cast<double>().norm();
                 if (clen < gorge_min_clen) gorge_min_clen = clen;
-                const bool   gorge_path = ! (island == nullptr || clen <= straight_link_max);
+                const bool   gorge_path = ! (island == nullptr || barrier_only || clen <= straight_link_max);
                 if (! gorge_path && near_failed(c.junction, c.entry))
                     continue; // same invalid region: skip without spending budget
                 if (++ tried > max_validations) {
@@ -2836,6 +3023,23 @@ static void offset_retracing_shorts(Polyline &pl, double line_w, const Polygons 
                 bad = crosses_boundary(moved[i], moved[i + 1]) ||
                       (cnt[i] > 0     && crosses_boundary(pl.points[i], moved[i])) ||
                       (cnt[i + 1] > 0 && crosses_boundary(pl.points[i + 1], moved[i + 1]));
+                // Ginger (2026-09-06, figure plate 3 di Davide, riga 537050): un tratto che giace SUL
+                // contorno (la lining lungo il muro) parte da un lato collineare col bordo e il test
+                // di incrocio a disuguaglianze strette non vede l'uscita: il tratto finiva a 0.18 mm
+                // dall'asse della parete (2.2 m di sparse sopra il muro, 107 attraversamenti).
+                // Misurato con [SPORS]: il punto parte a 0.00 dal bordo e arriva a 1.32 mm - FUORI
+                // (la distanza non ha segno). Regola semplice: un punto spostato deve restare
+                // dentro l'isola.
+                auto outside = [&](const Point &to) -> bool { return ! Slic3r::contains(island, to, true); };
+                bad = bad || (cnt[i] > 0 && outside(moved[i])) || (cnt[i + 1] > 0 && outside(moved[i + 1]));
+                static const bool ors_dbg = ::getenv("GINGER_SP_ORSDBG") != nullptr;
+                if (ors_dbg)
+                    std::fprintf(stderr, "[SPORS] w=%.2f i=%zu bad=%d from=(%.2f,%.2f) to=(%.2f,%.2f) d_from=%.2f d_to=%.2f | from1=(%.2f,%.2f) to1=(%.2f,%.2f) d_from1=%.2f d_to1=%.2f\n",
+                                 line_w * SCALING_FACTOR, i, int(bad),
+                                 pl.points[i].x() * SCALING_FACTOR, pl.points[i].y() * SCALING_FACTOR, moved[i].x() * SCALING_FACTOR, moved[i].y() * SCALING_FACTOR,
+                                 std::abs(island_tree->distance_from_lines<false>(pl.points[i])) * SCALING_FACTOR, std::abs(island_tree->distance_from_lines<false>(moved[i])) * SCALING_FACTOR,
+                                 pl.points[i + 1].x() * SCALING_FACTOR, pl.points[i + 1].y() * SCALING_FACTOR, moved[i + 1].x() * SCALING_FACTOR, moved[i + 1].y() * SCALING_FACTOR,
+                                 std::abs(island_tree->distance_from_lines<false>(pl.points[i + 1])) * SCALING_FACTOR, std::abs(island_tree->distance_from_lines<false>(moved[i + 1])) * SCALING_FACTOR);
             } else {
                 double tot = 0.;
                 for (const Line &l : intersection_ln(Line(moved[i], moved[i + 1]), island))
@@ -3428,8 +3632,8 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                 // then open ends, then the mouth span (shorter = cheaper arrival if unclosed); on
                 // the final lightning emission, ties break toward the selection covering MORE wall
                 // (the lining "second wall" - material is explicitly not a concern on pellet).
-                struct ExactBest { size_t comps, blocked, defects; double prev, mouth, coverage; std::vector<char> sel; };
-                ExactBest best { std::numeric_limits<size_t>::max(), 0, 0, -1., 0., -1., {} };
+                struct ExactBest { size_t comps, blocked, defects; double prev, mouth, coverage, air; std::vector<char> sel; };
+                ExactBest best { std::numeric_limits<size_t>::max(), 0, 0, -1., 0., -1., 0., {} };
                 size_t best_da = std::numeric_limits<size_t>::max(), best_db = std::numeric_limits<size_t>::max();
                 std::vector<char> sel(m);
                 auto consider = [&](size_t da, size_t db, bool phase) {
@@ -3447,20 +3651,60 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                         for (size_t k = 0; k < m; ++ k)
                             if (sel[k])
                                 cov += gap_length(0, cv[k], cv[(k + 1) % m]);
-                    double prev_score = 0.;
+                    double prev_score = 0., sel_len = 0.;
                     if (! gap_prev.empty())
                         for (size_t k = 0; k < m; ++ k)
-                            if (sel[k]) prev_score += gap_prev[k];
+                            if (sel[k]) {
+                                prev_score += gap_prev[k];
+                                sel_len    += gap_length(0, cv[k], cv[(k + 1) % m]);
+                            }
+                    // Ginger (2026-09-05): ARIA della selezione = muro percorso che NON ricalca il layer
+                    // sotto. E' la metrica di Davide (overlap.py) portata dentro la scelta: il ricalco
+                    // da solo premia chi cammina di piu' (un soprainsieme ricalca tutto e aggiunge
+                    // archi nuovi sul vuoto: layer 13->14, +1.2 m in aria con ricalco massimo).
+                    const double air_len = gap_prev.empty() ? 0. : sel_len - prev_score;
                     const bool tie_better = lining_tiebreak ? cov > best.coverage :
                                             sp_tie > 0 ? cov > best.coverage :
                                             sp_tie < 0 ? cov < best.coverage : false;
-                    if (comps < best.comps ||
-                        (comps == best.comps && (blocked_used < best.blocked ||
-                         (blocked_used == best.blocked && (ndef < best.defects ||
-                          (ndef == best.defects && (prev_score > best.prev ||
-                           (prev_score == best.prev && (mouth < best.mouth ||
-                            (mouth == best.mouth && tie_better)))))))))) {
-                        best = { comps, blocked_used, ndef, prev_score, mouth, cov, sel };
+                    // Ginger (2026-09-05, Davide): ORDINE dei criteri selezionabile per le prove
+                    // (GINGER_SP_RANK). Misurato sullo sgabello 20% ml=2 senza pareti: la fase del
+                    // cordolo (900 mm di muro contro 1630) si ribaltava 33 volte su 277 layer, 1-2.3 m
+                    // in aria a volta, perche' l'isteresi arbitra solo fra selezioni a PARI costo e
+                    // basta un arco bloccato in piu' (o un pezzo in meno) per buttare via la
+                    // continuita' col layer sotto. Modi: 0 = pezzi, bloccati, difetti, isteresi,
+                    // bocca (storico); 1 = pezzi, difetti, isteresi, bloccati, bocca; 2 = isteresi,
+                    // pezzi, bloccati, difetti, bocca; 3 = pezzi, isteresi, bloccati, difetti, bocca.
+                    static const int rank_mode = [] { const char *e = ::getenv("GINGER_SP_RANK"); return e ? ::atoi(e) : 0; }();
+                    const bool has_prev_rank = ! gap_prev.empty();
+                    auto key_of = [&](size_t c_comps, size_t c_blocked, size_t c_ndef, double c_prev, double c_mouth, double c_air) {
+                        // valori piccoli = meglio; l'isteresi entra negata. Modi 4-6: l'aria (muro nuovo
+                        // senza niente sotto) entra come criterio: 4 = pezzi, aria, bloccati, difetti,
+                        // isteresi, bocca; 5 = aria, pezzi, bloccati, difetti, isteresi, bocca;
+                        // 6 = pezzi, bloccati, aria, difetti, isteresi, bocca.
+                        std::array<double, 6> k;
+                        const double ip = has_prev_rank ? -c_prev : 0.;
+                        const double ar = has_prev_rank ? std::round(c_air / scale_(1.)) : 0.; // al mm: niente pareggi rotti dal rumore
+                        switch (rank_mode) {
+                        case 1:  k = { double(c_comps), double(c_ndef), ip, double(c_blocked), c_mouth, 0. }; break;
+                        case 2:  k = { ip, double(c_comps), double(c_blocked), double(c_ndef), c_mouth, 0. }; break;
+                        case 3:  k = { double(c_comps), ip, double(c_blocked), double(c_ndef), c_mouth, 0. }; break;
+                        case 4:  k = { double(c_comps), ar, double(c_blocked), double(c_ndef), ip, c_mouth }; break;
+                        case 5:  k = { ar, double(c_comps), double(c_blocked), double(c_ndef), ip, c_mouth }; break;
+                        case 6:  k = { double(c_comps), double(c_blocked), ar, double(c_ndef), ip, c_mouth }; break;
+                        default: k = { double(c_comps), double(c_blocked), double(c_ndef), ip, c_mouth, 0. }; break;
+                        }
+                        return k;
+                    };
+                    bool better;
+                    if (best.sel.empty())
+                        better = true;
+                    else {
+                        const auto kc = key_of(comps, blocked_used, ndef, prev_score, mouth, air_len);
+                        const auto kb = key_of(best.comps, best.blocked, best.defects, best.prev, best.mouth, best.air);
+                        better = kc < kb || (kc == kb && tie_better);
+                    }
+                    if (better) {
+                        best = { comps, blocked_used, ndef, prev_score, mouth, cov, air_len, sel };
                         best_da = da; best_db = db;
                     }
                 };
@@ -3938,7 +4182,7 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                         // selezione comps=2/defects=0 gia' in `best` - due anelli CHIUSI a seam
                         // libera. Nelle unita' del modulo (open_trail_cost=4) e' 8 contro 2.
                         if (picked && build_sel4(wf, w.phase, sel4)) {
-                            best = { 1, w.blocked, 4, w.prev, w.d_small, w.d_large, sel4 };
+                            best = { 1, w.blocked, 4, w.prev, w.d_small, w.d_large, 0., sel4 };
                             best_da = w.f[0]; best_db = w.f[1];
                         }
                     }
@@ -4520,6 +4764,12 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
             const double jump_len = (b - a).cast<double>().norm();
             if (same_contour && jump_len > 22. * line_w && ! bridge_hugs_boundary(a, b))
                 return false;
+            // Ginger (2026-09-06, figure plate 3 di Davide): sulle isole lightning (wall_lining)
+            // l'isola e' l'interno vuoto del pezzo e il contenimento non dice niente sul sostegno:
+            // oltre la scala anchor OGNI ponte, su qualunque contorno, deve correre lungo il bordo
+            // (misurate corde da 39-76 mm a 7-68 mm dal muro, 58-95% senza materiale sotto).
+            if (wall_lining && jump_len > 3. * line_w && ! bridge_hugs_boundary(a, b))
+                return false;
             const Vec2d  v   = (b - a).cast<double>();
             const double len = v.norm();
             if (len <= 0.)
@@ -4872,6 +5122,23 @@ static void connect_infill_single_path(Polylines &&infill_ordered, const Boundar
                                          pl.points[q - 1].x() * SCALING_FACTOR, pl.points[q - 1].y() * SCALING_FACTOR,
                                          pl.points[q].x() * SCALING_FACTOR, pl.points[q].y() * SCALING_FACTOR);
                     }
+                // Sonda (2026-09-04 notte): GINGER_SP_TRAIL=<z> stampa OGNI lato del cammino di quel
+                // layer (anche nella passata intermedia) con i punti che ha aggiunto al percorso.
+                {
+                    static const double trail_z = [] { const char *v = ::getenv("GINGER_SP_TRAIL"); return v ? ::atof(v) : -1.; }();
+                    if (trail_z >= 0. && std::abs(s_sp_debug_z - trail_z) < 0.05) {
+                        std::fprintf(stderr, "[SPTRAIL] z=%.1f finale=%d i=%zu tipo=%s v=%zu->%zu (%.1f,%.1f)->(%.1f,%.1f) punti+%zu:",
+                                     s_sp_debug_z, int(final_emission), i,
+                                     e.is_virtual ? (e.v1 / 2 == e.v2 / 2 ? "gemello" : "ponte") : (e.is_gap ? "arco" : "frammento"),
+                                     v_from, v_to,
+                                     vertex_point(v_from).x() * SCALING_FACTOR, vertex_point(v_from).y() * SCALING_FACTOR,
+                                     vertex_point(v_to).x() * SCALING_FACTOR, vertex_point(v_to).y() * SCALING_FACTOR,
+                                     pl.points.size() - std::min(sp_dbg_before, pl.points.size()));
+                        for (size_t q = std::min(sp_dbg_before, pl.points.size()); q < pl.points.size(); ++ q)
+                            std::fprintf(stderr, " %.1f,%.1f", pl.points[q].x() * SCALING_FACTOR, pl.points[q].y() * SCALING_FACTOR);
+                        std::fprintf(stderr, "\n");
+                    }
+                }
             }
             if (pl.size() > 1) {
                 trim_doglegs(pl, dogleg_span, line_w);
@@ -5116,6 +5383,17 @@ void Fill::connect_infill(Polylines &&infill_ordered, const std::vector<const Po
                 }
                 if (run_start >= 0. && len - end_guard - run_start > min_run)
                     runs.emplace_back(run_start, len - end_guard);
+                // Ginger (2026-09-05, Davide): un tratto radente che ARRIVA alla guardia di un capo
+                // non e' una tangenza, e' la riga che sta finendo sul contorno con un angolo
+                // stretto (stool: riga a 45 gradi su parete a 57, 12 gradi di convergenza).
+                // Spostarlo faceva una gobba di 1.5 mm che poi rientrava sul capo intoccabile
+                // (21 layer su 277, 39 righe). La tangenza vera - la scanlinea sul raccordo
+                // della sezione H - sta nel mezzo della riga e resta trattata.
+                static const bool graze_ends = ::getenv("GINGER_SP_GRAZE_ENDS") != nullptr; // sonda A/B: comportamento vecchio
+                if (! graze_ends)
+                    runs.erase(std::remove_if(runs.begin(), runs.end(), [&](const std::pair<double, double> &r) {
+                        return r.first <= end_guard + 0.5 * scan_step || r.second >= len - end_guard - 0.5 * scan_step;
+                    }), runs.end());
                 if (runs.empty())
                     continue;
                 // Compute the replacement points per run - the offset direction comes from the

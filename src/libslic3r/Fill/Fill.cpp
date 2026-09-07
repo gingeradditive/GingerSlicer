@@ -943,6 +943,18 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
 					layerm.bridging_flow(extrusion_role, is_thick_bridge) :
 					layerm.flow(extrusion_role, (surface.thickness == -1) ? layer.height : surface.thickness);
 				// record speed params
+                // Ginger (2026-09-05): `params` e' UNA sola variabile riusata a ogni iterazione del
+                // loop sulle superfici, e questo blocco assegna solo il campo velocita' pertinente al
+                // ruolo corrente: gli altri due restano con il valore ereditato dalla superficie
+                // precedente. Ma `SurfaceFillParams::operator==` li confronta tutti e tre, quindi due
+                // superfici identiche finiscono in SurfaceFill diverse solo perche' sono state
+                // visitate dopo superfici di ruolo diverso - un raggruppamento che dipende dall'ordine
+                // di visita. Diagnosticato con GINGER_TOPMERGE_DEBUG: 1 009 layer su 1 159 avevano due
+                // fill col ruolo top separate unicamente da `sparse_infill_speed` ereditato.
+                // Azzerare prima di assegnare rende il raggruppamento deterministico.
+                params.sparse_infill_speed = 0.f;
+                params.top_surface_speed   = 0.f;
+                params.solid_infill_speed  = 0.f;
                 if (!params.bridge) {
                     if (params.extrusion_role == erInternalInfill)
                         params.sparse_infill_speed = region_config.sparse_infill_speed;
@@ -951,6 +963,41 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
                     } else if (params.extrusion_role == erSolidInfill)
                         params.solid_infill_speed = region_config.internal_solid_infill_speed;
                 }
+
+                // Ginger (2026-09-05, idea di Davide): con un ugello sopra il millimetro il TOP e
+                // l'INTERNAL SOLID sono lo stesso cordone. La distinzione viene dall'FDM da scrivania -
+                // esiste perche' un ugello da 0.4 puo' posare una pelle piu' fine e piu' lenta - e qui
+                // non la sfrutta nessuno, ma la si paga lo stesso: `extrusion_role` fa parte della
+                // chiave di raggruppamento (operator== / operator< qui sopra), quindi due regioni
+                // CONTIGUE con il medesimo identico riempimento finiscono in due SurfaceFill diverse,
+                // vengono riempite separatamente, e la testa deve viaggiare dall'una all'altra.
+                // Misurato su figure_production plate 2: 3 221 salti / 105 m su quel confine, e
+                // riempire l'unione da zero taglia del 22% i pezzi emessi. A questa scala un salto
+                // sopra materiale gia' posato non e' un difetto estetico ma un rischio di collisione
+                // (DFM fatti 5 e 6), quindi contano i pezzi, non i millimetri.
+                //
+                // Promuovi SOLO quando la promozione e' un no-op sulla macchina: stesso pattern,
+                // densita', flow, rapporto di flusso, velocita' e accelerazione. Se anche uno solo
+                // differisce i due ruoli stampano davvero in modo diverso e la distinzione deve
+                // sopravvivere (un profilo FDM con top piu' fine e piu' lento cade qui e non cambia).
+                if (params.extrusion_role == erSolidInfill && ! params.bridge) {
+                    const double layer_thickness = (surface.thickness == -1) ? layer.height : surface.thickness;
+                    const bool same_bead =
+                        region_config.internal_solid_infill_pattern.value == region_config.top_surface_pattern.value &&
+                        region_config.top_surface_density.value >= 100. &&
+                        layerm.flow(frTopSolidInfill, layer_thickness) == params.flow;
+                    const bool same_dynamics =
+                        region_config.top_surface_speed.value == region_config.internal_solid_infill_speed.value &&
+                        region_config.top_solid_infill_flow_ratio.value == 1. &&
+                        object_config.top_surface_acceleration.value ==
+                            object_config.internal_solid_infill_acceleration.get_abs_value(object_config.default_acceleration.value);
+                    if (same_bead && same_dynamics) {
+                        params.extrusion_role     = erTopSolidInfill;
+                        params.top_surface_speed  = region_config.top_surface_speed;
+                        params.solid_infill_speed = 0.f;
+                    }
+                }
+
 				// Calculate flow spacing for infill pattern generation.
 		        if (surface.is_solid() || is_bridge) {
 		            params.spacing = params.flow.spacing();
@@ -1032,6 +1079,19 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
 	        }
 	}
 
+	// Ginger diagnostica (GINGER_TOPMERGE_DEBUG=1): il riempimento gira per ExPolygon, quindi due
+	// aree diventano UN riempimento solo se prima diventano UNA ExPolygon, e l'unico posto dove puo'
+	// succedere e' il blocco di unione qui sotto. Stampa quante SurfaceFill portano il ruolo top
+	// (1 = top e solid sono davvero raggruppati insieme; 2+ = un campo dei params differisce ancora)
+	// e quante ExPolygon ha ciascuna prima e dopo l'unione (numero invariato = le regioni non si
+	// toccano). Le due domande insieme dicono quale delle due ipotesi e' vera.
+	static const bool topmerge_debug = ::getenv("GINGER_TOPMERGE_DEBUG") != nullptr;
+	std::vector<size_t> topmerge_before;
+	if (topmerge_debug)
+		for (const SurfaceFill &fill : surface_fills)
+			if (fill.params.extrusion_role == erTopSolidInfill)
+				topmerge_before.emplace_back(fill.expolygons.size());
+
 	{
 		Polygons all_polygons;
 		for (SurfaceFill &fill : surface_fills)
@@ -1045,6 +1105,51 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
 				} else if (&fill != &surface_fills.back())
 					append(all_polygons, to_polygons(fill.expolygons));
 	        }
+	}
+
+	if (topmerge_debug) {
+		std::string line = "GINGER_TOPMERGE layer=" + std::to_string(layer.id()) +
+		                   " fill_totali=" + std::to_string(surface_fills.size()) +
+		                   " fill_con_ruolo_top=" + std::to_string(topmerge_before.size()) + " expoly[";
+		size_t k = 0;
+		for (const SurfaceFill &fill : surface_fills)
+			if (fill.params.extrusion_role == erTopSolidInfill) {
+				line += (k ? " " : "") + std::to_string(topmerge_before[k]) + "->" + std::to_string(fill.expolygons.size());
+				++ k;
+			}
+		line += "]";
+		// Quando le fill col ruolo top sono piu' di una, dice QUALE campo di SurfaceFillParams le
+		// tiene separate: e' l'unica cosa che impedisce all'unione qui sopra di fonderle.
+		const SurfaceFillParams *first_top = nullptr;
+		for (const SurfaceFill &fill : surface_fills)
+			if (fill.params.extrusion_role == erTopSolidInfill) {
+				if (first_top == nullptr) { first_top = &fill.params; continue; }
+				const SurfaceFillParams &a = *first_top, &b = fill.params;
+				line += " diff:";
+				if (a.extruder            != b.extruder)            line += " extruder";
+				if (a.pattern             != b.pattern)             line += " pattern";
+				if (a.spacing             != b.spacing)             line += " spacing(" + std::to_string(a.spacing) + "/" + std::to_string(b.spacing) + ")";
+				if (a.overlap             != b.overlap)             line += " overlap";
+				if (a.angle               != b.angle)               line += " angle(" + std::to_string(a.angle) + "/" + std::to_string(b.angle) + ")";
+				if (a.is_using_template_angle != b.is_using_template_angle) line += " tmpl_angle";
+				if (a.bridge              != b.bridge)              line += " bridge";
+				if (a.bridge_angle        != b.bridge_angle)        line += " bridge_angle(" + std::to_string(a.bridge_angle) + "/" + std::to_string(b.bridge_angle) + ")";
+				if (a.density             != b.density)             line += " density(" + std::to_string(a.density) + "/" + std::to_string(b.density) + ")";
+				if (a.multiline           != b.multiline)           line += " multiline";
+				if (a.connect_polygons    != b.connect_polygons)    line += " connect_polygons";
+				if (a.anchor_length       != b.anchor_length)       line += " anchor_length";
+				if (a.anchor_length_max   != b.anchor_length_max)   line += " anchor_length_max";
+				if (!(a.flow == b.flow))                            line += " FLOW(w" + std::to_string(a.flow.width()) + "h" + std::to_string(a.flow.height()) + "/w" + std::to_string(b.flow.width()) + "h" + std::to_string(b.flow.height()) + ")";
+				if (a.sparse_infill_speed != b.sparse_infill_speed) line += " sparse_speed";
+				if (a.top_surface_speed   != b.top_surface_speed)   line += " top_speed(" + std::to_string(a.top_surface_speed) + "/" + std::to_string(b.top_surface_speed) + ")";
+				if (a.solid_infill_speed  != b.solid_infill_speed)  line += " solid_speed(" + std::to_string(a.solid_infill_speed) + "/" + std::to_string(b.solid_infill_speed) + ")";
+				if (a.infill_overhang_angle != b.infill_overhang_angle) line += " overhang_angle";
+				if (a.lateral_lattice_angle_1 != b.lateral_lattice_angle_1 || a.lateral_lattice_angle_2 != b.lateral_lattice_angle_2) line += " lattice";
+				if (a.infill_lock_depth   != b.infill_lock_depth || a.skin_infill_depth != b.skin_infill_depth) line += " lock_depth";
+				break;
+			}
+		printf("%s\n", line.c_str());
+		fflush(stdout);
 	}
 
     // we need to detect any narrow surfaces that might collapse

@@ -63,6 +63,26 @@ Slic3r::SVG draw_two_overhangs_to_svg(size_t ts_layer, const ExPolygons& overhan
 
 namespace Slic3r::FillLightning {
 
+// Sonda GINGER_LN_GENDBG=<layer_id>: i rami piu' lunghi di 20 mm di ogni albero del layer, nelle tre
+// fasi (propagati dal layer sopra, dopo i nuovi alberi, dopo la riconnessione delle radici).
+static void gen_dump(const char *fase, size_t layer_id, const std::vector<NodeSPtr> &roots)
+{
+    static const long dbg_layer = [] { const char *v = ::getenv("GINGER_LN_GENDBG"); return v ? std::atol(v) : -1L; }();
+    if (dbg_layer < 0 || size_t(dbg_layer) != layer_id)
+        return;
+    size_t k = 0;
+    for (const NodeSPtr &root : roots) {
+        std::fprintf(stderr, "[LNGEN] layer=%zu fase=%s albero=%zu radice=(%.1f,%.1f)\n", layer_id, fase, k, root->getLocation().x() * SCALING_FACTOR, root->getLocation().y() * SCALING_FACTOR);
+        root->visitBranches([&](const Point &a, const Point &b) {
+            const double len = (b - a).cast<double>().norm() * SCALING_FACTOR;
+            if (len > 5.)
+                std::fprintf(stderr, "[LNGEN]   ramo %.1f mm (%.1f,%.1f)->(%.1f,%.1f)\n", len, a.x() * SCALING_FACTOR, a.y() * SCALING_FACTOR, b.x() * SCALING_FACTOR, b.y() * SCALING_FACTOR);
+        });
+        ++ k;
+    }
+    std::fflush(stderr);
+}
+
 Generator::Generator(const PrintObject &print_object, const std::function<void()> &throw_on_cancel_callback)
 {
     const PrintConfig         &print_config         = print_object.print()->config();
@@ -209,8 +229,11 @@ void Generator::generateTrees(const PrintObject &print_object, const std::functi
         // register all trees propagated from the previous layer as to-be-reconnected
         std::vector<NodeSPtr> to_be_reconnected_tree_roots = current_lightning_layer.tree_roots;
 
+        gen_dump("propagati", size_t(layer_id), current_lightning_layer.tree_roots);
         current_lightning_layer.generateNewTrees(m_overhang_per_layer[layer_id], current_outlines, current_outlines_bbox, outlines_locator, m_supporting_radius, m_wall_supporting_radius, throw_on_cancel_callback);
+        gen_dump("nuovi", size_t(layer_id), current_lightning_layer.tree_roots);
         current_lightning_layer.reconnectRoots(to_be_reconnected_tree_roots, current_outlines, current_outlines_bbox, outlines_locator, m_supporting_radius, m_wall_supporting_radius);
+        gen_dump("riconnessi", size_t(layer_id), current_lightning_layer.tree_roots);
 
         // Initialize trees for next lower layer from the current one.
         if (layer_id == 0)

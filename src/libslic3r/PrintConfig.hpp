@@ -1036,6 +1036,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionInt, wall_loops))
     ((ConfigOptionBool, alternate_extra_wall))
     ((ConfigOptionFloat, minimum_sparse_infill_area))
+    ((ConfigOptionFloatOrPercent, minimum_solid_infill_width))
     ((ConfigOptionInt, solid_infill_filament))
     ((ConfigOptionFloatOrPercent, internal_solid_infill_line_width))
     ((ConfigOptionFloat, internal_solid_infill_speed))

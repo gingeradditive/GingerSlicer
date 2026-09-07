@@ -5,13 +5,13 @@ GingerSlicer implements or automates each of them. Written for people working on
 for terminology see `GLOSSARY.md`, for the flow-dynamics model see `EXTRUSION_DYNAMICS.md`.
 
 > Scope: large-format screw extruders (beads 1–8 mm, Ginger profiles). Everything here follows
-> from four physical facts and the four directives they force.
+> from six physical facts and the four directives they force.
 
 ---
 
 ## 1. Prime directives
 
-Pellet FGF differs from desktop FDM in four physical facts:
+Pellet FGF differs from desktop FDM in six physical facts:
 
 1. **Beads are huge** (typ. 3.2 mm wide × 1.2–1.5 mm high). One bead is a structural member;
    one flow error is a visible defect. Sparse infill at 5 % puts beads ~70 mm apart, so
@@ -24,10 +24,27 @@ Pellet FGF differs from desktop FDM in four physical facts:
    oozing restart.
 4. **Melt degrades while idle.** Long travels are not just wasted time: the material that
    waits in the nozzle prints worse.
+5. **A travel over the part is a collision hazard, not a cosmetic one.** Beads stand 1–1.5 mm
+   proud, and a seam, a loop start or an overlap stands proud of *that*. A nozzle crossing
+   deposited material can strike the ridge: at best the part or an axis shifts, at worst the
+   print is over. Note the asymmetry with desktop FDM — a long hop through open air is
+   harmless here, a short hop that grazes a bead is not. What must be minimized is therefore
+   the **count of travels that cross deposited material**, not the millimetres travelled.
+6. **A run of travels stalls the screw and clogs it.** A travel does not extrude, and the
+   screw does not idle gracefully: pellet standing in the feed zone keeps taking heat, softens
+   and bridges into a plug that stops the machine. Feature-grouped output — all the solid
+   infill, then all the top, then back across the island — is exactly the pattern that
+   produces long runs of consecutive hops with no extrusion between them.
 
 These force four directives that the rest of this document instantiates:
 
-- **D1 — Minimize travels.** The ideal layer is ONE continuous extrusion path.
+- **D1 — Minimize travels.** The ideal layer is ONE continuous extrusion path. Count before
+  length (facts 5 and 6): a thousand short hops grazing deposited beads is a worse layer than
+  a hundred long ones through air, and a *run* of consecutive hops is worse than either.
+  Corollary for feature partitioning: every extra surface class the slicer invents on the same
+  geometry is an extra set of separate areas to reach, hence extra travels — so a distinction
+  that changes nothing at bead scale (identical width, pattern, angle, speed and flow) must
+  not become a separate fill.
 - **D2 — Prefer extrusion over travel.** A bead is cheaper than a hop: material use is
   explicitly not a concern ("preferiamo estrudere"). Corollary: never extrude *twice over
   the same line* (retrace), and never extrude *outside the part*. Canonical form of the
@@ -136,6 +153,22 @@ narrow curved leg): air-extrusions 47.1 m → 0.01 m, doubled beads 212 → 0, t
 wall→infill gap 5.05 → 2.50 mm (the scarf is suppressed on the hooked wall: that seam is the
 wall→infill junction, not a scar to hide).
 
+**Short retracing runs are moved, never out of the island** (`offset_retracing_shorts`, emission).
+A run shorter than two beads that rides another run of the same walk within 0.9 width is pushed
+one bead away from it. The push must keep every moved point INSIDE the island (point-in-polygon):
+the earlier boundary-crossing test used strict inequalities and missed a run starting ON the
+contour, so the lining along a wall was pushed 0.9 mm onto the wall bead (figure plate 3,
+2026-09-06: 2.2 m of sparse over the wall axis and 104 sparse runs crossing a wall, both zero
+after the guard, stool grid ml=2 unchanged). Probes: `GINGER_SP_NO_ORS=1` skips the pass,
+`GINGER_SP_ORSDBG=1` prints every decision (`[SPORS]`, from/to and distance to the contour).
+
+**Sliver wall loops are dropped** (`PerimeterGenerator`, single path only): a wall loop or open
+bead shorter than 2.5 widths (a hole closing up, 1-2 mm of perimeter) is not a printable bead, but
+it was an OBSTACLE for the rib planner (35 of the 55 layers with obstacle drops on figure plate 3
+had one) and one more unit to reach: the layer started at the sliver, 250 mm from where the
+previous layer ended. Dropping them let the ribs merge the small holes (obstacle drops 55 -> 1
+layers) and cut the layer-change travel from 8.3 m to 2.4 m (270 of 301 changes under 10 mm).
+
 ### 2.4 Deviation of boundary-grazing scanlines (scanline patterns only)
 A chord running nearly tangent to the contour blocks the arc under it (double bead), which can
 veto the only arcs that weld a region together. The grazing interior stretch is re-routed to
@@ -191,9 +224,73 @@ improves.
   point nearest the toolhead ("free seam") — closed loop = zero fixed ends.
 - Wall-only islands orient their last wall's seam to the closest point of the previous
   island's exit (closest-point chain, `GCode.cpp`).
-- The single-path router (`GCode.cpp`, `single_path_mode`) orders an island's infill as one
-  spatial walk; loop suspension lets a loop be entered, left for a nested feature, and
-  resumed.
+- The single-path router (`GCode.cpp`, `single_path_mode`, `extrude_infill_routed`) orders an
+  island's infill as one spatial walk; suspension lets a unit be entered, left for a touching
+  feature, and resumed at the same vertex. Since 2026-09-07 (figure plate 3, Davide: "un travel
+  di 317 mm ai primi layer e' la prima causa di layer shift"):
+  - suspension applies to closed loops AND open paths (the monotonic sweep of a bottom/top is one
+    polyline of metres: its side patches are printed as it passes, layer 2 max hop 317 -> 48 mm);
+  - a contact is printed whole (no nested suspension - measured: nesting returns from the far end
+    of the absorbed unit, 35.6 -> 47 m). Which units may be absorbed: loops <= 40 touch, open
+    paths / atomic collections whose two ends are <= 24 w apart (extent = the return cost) and
+    shorter than 400 touch. Everything else is a "major";
+  - majors, plus the shorts no suspendable major can reach, are ordered by a TOUR (greedy start,
+    then orientation flips, or-opt, 2-opt; cost = sum of hops + max hop) instead of greedy
+    nearest-entry (the greedy started from the band next to the seam and left the 22 m body of
+    the bottom for last). Shorts within reach of a pending major wait for its suspension;
+  - the wall seam is placed by the same tour: right before the last wall the router is run in
+    plan mode (every end of every stop as a start, or the rib anchors of the layer when there
+    are ribs: the rib wins unless the free start costs less, as before); cost = arrival hop
+    (0 on the first layer: it comes from the skirt) + tour + distance from the tour end to the
+    upper layer's infill (the next layer change) + max hop. The planned tour is reused verbatim
+    by the emission when the head starts within 5 mm of the planned start.
+  - the WALL walk suspends too (2026-09-07, layers 127/183 of the figure): a single-bead spur
+    attached to the wall loop (an open piece with one end within 4 w of a loop vertex) is printed
+    when the walk reaches the attachment vertex - travel to its tip, extrude back onto the loop,
+    resume - instead of after the walk (94 and 257 mm of travel). `[SPWALL]` under
+    `GINGER_SINGLE_PATH_DEBUG`. Closed wall loops within 4 w of the walk (a 22 mm hole ring at
+    layer 33, 4.6 mm from the loop) are contacts too, claimed in advance by the first loop that
+    touches them, so `is_last` knows nothing is left after the walk (before, the main loop was not
+    "last", got no hook/plan and its seam was forced into a rib 226 mm away). Separate wall islands
+    farther than that still print after the walk.
+  - island order with lookahead (`order_islands_tour`): the tour of an island layer also pays the
+    hop from the last island to the nearest point of the upper layer's perimeters, weighted
+    `GINGER_SP_CHANGE_W` (default 1.5) like the arrival/departure hops of the seam plan. An island
+    that disappears on the next layer costs one extra hop whichever way (parity); the weight makes
+    it a travel inside the layer rather than a layer change (figure layer 214/215: 178 mm in-layer
+    instead of 175 + 176 at the layer change).
+  - SUPPORT (2026-09-08, Davide: "se in quel layer c'e' l'infill lo fa dall'infill, se non c'e' dal
+    walk del wall"): in single path the layer's support is no longer a block printed before the
+    islands (it cost the trip layer-end -> support, 18 of 21 m of layer change on the figure with
+    tree supports, plus support -> wall seam, 6.5 m). It is deferred and attached to the nearest
+    island: as units of that island's infill router (tour + suspensions place it where the head
+    passes closest) when the island has infill, otherwise as a contact of the wall walk (nearest
+    vertex, the whole support chained from there, then resume); whatever is left prints at the end
+    of the layer. Support roles/speeds are kept (the role drives `_extrude`). `[SPSUP]` under
+    `GINGER_SINGLE_PATH_DEBUG`. Measured (figure final object, 675 layers, 217 with support):
+    travel 111.9 -> 94.9 m, layer change 21.2 -> 6.1 m, support-related 31.9 -> 22.0 m; the
+    remaining support cost is the deviation itself (~2 x 18 mm median distance from the wall).
+  - ADAPTIVE, no thresholds (2026-09-08, Davide: "le N cordoni non hanno senso su 1 m^2; una feature
+    fuori N cordoni puo' costare 60 cm"): a short unit outside the 12 w reach is no longer sent to the
+    tour by default. Its two options are priced in mm on this layer: as a CONTACT of the nearest
+    suspendable major (deviation from its nearest vertex and return, 2 d) or as a tour STOP (cheapest
+    insertion into the tour of the majors, both orientations); the cheaper wins (`assigned` ->
+    contact beyond reach). The cluster after a contact is adaptive too: the next unit chains only if
+    taking it now (approach + return to the resume vertex, minus the return already due) costs no
+    more than its own deviation cost from its nearest major. The 12 w / 4 w values survive only as
+    fast paths. A first version that compared the chain with returning to the CURRENT vertex chained
+    everything (35 -> 180 m): the reference must be the unit's own best alternative.
+    Open majors (monotonic tops with far-apart ends) go through the same pricing against the
+    suspendable loops (contact cost d(v,a) + d(v,b) vs their stop in the tour): a top glued to the
+    lining but far from the seam used to be the last stop at 419 mm (layer 130 of the figure).
+    The seam plan also runs when a next island follows in the same layer (its entry is the
+    departure target) instead of falling back to the nearest-entry anchor.
+    Measured: figure plate 3 34.2 m (baseline 35.6), figure with supports 111.9 -> 87.8 m, layer
+    change 21.2 -> 2.4 m, knee 45.4 -> 41.7 m, no travel to a support above 60 mm (were 400-540 mm).
+  What remains structural: a solid layer is cut by the connected rectilinear fill into diagonal
+  BANDS whose two ends are far apart (they stop at every notch of the boundary); the chain of
+  bands cannot be closed without a hop of the band's extent, so a bottom layer keeps one or two
+  hops of 70-180 mm however it is ordered. Zero would need the fill itself to yield one polyline.
 
 Debug: `GINGER_SINGLE_PATH_DEBUG=1` → `[SPEXACT] [SPWELD] [SPBRIDGE] [SPDEVIATE] [SPOPEN]
 [SPCUT] [SPCLOSE] [SPDEFECT]` on stderr.
@@ -411,6 +508,14 @@ schedule driver — massive short parts cool layer-bound, thin tall parts print 
 | `GINGER_FUSION_RES_W=<n>` | — | scales the fused rings' simplification tolerance (default 1 = `resolution` clamped to spacing/500; 0 = no simplification) |
 | `GINGER_DETERMINISM_PROBE=1` | `[DET]` per step, per object | why two identical slices differ: hashes slices/perimeters/fill surfaces/rib plan/fills after every pipeline step, ordered **and** commutative, so a permutation is told apart from a geometric change. Slice twice, diff the streams, first differing line names the step |
 | `GINGER_SPCUT_Z=<z>` | per-hole detail near one z | racetrack cut inspection |
+| `GINGER_LN_POCKETS=0` | — | opt-OUT (default ON since 2026-09-06, Davide): Lightning `ml = 2` single path built Cura-style from AREAS. Band = trees offset by ±spacing/2; pockets = sparse area minus band; the pocket boundaries are the printed rings (tree rails + wall lining, closed by construction), then `single_path_splice_loops` merges adjacent rings. Replaces multiline_fill + crop + connector for those islands. The sparse-area boundary is used as is: it already IS the lining axis (pulled in half a spacing less the overlap), unlike Cura's inner_contour (wall flank), so no further inset — an inset detached the lining from the wall and erased every arm narrower than a spacing (knee −14 % sparse) |
+| `GINGER_LN_OPEN=1` | — | with pockets: morphological opening of the area by half a bead (`offset2_ex`) so arms narrower than one bead get no pair of overlapping rails (knee: doubled sparse 9.3 % → 1.9 %, but −13 % sparse and travel 2.5 → 7.3 m). Not default |
+| `GINGER_LN_DEBUG=1` | `[LNISLE] [LNISLEC] [LNISLEH]` every expolygon entering the Lightning filler (bbox, tree count, contour); `[LNPOCK] [LNTREE] [LNBAND] [LNINNER] [LNAREA] [LNRING]` per pockets island | pockets bisection. Coordinates are in the OBJECT frame (G-code is in the bed frame); parallel threads interleave stderr — split lines on the `[LN` tags |
+| `GINGER_SP_SEAM_LOOKAHEAD=<w>` / `GINGER_SP_TOUCH_W=<beads>` | `[SPHOOK] seam ...` | wall seam choice with ribs (2026-09-06): candidates = this layer's rib anchors, the upper layer's rib anchors, the infill entry nearest the head; cost = arrival travel + infill hook + w x distance to the nearest upper-layer rib anchor (default w = 0.01: travel first, the rib as tie-break; w = 1 was 14.9 m of layer-change travel on figure plate 3, 0.01 gives 8.5 m). TOUCH_W = suspension contact reach in beads (default 12; cluster hops stay at 4) |
+| `GINGER_SP_ROUTEDBG=1` | `[ROUTE]` | routed infill emission: per suspended unit (loop or open path) vertices, contacts, units left; `tour di N maggiori`, `piano seam` (planned start, cost), `tour pianificato riusato`; for z < 3 mm also the distance of every remaining unit from the current sweep |
+| `GINGER_SP_TOUR=0` / `GINGER_SP_TOUR_SEAM=0` / `GINGER_SP_EXTENT_W=<beads>` / `GINGER_SP_DEPTH=<n>` / `GINGER_SP_ATOMIC_SUSP=1` / `GINGER_SP_CHANGE_W=<w>` | - | routed infill (2026-09-07): back to greedy order of the majors / seam not planned by the tour / extent (end-to-end distance) above which an open path or monotonic collection is a major instead of an absorbable contact (default 24) / nested suspension depth (default 1 = none; 4 measured worse) / suspension between the lines of a monotonic (atomic) collection (default off: on the knee every solid patch pulled in its neighbours after each line, solid->solid 5.9 -> 47 m) |
+| `GINGER_LN_NOSPLICE=1` / `GINGER_LN_ISLAND=n` | — | pockets bisection: skip the ring merge / island given to the splice: 0 none (110 links across internal walls on figure plate 3), 1 verbatim, **2 default** = grown by 0.1 w as a pure BARRIER (`barrier_only`: containment of every link, no 3-stagger cap, no gorge attach, no retrace scan), 3 grown with every splice rule (1092 units vs 884, +2.4 m travel) |
+| `GINGER_SP_NO_ORS=1` / `GINGER_SP_ORSDBG=1` | `[SPORS]` | skip / trace the short retracing-run offset pass (see 2.3) |
 | Headless slice | `Ginger-Slicer.exe --slice <plate> --outputdir <dir> project.3mf` | verify slicing changes without GUI (3MF must embed settings) |
 | `--sweep "opt:from:to:step"` | per-layer swept G-code | parameter calibration prints |
 

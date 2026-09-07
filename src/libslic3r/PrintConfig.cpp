@@ -4963,6 +4963,28 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(15));
 
+    // Ginger: la regola inversa di minimum_sparse_infill_area. Con un ugello sopra il millimetro un
+    // "layer solido" largo uno o due cordoni non e' un pavimento, e' un cordolo: non sostiene la pelle
+    // sopra di lui in modo apprezzabile, ma resta un'area separata da raggiungere - cioe' un travel, e a
+    // questa scala un travel sopra materiale gia' posato e' un rischio di collisione (vedi docs/ginger/DFM.md,
+    // fatti 5 e 6). Misurato su una figura scolpita: 277 macchie di solid su 949 non toccano nessun top e
+    // NESSUNA supera i due cordoni di larghezza.
+    def = this->add("minimum_solid_infill_width", coFloatOrPercent);
+    def->label = L("Minimum internal solid infill width");
+    def->category = L("Strength");
+    def->tooltip = L("Internal solid infill regions narrower than this and not touching a top surface of "
+                     "their own layer are filled with sparse infill instead. With a large nozzle a solid "
+                     "region one or two extrusions wide does not act as a floor for the skin above, but it "
+                     "still costs a separate area to travel to. Expressed as a % it is computed over the "
+                     "internal solid infill line width, so the threshold is a number of extrusions. "
+                     "Set to 0 to disable.");
+    def->sidetext = L("mm or %");
+    def->ratio_over = "internal_solid_infill_line_width";
+    def->min = 0;
+    def->max_literal = 20;
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionFloatOrPercent(0, false));
+
     def = this->add("solid_infill_filament", coInt);
     def->gui_type = ConfigOptionDef::GUIType::i_enum_open;
     def->label = L("Solid infill");

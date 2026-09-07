@@ -372,7 +372,13 @@ private:
     std::string     extrude_multi_path(ExtrusionMultiPath multipath, std::string description = "", double speed = -1.);
     std::string     extrude_path(ExtrusionPath path, std::string description = "", double speed = -1.);
     // Ginger single-path: spatial router for an island's infill with loop suspension (see .cpp).
-    std::string     extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions, const char *extrusion_name);
+    // plan_head/plan_start != nullptr: niente G-code, solo il piano del tour dalla testa `plan_head`;
+    // in `plan_start` il miglior punto di ingresso (per appuntarci la seam del muro). Ritorna "" se
+    // non c'e' un piano.
+    // plan_candidates != nullptr (non vuoto): gli inizi ammessi sono solo quelli (le ancore rib).
+    std::string     extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions, const char *extrusion_name,
+                                          const Point *plan_head = nullptr, Point *plan_start = nullptr,
+                                          const Points *plan_candidates = nullptr, const Point *plan_next = nullptr);
     
     // Orca: Adaptive PA variables
     // Used for adaptive PA when extruding paths with multiple, varying flow segments.
@@ -463,6 +469,17 @@ private:
     std::set<ObjectID>              m_objSupportsWithBrim; // indicates the objs' supports with brim
     // Cache for custom seam enforcers/blockers for each layer.
     SeamPlacer                          m_seam_placer;
+    // Ginger single path (2026-09-08, Davide): il support del layer non e' un blocco iniziale ma
+    // viene agganciato al percorso dell'oggetto: alle unita' del router dell'infill se l'isola piu'
+    // vicina ha infill, altrimenti come contatto del walk del wall; quel che resta a fine layer.
+    const ExtrusionEntityCollection    *m_sp_support_coll = nullptr;
+    ExtrusionRole                       m_sp_support_role = erNone;
+    std::vector<const ExtrusionEntity*> m_sp_support_ents;
+    std::vector<char>                   m_sp_support_done;
+    int                                 m_sp_support_island = -1;
+    bool                                m_sp_support_via_infill = false;
+    bool                                m_sp_support_attach = false;
+    std::string     extrude_support_entities(const ExtrusionEntitiesPtr &ents, const Point *from);
 
     ExtrusionQualityEstimator m_extrusion_quality_estimator;
 

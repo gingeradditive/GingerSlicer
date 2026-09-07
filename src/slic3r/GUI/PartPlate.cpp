@@ -2064,7 +2064,9 @@ bool PartPlate::check_outside(int obj_id, int instance_id, BoundingBoxf3* boundi
 		// Orca: For sinking object, we use a more expensive algorithm so part below build plate won't be considered
 		if (plate_box.intersects(instance_box)) {
 			// TODO: FIXME: this does not take exclusion area into account
-			const BuildVolume build_volume(get_shape(), m_plater->build_volume().printable_height());
+			// Ginger (2026-09-06): headless (CLI) non ha il Plater -> puntatore nullo e segfault su ogni
+			// piatto con un oggetto affondato sotto il piano (figure plate 3). L'altezza del piatto basta.
+			const BuildVolume build_volume(get_shape(), m_plater != nullptr ? m_plater->build_volume().printable_height() : double(m_height));
 			const auto state = instance->calc_print_volume_state(build_volume);
 			outside = state == ModelInstancePVS_Partly_Outside;
 		}

@@ -21,7 +21,7 @@
 
 #include "FillRectilinear.hpp"
 
-namespace Slic3r { void single_path_splice_set_preferred(const Points *pts, double radius); }
+namespace Slic3r { void single_path_splice_set_preferred(const Points *pts, double radius); void single_path_splice_begin_layer(long layer_id); }
 
 // #define SLIC3R_DEBUG
 // #define INFILL_DEBUG_OUTPUT
@@ -3079,8 +3079,37 @@ static Points single_path_prev_jogs(const Polylines *prev, double w)
 // dei 268 layer di regime esiste anche nei layer di bordo (ricalco 99%). Si spezza solo se
 // la riga corre obliqua al contorno (i due capi nuovi distano almeno mezzo cordone lungo il
 // contorno) e se entrambi i pezzi restano lunghi almeno `min_piece`.
-static void split_rows_touching_contour(Polylines &rows, coord_t eps, coord_t min_piece, coord_t step, const ExPolygon &inner)
+// Ginger (2026-09-05, Davide): registro degli spigoli spezzati dalla regola D nel layer sotto
+// (frame del pattern, costante fra i layer). Con GINGER_SP_SPLIT_STICKY=1 la regola diventa un
+// trigger di Schmitt: si comincia a spezzare entro eps, si CONTINUA a spezzare lo stesso spigolo
+// finche' resta entro 2*eps. Misurato sullo sgabello 20% ml=2 senza pareti: il numero di split
+// cambiava 55 volte su 276 layer (1..6 per layer) e ogni cambio poteva ribaltare la fase del
+// cordolo (33 transizioni, 24 m in aria); senza regola D 0.8 m, ma il 5% con pareti la vuole.
+static thread_local Points s_split_prev, s_split_cur;
+static thread_local long   s_split_layer = -1;
+
+static void split_rows_touching_contour(Polylines &rows, coord_t eps, coord_t min_piece, coord_t step, const ExPolygon &inner, long layer_id)
 {
+    // Sonda (2026-09-05): GINGER_SP_NO_SPLIT=1 spegne la regola D per l'A/B.
+    static const bool no_split = ::getenv("GINGER_SP_NO_SPLIT") != nullptr;
+    if (no_split)
+        return;
+    static const bool sticky = ::getenv("GINGER_SP_SPLIT_STICKY") != nullptr;
+    if (layer_id != s_split_layer) {
+        s_split_prev.swap(s_split_cur);
+        s_split_cur.clear();
+        if (layer_id != s_split_layer + 1)
+            s_split_prev.clear(); // salto di layer: niente memoria
+        s_split_layer = layer_id;
+    }
+    const double eps_out  = 2. * double(eps);
+    const double near_prev = 2. * double(step);
+    auto split_below = [&](const Point &p) -> bool {
+        for (const Point &q : s_split_prev)
+            if ((q - p).cast<double>().norm() < near_prev)
+                return true;
+        return false;
+    };
     AABBTreeLines::LinesDistancer<Line> dist(to_lines(inner));
     Polylines out;
     std::vector<Polyline> work(std::make_move_iterator(rows.begin()), std::make_move_iterator(rows.end()));
@@ -3091,7 +3120,7 @@ static void split_rows_touching_contour(Polylines &rows, coord_t eps, coord_t mi
         bool split = false;
         for (size_t k = 1; k + 1 < pl.size() && ! split; ++ k) {
             const auto [d, idx, nearest] = dist.distance_from_lines_extra<false>(pl.points[k]);
-            if (std::abs(d) >= double(eps))
+            if (std::abs(d) >= double(eps) && ! (sticky && std::abs(d) < eps_out && split_below(pl.points[k])))
                 continue;
             // Ginger (2026-09-04, Davide "direzioni strane"): i capi nuovi NON si proiettano di lato
             // (produceva due raccordi obliqui, una Z che si spostava a ogni layer e faceva serpeggiare
@@ -3147,6 +3176,7 @@ static void split_rows_touching_contour(Polylines &rows, coord_t eps, coord_t mi
             b.points.insert(b.points.end(), pl.points.begin() + k + 1, pl.points.end());
             if (a.length() < double(min_piece) || b.length() < double(min_piece))
                 continue;
+            s_split_cur.emplace_back(pl.points[k]);
             out.emplace_back(std::move(a));
             work.emplace_back(std::move(b)); // il resto puo' toccare ancora
             split = true;
@@ -3277,7 +3307,7 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
                 // interno della lining (mezzo cordone), piu' un cordone di margine: la topologia deve
                 // essere quella del regime gia' dai primi layer (solo-infill: spigolo a 3.4 mm al layer 0)
                 split_rows_touching_contour(rows, coord_t(scale_(0.5 * this->spacing * (params.multiline + 2))),
-                                            coord_t(scale_(4.0 * this->spacing)), coord_t(scale_(this->spacing)), inner);
+                                            coord_t(scale_(4.0 * this->spacing)), coord_t(scale_(this->spacing)), inner, long(this->layer_id));
                 if (rows.size() != before) {
                     if (::getenv("GINGER_SP_HYST") != nullptr)
                         std::fprintf(stderr, "[SPSPLIT] z=%.1f righe %zu -> %zu\n", this->z, before, rows.size());
@@ -3310,9 +3340,27 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
                                 (pl.points[i].x() == pl.points[imin].x() && pl.points[i].y() < pl.points[imin].y()))
                                 imin = i;
                         std::rotate(pl.points.begin(), pl.points.begin() + imin, pl.points.end());
+                        // Ginger (2026-09-05, Davide): il vuoto si TAGLIA dentro l'ultimo tratto, non
+                        // scartando vertici: l'apertura al vertice toglieva l'intero lato di chiusura,
+                        // e su un anello a vertici radi (quello staccato dall'intreccio dei nodi ha
+                        // lati di 80 mm) spariva un braccio intero (misurato: 144 mm in aria sul
+                        // layer sopra). Cosi' il vuoto e' esattamente un cordone, qualunque sia il
+                        // passo dei vertici.
                         const double gap = scale_(this->spacing);
-                        while (pl.points.size() > 3 && (pl.points.back() - pl.points.front()).cast<double>().norm() < gap)
-                            pl.points.pop_back();
+                        pl.points.push_back(pl.points.front());
+                        for (double left = gap; pl.points.size() > 3 && left > 0.; ) {
+                            const Point &a = pl.points[pl.points.size() - 2];
+                            Point       &b = pl.points.back();
+                            const Vec2d  v = (b - a).cast<double>();
+                            const double l = v.norm();
+                            if (l <= left) {
+                                left -= l;
+                                pl.points.pop_back();
+                            } else {
+                                b    = a + Point((v * ((l - left) / l)).cast<coord_t>());
+                                left = 0.;
+                            }
+                        }
                     }
             ml_dump("aperto", joined);
             // Widen the connected path; the union outline comes back as one outer wall plus the hole
@@ -3322,9 +3370,9 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
             {
                 // tappi del layer sotto (inversioni a U corte nello sparse gia' emesso, stesso frame)
                 Points prev_caps = single_path_prev_jogs(row_params.prev_cover, scale_(this->spacing));
-                single_path_splice_set_preferred(prev_caps.empty() ? nullptr : &prev_caps, scale_(2. * this->spacing));
+                (void) prev_caps;
+                single_path_splice_begin_layer(long(this->layer_id));
                 single_path_splice_loops(joined, scale_(4. * this->spacing * params.multiline), scale_(this->spacing));
-                single_path_splice_set_preferred(nullptr, 0.);
             }
             ml_dump("ricucito", joined);
             append(connected, std::move(joined));
@@ -3349,7 +3397,7 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
         // bordo vede la stessa topologia a tutte le quote (stool 2%: transizione al layer 33).
         if (! params.dont_connect())
             split_rows_touching_contour(fill_lines, coord_t(scale_(0.5 * this->spacing * (params.multiline + 2))),
-                                        coord_t(scale_(4.0 * this->spacing)), coord_t(scale_(this->spacing)), intersection_surface);
+                                        coord_t(scale_(4.0 * this->spacing)), coord_t(scale_(this->spacing)), intersection_surface, long(this->layer_id));
     }
 
     if ((params.pattern == ipLateralLattice || params.pattern == ipLateralHoneycomb ) && params.multiline >1 )
@@ -3371,6 +3419,105 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
     }
 
     return true;
+}
+
+// Ginger (2026-09-05, Davide): INTRECCIO dei nodi del grid a ml>1, a valle del connettore.
+// Un nodo del reticolo trapezoidale sono due "piatti" paralleli lunghi d1 a distanza d1: il
+// percorso connesso ci passa due volte. Sui layer dispari si tagliano i due piatti e si
+// riallacciano i quattro bracci nell'altro modo (piatti girati di 90 gradi): il nodo del
+// layer sopra ponteggia il vuoto fra i piatti del layer sotto e il reticolo si lega in Z,
+// come faceva la trasposizione originale (#56). A differenza di quella, qui bracci e archi
+// lungo il muro NON si muovono (sono gia' stati decisi dal connettore con l'isteresi):
+// misurato offline sullo sgabello, stessi archi, zero cordone in aria in piu' oltre ai
+// ~3 mm di ponte per piatto. Se i due piatti sono percorsi nello stesso verso il tratto in
+// mezzo si inverte e il percorso resta uno; se in versi opposti il tratto in mezzo si stacca
+// ad anello (la splice a valle lo ricuce, un raccordo in piu'). Fra due polilinee diverse
+// lo scambio conserva il numero di pezzi. Sotto GINGER_GRID_INTERLOCK=1 per l'A/B.
+static void grid_interlock_nodes(Polylines &pls, coord_t d1, size_t &n_flip, size_t &n_split)
+{
+    const double tol = 0.12 * double(d1);
+    struct Flat { size_t pl, i; Vec2d mid, dir; };
+    std::vector<Flat> flats;
+    auto find_flats = [&]() {
+        flats.clear();
+        for (size_t k = 0; k < pls.size(); ++ k) {
+            const Points &P = pls[k].points;
+            for (size_t i = 0; i + 1 < P.size(); ++ i) {
+                const Vec2d v = (P[i + 1] - P[i]).cast<double>();
+                const double l = v.norm();
+                if (l <= 0. || std::abs(l - double(d1)) > tol)
+                    continue;
+                flats.push_back({ k, i, 0.5 * (P[i].cast<double>() + P[i + 1].cast<double>()), v / l });
+            }
+        }
+    };
+    std::vector<Vec2d> done; // centri dei nodi gia' trattati (flippati o scartati)
+    auto is_closed = [](const Points &P) { return P.size() > 3 && P.front() == P.back(); };
+    for (bool again = true; again; ) {
+        again = false;
+        find_flats();
+        for (size_t a = 0; a < flats.size() && ! again; ++ a)
+            for (size_t b = a + 1; b < flats.size() && ! again; ++ b) {
+                const Flat &f = flats[a], &g = flats[b];
+                if (std::abs(f.dir.dot(g.dir)) < 0.98)
+                    continue; // non paralleli
+                const Vec2d  dm    = g.mid - f.mid;
+                const double along = dm.dot(f.dir);
+                const double perp  = std::abs(dm.x() * f.dir.y() - dm.y() * f.dir.x());
+                if (std::abs(along) > tol || std::abs(perp - double(d1)) > tol)
+                    continue; // non e' la coppia di piatti di un nodo
+                const Vec2d center = 0.5 * (f.mid + g.mid);
+                bool seen = false;
+                for (const Vec2d &c : done)
+                    if ((c - center).norm() < tol) { seen = true; break; }
+                if (seen)
+                    continue;
+                done.push_back(center);
+                Points &P = pls[f.pl].points;
+                Points &Q = pls[g.pl].points;
+                const size_t i = f.i, j = g.i;
+                if (f.pl == g.pl) {
+                    const size_t lo = std::min(i, j), hi = std::max(i, j);
+                    if (hi < lo + 2)
+                        continue;
+                    // nuovi piatti: ogni capo con il capo dell'altro piatto che gli sta di fronte
+                    const bool start_to_start = (P[hi] - P[lo]).cast<double>().norm() < (P[hi + 1] - P[lo]).cast<double>().norm();
+                    if (start_to_start) {
+                        // stesso verso: P[lo] -> P[hi] ... P[lo+1] -> P[hi+1]: inversione del tratto in mezzo
+                        std::reverse(P.begin() + lo + 1, P.begin() + hi + 1);
+                    } else {
+                        // versi opposti: P[lo] -> P[hi+1] resta nel percorso; P[lo+1..hi] si chiude ad anello
+                        Polyline ring;
+                        ring.points.assign(P.begin() + lo + 1, P.begin() + hi + 1);
+                        ring.points.push_back(ring.points.front());
+                        P.erase(P.begin() + lo + 1, P.begin() + hi + 1);
+                        pls.push_back(std::move(ring));
+                        ++ n_split;
+                    }
+                } else {
+                    if (is_closed(P) || is_closed(Q))
+                        continue; // fra un anello chiuso e un'altra polilinea: non gestito
+                    const bool a_to_c = (Q[j] - P[i]).cast<double>().norm() < (Q[j + 1] - P[i]).cast<double>().norm();
+                    Points P1(P.begin(), P.begin() + i + 1), P2(P.begin() + i + 1, P.end());
+                    Points Q1(Q.begin(), Q.begin() + j + 1), Q2(Q.begin() + j + 1, Q.end());
+                    Points n1, n2;
+                    if (a_to_c) {
+                        // a-c e b-d: P1 + reverse(Q1) ; reverse(Q2) + P2
+                        n1 = P1; n1.insert(n1.end(), Q1.rbegin(), Q1.rend());
+                        n2.assign(Q2.rbegin(), Q2.rend()); n2.insert(n2.end(), P2.begin(), P2.end());
+                    } else {
+                        // a-d e b-c: P1 + Q2 ; Q1 + P2
+                        n1 = P1; n1.insert(n1.end(), Q2.begin(), Q2.end());
+                        n2 = Q1; n2.insert(n2.end(), P2.begin(), P2.end());
+                    }
+                    P = std::move(n1);
+                    Q = std::move(n2);
+                }
+                ++ n_flip;
+                again = true; // gli indici sono cambiati: si ricomincia la ricerca
+            }
+    }
+    pls.erase(std::remove_if(pls.begin(), pls.end(), [](const Polyline &pl) { return pl.size() < 2; }), pls.end());
 }
 
 bool FillRectilinear::fill_surface_trapezoidal(
@@ -3677,7 +3824,7 @@ bool FillRectilinear::fill_surface_trapezoidal(
                 // interno della lining (mezzo cordone), piu' un cordone di margine: la topologia deve
                 // essere quella del regime gia' dai primi layer (solo-infill: spigolo a 3.4 mm al layer 0)
                 split_rows_touching_contour(rows, coord_t(scale_(0.5 * this->spacing * (params.multiline + 2))),
-                                            coord_t(scale_(4.0 * this->spacing)), coord_t(scale_(this->spacing)), inner);
+                                            coord_t(scale_(4.0 * this->spacing)), coord_t(scale_(this->spacing)), inner, long(this->layer_id));
                 if (rows.size() != before) {
                     if (::getenv("GINGER_SP_HYST") != nullptr)
                         std::fprintf(stderr, "[SPSPLIT] z=%.1f righe %zu -> %zu\n", this->z, before, rows.size());
@@ -3688,6 +3835,19 @@ bool FillRectilinear::fill_surface_trapezoidal(
             single_path_debug_set_z(this->z);
             connect_infill(std::move(rows), inner, joined, this->spacing, row_params);
             ml_dump("centerline", joined);
+            // Ginger (2026-09-05, Davide): intreccio dei nodi sui layer dispari, A/B sotto
+            // GINGER_GRID_INTERLOCK=1 (vedi grid_interlock_nodes). Solo grid: i triangoli hanno
+            // gia' il loro traliccio in Z con la rotazione a tre fasi.
+            {
+                static const bool grid_interlock = ::getenv("GINGER_GRID_INTERLOCK") != nullptr;
+                if (grid_interlock && Pattern_type == 0 && (layer_id % 2) == 1) {
+                    size_t n_flip = 0, n_split = 0;
+                    grid_interlock_nodes(joined, d1, n_flip, n_split);
+                    if (::getenv("GINGER_SP_HYST") != nullptr)
+                        std::fprintf(stderr, "[SPFLIP] z=%.1f nodi=%zu anelli_staccati=%zu pezzi=%zu\n", this->z, n_flip, n_split, joined.size());
+                    ml_dump("intrecciato", joined);
+                }
+            }
             // With an EVEN multiline a closed centerline would widen into two concentric loops; open it
             // at its seam so the widened result stays one single ring. With an ODD multiline the
             // centerline itself is extruded (multiline_fill() inserts it at offset 0): keep it CLOSED,
@@ -3710,9 +3870,27 @@ bool FillRectilinear::fill_surface_trapezoidal(
                                 (pl.points[i].x() == pl.points[imin].x() && pl.points[i].y() < pl.points[imin].y()))
                                 imin = i;
                         std::rotate(pl.points.begin(), pl.points.begin() + imin, pl.points.end());
+                        // Ginger (2026-09-05, Davide): il vuoto si TAGLIA dentro l'ultimo tratto, non
+                        // scartando vertici: l'apertura al vertice toglieva l'intero lato di chiusura,
+                        // e su un anello a vertici radi (quello staccato dall'intreccio dei nodi ha
+                        // lati di 80 mm) spariva un braccio intero (misurato: 144 mm in aria sul
+                        // layer sopra). Cosi' il vuoto e' esattamente un cordone, qualunque sia il
+                        // passo dei vertici.
                         const double gap = scale_(this->spacing);
-                        while (pl.points.size() > 3 && (pl.points.back() - pl.points.front()).cast<double>().norm() < gap)
-                            pl.points.pop_back();
+                        pl.points.push_back(pl.points.front());
+                        for (double left = gap; pl.points.size() > 3 && left > 0.; ) {
+                            const Point &a = pl.points[pl.points.size() - 2];
+                            Point       &b = pl.points.back();
+                            const Vec2d  v = (b - a).cast<double>();
+                            const double l = v.norm();
+                            if (l <= left) {
+                                left -= l;
+                                pl.points.pop_back();
+                            } else {
+                                b    = a + Point((v * ((l - left) / l)).cast<coord_t>());
+                                left = 0.;
+                            }
+                        }
                     }
             // Widen the connected path; the union outline comes back as one outer wall plus the hole
             // walls of the pockets the path encloses - splice them into one single closed loop.
@@ -3722,9 +3900,9 @@ bool FillRectilinear::fill_surface_trapezoidal(
             {
                 // tappi del layer sotto (inversioni a U corte nello sparse gia' emesso, stesso frame)
                 Points prev_caps = single_path_prev_jogs(row_params.prev_cover, scale_(this->spacing));
-                single_path_splice_set_preferred(prev_caps.empty() ? nullptr : &prev_caps, scale_(2. * this->spacing));
+                (void) prev_caps;
+                single_path_splice_begin_layer(long(this->layer_id));
                 single_path_splice_loops(joined, scale_(4. * this->spacing * params.multiline), scale_(this->spacing));
-                single_path_splice_set_preferred(nullptr, 0.);
             }
             ml_dump("ricucito", joined);
             append(connected, std::move(joined));
@@ -3747,7 +3925,7 @@ bool FillRectilinear::fill_surface_trapezoidal(
         polylines = intersection_pl(std::move(polylines), intersection_surface);
         if (! params.dont_connect() && ! (params.connect_polygons && params.multiline > 1))
             split_rows_touching_contour(polylines, coord_t(scale_(0.5 * this->spacing * (params.multiline + 2))),
-                                        coord_t(scale_(4.0 * this->spacing)), coord_t(scale_(this->spacing)), intersection_surface);
+                                        coord_t(scale_(4.0 * this->spacing)), coord_t(scale_(this->spacing)), intersection_surface, long(this->layer_id));
 
     // Remove very short segments that may cause connection issues
     const double minlength = scale_(0.8 * this->spacing);

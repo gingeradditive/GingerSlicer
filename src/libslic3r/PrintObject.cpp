@@ -596,6 +596,15 @@ void PrintObject::prepare_infill()
     } // for each region
 #endif /* SLIC3R_DEBUG_SLICE_PROCESSING */
 
+    // Ginger: declassa a sparse i cordoli di solid troppo stretti per essere un pavimento.
+    // DEVE stare qui: dopo che le fill surfaces sono definitive, ma PRIMA di bridge_over_infill(),
+    // che alla fine ricostruisce il generatore del lightning (prepare_lightning_infill_data). Se
+    // girasse dopo, l'area restituita allo sparse non esisterebbe per il generatore, nessun ramo ci
+    // crescerebbe dentro e resterebbe vuota.
+    this->demote_narrow_solid_infill();
+    m_print->throw_if_canceled();
+    determinism_probe(this, "6b demote_narrow_solid");
+
     // the following step needs to be done before combination because it may need
     // to remove only half of the combined infill
     this->bridge_over_infill();
@@ -2074,6 +2083,7 @@ bool PrintObject::invalidate_state_by_config_options(
             || opt_key == "bottom_shell_thickness"
             || opt_key == "top_shell_thickness"
             || opt_key == "minimum_sparse_infill_area"
+            || opt_key == "minimum_solid_infill_width"
             || opt_key == "sparse_infill_filament"
             || opt_key == "solid_infill_filament"
             || opt_key == "sparse_infill_line_width"
@@ -3154,6 +3164,109 @@ template<typename T> void debug_draw(std::string name, const T& a, const T& b, c
     svg.Close();
 }
 #endif
+
+// Ginger (2026-09-05, idea di Davide): un "layer solido" largo uno o due cordoni non e' un pavimento.
+//
+// `discover_horizontal_shells` proietta ogni top verso il basso per `top_shell_layers` layer. Su una
+// parete inclinata quella proiezione cade DI FIANCO al top del layer che la riceve, e la sua larghezza
+// non e' scelta da nessuno: e' lo scarto laterale fra due contorni consecutivi, cioe' la pendenza del
+// modello. Misurato su una figura scolpita (plate 2, layer 60-300): 949 macchie di internal solid, di cui
+// 277 non toccano nessun top del proprio layer, e NESSUNA delle 277 supera i due cordoni di larghezza
+// (85 da uno, 192 da due). In mediana coprono il 55% di cio' che dovrebbero sostenere e il 23% poggia a
+// sua volta su reticolo.
+//
+// Con un ugello da 0.4 mm tre layer di guscio sono 0.6 mm e un layer solido e' una superficie continua;
+// con 1.9 mm di cordone sono 2.7 mm e un "layer solido" largo due cordoni e' 3.8 mm di materiale, cioe'
+// una trave, non un piano. La regola originale non e' sbagliata: e' applicata fuori dal suo dominio.
+// Intanto ogni macchia costa un'area separata da raggiungere, e a questa scala un travel sopra materiale
+// gia' posato non e' un difetto estetico ma un rischio di collisione (docs/ginger/DFM.md, fatti 5 e 6).
+//
+// Chi TOCCA un top del proprio layer non va declassato: quello lo assorbe gia' il raggruppamento in
+// group_fills, che riempie l'unione top+solid come una regione sola.
+void PrintObject::demote_narrow_solid_infill()
+{
+    bool any = false;
+    for (size_t region_id = 0; region_id < this->num_printing_regions(); ++ region_id)
+        if (this->printing_region(region_id).config().minimum_solid_infill_width.value > 0.) {
+            any = true;
+            break;
+        }
+    if (! any)
+        return;
+
+    BOOST_LOG_TRIVIAL(info) << "Demoting narrow internal solid infill..." << log_memory_info();
+
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, m_layers.size()),
+        [this](const tbb::blocked_range<size_t> &range) {
+            for (size_t idx_layer = range.begin(); idx_layer < range.end(); ++ idx_layer) {
+                m_print->throw_if_canceled();
+                Layer *layer = m_layers[idx_layer];
+                // I top di TUTTO il layer: una fascia che ne tocca uno non e' un'area separata, la
+                // assorbe il riempimento del top. Presi da tutte le regioni, il contatto e' spaziale.
+                Polygons tops;
+                for (const LayerRegion *lr : layer->regions())
+                    for (const Surface &surface : lr->fill_surfaces.surfaces)
+                        if (surface.surface_type == stTop)
+                            polygons_append(tops, to_polygons(surface.expolygon));
+                for (LayerRegion *layerm : layer->regions()) {
+                    const PrintRegionConfig &region_config = layerm->region().config();
+                    // La soglia e' un numero di cordoni: la percentuale si risolve sulla larghezza VERA
+                    // del cordone di solid infill, non sul diametro ugello (stesso schema di
+                    // min_width_top_surface, PerimeterGenerator.cpp).
+                    const double max_width = region_config.minimum_solid_infill_width.get_abs_value(
+                        layerm->flow(frSolidInfill).width());
+                    if (max_width <= 0.)
+                        continue;
+                    // Un'erosione di mezza soglia non lascia niente <=> la regione e' ovunque piu'
+                    // stretta della soglia.
+                    const float erosion = float(scale_(0.5 * max_width));
+                    // Contatto col top: un interasse, cioe' due cordoni affiancati si toccano.
+                    const float touch   = float(layerm->flow(frSolidInfill).scaled_spacing());
+                    // Diagnostica (GINGER_DEMOTE_DEBUG=1): la soglia e' stata tarata sulle componenti
+                    // connesse dell'ESTRUSO nel G-code, ma qui si valutano le ExPolygon delle fill
+                    // surfaces, che sono un'altra popolazione: un nastro che serpeggia intorno all'isola
+                    // e' UNA ExPolygon, e se e' larga piu' della soglia anche in un solo punto l'erosione
+                    // non la annulla e la regola la salta per intero. Questi contatori dicono se e'
+                    // questo che sta succedendo, e l'istogramma dice quanto sono larghe davvero.
+                    static const bool dbg = ::getenv("GINGER_DEMOTE_DEBUG") != nullptr;
+                    int n_solid = 0, n_wide = 0, n_touch = 0, n_demoted = 0;
+                    int w_hist[6] = {0, 0, 0, 0, 0, 0}; // <=0.5, 1, 1.5, 2, 3 cordoni, oltre
+                    const double bead = layerm->flow(frSolidInfill).width();
+                    for (Surface &surface : layerm->fill_surfaces.surfaces) {
+                        if (surface.surface_type != stInternalSolid)
+                            continue;
+                        ++ n_solid;
+                        if (dbg) {
+                            static const double mult[5] = { 0.5, 1.0, 1.5, 2.0, 3.0 };
+                            int b = 5;
+                            for (int k = 0; k < 5; ++ k)
+                                if (offset_ex(surface.expolygon, - float(scale_(0.5 * mult[k] * bead))).empty()) { b = k; break; }
+                            ++ w_hist[b];
+                        }
+                        if (! offset_ex(surface.expolygon, - erosion).empty()) {
+                            ++ n_wide;
+                            continue; // abbastanza larga da fare da pavimento
+                        }
+                        if (! tops.empty() &&
+                            ! intersection(to_polygons(offset_ex(surface.expolygon, touch)), tops).empty()) {
+                            ++ n_touch;
+                            continue; // attaccata a un top: la assorbe group_fills
+                        }
+                        surface.surface_type = stInternal;
+                        ++ n_demoted;
+                    }
+                    if (dbg && n_solid > 0) {
+                        printf("GINGER_DEMOTE layer=%d solid=%d larghe=%d attaccate=%d DECLASSATE=%d "
+                               "larghezza[<=0.5 1 1.5 2 3 oltre]=[%d %d %d %d %d %d] cordone=%.2fmm soglia=%.2fmm\n",
+                               int(idx_layer), n_solid, n_wide, n_touch, n_demoted,
+                               w_hist[0], w_hist[1], w_hist[2], w_hist[3], w_hist[4], w_hist[5],
+                               bead, max_width);
+                        fflush(stdout);
+                    }
+                }
+            }
+        });
+}
 
 // This method applies bridge flow to the first internal solid layer above sparse infill.
 void PrintObject::bridge_over_infill()

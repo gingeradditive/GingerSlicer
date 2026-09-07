@@ -223,6 +223,14 @@ static ExtrusionEntityCollection traverse_loops(const PerimeterGenerator &perime
             paths.emplace_back(std::move(path));
         }
 
+        // Ginger (2026-09-07): stessa regola sliver del ramo Arachne (vedi sotto).
+        if (perimeter_generator.config->single_path_mode) {
+            double plen = 0.;
+            for (const ExtrusionPath &pp : paths)
+                plen += pp.length();
+            if (plen < 4. * double(paths.front().width) * double(scale_(1.)))
+                continue;
+        }
         coll.append(ExtrusionLoop(std::move(paths), loop_role));
     }
     
@@ -507,6 +515,22 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
             extrusion_paths_append(paths, *extrusion, role, is_external ? perimeter_generator.ext_perimeter_flow : perimeter_generator.perimeter_flow);
         }
 
+        // Ginger (2026-09-07, figure plate 3 di Davide, layer 64): un anello di parete piu' corto di 2.5
+        // cordoni (fori che si stanno chiudendo, 1-2 mm di perimetro: 83 in 74 layer) non e' un cordone
+        // stampabile ("non verranno mai"), ma e' un OSTACOLO per il planner dei rib (35 dei 55 layer con
+        // rib scartati per ostacolo li avevano) e un'unita' in piu' da raggiungere con un travel. Stessa
+        // soglia della regola sui riempimenti sliver. Solo in single path.
+        // 2026-09-07 (Davide: "ogni foro deve avere il rib"): soglia = 4 cordoni, la stessa sotto cui il
+        // planner dei rib scarta un loop come too_short (non puo' ospitare due tagli a uno stagger).
+        // Cosi' ogni anello di parete STAMPATO e' anche un candidato rib; sotto, il foro (diametro
+        // < 2.4 mm con cordone 1.9) non e' comunque un anello stampabile.
+        if (! paths.empty() && perimeter_generator.config->single_path_mode) {
+            double plen = 0.;
+            for (const ExtrusionPath &pp : paths)
+                plen += pp.length();
+            if (plen < 4. * double(paths.front().width) * double(scale_(1.)))
+                paths.clear();
+        }
         // Append paths to collection.
         if (!paths.empty()) {
             if (extrusion->is_closed) {

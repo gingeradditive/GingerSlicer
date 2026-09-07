@@ -3527,7 +3527,11 @@ std::string GCode::generate_skirt(const Print &print,
 // Islands used to print in fixed construction order, which made every layer jump back across the whole
 // part (the same long diagonal repeated on every layer). Fills `entry[i]` = the entry point chosen for
 // island i (used to orient the wall seam / look-ahead). Returns a permutation of [0, cand.size()).
-static std::vector<size_t> order_islands_tour(const std::vector<std::vector<Point>> &cand, const Point &start, std::vector<Point> &entry)
+// Ginger (2026-09-07, figure plate 3, layer 214): `next_pts` = punti del layer SOPRA. Il tour
+// delle isole paga anche il salto dall'ultima isola al punto piu' vicino del layer sopra (e' il
+// prossimo cambio layer): l'isola che sparisce al layer dopo va stampata per prima, non per
+// ultima (prima: 175 mm per andarci + 176 mm di cambio layer per tornare).
+static std::vector<size_t> order_islands_tour(const std::vector<std::vector<Point>> &cand, const Point &start, std::vector<Point> &entry, const std::vector<Point> *next_pts = nullptr)
 {
     const size_t n = cand.size();
     entry.assign(n, start);
@@ -3535,6 +3539,16 @@ static std::vector<size_t> order_islands_tour(const std::vector<std::vector<Poin
     order.reserve(n);
     if (n == 0)
         return order;
+    // Peso > 1: a parita' di metri (l'isola che sparisce costa un salto in piu' comunque, dentro
+    // il layer o al cambio) meglio pagarlo dentro il layer: "il cambio layer e' la cosa piu'
+    // delicata" (Davide). GINGER_SP_CHANGE_W, default 1.5.
+    static const double change_w = [] { const char *v = ::getenv("GINGER_SP_CHANGE_W"); return v ? std::atof(v) : 1.5; }();
+    auto term = [&](const Point &p) -> double {
+        if (next_pts == nullptr || next_pts->empty()) return 0.;
+        double best = std::numeric_limits<double>::max();
+        for (const Point &q : *next_pts) best = std::min(best, (q - p).cast<double>().norm());
+        return change_w * best;
+    };
 
     auto nearest_in = [](const std::vector<Point> &pts, const Point &p, double &d2_out) -> Point {
         double best = std::numeric_limits<double>::max();
@@ -3566,8 +3580,9 @@ static std::vector<size_t> order_islands_tour(const std::vector<std::vector<Poin
         cur = be;
     }
 
-    // 2-opt over the chosen entry points, open tour anchored at `start` (cap to bound the cost).
-    if (n > 2 && n <= 256) {
+    // 2-opt over the chosen entry points, open tour anchored at `start` (cap to bound the cost);
+    // the tail pays the distance to the next layer (`term`).
+    if (n >= 2 && n <= 256) {
         auto dist = [](const Point &a, const Point &b) { return std::sqrt((a - b).cast<double>().squaredNorm()); };
         bool improved = true;
         int  guard    = 0;
@@ -3580,8 +3595,8 @@ static std::vector<size_t> order_islands_tour(const std::vector<std::vector<Poin
                     const Point &C = entry[order[j]];
                     const bool   has_succ = j + 1 < n;
                     const Point &D = has_succ ? entry[order[j + 1]] : C;
-                    double before = dist(A, B) + (has_succ ? dist(C, D) : 0.);
-                    double after  = dist(A, C) + (has_succ ? dist(B, D) : 0.);
+                    double before = dist(A, B) + (has_succ ? dist(C, D) : term(C));
+                    double after  = dist(A, C) + (has_succ ? dist(B, D) : term(B));
                     if (after + SCALED_EPSILON < before) {
                         std::reverse(order.begin() + i, order.begin() + j + 1);
                         improved = true;
@@ -4437,6 +4452,26 @@ LayerResult GCode::process_layer(
                     ExtrusionRole support_extrusion_role = instance_to_print.object_by_extruder.support_extrusion_role;
                     bool is_overridden = support_extrusion_role == erSupportMaterialInterface ? support_intf_overridden : support_overridden;
                     if (is_overridden == (print_wipe_extrusions != 0)) {
+                        if (m_config.single_path_mode && ! print_wipe_extrusions) {
+                            // Ginger (2026-09-08, figure plate 3 con support, Davide): il support stampato
+                            // PRIMA delle isole costava ogni layer il viaggio fine-oggetto -> support (18 m
+                            // di cambio layer su 21, punte di 540 mm) + support -> seam del wall (6.5 m).
+                            // Rimandato: lo stampa il router dell'infill dell'isola piu' vicina (unita'
+                            // fra le altre), o il walk del wall se quell'isola non ha infill; il resto a
+                            // fine layer.
+                            m_sp_support_coll = instance_to_print.object_by_extruder.support;
+                            m_sp_support_role = support_extrusion_role;
+                            m_sp_support_ents.clear();
+                            for (const ExtrusionEntity *se : m_sp_support_coll->entities) {
+                                const ExtrusionRole r = se->role();
+                                if (r == support_extrusion_role || (support_extrusion_role == erMixed && r != erIroning))
+                                    m_sp_support_ents.push_back(se);
+                            }
+                            m_sp_support_done.assign(m_sp_support_ents.size(), 0);
+                            m_sp_support_island     = -1;
+                            m_sp_support_via_infill = false;
+                            m_sp_support_attach     = false;
+                        } else {
                         gcode += this->extrude_support(
                             // support_extrusion_role is erSupportMaterial, erSupportTransition, erSupportMaterialInterface or erMixed for all extrusion paths.
                             *instance_to_print.object_by_extruder.support, support_extrusion_role);
@@ -4444,6 +4479,7 @@ LayerResult GCode::process_layer(
                         // Make sure ironing is the last
                         if (support_extrusion_role == erMixed || support_extrusion_role == erSupportMaterialInterface) {
                             gcode += this->extrude_support(*instance_to_print.object_by_extruder.support, erIroning);
+                        }
                         }
                     }
 
@@ -4482,10 +4518,51 @@ LayerResult GCode::process_layer(
                         island_cand[i].emplace_back(this->last_pos());
                 }
                 std::vector<Point>        island_entry;
-                const std::vector<size_t> island_order = order_islands_tour(island_cand, this->last_pos(), island_entry);
+                std::vector<Point>        next_layer_island_pts;
+                if (m_config.single_path_mode && m_layer != nullptr && m_layer->upper_layer != nullptr) {
+                    Points pts;
+                    for (const LayerRegion *lr : m_layer->upper_layer->regions())
+                        for (const ExtrusionEntity *e : lr->perimeters.entities)
+                            e->collect_points(pts);
+                    const size_t stride = pts.empty() ? 1 : std::max<size_t>(1, pts.size() / 256);
+                    for (size_t k = 0; k < pts.size(); k += stride)
+                        next_layer_island_pts.emplace_back(pts[k]);
+                }
+                const std::vector<size_t> island_order = order_islands_tour(island_cand, this->last_pos(), island_entry,
+                                                                            next_layer_island_pts.empty() ? nullptr : &next_layer_island_pts);
+                // Ginger: a quale isola agganciare il support (la piu' vicina fra quelle con infill; se
+                // nessuna ha infill, la piu' vicina in assoluto, via walk del wall).
+                if (m_sp_support_coll != nullptr && ! m_sp_support_ents.empty()) {
+                    Points sp;
+                    for (const ExtrusionEntity *se : m_sp_support_ents)
+                        se->collect_points(sp);
+                    const size_t sstride = sp.empty() ? 1 : std::max<size_t>(1, sp.size() / 256);
+                    double best_inf = std::numeric_limits<double>::max(), best_any = best_inf;
+                    int    bi = -1, ba = -1;
+                    for (size_t i = 0; i < islands.size(); ++ i) {
+                        if (! island_real[i]) continue;
+                        bool inf = false;
+                        for (const ObjectByExtruder::Island::Region &reg : islands[i].by_region)
+                            for (const ExtrusionEntity *ie : reg.infills)
+                                if (ie->role() != erIroning) { inf = true; break; }
+                        double d = std::numeric_limits<double>::max();
+                        for (const Point &a : island_cand[i])
+                            for (size_t k = 0; k < sp.size(); k += sstride)
+                                d = std::min(d, (a - sp[k]).cast<double>().norm());
+                        if (inf && d < best_inf) { best_inf = d; bi = int(i); }
+                        if (d < best_any) { best_any = d; ba = int(i); }
+                    }
+                    m_sp_support_island     = bi >= 0 ? bi : ba;
+                    m_sp_support_via_infill = bi >= 0;
+                    if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+                        std::fprintf(stderr, "[SPSUP] z=%.1f support: %zu entita', isola %d via %s (distanza %.0f mm)\n",
+                                     m_layer ? m_layer->print_z : -1., m_sp_support_ents.size(), m_sp_support_island,
+                                     m_sp_support_via_infill ? "infill" : "wall", (bi >= 0 ? best_inf : best_any) * SCALING_FACTOR);
+                }
 
                 for (size_t island_seq = 0; island_seq < island_order.size(); ++ island_seq) {
                     ObjectByExtruder::Island &island = islands[island_order[island_seq]];
+                    m_sp_support_attach = m_sp_support_coll != nullptr && int(island_order[island_seq]) == m_sp_support_island;
                     // Look-ahead target for seam orientation: the entry point of the NEXT REAL island
                     // in the tour (empty sliver islands print nothing and make no valid target).
                     const Point* next_island_target = nullptr;
@@ -4552,6 +4629,25 @@ LayerResult GCode::process_layer(
                     }
                     // ironing
                     gcode += this->extrude_infill(print,by_region_specific, true);
+                    m_sp_support_attach = false;
+                }
+                // Ginger: support rimasto (nessuna isola, o non consumato dal router/walk): a fine layer.
+                if (m_sp_support_coll != nullptr) {
+                    ExtrusionEntitiesPtr rest;
+                    for (size_t k = 0; k < m_sp_support_ents.size(); ++ k)
+                        if (! m_sp_support_done[k])
+                            rest.push_back(const_cast<ExtrusionEntity *>(m_sp_support_ents[k]));
+                    if (! rest.empty()) {
+                        if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+                            std::fprintf(stderr, "[SPSUP] z=%.1f support: %zu entita' restanti stampate a fine layer\n", m_layer ? m_layer->print_z : -1., rest.size());
+                        gcode += this->extrude_support_entities(rest, nullptr);
+                    }
+                    if (m_sp_support_role == erMixed || m_sp_support_role == erSupportMaterialInterface)
+                        gcode += this->extrude_support(*m_sp_support_coll, erIroning);
+                    m_sp_support_coll   = nullptr;
+                    m_sp_support_attach = false;
+                    m_sp_support_ents.clear();
+                    m_sp_support_done.clear();
                 }
 
                 if (this->config().gcode_label_objects) {
@@ -4801,6 +4897,12 @@ static std::unique_ptr<EdgeGrid::Grid> calculate_layer_edge_grid(const Layer& la
 // seam_gap clip applies. File-static on purpose: G-code generation is serial, and a GCode member
 // would change the GCode.hpp layout (stale-obj ABI hazard on incremental MSBuild).
 static bool s_single_path_hook_loop = false;
+// Ginger (2026-09-07): tour dell'infill pianificato dal blocco seam (extrude_infill_routed in modo
+// piano); l'emissione lo riusa tale e quale se parte entro pochi mm dall'inizio pianificato.
+// Altrimenti ricostruiva il tour dalla posizione reale di fine muro (spostata dal seam gap) e
+// trovava un tour diverso a pari costo che partiva con un salto di 88-153 mm invece di 0.
+struct SinglePathPlannedTour { Point start; std::vector<std::pair<const ExtrusionEntity *, bool>> stops; bool valid = false; double cost = 0.; };
+static SinglePathPlannedTour s_single_path_planned_tour;
 
 std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, double speed, const ExtrusionEntitiesPtr& region_perimeters, const Point* start_point)
 {
@@ -5535,14 +5637,81 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                 }
             }
 
-            for (size_t i = 0; i < perimeters->size(); ++ i) {
-                const ExtrusionEntity* ee       = (*perimeters)[i];
-                const bool             is_last   = i + 1 == perimeters->size();
+            // Ginger (2026-09-07, figure plate 3, layer 127/183): le pareti a CORDONE SINGOLO (Arachne,
+            // pezzi aperti da 7-11 mm) stavano PRIMA del walk nella collezione e partivano per prime:
+            // il layer cominciava da loro (237 mm di travel) e il walk non era piu' "is_last", quindi
+            // niente seam libera. In single path: prima gli anelli chiusi (il walk con i rib), poi i
+            // pezzi aperti, dal piu' vicino alla testa. TODO (Davide): sospendere il walk per stamparli
+            // quando ci passa vicino, come per l'infill.
+            std::vector<const ExtrusionEntity*> emit_order;
+            std::vector<const ExtrusionEntity*> open_pieces;
+            for (const ExtrusionEntity *pe : *perimeters) {
+                if (single_path && dynamic_cast<const ExtrusionLoop*>(pe) == nullptr)
+                    open_pieces.push_back(pe);
+                else
+                    emit_order.push_back(pe);
+            }
+            // Ginger (2026-09-07, figure plate 3, layer 33): un ANELLO chiuso (forellino da 22 mm, a
+            // 4.6 mm dal loop) e' un contatto del walk come uno sperone: lo stampa il walk passandoci
+            // accanto (seam sul vertice di contatto) e si riprende. Assegnato in anticipo al primo
+            // anello del giro che lo sfiora (entro 4 cordoni), cosi' `is_last` sa che dopo il walk
+            // non resta nulla: prima il loop principale non era "ultimo", niente hook/piano e seam
+            // forzata nel rib a qualunque costo (226 mm di cambio layer).
+            std::vector<int> claimed_by(emit_order.size(), -1);
+            if (single_path)
+                for (size_t i = 0; i < emit_order.size(); ++ i) {
+                    const auto *li = dynamic_cast<const ExtrusionLoop *>(emit_order[i]);
+                    if (li == nullptr || li->paths.empty() || claimed_by[i] >= 0)
+                        continue;
+                    const double reach = 4. * scale_(double(li->paths.front().width));
+                    Points pi;
+                    li->collect_points(pi);
+                    for (size_t j = i + 1; j < emit_order.size(); ++ j) {
+                        if (claimed_by[j] >= 0) continue;
+                        const auto *lj = dynamic_cast<const ExtrusionLoop *>(emit_order[j]);
+                        if (lj == nullptr) continue;
+                        Points pj;
+                        lj->collect_points(pj);
+                        bool touching = false; // (`near` e' una macro di Windows)
+                        for (const Point &a : pi) {
+                            for (const Point &b : pj)
+                                if ((a - b).cast<double>().norm() <= reach) { touching = true; break; }
+                            if (touching) break;
+                        }
+                        if (touching)
+                            claimed_by[j] = int(i);
+                    }
+                }
+            for (size_t i = 0; i < emit_order.size(); ++ i) {
+                if (claimed_by[i] >= 0)
+                    continue; // stampato dentro il walk dell'anello che lo sfiora
+                const ExtrusionEntity* ee       = emit_order[i];
+                bool                   is_last  = true;
+                for (size_t k = i + 1; k < emit_order.size(); ++ k)
+                    if (claimed_by[k] < 0) { is_last = false; break; }
                 Point                  seam;
                 const Point*           seam_ptr = nullptr;
                 bool                   hook_pin = false;
                 if (single_path) {
                     const auto rib_it = rib_anchors_of.find(ee);
+                    // Ginger (2026-09-07): piano del tour dell'infill (vedi extrude_infill_routed,
+                    // plan_start): il miglior punto di ingresso dell'infill dalla testa attuale. Candidato
+                    // "entry infill" nel ramo rib, seam diretta nel ramo hook.
+                    Point plan_seam;
+                    bool  planned = false;
+                    {
+                        static const bool tour_seam = [] { const char *v = ::getenv("GINGER_SP_TOUR_SEAM"); return v == nullptr || std::atoi(v) != 0; }();
+                        // Ginger (2026-09-08, figure con support, layer 178): anche con un'isola successiva
+                        // nello stesso layer si pianifica; la partenza del tour punta alla sua entrata.
+                        if (is_last && hook_infill && tour_seam) {
+                            ExtrusionEntitiesPtr ex;
+                            for (ExtrusionEntity *ie : region.infills)
+                                if (ie->role() != erIroning)
+                                    ex.emplace_back(ie);
+                            const Point h = this->last_pos();
+                            planned = ! ex.empty() && ! this->extrude_infill_routed(ex, "infill", &h, &plan_seam, nullptr, next_island_target).empty();
+                        }
+                    }
                     // Ginger wall ribs: hide the SEAM inside a rib (Davide's "punto strategico").
                     // The merged loop is entered and left mid-link, where the start/stop scar is
                     // swallowed between the rib's two touching beads instead of sitting on a
@@ -5598,14 +5767,105 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                                 seam = a;
                             }
                         }
+                        // Ginger (2026-09-06, Davide: "la priorita' e' travel zero; il seam dell'infill si
+                        // puo' spostare per avvicinarlo al rib"). L'anello di sparse e' chiuso: entra ed
+                        // esce alla seam del muro, quindi il layer FINISCE dove e' cominciato. Il costo di
+                        // una seam candidata e' quindi: arrivo (|c - cur|) + aggancio infill + PARTENZA
+                        // verso l'ancoraggio di rib piu' vicino del layer sopra (dove il layer dopo vorra'
+                        // la sua seam). Candidati: gli ancoraggi dei rib di questo layer, quelli del layer
+                        // sopra (seam fuori dal rib qui, dentro il rib domani, travel zero al cambio), e
+                        // l'entry dell'infill piu' vicino alla testa. Prima la seam era vincolata ai soli
+                        // rib di questo layer: quando la colonna cambiava, 300+ mm al cambio layer
+                        // (G-code 12h35m: 38 cambi, 5.9 m).
+                        Points next_anchors;
+                        if (is_last && m_layer != nullptr && m_layer->upper_layer != nullptr)
+                            for (const WallRibMerge &nm : m_layer->upper_layer->wall_ribs)
+                                next_anchors.insert(next_anchors.end(), nm.anchors.begin(), nm.anchors.end());
+                        auto seam_cost = [&](const Point &c) -> double {
+                            double cost = (c - cur).cast<double>().norm();
+                            double hook;
+                            if (chain && infill_connection_min_cost(region.infills, c, next_island_target, hook))
+                                cost += hook;
+                            else if (is_last && next_island_target != nullptr)
+                                cost += (*next_island_target - c).cast<double>().norm();
+                            // GINGER_SP_SEAM_LOOKAHEAD=<peso> del termine di partenza verso il layer sopra.
+                            // Misurato (plate 3 di Davide): peso 1 (arrivo+partenza) cambio layer 14.9 m,
+                            // peso 0.01 (prima l'arrivo, il layer sopra come spareggio) 8.5 m, 212 cambi
+                            // su 301 sotto 10 mm; travel nello sparse identico. Default 0.01.
+                            static const double look_w = [] { const char *v = ::getenv("GINGER_SP_SEAM_LOOKAHEAD"); return v ? std::atof(v) : 0.01; }();
+                            if (! next_anchors.empty() && next_island_target == nullptr)
+                                cost += look_w * dist_to_nearest(c, next_anchors);
+                            return cost;
+                        };
+                        best = std::numeric_limits<double>::max();
+                        const char *seam_kind = "rib"; bool seam_in_rib = true;
+                        // Ginger (2026-09-07): fra le ancore rib decide il TOUR dell'infill (arrivo +
+                        // salti + massimo), non arrivo + hook: al layer 3 l'ancora "hook" dava un tour
+                        // con un salto da 192 mm.
+                        bool rib_planned = false;
+                        if (is_last && hook_infill && ! anchors.empty()) {
+                            static const bool tour_seam2 = [] { const char *v = ::getenv("GINGER_SP_TOUR_SEAM"); return v == nullptr || std::atoi(v) != 0; }();
+                            if (tour_seam2) {
+                                ExtrusionEntitiesPtr ex;
+                                for (ExtrusionEntity *ie : region.infills)
+                                    if (ie->role() != erIroning)
+                                        ex.emplace_back(ie);
+                                Point rib_start;
+                                const SinglePathPlannedTour free_plan = s_single_path_planned_tour; // valido se `planned`
+                                if (! ex.empty() && ! this->extrude_infill_routed(ex, "infill", &cur, &rib_start, &anchors, next_island_target).empty()) {
+                                    // Regola di prima, sulla scala del tour: il rib solo se non costa
+                                    // travel rispetto all'inizio libero (misurato: rib imposto = seam
+                                    // su ancore di fondazione a 355 mm, cambio layer 1.5 -> 7.8 m).
+                                    if (planned && free_plan.cost + scale_(0.5) < s_single_path_planned_tour.cost) {
+                                        s_single_path_planned_tour = free_plan;
+                                    } else {
+                                        rib_planned = true;
+                                        seam        = rib_start;
+                                        best        = seam_cost(rib_start);
+                                        planned     = false;
+                                    }
+                                }
+                            }
+                        }
+                        if (! rib_planned && planned) {
+                            seam = plan_seam; best = seam_cost(plan_seam); seam_kind = "entry infill (piano tour)"; seam_in_rib = false;
+                        } else if (! rib_planned)
+                            for (const Point &a : anchors)
+                                if (const double c = seam_cost(a); c < best) { best = c; seam = a; }
+                        if (is_last && hook_infill && ! rib_planned && ! planned) {
+                            // Con un piano del tour le ancore del layer sopra non concorrono: il loro
+                            // costo (arrivo + hook) ignora il tour e al layer 3 vinceva un'ancora da cui
+                            // il tour costava 192 mm di salto massimo.
+                            if (! planned)
+                                for (const Point &a : next_anchors)
+                                    if (const double c = seam_cost(a); c + scale_(0.5) < best) { best = c; seam = a; seam_kind = "rib del layer sopra"; seam_in_rib = false; }
+                            Point free_seam;
+                            if (planned) {
+                                if (const double c = seam_cost(plan_seam); c + scale_(0.5) < best) { best = c; seam = plan_seam; seam_kind = "entry infill (piano tour)"; seam_in_rib = false; }
+                            } else if (infill_connection_anchor(region.infills, cur, next_island_target, free_seam,
+                                                         next_layer_entries().empty() ? nullptr : &next_layer_pts))
+                                if (const double c = seam_cost(free_seam); c + scale_(0.5) < best) { best = c; seam = free_seam; seam_kind = "entry infill"; seam_in_rib = false; }
+                        }
+                        if (! seam_in_rib)
+                            hook_pin = true;
+                        if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr && ! seam_in_rib)
+                            std::fprintf(stderr, "[SPHOOK] seam %s z=%.1f a %.1fmm dalla testa\n", seam_kind,
+                                         this->m_layer ? this->m_layer->print_z : -1., (seam - cur).cast<double>().norm() * SCALING_FACTOR);
                         seam_ptr = &seam;
-                    } else
+                    } else {
                     // The infill anchor is computed HERE (right before the last wall), so it uses the
                     // real toolhead position AFTER the preceding walls, not a stale pre-walls position;
                     // it picks the infill entry nearest that position (and, with a look-ahead target,
                     // orients the infill exit toward the next island). The last wall is a closed loop
                     // entered and left at its seam, so pinning the seam there makes the wall end exactly
                     // where the infill begins (zero wall->infill travel).
+                    if (planned) {
+                        // Ginger (2026-09-07): seam del muro sull'inizio del miglior tour dell'infill
+                        // (vedi extrude_infill_routed, plan_start).
+                        seam     = plan_seam;
+                        seam_ptr = &seam;
+                        hook_pin = true;
+                    } else
                     if (is_last && hook_infill &&
                         infill_connection_anchor(region.infills, this->last_pos(), next_island_target, seam,
                                                  next_layer_entries().empty() ? nullptr : &next_layer_pts)) {
@@ -5626,10 +5886,156 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                         seam     = this->last_pos();
                         seam_ptr = &seam;
                     }
+                    }
                 }
                 s_single_path_hook_loop = hook_pin;
-                gcode += this->extrude_entity(*ee, "perimeter", -1., region.perimeters, seam_ptr);
+                // Ginger (2026-09-07, figure plate 3 di Davide, layer 127/183: "aprire il wall se il wall
+                // da stampare in cordone singolo ... e' vicino"): uno sperone di wall a cordone singolo
+                // attaccato al loop (pezzo aperto con un capo a distanza ~0 dal loop) veniva stampato
+                // DOPO il walk, con 94 e 257 mm di travel per raggiungerlo. Ora il walk si sospende al
+                // vertice d'attacco: si va alla punta dello sperone (7-11 mm), lo si stampa verso il loop
+                // e si riprende il loop dallo stesso vertice. Stessa logica della sospensione infill.
+                bool wall_suspended = false;
+                bool has_claimed = false;
+                for (size_t j = i + 1; j < emit_order.size(); ++ j) if (claimed_by[j] == int(i)) has_claimed = true;
+                // Ginger (2026-09-08): support agganciato a questa isola SENZA infill: contatto del walk
+                // (vertice piu' vicino al support), stampato tutto in catena da li', poi si riprende.
+                bool sp_wall_support = false;
+                if (m_sp_support_attach && ! m_sp_support_via_infill && m_sp_support_coll != nullptr)
+                    for (char dn : m_sp_support_done) if (! dn) { sp_wall_support = true; break; }
+                if (const auto *wl = dynamic_cast<const ExtrusionLoop *>(ee); single_path && wl != nullptr && (! open_pieces.empty() || has_claimed || sp_wall_support) && ! wl->paths.empty()) {
+                    ExtrusionLoop lp = *wl;
+                    lp.split_at(seam_ptr != nullptr ? *seam_ptr : this->last_pos(), false);
+                    struct V { size_t pi, k; };
+                    std::vector<V> verts;
+                    for (size_t pi = 0; pi < lp.paths.size(); ++ pi)
+                        for (size_t k = (pi == 0 ? 0 : 1); k < lp.paths[pi].polyline.points.size(); ++ k)
+                            verts.push_back({ pi, k });
+                    auto vpt = [&](size_t vi) -> const Point & { return lp.paths[verts[vi].pi].polyline.points[verts[vi].k]; };
+                    const double reach = 4. * scale_(double(wl->paths.front().width));
+                    struct C { size_t vi, piece; bool attached_first; const ExtrusionEntity *loop_ee; };
+                    std::vector<C> contacts;
+                    if (verts.size() >= 3)
+                        for (size_t j = i + 1; j < emit_order.size(); ++ j)
+                            if (claimed_by[j] == int(i)) {
+                                Points pj;
+                                emit_order[j]->collect_points(pj);
+                                double bd = std::numeric_limits<double>::max(); size_t bv = 0;
+                                for (size_t vi = 0; vi < verts.size(); ++ vi)
+                                    for (const Point &b : pj) {
+                                        const double d = (b - vpt(vi)).cast<double>().norm();
+                                        if (d < bd) { bd = d; bv = vi; }
+                                    }
+                                contacts.push_back({ bv, size_t(-1), false, emit_order[j] });
+                            }
+                    if (verts.size() >= 3 && sp_wall_support) {
+                        Points sp;
+                        for (size_t k = 0; k < m_sp_support_ents.size(); ++ k)
+                            if (! m_sp_support_done[k]) m_sp_support_ents[k]->collect_points(sp);
+                        const size_t sstride = sp.empty() ? 1 : std::max<size_t>(1, sp.size() / 256);
+                        double bd = std::numeric_limits<double>::max(); size_t bv = 0;
+                        for (size_t vi = 0; vi < verts.size(); ++ vi)
+                            for (size_t k = 0; k < sp.size(); k += sstride) {
+                                const double d = (sp[k] - vpt(vi)).cast<double>().norm();
+                                if (d < bd) { bd = d; bv = vi; }
+                            }
+                        contacts.push_back({ bv, size_t(-2), false, nullptr });
+                    }
+                    if (verts.size() >= 3)
+                        for (size_t j = 0; j < open_pieces.size(); ++ j) {
+                            const Point a = open_pieces[j]->first_point(), b = open_pieces[j]->last_point();
+                            double bd = reach; size_t bv = std::numeric_limits<size_t>::max(); bool af = true;
+                            for (size_t vi = 0; vi < verts.size(); ++ vi) {
+                                const double da = (a - vpt(vi)).cast<double>().norm(), db = (b - vpt(vi)).cast<double>().norm();
+                                if (da < bd) { bd = da; bv = vi; af = true; }
+                                if (db < bd) { bd = db; bv = vi; af = false; }
+                            }
+                            if (bv != std::numeric_limits<size_t>::max())
+                                contacts.push_back({ bv, j, af, nullptr });
+                        }
+                    if (! contacts.empty()) {
+                        std::sort(contacts.begin(), contacts.end(), [](const C &l, const C &r) { return l.vi < r.vi; });
+                        const double seam_gap = scale_(m_config.seam_gap.get_abs_value(EXTRUDER_CONFIG(nozzle_diameter)));
+                        auto emit_range = [&](size_t v_from, size_t v_to, bool last) {
+                            if (v_to <= v_from)
+                                return;
+                            ExtrusionMultiPath mp;
+                            for (size_t pi = verts[v_from].pi; pi <= verts[v_to].pi; ++ pi) {
+                                const Points &pts = lp.paths[pi].polyline.points;
+                                const size_t k0 = pi == verts[v_from].pi ? verts[v_from].k : 0;
+                                const size_t k1 = pi == verts[v_to].pi ? verts[v_to].k : pts.size() - 1;
+                                if (k1 <= k0)
+                                    continue;
+                                ExtrusionPath sub(lp.paths[pi]);
+                                sub.polyline.points.assign(pts.begin() + k0, pts.begin() + k1 + 1);
+                                mp.paths.emplace_back(std::move(sub));
+                            }
+                            if (last && m_enable_loop_clipping && seam_gap > 0. && ! mp.paths.empty()) {
+                                Polyline &tail = mp.paths.back().polyline;
+                                if (tail.length() > 2. * seam_gap)
+                                    tail.clip_end(seam_gap);
+                                else
+                                    mp.paths.pop_back();
+                            }
+                            if (! mp.paths.empty())
+                                gcode += this->extrude_multi_path(mp, "perimeter", -1.);
+                        };
+                        std::vector<size_t> consumed;
+                        size_t v_start = 0;
+                        for (const C &c : contacts) {
+                            emit_range(v_start, c.vi, false);
+                            v_start = c.vi;
+                            if (c.piece == size_t(-2)) {
+                                ExtrusionEntitiesPtr rest;
+                                for (size_t k = 0; k < m_sp_support_ents.size(); ++ k)
+                                    if (! m_sp_support_done[k]) { rest.push_back(const_cast<ExtrusionEntity *>(m_sp_support_ents[k])); m_sp_support_done[k] = 1; }
+                                const Point at = vpt(c.vi);
+                                if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+                                    std::fprintf(stderr, "[SPSUP] z=%.1f walk sospeso al vertice %zu/%zu per il support (%zu entita')\n",
+                                                 this->m_layer ? this->m_layer->print_z : -1., c.vi, verts.size(), rest.size());
+                                gcode += this->extrude_support_entities(rest, &at);
+                                continue;
+                            }
+                            if (c.loop_ee != nullptr) {
+                                // Anello vicino: entrato e lasciato sul punto piu' vicino al vertice di contatto.
+                                const Point at = vpt(c.vi);
+                                if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+                                    std::fprintf(stderr, "[SPWALL] z=%.1f walk sospeso al vertice %zu/%zu per un anello di %.1f mm\n",
+                                                 this->m_layer ? this->m_layer->print_z : -1., c.vi, verts.size(), c.loop_ee->length() * SCALING_FACTOR);
+                                gcode += this->extrude_entity(*c.loop_ee, "perimeter", -1., region.perimeters, &at);
+                                continue;
+                            }
+                            std::unique_ptr<ExtrusionEntity> pc(open_pieces[c.piece]->clone());
+                            if (c.attached_first && pc->can_reverse())
+                                pc->reverse(); // dalla punta verso il loop: la fine dello sperone e' sul vertice
+                            if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+                                std::fprintf(stderr, "[SPWALL] z=%.1f walk sospeso al vertice %zu/%zu per uno sperone di %.1f mm\n",
+                                             this->m_layer ? this->m_layer->print_z : -1., c.vi, verts.size(), pc->length() * SCALING_FACTOR);
+                            gcode += this->extrude_entity(*pc, "perimeter", -1., region.perimeters, nullptr);
+                            consumed.push_back(c.piece);
+                        }
+                        emit_range(v_start, verts.size() - 1, true);
+                        std::sort(consumed.begin(), consumed.end(), std::greater<size_t>());
+                        for (size_t j : consumed)
+                            open_pieces.erase(open_pieces.begin() + j);
+                        wall_suspended = true;
+                    }
+                }
+                if (! wall_suspended)
+                    gcode += this->extrude_entity(*ee, "perimeter", -1., region.perimeters, seam_ptr);
                 s_single_path_hook_loop = false;
+            }
+            // Pezzi aperti (cordone singolo) dopo il walk, dal piu' vicino alla testa.
+            while (! open_pieces.empty()) {
+                const Point cur = this->last_pos();
+                size_t best = 0; double bd = std::numeric_limits<double>::max();
+                for (size_t k = 0; k < open_pieces.size(); ++ k) {
+                    const double d = std::min((open_pieces[k]->first_point() - cur).cast<double>().norm(),
+                                              (open_pieces[k]->last_point()  - cur).cast<double>().norm());
+                    if (d < bd) { bd = d; best = k; }
+                }
+                gcode += this->extrude_entity(*open_pieces[best], "perimeter", -1., region.perimeters, nullptr);
+                open_pieces.erase(open_pieces.begin() + best);
             }
         }
     return gcode;
@@ -5644,7 +6050,7 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
 // head returns to the interruption point and the loop is completed. Without this, the big ring
 // loop is finished first and the head then travels back across the island to the pocket it passed
 // right next to (measured on the real part: 263mm + 49mm at Z=652 for a pocket the loop touches).
-std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions, const char *extrusion_name)
+std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions, const char *extrusion_name, const Point *plan_head, Point *plan_start, const Points *plan_candidates, const Point *plan_next)
 {
     std::string gcode;
     struct Unit {
@@ -5652,23 +6058,73 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
         const ExtrusionLoop   *loop;   // != nullptr for closed loops (free entry anywhere)
         bool                   atomic; // no_sort collection: stored order, entered at first_point
         bool                   done;
+        int                    sup = -1; // >= 0: entita' di support (indice in m_sp_support_ents), stampata intera
     };
     std::vector<Unit> units;
+    // Costo "proprio" di ogni corta = deviazione e ritorno dal vertice piu' vicino del maggiore
+    // sospendibile piu' vicino (2 d). E' il metro di paragone della catena adattiva.
+    std::vector<double> own_cost;
+    std::vector<bool>   is_major; // riempito dopo la costruzione delle unita'
     std::function<void(const ExtrusionEntity *)> flatten = [&](const ExtrusionEntity *e) {
         if (const auto *c = dynamic_cast<const ExtrusionEntityCollection *>(e)) {
             if (c->entities.empty())
                 return;
             if (c->no_sort)
-                units.push_back({ e, nullptr, true, false });
+                units.push_back({ e, nullptr, true, false, -1 });
             else
                 for (const ExtrusionEntity *ch : c->entities)
                     flatten(ch);
             return;
         }
-        units.push_back({ e, dynamic_cast<const ExtrusionLoop *>(e), false, false });
+        units.push_back({ e, dynamic_cast<const ExtrusionLoop *>(e), false, false, -1 });
     };
     for (const ExtrusionEntity *ee : extrusions)
         flatten(ee);
+    // Ginger (2026-09-08): il support agganciato a questa isola entra nel router come unita' (una
+    // per entita' di primo livello, stampata intera dal ruolo di support): il tour e le sospensioni
+    // lo mettono dove la testa passa piu' vicino.
+    if (m_sp_support_attach && m_sp_support_via_infill && m_sp_support_coll != nullptr)
+        for (size_t k = 0; k < m_sp_support_ents.size(); ++ k)
+            if (! m_sp_support_done[k]) {
+                const ExtrusionEntity *e = m_sp_support_ents[k];
+                units.push_back({ e, dynamic_cast<const ExtrusionLoop *>(e), dynamic_cast<const ExtrusionEntityCollection *>(e) != nullptr, false, int(k) });
+            }
+
+    // Ginger (2026-09-07): un'unita' LUNGA (anello chiuso o path aperto, > 40 touch) non entra nei
+    // cluster ne' nei contatti: stampata intera dentro una sospensione perderebbe le proprie
+    // sospensioni. Prima valeva solo per gli anelli; la spazzata monotonica del bottom (un path
+    // aperto da metri) veniva risucchiata intera nel cluster della prima toppa.
+    // Per i PATH APERTI conta l'ESTENSIONE (distanza fra i due capi = costo del ritorno al vertice di
+    // sospensione dopo l'assorbimento), non la lunghezza: una toppa di top da 400 mm con i capi a
+    // 30 mm e' assorbibile (ritorno corto), una banda diagonale del bottom da 400 mm con i capi a
+    // 80 mm no (misurato: la lunghezza > 40 touch escludeva i top lunghi dai contatti, +4.7 m).
+    // Sopra 400 touch (~3 m) e' comunque maggiore: stampata intera dentro una sospensione perderebbe
+    // le proprie dita.
+    static const double ext_w_g   = [] { const char *v = ::getenv("GINGER_SP_EXTENT_W"); return v ? std::atof(v) : 24.; }();
+    static const double reach_w_g = [] { const char *v = ::getenv("GINGER_SP_TOUCH_W"); return v ? std::atof(v) : 12.; }();
+    auto long_unit = [](const Unit &u, double touch) -> bool {
+        if (u.loop != nullptr)
+            return u.loop->paths.size() == 1 && u.loop->length() > 40. * touch;
+        const auto *path = dynamic_cast<const ExtrusionPath *>(u.ee);
+        if (path == nullptr && ! u.atomic)
+            return false;
+        // Path aperto o collezione atomica (top monotonico): estensione fra i capi o lunghezza.
+        const double extent = (u.ee->last_point() - u.ee->first_point()).cast<double>().norm();
+        double len = 0.;
+        if (u.atomic) {
+            std::function<double(const ExtrusionEntity *)> ee_len = [&](const ExtrusionEntity *e) -> double {
+                if (const auto *c = dynamic_cast<const ExtrusionEntityCollection *>(e)) { // length() lancia sulle collezioni
+                    double l = 0.;
+                    for (const ExtrusionEntity *ch : c->entities) l += ee_len(ch);
+                    return l;
+                }
+                return e->length();
+            };
+            len = ee_len(u.ee);
+        } else
+            len = u.ee->length();
+        return extent > ext_w_g * touch / 4. || len > 400. * touch;
+    };
 
     // Entry cost of a unit from `from`: loops may be entered anywhere (free seam), open paths at
     // either end, atomic collections only at their stored front.
@@ -5680,8 +6136,11 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
                     best = std::min(best, (pt - from).cast<double>().norm());
             return best;
         }
-        if (u.atomic)
-            return (u.ee->first_point() - from).cast<double>().norm();
+        // Ginger (2026-09-06, figure plate 3 di Davide, layer 172): una collezione monotonica (top)
+        // si puo' entrare anche dalla FINE, stampandone una copia rovesciata (ordine specchiato:
+        // ancora monotonico, ogni linea al contrario). Con il solo primo punto, i top con l'inizio
+        // dal lato lontano dalla parete non avevano contatto con l'anello e finivano in catena
+        // top -> top a fine layer (239 + 85 + 89 mm su un layer).
         return std::min((u.ee->first_point() - from).cast<double>().norm(),
                         (u.ee->last_point()  - from).cast<double>().norm());
     };
@@ -5689,12 +6148,112 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
     // Emit one unit from the current position; open paths pick the nearer end (reversed owned copy,
     // the shared print data is never mutated), loops split at the current position inside
     // extrude_loop, atomic collections print in stored order.
-    auto emit_unit = [this, &gcode, extrusion_name](Unit &u) {
+    // Ginger (2026-09-07, Davide: "un travel di 317 mm ai primi layer e' la prima causa di layer
+    // shift"): anche una collezione monotonica (top/bottom, la grande toppa del layer 2) si SOSPENDE.
+    // Fra una linea e la successiva, se un'unita' non stampata ha un capo entro `reach` dalla testa
+    // (le toppe laterali che la spazzata sfiora), la si stampa subito con il suo cluster e si riprende
+    // la spazzata dalla linea seguente: l'ordine monotonico non cambia, si inserisce soltanto.
+    // Prima: 24 toppe stampate in sequenza greedy dopo la grande, salto massimo 317 mm (layer 2),
+    // 176 mm (layer 1).
+    std::function<void(Unit &)>            emit_unit;
+    std::function<void(double, int, const Point *)> route_cluster;
+    std::function<void(Unit &, bool, int)> emit_suspended;
+    // Ginger (2026-09-07): sospensione ANNIDATA. Un contatto (o un membro del cluster) non si stampa
+    // piu' intero: si stampa con le proprie sospensioni, fino a profondita' kMaxDepth (poi intero).
+    // E' la visita in profondita' del grafo di adiacenza: si stampa cio' che si sfiora e si torna.
+    // Senza annidamento un top lungo assorbito da un anello perdeva le sue toppe, e le bande del
+    // bottom del layer 2 assorbite da una vicina lasciavano le proprie dita per la fine del layer.
+    static const int kMaxDepth = [] { const char *v = ::getenv("GINGER_SP_DEPTH"); return v ? std::atoi(v) : 1; }();
+    auto nearer_from_end = [this](const Unit &u) -> bool {
+        if (u.loop != nullptr) return false;
+        const Point c = this->last_pos();
+        return (u.ee->last_point() - c).cast<double>().squaredNorm() < (u.ee->first_point() - c).cast<double>().squaredNorm();
+    };
+    auto suspend_around = [&units, &emit_suspended, &route_cluster, &long_unit, &nearer_from_end, this](double reach, double touch) {
+        for (;;) {
+            const Point cur  = this->last_pos();
+            Unit       *best = nullptr;
+            double      bd   = reach;
+            for (Unit &v : units)
+                if (! v.done) {
+                    if (1 >= kMaxDepth && long_unit(v, touch))
+                        continue;
+                    double d;
+                    if (v.loop != nullptr) {
+                        d = std::numeric_limits<double>::max();
+                        for (const ExtrusionPath &p : v.loop->paths)
+                            for (const Point &pt : p.polyline.points)
+                                d = std::min(d, (pt - cur).cast<double>().norm());
+                    } else
+                        d = std::min((v.ee->first_point() - cur).cast<double>().norm(),
+                                     (v.ee->last_point()  - cur).cast<double>().norm());
+                    if (d <= bd) { bd = d; best = &v; }
+                }
+            if (best == nullptr)
+                return;
+            static const bool sdbg = ::getenv("GINGER_SP_ROUTEDBG") != nullptr;
+            if (sdbg)
+                std::fprintf(stderr, "[ROUTE] z=%.1f sospensione atomica: unita' a %.1f mm (%s)\n",
+                             this->m_layer != nullptr ? this->m_layer->print_z : 0., bd * SCALING_FACTOR,
+                             best->atomic ? "atomica" : best->loop ? "loop" : "path");
+            emit_suspended(*best, nearer_from_end(*best), 1);
+            route_cluster(touch, 1, nullptr);
+        }
+    };
+    emit_unit = [this, &gcode, extrusion_name, &suspend_around, &units](Unit &u) {
         u.done = true;
+        if (u.sup >= 0) {
+            m_sp_support_done[u.sup] = 1;
+            if (const auto *sc = dynamic_cast<const ExtrusionEntityCollection *>(u.ee))
+                gcode += this->extrude_support(*sc, m_sp_support_role);
+            else {
+                const Point c = this->last_pos();
+                if (u.loop == nullptr && u.ee->can_reverse() &&
+                    (u.ee->last_point() - c).cast<double>().squaredNorm() < (u.ee->first_point() - c).cast<double>().squaredNorm()) {
+                    std::unique_ptr<ExtrusionEntity> rev(u.ee->clone());
+                    rev->reverse();
+                    gcode += this->extrude_entity(*rev, "support material", -1.);
+                } else
+                    gcode += this->extrude_entity(*u.ee, "support material", -1.);
+            }
+            return;
+        }
         if (u.atomic) {
             const auto *eec = static_cast<const ExtrusionEntityCollection *>(u.ee);
-            for (const ExtrusionEntity *ee : eec->chained_path_from(this->last_pos()).entities)
+            const Point cur = this->last_pos();
+            double width = 0.;
+            for (const ExtrusionEntity *ee : eec->entities)
+                if (const auto *pp = dynamic_cast<const ExtrusionPath *>(ee)) { width = double(pp->width); break; }
+            static const double reach_w2 = [] { const char *v = ::getenv("GINGER_SP_TOUCH_W"); return v ? std::atof(v) : 12.; }();
+            const double touch = 4. * scale_(width), reach = reach_w2 * scale_(width);
+            static const bool udbg = ::getenv("GINGER_SP_ROUTEDBG") != nullptr;
+            if (udbg) {
+                size_t left = 0;
+                for (const Unit &v : units) if (! v.done) ++ left;
+                const BoundingBox bb = eec->polygons_covered_by_width().empty() ? BoundingBox() : get_extents(eec->polygons_covered_by_width());
+                std::fprintf(stderr, "[ROUTE] z=%.1f atomica: %zu entita', w=%.2f, bbox (%.0f,%.0f)-(%.0f,%.0f), capi (%.0f,%.0f)/(%.0f,%.0f), testa (%.0f,%.0f), restano %zu\n",
+                             this->m_layer != nullptr ? this->m_layer->print_z : 0., eec->entities.size(), width,
+                             bb.min.x() * SCALING_FACTOR, bb.min.y() * SCALING_FACTOR, bb.max.x() * SCALING_FACTOR, bb.max.y() * SCALING_FACTOR,
+                             u.ee->first_point().x() * SCALING_FACTOR, u.ee->first_point().y() * SCALING_FACTOR,
+                             u.ee->last_point().x() * SCALING_FACTOR, u.ee->last_point().y() * SCALING_FACTOR,
+                             cur.x() * SCALING_FACTOR, cur.y() * SCALING_FACTOR, left);
+            }
+            ExtrusionEntityCollection seq = ((u.ee->last_point() - cur).cast<double>().squaredNorm() <
+                                             (u.ee->first_point() - cur).cast<double>().squaredNorm())
+                                            ? ExtrusionEntityCollection(*eec) : eec->chained_path_from(cur);
+            if (&seq != eec && (u.ee->last_point() - cur).cast<double>().squaredNorm() <
+                               (u.ee->first_point() - cur).cast<double>().squaredNorm())
+                seq.reverse();
+            // Misurato (knee): la sospensione fra le linee di una collezione atomica e' un disastro
+            // dove i solidi interni sono tante collezioni atomiche vicine: ognuna tira dentro le
+            // unita' entro reach dopo OGNI linea e le concatena (solido -> solido 5.9 -> 47 m,
+            // totale 45 -> 81 m). Sul piatto 3 era neutra. Spenta: GINGER_SP_ATOMIC_SUSP=1 per riprovarla.
+            static const bool atomic_susp = [] { const char *v = ::getenv("GINGER_SP_ATOMIC_SUSP"); return v != nullptr && std::atoi(v) != 0; }();
+            for (const ExtrusionEntity *ee : seq.entities) {
                 gcode += this->extrude_entity(*ee, extrusion_name);
+                if (atomic_susp && width > 0.)
+                    suspend_around(reach, touch);
+            }
             return;
         }
         const Point cur = this->last_pos();
@@ -5710,51 +6269,563 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
 
     // Print every unit reachable from the current position through a chain of touches (each hop
     // <= touch). Loops inside a cluster print whole - no nested suspension, bounded complexity.
-    auto route_cluster = [&units, &entry_cost, &emit_unit, this](double touch) {
+    // Ginger (2026-09-08): catena ADATTIVA. Dopo un contatto la testa e' a `cur`, il vertice di
+    // ripresa e' `anchor`. La prossima unita' v si incatena se stamparla da qui e tornare costa
+    // meno che tornare ora e deviare di nuovo per lei: d(cur, v.in) + d(v.out, anchor) <=
+    // d(cur, anchor) + 2 d(v.in, anchor). Il touch (4 w) resta come corsia veloce.
+    route_cluster = [&units, &entry_cost, &emit_suspended, &long_unit, &nearer_from_end, &own_cost, &is_major, this](double touch, int depth, const Point *anchor) {
         for (;;) {
             const Point cur  = this->last_pos();
             Unit       *best = nullptr;
-            double      bd   = touch;
+            double      bd   = std::numeric_limits<double>::max();
             for (Unit &u : units)
                 if (! u.done) {
+                    // Ginger (2026-09-06, figure plate 3 di Davide, layer 172): un anello chiuso
+                    // LUNGO adiacente al punto di sospensione entrava nel cluster e veniva stampato
+                    // intero (2308 mm) senza le sue sospensioni: i top lungo il suo percorso
+                    // restavano per la fine del layer, in catena (239 + 85 + 89 mm di travel).
+                    // Gli anelli lunghi tornano al giro principale, che li sospende a sua volta.
+                    // Soglia 40 touch (~300 mm): a 10 touch (76 mm) un anellino da 83 mm accanto a un
+                    // top restava fuori da cluster e contatti e finiva per ultimo con 286 mm di travel
+                    // (12h26m, layer 60).
+                    if (depth >= kMaxDepth && long_unit(u, touch))
+                        continue;
                     const double d = entry_cost(u, cur);
-                    if (d <= bd) { bd = d; best = &u; }
+                    // Catena adattiva: v si incatena se il costo marginale di prenderla ORA
+                    // (andata da qui + ritorno al vertice - il ritorno che avrei fatto comunque) non
+                    // supera il suo costo proprio (deviazione e ritorno dal SUO maggiore piu' vicino).
+                    // Prima versione (confronto col ritorno a questo vertice) incatenava tutto:
+                    // 35 -> 180 m sul piatto 3.
+                    bool ok = d <= touch;
+                    const size_t ui = size_t(&u - units.data());
+                    if (! ok && anchor != nullptr && ! is_major[ui] && ui < own_cost.size() && own_cost[ui] < std::numeric_limits<double>::max()) {
+                        Point vout;
+                        if (u.loop != nullptr) {
+                            double best = std::numeric_limits<double>::max();
+                            for (const ExtrusionPath &pp : u.loop->paths) for (const Point &pt : pp.polyline.points) { const double dd = (pt - cur).cast<double>().norm(); if (dd < best) { best = dd; vout = pt; } }
+                        } else {
+                            const bool from_last = (u.ee->last_point() - cur).cast<double>().squaredNorm() < (u.ee->first_point() - cur).cast<double>().squaredNorm();
+                            vout = from_last ? u.ee->first_point() : u.ee->last_point();
+                        }
+                        const double da = (cur - *anchor).cast<double>().norm();
+                        ok = d + (vout - *anchor).cast<double>().norm() - da <= own_cost[ui];
+                    }
+                    if (ok && d <= bd) { bd = d; best = &u; }
                 }
             if (best == nullptr)
                 return;
-            emit_unit(*best);
+            emit_suspended(*best, nearer_from_end(*best), depth);
         }
     };
 
-    for (;;) {
-        const Point cur  = this->last_pos();
-        Unit       *best = nullptr;
-        double      bd   = std::numeric_limits<double>::max();
-        for (Unit &u : units)
-            if (! u.done) {
-                const double d = entry_cost(u, cur);
-                if (d < bd) { bd = d; best = &u; }
-            }
-        if (best == nullptr)
-            break;
-        if (best->loop == nullptr || best->loop->paths.size() != 1) {
-            emit_unit(*best);
-            continue;
+    // Ginger (2026-09-07, figure plate 3 di Davide, layer 1-2, "un travel di 317 mm ai primi layer e'
+    // la prima causa di layer shift"): l'ordine delle unita' non e' piu' il greedy "entrata piu'
+    // vicina" ma un TOUR (greedy di partenza + or-opt / 2-opt con orientamento, costo = somma dei
+    // salti + salto massimo). Il bottom del layer 2 e' un corpo da 22 m piu' bande diagonali da 1-6 m
+    // fra le tacche del fianco: il greedy partiva dalla banda accanto alla seam, risaliva fino in
+    // alto e lasciava il corpo per ultimo (253-317 mm di ritorno). Il tour lo mette al suo posto nella
+    // catena. Le sospensioni (toppe assorbite lungo il cammino) restano: un'unita' gia' stampata e'
+    // saltata. GINGER_SP_TOUR=0 torna al greedy.
+    struct Stop { Unit *u; bool rev; };
+    // Larghezza di un'unita' (per touch/reach) e classificazione "maggiore": atomica o lunga
+    // (> 40 touch). Solo le maggiori entrano nel tour; le corte restano al greedy e alle sospensioni
+    // (misurato: il tour su TUTTE le unita' mette in sequenza anche le toppe che le sospensioni
+    // avrebbero assorbito lungo l'anello: 35.6 -> 71.7 m di travel sul piatto 3).
+    std::function<double(const ExtrusionEntity *)> ee_width = [&](const ExtrusionEntity *e) -> double {
+        if (const auto *pth = dynamic_cast<const ExtrusionPath *>(e)) return double(pth->width);
+        if (const auto *mp = dynamic_cast<const ExtrusionMultiPath *>(e)) return mp->paths.empty() ? 0. : double(mp->paths.front().width);
+        if (const auto *lp = dynamic_cast<const ExtrusionLoop *>(e)) return lp->paths.empty() ? 0. : double(lp->paths.front().width);
+        if (const auto *c = dynamic_cast<const ExtrusionEntityCollection *>(e))
+            for (const ExtrusionEntity *ch : c->entities) { const double w = ee_width(ch); if (w > 0.) return w; }
+        return 0.;
+    };
+    is_major.assign(units.size(), false);
+    for (size_t i = 0; i < units.size(); ++ i)
+        is_major[i] = long_unit(units[i], 4. * scale_(ee_width(units[i].ee)));
+    std::vector<Stop> tour;
+    static const bool use_tour = [] { const char *v = ::getenv("GINGER_SP_TOUR"); return v == nullptr || std::atoi(v) != 0; }();
+    // Sampled points of every unit (loops: entry anywhere).
+    std::vector<Points> samples(units.size());
+    for (size_t i = 0; i < units.size(); ++ i) {
+        Points pts;
+        units[i].ee->collect_points(pts);
+        const size_t stride = std::max<size_t>(1, pts.size() / 512);
+        for (size_t k = 0; k < pts.size(); k += stride)
+            samples[i].emplace_back(pts[k]);
+        if (! pts.empty() && (pts.size() - 1) % stride != 0)
+            samples[i].emplace_back(pts.back());
+    }
+    // Una corta che sta entro `reach` da una maggiore SOSPENDIBILE ancora da stampare (anello a un
+    // path o path aperto) non va in greedy: la stampera' la sospensione, con ritorno corto.
+    // (Layer 31: 6 toppe corte in catena greedy 58+121+239+144 mm prima dell'anello che le
+    // avrebbe assorbite tutte a costo ~0.)
+    auto suspendable = [](const Unit &u) -> bool {
+        if (u.loop != nullptr) return u.loop->paths.size() == 1;
+        return ! u.atomic && dynamic_cast<const ExtrusionPath *>(u.ee) != nullptr;
+    };
+    auto absorbable = [&](const Unit &sh) -> bool {
+        const size_t si = size_t(&sh - units.data());
+        Points entries;
+        if (sh.loop != nullptr)
+            entries = samples[si];
+        else {
+            entries.emplace_back(sh.ee->first_point());
+            entries.emplace_back(sh.ee->last_point());
         }
-        // Closed single-path loop: look for suspension opportunities before committing to it.
-        best->done = true;
-        const ExtrusionPath &proto = best->loop->paths.front();
+        for (size_t j = 0; j < units.size(); ++ j)
+            if (is_major[j] && ! units[j].done && suspendable(units[j])) {
+                const double reach = reach_w_g * scale_(ee_width(units[j].ee));
+                for (const Point &pt : samples[j])
+                    for (const Point &e : entries)
+                        if ((pt - e).cast<double>().norm() <= reach)
+                            return true;
+            }
+        return false;
+    };
+    // Entry cost of a stop from `from`; `exit` receives where the head ends up.
+    auto stop_cost = [&](const Stop &st, const Point &from, Point &exit) -> double {
+        const size_t i = size_t(st.u - units.data());
+        if (st.u->loop != nullptr) {
+            double best = std::numeric_limits<double>::max();
+            for (const Point &pt : samples[i]) {
+                const double d = (pt - from).cast<double>().norm();
+                if (d < best) { best = d; exit = pt; }
+            }
+            return best;
+        }
+        const Point a = st.rev ? st.u->ee->last_point() : st.u->ee->first_point();
+        exit = st.rev ? st.u->ee->first_point() : st.u->ee->last_point();
+        return (a - from).cast<double>().norm();
+    };
+    // Fermate del tour: le maggiori piu' le corte che nessuna maggiore sospendibile puo' assorbire
+    // (layer 1: due toppe sulla punta del braccio a 60-70 mm da ogni banda restavano per ultime,
+    // 250 mm di ritorno).
+    // Ginger (2026-09-08, figure con support, layer 101 e 148-170): un'unita' corta FUORI reach da
+    // ogni maggiore sospendibile (un top da 6 mm a 100 mm dallo sparse, il tronco del support a
+    // 30-50 mm dal wall) finiva nel tour, dove un anello e' UNA fermata con uscita = entrata: la
+    // fermata costava il viaggio intero dalla seam (346 e 427 mm, per ultima). Regola adattiva:
+    // se il maggiore sospendibile piu' vicino e' piu' vicino di qualunque altra fermata del tour,
+    // l'unita' gli viene ASSEGNATA e diventa un suo contatto anche oltre reach (costo 2 d contro
+    // il viaggio della fermata).
+    // Ginger (2026-09-08, Davide: "le N cordoni non hanno senso su 1 m^2, serve una versione
+    // adattiva"): niente soglie. Ogni unita' corta e' o CONTATTO di un maggiore sospendibile (costo
+    // = deviazione dal vertice piu' vicino e ritorno) o FERMATA del tour (costo = inserimento nel
+    // tour dei maggiori): vince il costo minore, misurato in mm su questo layer. Il reach (12 w)
+    // resta solo come corsia veloce per le unita' addossate a un maggiore.
+    std::vector<char> absorb_reach(units.size(), 0);
+    for (size_t i = 0; i < units.size(); ++ i)
+        absorb_reach[i] = ! is_major[i] && absorbable(units[i]);
+    std::vector<int>  assigned(units.size(), -1);
+    std::vector<bool> in_tour(units.size(), false);
+    for (size_t i = 0; i < units.size(); ++ i)
+        in_tour[i] = is_major[i];
+    // Costruzione del tour dalla testa `head` (greedy + ricerca locale); sum_out/mx_out = somma e
+    // massimo dei salti. Usata sia per l'emissione sia per il PIANO della seam (plan_start).
+    auto build_tour = [&](const Point &head, std::vector<Stop> &tour_out, bool dbg, double &sum_out, double &mx_out, Point &end_out) {
+        tour_out.clear();
+        auto tour_cost = [&](const std::vector<Stop> &t) -> double {
+            Point  pp = head, e;
+            double sum = 0., mx = 0.;
+            for (const Stop &st : t) {
+                const double d = stop_cost(st, pp, e);
+                sum += d; mx = std::max(mx, d); pp = e;
+            }
+            return sum + mx;
+        };
+        // Greedy start over the majors (nearest entry from the running head).
+        std::vector<bool> gtaken(units.size(), false);
+        size_t n_major = 0;
+        for (size_t i = 0; i < units.size(); ++ i) if (in_tour[i]) ++ n_major;
+        Point gp = head;
+        for (size_t n = 0; n < n_major; ++ n) {
+            Stop   best { nullptr, false };
+            Point  best_exit;
+            double bd = std::numeric_limits<double>::max();
+            for (size_t i = 0; i < units.size(); ++ i)
+                if (in_tour[i] && ! gtaken[i])
+                    for (int r = 0; r < (units[i].loop != nullptr ? 1 : 2); ++ r) {
+                        Point e;
+                        const Stop st { &units[i], r == 1 };
+                        const double d = stop_cost(st, gp, e);
+                        if (d < bd) { bd = d; best = st; best_exit = e; }
+                    }
+            gtaken[size_t(best.u - units.data())] = true;
+            tour_out.push_back(best);
+            gp = best_exit;
+        }
+        if (use_tour && tour_out.size() >= 2 && tour_out.size() <= 200) {
+            double cur_cost = tour_cost(tour_out);
+            bool   improved = true;
+            for (int pass = 0; improved && pass < 60; ++ pass) {
+                improved = false;
+                const size_t n = tour_out.size();
+                // Orientation flips.
+                for (size_t i = 0; i < n; ++ i)
+                    if (tour_out[i].u->loop == nullptr) {
+                        tour_out[i].rev = ! tour_out[i].rev;
+                        const double c = tour_cost(tour_out);
+                        if (c < cur_cost - 1.) { cur_cost = c; improved = true; } else tour_out[i].rev = ! tour_out[i].rev;
+                    }
+                // Or-opt: move a block of 1..3 stops elsewhere, straight or reversed.
+                for (size_t len = 1; len <= 3 && len < n; ++ len)
+                    for (size_t i = 0; i + len <= n; ++ i) {
+                        std::vector<Stop> block(tour_out.begin() + i, tour_out.begin() + i + len);
+                        std::vector<Stop> rest;
+                        rest.reserve(n - len);
+                        rest.insert(rest.end(), tour_out.begin(), tour_out.begin() + i);
+                        rest.insert(rest.end(), tour_out.begin() + i + len, tour_out.end());
+                        std::vector<Stop> rblock(block.rbegin(), block.rend());
+                        for (Stop &st : rblock) if (st.u->loop == nullptr) st.rev = ! st.rev;
+                        bool done_move = false;
+                        for (size_t j = 0; j <= rest.size() && ! done_move; ++ j) {
+                            if (j == i) continue;
+                            for (int r = 0; r < 2 && ! done_move; ++ r) {
+                                std::vector<Stop> cand(rest);
+                                const std::vector<Stop> &b = r == 0 ? block : rblock;
+                                cand.insert(cand.begin() + j, b.begin(), b.end());
+                                const double c = tour_cost(cand);
+                                if (c < cur_cost - 1.) { cur_cost = c; tour_out = cand; improved = true; done_move = true; }
+                            }
+                        }
+                        if (done_move) break;
+                    }
+                // 2-opt: reverse a segment (orientations flipped).
+                for (size_t i = 0; i + 1 < n; ++ i)
+                    for (size_t j = i + 1; j < n; ++ j) {
+                        std::vector<Stop> cand(tour_out);
+                        std::reverse(cand.begin() + i, cand.begin() + j + 1);
+                        for (size_t k = i; k <= j; ++ k) if (cand[k].u->loop == nullptr) cand[k].rev = ! cand[k].rev;
+                        const double c = tour_cost(cand);
+                        if (c < cur_cost - 1.) { cur_cost = c; tour_out = cand; improved = true; }
+                    }
+            }
+        }
+        static const bool tour_dbg = ::getenv("GINGER_SP_ROUTEDBG") != nullptr;
+        {
+            Point  pp = head, e;
+            double mx = 0., sum = 0.;
+            for (const Stop &st : tour_out) { const double d = stop_cost(st, pp, e); sum += d; mx = std::max(mx, d); pp = e; }
+            sum_out = sum; mx_out = mx; end_out = pp;
+            if (dbg && tour_dbg) std::fprintf(stderr, "[ROUTE] z=%.1f tour di %zu maggiori su %zu unita': salti %.0f mm, massimo %.0f mm (%s)\n",
+                         this->m_layer != nullptr ? this->m_layer->print_z : 0., tour_out.size(), units.size(), sum * SCALING_FACTOR, mx * SCALING_FACTOR,
+                         use_tour ? "ottimizzato" : "greedy");
+        }
+    };
+    {
+        // Tour dei soli maggiori dalla testa reale; poi ogni corta fuori reach sceglie fra contatto e fermata.
+        const Point       head0 = plan_head != nullptr ? *plan_head : this->last_pos();
+        std::vector<Stop> t0;
+        double            sum0 = 0., mx0 = 0.;
+        Point             end0 = head0;
+        build_tour(head0, t0, false, sum0, mx0, end0);
+        // Punti di uscita lungo il tour (e_0 = testa) e di entrata di ogni fermata.
+        std::vector<Point> exits { head0 }, entries;
+        for (const Stop &st : t0) {
+            Point e;
+            stop_cost(st, exits.back(), e);
+            entries.emplace_back(st.u->loop != nullptr ? e : (st.rev ? st.u->ee->last_point() : st.u->ee->first_point()));
+            exits.emplace_back(e);
+        }
+        auto dist = [](const Point &a, const Point &b) { return (a - b).cast<double>().norm(); };
+        // Passo 0 (2026-09-08, figure con support, layer 130): anche un MAGGIORE aperto (top
+        // monotonico con i capi a piu' di 24 w) puo' costare meno come contatto di un anello
+        // sospendibile (d(v,a) + d(v,b): entra da un capo, esce dall'altro, torna) che come fermata
+        // del tour (dove l'anello e' una fermata sola: il top attaccato alla lining ma lontano dalla
+        // seam costava 419 mm per ultimo). Se vince il contatto perde le proprie sospensioni:
+        // e' nel prezzo. Gli anelli lunghi restano fermate.
+        {
+            bool changed = false;
+            for (size_t i = 0; i < units.size(); ++ i) {
+                if (! is_major[i] || units[i].loop != nullptr) continue;
+                const Unit &U = units[i];
+                int    bl = -1;
+                double c_abs = std::numeric_limits<double>::max();
+                for (size_t j = 0; j < units.size(); ++ j)
+                    if (j != i && is_major[j] && units[j].loop != nullptr && suspendable(units[j]))
+                        for (const Point &v : samples[j]) {
+                            const double c = dist(v, U.ee->first_point()) + dist(v, U.ee->last_point());
+                            if (c < c_abs) { c_abs = c; bl = int(j); }
+                        }
+                if (bl < 0) continue;
+                // Costo come fermata: la sua posizione attuale nel tour t0 (prev -> in, out -> next, meno prev -> next).
+                double c_ins = std::numeric_limits<double>::max();
+                for (size_t k = 0; k < t0.size(); ++ k)
+                    if (t0[k].u == &units[i]) {
+                        const Point &prev = exits[k];
+                        const Point  in   = t0[k].rev ? U.ee->last_point() : U.ee->first_point();
+                        const Point  out  = t0[k].rev ? U.ee->first_point() : U.ee->last_point();
+                        double c = dist(prev, in);
+                        if (k + 1 < entries.size()) c += dist(out, entries[k + 1]) - dist(prev, entries[k + 1]);
+                        c_ins = c;
+                    }
+                if (c_abs < c_ins) {
+                    assigned[i] = bl;
+                    is_major[i] = false;
+                    in_tour[i]  = false;
+                    changed     = true;
+                }
+            }
+            if (changed) {
+                // Tour dei maggiori rimasti, per le decisioni delle corte.
+                t0.clear(); exits.assign(1, head0); entries.clear();
+                build_tour(head0, t0, false, sum0, mx0, end0);
+                for (const Stop &st : t0) {
+                    Point e;
+                    stop_cost(st, exits.back(), e);
+                    entries.emplace_back(st.u->loop != nullptr ? e : (st.rev ? st.u->ee->last_point() : st.u->ee->first_point()));
+                    exits.emplace_back(e);
+                }
+            }
+        }
+        own_cost.assign(units.size(), std::numeric_limits<double>::max());
+        for (size_t i = 0; i < units.size(); ++ i) {
+            if (is_major[i] || assigned[i] >= 0) continue;
+            const Unit &U = units[i];
+            // Costo come contatto del maggiore sospendibile piu' vicino: dal vertice v all'entrata,
+            // dall'uscita a v (anello: 2 d).
+            int    bl = -1;
+            double c_abs = std::numeric_limits<double>::max();
+            for (size_t j = 0; j < units.size(); ++ j)
+                if (j != i && is_major[j] && suspendable(units[j])) {
+                    double best = std::numeric_limits<double>::max();
+                    for (const Point &v : samples[j]) {
+                        double c;
+                        if (U.loop != nullptr) {
+                            double dm = std::numeric_limits<double>::max();
+                            for (const Point &q : samples[i]) dm = std::min(dm, dist(v, q));
+                            c = 2. * dm;
+                        } else
+                            c = dist(v, U.ee->first_point()) + dist(v, U.ee->last_point());
+                        best = std::min(best, c);
+                    }
+                    if (best < c_abs) { c_abs = best; bl = int(j); }
+                }
+            own_cost[i] = c_abs;
+            if (absorb_reach[i]) continue;
+            // Costo come fermata: inserimento piu' economico nel tour dei maggiori (ogni posizione,
+            // entrambi i versi; dopo l'ultima fermata solo l'andata).
+            double c_ins = std::numeric_limits<double>::max();
+            for (int r = 0; r < (U.loop != nullptr ? 1 : 2); ++ r)
+                for (size_t k = 0; k < exits.size(); ++ k) {
+                    Point ue, ux;
+                    if (U.loop != nullptr) {
+                        double dm = std::numeric_limits<double>::max();
+                        for (const Point &q : samples[i]) { const double d = dist(exits[k], q); if (d < dm) { dm = d; ue = q; } }
+                        ux = ue;
+                    } else {
+                        ue = r == 0 ? U.ee->first_point() : U.ee->last_point();
+                        ux = r == 0 ? U.ee->last_point()  : U.ee->first_point();
+                    }
+                    double c = dist(exits[k], ue);
+                    if (k < entries.size())
+                        c += dist(ux, entries[k]) - dist(exits[k], entries[k]);
+                    c_ins = std::min(c_ins, c);
+                }
+            if (bl >= 0 && c_abs <= c_ins)
+                assigned[i] = bl;
+            else
+                in_tour[i] = true;
+        }
+        static const bool adbg = ::getenv("GINGER_SP_ROUTEDBG") != nullptr;
+        if (adbg && plan_start == nullptr) {
+            size_t na = 0, nt = 0, nr = 0;
+            for (size_t i = 0; i < units.size(); ++ i) if (! is_major[i]) { if (absorb_reach[i]) ++ nr; else if (assigned[i] >= 0) ++ na; else ++ nt; }
+            std::fprintf(stderr, "[ROUTE] z=%.1f corte: %zu entro reach, %zu assegnate per costo, %zu fermate del tour\n",
+                         this->m_layer != nullptr ? this->m_layer->print_z : 0., nr, na, nt);
+        }
+    }
+    if (plan_start != nullptr) {
+        // Ginger (2026-09-07, figure plate 3, layer 1-3): la seam del muro (hook) si appuntava sull'entrata
+        // dell'infill piu' vicina alla testa; da li' il tour delle bande del bottom era costretto a un
+        // ritorno da 150-200 mm. Qui si prova ogni capo di ogni fermata del tour come inizio e si
+        // sceglie quello con costo minimo = salto testa->inizio (il cambio layer) + salti del tour +
+        // salto massimo. La seam del muro va li' (anello chiuso: costo zero).
+        const Point head   = *plan_head;
+        double      best_c = std::numeric_limits<double>::max();
+        Point       best_s = head;
+        bool        found  = false;
+        std::vector<Stop> best_t;
+        const bool  first_layer_plan = this->m_layer != nullptr && this->m_layer->id() == 0;
+        // Lookahead: dove puo' cominciare l'infill del layer sopra (capi dei path, campioni degli
+        // anelli). La distanza dalla FINE del tour al piu' vicino e' il prossimo cambio layer:
+        // senza, il layer N sceglieva un tour che scaricava 186 mm sul cambio verso N+1 (L183/184).
+        Points next_pts;
+        if (plan_next != nullptr)
+            next_pts.emplace_back(*plan_next); // isola successiva nello stesso layer: la partenza va li'
+        else if (this->m_layer != nullptr && this->m_layer->upper_layer != nullptr) {
+            std::function<void(const ExtrusionEntity *)> scan = [&](const ExtrusionEntity *e) {
+                if (const auto *c = dynamic_cast<const ExtrusionEntityCollection *>(e)) {
+                    if (c->no_sort) { next_pts.emplace_back(c->first_point()); next_pts.emplace_back(c->last_point()); return; }
+                    for (const ExtrusionEntity *ch : c->entities) scan(ch);
+                    return;
+                }
+                if (dynamic_cast<const ExtrusionLoop *>(e) != nullptr) {
+                    Points pts;
+                    e->collect_points(pts);
+                    const size_t stride = std::max<size_t>(1, pts.size() / 64);
+                    for (size_t k = 0; k < pts.size(); k += stride) next_pts.emplace_back(pts[k]);
+                    return;
+                }
+                next_pts.emplace_back(e->first_point());
+                next_pts.emplace_back(e->last_point());
+            };
+            for (const LayerRegion *lr : this->m_layer->upper_layer->regions())
+                for (const ExtrusionEntity *e : lr->fills.entities)
+                    if (e->role() != erIroning)
+                        scan(e);
+        }
+        auto try_start = [&](const Point &sp) {
+            std::vector<Stop> t;
+            double sum = 0., mx = 0.;
+            Point  end = sp;
+            build_tour(sp, t, false, sum, mx, end);
+            // Al primo layer il salto testa->inizio viene dallo skirt, sopra il piano vuoto:
+            // non e' un cambio layer, non conta.
+            // I salti di cambio layer (d0 in arrivo, dnext in partenza) pesano GINGER_SP_CHANGE_W
+            // (default 1.5) rispetto ai salti dentro il layer: "il cambio layer e' la cosa piu'
+            // delicata" (Davide).
+            static const double change_w2 = [] { const char *v = ::getenv("GINGER_SP_CHANGE_W"); return v ? std::atof(v) : 1.5; }();
+            const double d0 = (first_layer_plan ? 0. : (sp - head).cast<double>().norm()) * change_w2;
+            double dnext = 0.;
+            if (! next_pts.empty()) {
+                dnext = std::numeric_limits<double>::max();
+                for (const Point &np : next_pts) dnext = std::min(dnext, (np - end).cast<double>().norm());
+                dnext *= change_w2;
+            }
+            const double c = d0 + sum + dnext + std::max(mx, std::max(d0, dnext));
+            if (c < best_c) { best_c = c; best_s = sp; found = true; best_t = t; }
+        };
+        if (plan_candidates != nullptr && ! plan_candidates->empty()) {
+            // Inizi imposti (ancore rib di questo layer): la seam DEVE stare in un rib, il tour
+            // decide in quale.
+            for (const Point &sp : *plan_candidates)
+                try_start(sp);
+        } else
+        for (size_t i = 0; i < units.size(); ++ i)
+            if (in_tour[i]) {
+                Points cands;
+                if (units[i].loop != nullptr) {
+                    double bd = std::numeric_limits<double>::max();
+                    Point  bp;
+                    for (const Point &pt : samples[i]) { const double d = (pt - head).cast<double>().norm(); if (d < bd) { bd = d; bp = pt; } }
+                    if (bd < std::numeric_limits<double>::max()) cands.emplace_back(bp);
+                } else {
+                    cands.emplace_back(units[i].ee->first_point());
+                    cands.emplace_back(units[i].ee->last_point());
+                }
+                for (const Point &sp : cands)
+                    try_start(sp);
+            }
+        if (found) {
+            *plan_start = best_s;
+            s_single_path_planned_tour.start = best_s;
+            s_single_path_planned_tour.stops.clear();
+            for (const Stop &st : best_t)
+                s_single_path_planned_tour.stops.emplace_back(st.u->ee, st.rev);
+            s_single_path_planned_tour.valid = true;
+            s_single_path_planned_tour.cost  = best_c;
+            static const bool pdbg = ::getenv("GINGER_SP_ROUTEDBG") != nullptr;
+            if (pdbg)
+                std::fprintf(stderr, "[ROUTE] z=%.1f piano seam: inizio (%.1f,%.1f) a %.0f mm dalla testa, costo %.0f mm\n",
+                             this->m_layer != nullptr ? this->m_layer->print_z : 0., best_s.x() * SCALING_FACTOR, best_s.y() * SCALING_FACTOR,
+                             (best_s - head).cast<double>().norm() * SCALING_FACTOR, best_c * SCALING_FACTOR);
+            return std::string("planned");
+        }
+        return std::string();
+    }
+    {
+        bool reused = false;
+        if (s_single_path_planned_tour.valid &&
+            (s_single_path_planned_tour.start - this->last_pos()).cast<double>().norm() < scale_(5.)) {
+            std::vector<Stop> t;
+            for (const auto &ps : s_single_path_planned_tour.stops) {
+                Unit *u = nullptr;
+                for (Unit &v : units) if (v.ee == ps.first) { u = &v; break; }
+                if (u == nullptr) { t.clear(); break; }
+                t.push_back({ u, ps.second });
+            }
+            size_t n_in = 0;
+            for (size_t i = 0; i < units.size(); ++ i) if (in_tour[i]) ++ n_in;
+            if (! t.empty() && t.size() == n_in) {
+                tour   = t;
+                reused = true;
+                static const bool rdbg = ::getenv("GINGER_SP_ROUTEDBG") != nullptr;
+                if (rdbg) {
+                    Point pp = this->last_pos(), e; double sum = 0., mx = 0.;
+                    for (const Stop &st : tour) { const double d = stop_cost(st, pp, e); sum += d; mx = std::max(mx, d); pp = e; }
+                    std::fprintf(stderr, "[ROUTE] z=%.1f tour pianificato riusato: %zu fermate, salti %.0f mm, massimo %.0f mm\n",
+                                 this->m_layer != nullptr ? this->m_layer->print_z : 0., tour.size(), sum * SCALING_FACTOR, mx * SCALING_FACTOR);
+                }
+            }
+        }
+        s_single_path_planned_tour.valid = false;
+        if (! reused) {
+            double sum = 0., mx = 0.;
+            Point  end;
+            build_tour(this->last_pos(), tour, true, sum, mx, end);
+        }
+    }
+    emit_suspended = [&](Unit &un, bool rev, int depth) {
+        const Point cur = this->last_pos();
+        if (un.sup >= 0 || depth >= kMaxDepth) {
+            emit_unit(un);
+            return;
+        }
+        static const bool route_dbg = ::getenv("GINGER_SP_ROUTEDBG") != nullptr;
+        // Ginger (2026-09-07, figure plate 3 di Davide, layer 1-2: "un travel di 317 mm ai primi layer
+        // e' la prima causa di layer shift"): anche un PATH APERTO (la spazzata monotonica del
+        // bottom/top, una sola polilinea da metri) si sospende come un anello: entrata dal capo piu'
+        // vicino, ai vertici che sfiorano una toppa laterale la si stampa e si riprende dallo stesso
+        // vertice. Prima le 24 toppe laterali del layer 2 restavano per la fine, in catena greedy
+        // (317 mm, 176 mm al layer 1).
+        const ExtrusionPath *open_path = (un.loop == nullptr && ! un.atomic) ? dynamic_cast<const ExtrusionPath *>(un.ee) : nullptr;
+        if (open_path == nullptr && (un.loop == nullptr || un.loop->paths.size() != 1)) {
+            if (route_dbg && un.loop != nullptr)
+                std::fprintf(stderr, "[ROUTE] z=%.1f loop con %zu path (%.0f mm): emesso intero, niente sospensione\n",
+                             this->m_layer != nullptr ? this->m_layer->print_z : 0., un.loop->paths.size(), un.loop->length() * SCALING_FACTOR);
+            emit_unit(un);
+            return;
+        }
+        // Closed single-path loop or open path: look for suspension opportunities before committing to it.
+        un.done = true;
+        const ExtrusionPath &proto = open_path != nullptr ? *open_path : un.loop->paths.front();
+        // Ginger (2026-09-06, figure plate 3 di Davide, layer 95): a 4 cordoni un pezzetto di sparse
+        // a 10 mm dall'anello (accanto a un bridge) non veniva sospeso e restava per ultimo: 298 mm
+        // per andarci, layer finito lontano dalla seam e cambio layer che paga il ritorno (67 cambi
+        // >= 50 mm, 14 m). Una deviazione di 20 mm andata e ritorno costa un decimo. Sonda
+        // GINGER_SP_TOUCH_W=<cordoni> per misurare altri valori.
+        // Misurato (plate 3): allargare a 12w anche i salti del CLUSTER peggiora tutto (top in catena
+        // 34 -> 234, travel sparse 17.4 -> 20.9 m): il cluster trascina la testa lontano dall'anello.
+        // Quindi: touch = 4w per i salti fra unita' del cluster, reach = 12w solo per i CONTATTI di
+        // sospensione (deviazione dall'anello e ritorno).
+        static const double reach_w = [] { const char *v = ::getenv("GINGER_SP_TOUCH_W"); return v ? std::atof(v) : 12.; }();
         const double         touch = 4. * scale_(double(proto.width));
-        // Rotate a copy of the loop so it starts at the point nearest the head (free seam).
-        ExtrusionLoop lp = *best->loop;
-        lp.split_at(cur, false);
-        const Polyline &poly = lp.paths.front().polyline;
+        const double         reach = reach_w * scale_(double(proto.width));
+        // Rotate a copy of the loop so it starts at the point nearest the head (free seam); an open
+        // path is entered from its nearer end.
+        ExtrusionLoop lp;
+        Polyline      open_poly;
+        if (open_path != nullptr) {
+            open_poly = open_path->polyline;
+            if (rev) // orientamento deciso dal tour (non il capo piu' vicino: conta dove si esce)
+                open_poly.reverse();
+        } else {
+            lp = *un.loop;
+            lp.split_at(cur, false);
+        }
+        const Polyline &poly = open_path != nullptr ? open_poly : lp.paths.front().polyline;
         // Contacts: for every unprinted unit, the loop vertex nearest to one of its entries.
         struct Contact { size_t idx; Unit *unit; };
         std::vector<Contact> contacts;
         if (poly.size() >= 3)
             for (Unit &u : units)
                 if (! u.done) {
+                    // Ginger (2026-09-07, figure plate 3, layer 118): un anello chiuso LUNGO adiacente a un
+                    // anellino non e' un "contatto" da stampare intero dentro la sospensione dell'anellino
+                    // (2609 mm emessi senza le proprie sospensioni, 90 top raggiungibili lasciati per la
+                    // fine del layer su 20 anelli, 6.1 m di travel). Resta al giro principale.
+                    if (depth + 1 >= kMaxDepth && long_unit(u, touch) && assigned[size_t(&u - units.data())] != int(&un - units.data()))
+                        continue;
                     Points entries;
                     if (u.loop != nullptr) {
                         Points pts;
@@ -5762,13 +6833,12 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
                         const size_t stride = std::max<size_t>(1, pts.size() / 64);
                         for (size_t k = 0; k < pts.size(); k += stride)
                             entries.emplace_back(pts[k]);
-                    } else if (u.atomic)
-                        entries.emplace_back(u.ee->first_point());
-                    else {
+                    } else {
                         entries.emplace_back(u.ee->first_point());
                         entries.emplace_back(u.ee->last_point());
                     }
-                    double bdist = touch;
+                    // Unita' assegnata a questo maggiore: contatto anche oltre reach.
+                    double bdist = assigned[size_t(&u - units.data())] == int(&un - units.data()) ? std::numeric_limits<double>::max() : reach;
                     size_t bidx  = std::numeric_limits<size_t>::max();
                     for (size_t i = 0; i < poly.size(); ++ i)
                         for (const Point &e : entries) {
@@ -5778,11 +6848,42 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
                     if (bidx != std::numeric_limits<size_t>::max())
                         contacts.push_back({ bidx, &u });
                 }
+        if (route_dbg) {
+            size_t left = 0;
+            for (const Unit &u : units) if (! u.done) ++ left;
+            std::fprintf(stderr, "[ROUTE] z=%.1f %s %.0f mm: %zu vertici, %zu contatti, %zu unita restanti, touch=%.1f, capi (%.0f,%.0f)/(%.0f,%.0f)\n",
+                         this->m_layer != nullptr ? this->m_layer->print_z : 0., open_path != nullptr ? "path" : "loop",
+                         proto.polyline.length() * SCALING_FACTOR, poly.size(), contacts.size(), left, touch * SCALING_FACTOR,
+                         poly.first_point().x() * SCALING_FACTOR, poly.first_point().y() * SCALING_FACTOR,
+                         poly.last_point().x() * SCALING_FACTOR, poly.last_point().y() * SCALING_FACTOR);
+            if (this->m_layer != nullptr && this->m_layer->print_z < 3.)
+                for (const Unit &u : units)
+                    if (! u.done) {
+                        Points entries;
+                        u.ee->collect_points(entries);
+                        double dmin = std::numeric_limits<double>::max(), dend = dmin;
+                        for (const Point &v : poly.points) {
+                            for (const Point &e : entries) dmin = std::min(dmin, (v - e).cast<double>().norm());
+                            dend = std::min(dend, std::min((v - u.ee->first_point()).cast<double>().norm(), (v - u.ee->last_point()).cast<double>().norm()));
+                        }
+                        const auto *pth = dynamic_cast<const ExtrusionPath *>(u.ee);
+                        std::fprintf(stderr, "[ROUTE]     resta %s %.0f mm capi (%.0f,%.0f)/(%.0f,%.0f): min ai capi %.1f mm, min a qualsiasi punto %.1f mm\n",
+                                     u.atomic ? "atomica" : u.loop ? "loop" : pth ? "path" : "altro", (u.atomic ? 0. : u.ee->length()) * SCALING_FACTOR,
+                                     u.ee->first_point().x() * SCALING_FACTOR, u.ee->first_point().y() * SCALING_FACTOR,
+                                     u.ee->last_point().x() * SCALING_FACTOR, u.ee->last_point().y() * SCALING_FACTOR,
+                                     dend * SCALING_FACTOR, dmin * SCALING_FACTOR);
+                    }
+        }
         if (contacts.empty()) {
-            // No neighbour to interleave: print the loop whole (identical to the plain path,
-            // including seam gap clipping and wipe handling).
-            gcode += this->extrude_entity(*best->ee, extrusion_name);
-            continue;
+            // No neighbour to interleave: print the unit whole (identical to the plain path,
+            // including seam gap clipping and wipe handling; open paths from the nearer end).
+            if (open_path != nullptr) {
+                ExtrusionPath whole(*open_path);
+                whole.polyline = poly;
+                gcode += this->extrude_path(whole, extrusion_name);
+            } else
+                gcode += this->extrude_entity(*un.ee, extrusion_name);
+            return;
         }
         std::sort(contacts.begin(), contacts.end(), [](const Contact &l, const Contact &r) { return l.idx < r.idx; });
         // Walk the loop as arcs, suspending at each contact; the final arc carries the seam gap.
@@ -5791,7 +6892,7 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
                 return;
             ExtrusionPath arc(proto.role(), proto.mm3_per_mm, proto.width, proto.height);
             arc.polyline.points.assign(poly.points.begin() + i_from, poly.points.begin() + i_to + 1);
-            if (clip_tail && m_enable_loop_clipping) {
+            if (clip_tail && open_path == nullptr && m_enable_loop_clipping) {
                 const double seam_gap = scale_(m_config.seam_gap.get_abs_value(EXTRUDER_CONFIG(nozzle_diameter)));
                 if (arc.polyline.length() > 2. * seam_gap)
                     arc.polyline.clip_end(seam_gap);
@@ -5806,10 +6907,44 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
             if (c.idx > seg_start)
                 emit_arc(seg_start, c.idx, false);
             seg_start = c.idx; // the loop resumes right where it was suspended
-            emit_unit(*c.unit);
-            route_cluster(touch);
+            emit_suspended(*c.unit, nearer_from_end(*c.unit), depth + 1);
+            const Point anchor_pt = poly.points[c.idx];
+            route_cluster(touch, depth + 1, &anchor_pt);
         }
         emit_arc(seg_start, poly.size() - 1, true);
+    };
+    size_t ti = 0;
+    for (;;) {
+        while (ti < tour.size() && tour[ti].u->done)
+            ++ ti;
+        const Point cur = this->last_pos();
+        // Corte (non maggiori): greedy come prima, ma solo se piu' vicine della prossima maggiore
+        // del tour.
+        Unit  *sh = nullptr;
+        double ds = std::numeric_limits<double>::max();
+        for (size_t i = 0; i < units.size(); ++ i)
+            if (! units[i].done && ! in_tour[i]) {
+                const double d = entry_cost(units[i], cur);
+                if (d < ds && ! absorb_reach[i] && assigned[i] < 0) { ds = d; sh = &units[i]; }
+            }
+        double dm = std::numeric_limits<double>::max();
+        if (ti < tour.size()) { Point e; dm = stop_cost(tour[ti], cur, e); }
+        if (sh == nullptr && ti >= tour.size()) {
+            // Restano solo corte assorbibili da nessuno (maggiori finite): greedy.
+            for (size_t i = 0; i < units.size(); ++ i)
+                if (! units[i].done) {
+                    const double d = entry_cost(units[i], cur);
+                    if (d < ds) { ds = d; sh = &units[i]; }
+                }
+            if (sh == nullptr)
+                break;
+        }
+        if (sh != nullptr && ds < dm) {
+            emit_unit(*sh);
+            continue;
+        }
+        const Stop stop = tour[ti ++];
+        emit_suspended(*stop.u, stop.rev, 0);
     }
     return gcode;
 }
@@ -5906,6 +7041,23 @@ std::string GCode::extrude_support(const ExtrusionEntityCollection &support_fill
                 throw Slic3r::InvalidArgument("Unknown extrusion type");
             }
         }
+    }
+    return gcode;
+}
+
+// Ginger: stampa una lista di entita' di support (catena greedy da `from` se dato), con ruolo e
+// velocita' del support (decisi da _extrude sul ruolo dell'entita').
+std::string GCode::extrude_support_entities(const ExtrusionEntitiesPtr &ents_in, const Point *from)
+{
+    std::string gcode;
+    ExtrusionEntitiesPtr ents(ents_in);
+    Point start = from != nullptr ? *from : this->last_pos();
+    chain_and_reorder_extrusion_entities(ents, &start);
+    for (const ExtrusionEntity *ee : ents) {
+        if (const auto *coll = dynamic_cast<const ExtrusionEntityCollection *>(ee))
+            gcode += this->extrude_support(*coll, m_sp_support_role);
+        else
+            gcode += this->extrude_entity(*ee, "support material", -1.);
     }
     return gcode;
 }

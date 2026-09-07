@@ -514,6 +514,9 @@ private:
     void discover_vertical_shells();
     void bridge_over_infill();
     void clip_fill_surfaces();
+    // Ginger: un solid piu' stretto della soglia e non attaccato a un top del proprio layer
+    // non e' un pavimento, e' un cordolo: torna sparse (minimum_solid_infill_width).
+    void demote_narrow_solid_infill();
     void discover_horizontal_shells();
     void combine_infill();
     // Ginger single_path_wall_ribs: plan the per-layer wall rib merges (sequential bottom-up so
