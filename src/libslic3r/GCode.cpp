@@ -87,9 +87,9 @@ using namespace std::literals::string_view_literals;
 // del connettore in FillBase.cpp.
 namespace {
 struct GCodeSPProfile {
-    enum Phase : unsigned { phExport, phLayer, phPerimeters, phSeamPlan, phInfillRouted, phRoutedDecide, phRoutedTour, phSupport, N };
+    enum Phase : unsigned { phExport, phLayer, phPerimeters, phSeamPlan, phInfillRouted, phRoutedDecide, phRoutedTour, phSupport, phPressureEq, phCooling, phPAProc, phOutput, N };
     static const char *name(unsigned i) {
-        static const char *n[N] = { "do_export", "process_layer", "perimeters", "seam_plan(routed plan mode)", "infill_routed(emission)", "routed: decisions (assign/absorb)", "routed: build_tour", "support" };
+        static const char *n[N] = { "do_export", "process_layer(generator)", "perimeters", "seam_plan(routed plan mode)", "infill_routed(emission)", "routed: decisions (assign/absorb)", "routed: build_tour", "support", "filter: pressure_equalizer", "filter: cooling", "filter: pa_processor", "filter: output write" };
         return n[i];
     }
     std::atomic<uint64_t> ns[N] {}, cnt[N] {};
@@ -2747,6 +2747,7 @@ void GCode::process_layers(
                 //BBS
                 check_placeholder_parser_failed();
                 print.throw_if_canceled();
+                GCodeSPProfile::Scope sp_prof_layer(GCodeSPProfile::phLayer);
                 return this->process_layer(print, layer.second, layer_tools, &layer == &layers_to_print.back(), &print_object_instances_ordering, size_t(-1));
             }
         });
@@ -2766,22 +2767,25 @@ void GCode::process_layers(
         });
     const auto pressure_equalizer = tbb::make_filter<LayerResult, LayerResult>(slic3r_tbb_filtermode::serial_in_order,
         [pressure_equalizer = this->m_pressure_equalizer.get()](LayerResult in) -> LayerResult {
+            GCodeSPProfile::Scope sp_prof_pe(GCodeSPProfile::phPressureEq);
             return pressure_equalizer->process_layer(std::move(in));
         });
     const auto cooling = tbb::make_filter<LayerResult, std::string>(slic3r_tbb_filtermode::serial_in_order,
         [&cooling_buffer = *this->m_cooling_buffer.get()](LayerResult in) -> std::string {
+            GCodeSPProfile::Scope sp_prof_cool(GCodeSPProfile::phCooling);
         	if (in.nop_layer_result)
                 return in.gcode;
             return cooling_buffer.process_layer(std::move(in.gcode), in.layer_id, in.cooling_buffer_flush);
         });
     const auto pa_processor_filter = tbb::make_filter<std::string, std::string>(slic3r_tbb_filtermode::serial_in_order,
             [&pa_processor = *this->m_pa_processor](std::string in) -> std::string {
+                GCodeSPProfile::Scope sp_prof_pa(GCodeSPProfile::phPAProc);
                 return pa_processor.process_layer(std::move(in));
             }
         );
     
     const auto output = tbb::make_filter<std::string, void>(slic3r_tbb_filtermode::serial_in_order,
-        [&output_stream](std::string s) { output_stream.write(s); }
+        [&output_stream](std::string s) { GCodeSPProfile::Scope sp_prof_out(GCodeSPProfile::phOutput); output_stream.write(s); }
     );
 
     const auto fan_mover = tbb::make_filter<std::string, std::string>(slic3r_tbb_filtermode::serial_in_order,
@@ -2865,7 +2869,8 @@ void GCode::process_layers(
         });
     const auto pressure_equalizer = tbb::make_filter<LayerResult, LayerResult>(slic3r_tbb_filtermode::serial_in_order,
         [pressure_equalizer = this->m_pressure_equalizer.get()](LayerResult in) -> LayerResult {
-             return pressure_equalizer->process_layer(std::move(in));
+             GCodeSPProfile::Scope sp_prof_pe(GCodeSPProfile::phPressureEq);
+            return pressure_equalizer->process_layer(std::move(in));
         });
     const auto cooling = tbb::make_filter<LayerResult, std::string>(slic3r_tbb_filtermode::serial_in_order,
         [&cooling_buffer = *this->m_cooling_buffer.get()](LayerResult in)->std::string {
@@ -2880,7 +2885,7 @@ void GCode::process_layers(
     );
     
     const auto output = tbb::make_filter<std::string, void>(slic3r_tbb_filtermode::serial_in_order,
-        [&output_stream](std::string s) { output_stream.write(s); }
+        [&output_stream](std::string s) { GCodeSPProfile::Scope sp_prof_out(GCodeSPProfile::phOutput); output_stream.write(s); }
     );
 
     const auto fan_mover = tbb::make_filter<std::string, std::string>(slic3r_tbb_filtermode::serial_in_order,
@@ -6137,11 +6142,26 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
         if (const auto *c = dynamic_cast<const ExtrusionEntityCollection *>(e)) {
             if (c->entities.empty())
                 return;
-            if (c->no_sort)
+            if (c->no_sort) {
                 units.push_back({ e, nullptr, true, false, -1 });
-            else
-                for (const ExtrusionEntity *ch : c->entities)
-                    flatten(ch);
+                return;
+            }
+            // Ginger (2026-09-08, knee z=163.8): una collezione ORDINABILE i cui path si concatenano
+            // capo a capo (variable_width spezza un cordone Arachne in decine di ExtrusionPath da
+            // 1-2 mm) e' UN cordone: entrata da un capo o dall'altro, non 434 fermate del tour
+            // (18 s di piano della seam su un layer). Resta atomica, come una collezione no_sort.
+            bool chained = c->entities.size() >= 2;
+            for (size_t k = 0; chained && k < c->entities.size(); ++ k) {
+                const auto *pth = dynamic_cast<const ExtrusionPath *>(c->entities[k]);
+                if (pth == nullptr || (k > 0 && (c->entities[k]->first_point() - c->entities[k - 1]->last_point()).cast<double>().norm() > scale_(0.2)))
+                    chained = false;
+            }
+            if (chained) {
+                units.push_back({ e, nullptr, true, false, -1 });
+                return;
+            }
+            for (const ExtrusionEntity *ch : c->entities)
+                flatten(ch);
             return;
         }
         units.push_back({ e, dynamic_cast<const ExtrusionLoop *>(e), false, false, -1 });
@@ -6521,7 +6541,10 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
             std::vector<Stop> cand;
             cand.reserve(n);
             bool improved = true;
-            for (int pass = 0; improved && pass < 20; ++ pass) {
+            // Sforzo limitato sui tour grandi: or-opt e' O(n^3) per passata.
+            const int    max_pass = n > 150 ? 2 : (n > 60 ? 6 : 20);
+            const size_t max_len  = n > 150 ? 1 : 3;
+            for (int pass = 0; improved && pass < max_pass; ++ pass) {
                 improved = false;
                 // Orientation flips.
                 for (size_t i = 0; i < n; ++ i)
@@ -6531,7 +6554,7 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
                         if (c < cur_cost - 1.) { cur_cost = c; improved = true; } else tour_out[i].rev = ! tour_out[i].rev;
                     }
                 // Or-opt: move a block of 1..3 stops elsewhere, straight or reversed (first improvement).
-                for (size_t len = 1; len <= 3 && len < n; ++ len)
+                for (size_t len = 1; len <= max_len && len < n; ++ len)
                     for (size_t i = 0; i + len <= n; ++ i) {
                         bool done_move = false;
                         for (size_t j = 0; j + len <= n && ! done_move; ++ j) {

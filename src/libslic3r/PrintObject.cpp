@@ -77,6 +77,8 @@ using namespace std::literals;
     #include <cassert>
 #endif
 
+#include <atomic>
+namespace Slic3r { namespace FillLightning { extern std::atomic<bool> g_ginger_in_fill_stage; } } // profiling, definita in Fill/FillLightning.cpp
 namespace Slic3r {
 
 // Constructor is called from the main thread, therefore all Model / ModelObject / ModelIntance data are valid.
@@ -1535,6 +1537,7 @@ void PrintObject::infill()
         const auto sp_fill_t0 = std::chrono::steady_clock::now();
         BOOST_LOG_TRIVIAL(debug) << (sequential_fill ? "Filling layers sequentially (single path) - start"
                                                      : "Filling layers in parallel - start");
+        FillLightning::g_ginger_in_fill_stage = true;
         if (sequential_fill) {
             for (size_t layer_idx = 0; layer_idx < m_layers.size(); ++ layer_idx) {
                 m_print->throw_if_canceled();
@@ -1550,6 +1553,7 @@ void PrintObject::infill()
                 }
             }
         );
+        FillLightning::g_ginger_in_fill_stage = false;
         m_print->throw_if_canceled();
         determinism_probe(this, "11 make_fills");
         BOOST_LOG_TRIVIAL(debug) << "Filling layers in parallel - end";

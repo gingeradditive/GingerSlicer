@@ -316,6 +316,20 @@ improves.
     (decided 2026-09-08 with the parallel session, same choice as Cura's infill.cpp:117). Knee, the
     parallel session's metric for continuity: 47.2 m before any of this, 44.0 with closed rings,
     43.4 with the fusion, 28.1 with the inheritance (-40%).
+  - SLICING TIME (2026-09-08 evening, Davide: "analisi prima del refactor"): plate 3 was 53 s
+    (load 2, slice 4, shells 7, ribs 4, FILL 22 on one thread, export 11). Inside the fill the
+    lightning band `offset(..., jtRound, 3., etOpenRound)` passed 3 as the fourth argument, which
+    ClipperUtils uses as the ArcTolerance for round joins - in scaled units, i.e. 3 nm - so every
+    branch cap and elbow got ~1250 vertices per turn and the pockets, the diff, the ring trees and
+    the splice inherited them. With 0.05 mm (~30 vertices per turn): band 10 -> 0.2 s, pockets
+    13 -> 0.4 s, splice 10 -> 6 s, fill stage 22 -> 7 s, whole slice 53 -> 37 s; travel and stool
+    metrics unchanged. Export: a sortable collection whose paths chain end to end (Arachne beads
+    split by width) is one unit of the router, not hundreds of tour stops (knee export 25 -> 10 s);
+    local search capped above 60/150 stops. Still open, in order: lazy "crowded" test and banded
+    candidate gathering in the ring scan, seam placer skipped in continuous path (0.8 s), rib
+    planner 4 s, then the decision/execution split for a parallel fill (the pure parallel fill,
+    `GINGER_SP_PARALLEL_FILL=1`, is 6-8x faster but breaks the link column on the stool: 100 -> 53%
+    in column, so the layer-below hysteresis is necessary).
   What remains structural: a solid layer is cut by the connected rectilinear fill into diagonal
   BANDS whose two ends are far apart (they stop at every notch of the boundary); the chain of
   bands cannot be closed without a hop of the band's extent, so a bottom layer keeps one or two
@@ -541,7 +555,7 @@ schedule driver — massive short parts cool layer-bound, thin tall parts print 
 | `GINGER_LN_OPEN=1` | — | with pockets: morphological opening of the area by half a bead (`offset2_ex`) so arms narrower than one bead get no pair of overlapping rails (knee: doubled sparse 9.3 % → 1.9 %, but −13 % sparse and travel 2.5 → 7.3 m). Not default |
 | `GINGER_LN_DEBUG=1` | `[LNISLE] [LNISLEC] [LNISLEH]` every expolygon entering the Lightning filler (bbox, tree count, contour); `[LNPOCK] [LNTREE] [LNBAND] [LNINNER] [LNAREA] [LNRING]` per pockets island | pockets bisection. Coordinates are in the OBJECT frame (G-code is in the bed frame); parallel threads interleave stderr — split lines on the `[LN` tags |
 | `GINGER_SP_SEAM_LOOKAHEAD=<w>` / `GINGER_SP_TOUCH_W=<beads>` | `[SPHOOK] seam ...` | wall seam choice with ribs (2026-09-06): candidates = this layer's rib anchors, the upper layer's rib anchors, the infill entry nearest the head; cost = arrival travel + infill hook + w x distance to the nearest upper-layer rib anchor (default w = 0.01: travel first, the rib as tie-break; w = 1 was 14.9 m of layer-change travel on figure plate 3, 0.01 gives 8.5 m). TOUCH_W = suspension contact reach in beads (default 12; cluster hops stay at 4) |
-| `GINGER_SP_PROFILE=1` | `[SPPROF]` | wall-clock per phase, dumped at exit: connector phases (FillBase.cpp) and, since 2026-09-08, the G-code export: do_export, perimeters (incl. the seam plan), routed emission, build_tour, support. Figure plate 3: 55 s total, export 13 s of which seam plan 2.9 s; slicing side dominated by `splice_ring_scan` 10 s (thread time) |
+| `GINGER_SP_PROFILE=1` | `[SPPROF]` `[SPFILL]` `[SPLN]` `[SPTIME]` | wall-clock per phase, dumped at exit: connector phases (FillBase.cpp) and, since 2026-09-08, the G-code export: do_export, perimeters (incl. the seam plan), routed emission, build_tour, support. Figure plate 3: 55 s total, export 13 s of which seam plan 2.9 s; slicing side dominated by `splice_ring_scan` 10 s (thread time) |
 | `GINGER_SP_ROUTEDBG=1` | `[ROUTE]` | routed infill emission: per suspended unit (loop or open path) vertices, contacts, units left; `tour di N maggiori`, `piano seam` (planned start, cost), `tour pianificato riusato`; for z < 3 mm also the distance of every remaining unit from the current sweep |
 | `GINGER_SP_TOUR=0` / `GINGER_SP_TOUR_SEAM=0` / `GINGER_SP_EXTENT_W=<beads>` / `GINGER_SP_DEPTH=<n>` / `GINGER_SP_CHANGE_W=<w>` / `GINGER_SP_PLAN_K=<n>` | - | routed infill (2026-09-07): back to greedy order of the majors / seam not planned by the tour / extent (end-to-end distance) above which an open path or monotonic collection is a major instead of an absorbable contact (default 24) / nested suspension depth (default 1 = none; 4 measured worse) (all read once through `SinglePathEnv` in GCode.cpp; the atomic-collection suspension was removed after measuring solid->solid 5.9 -> 47 m on the knee) |
 | `GINGER_LN_NOSPLICE=1` / `GINGER_LN_ISLAND=n` | — | pockets bisection: skip the ring merge / island given to the splice: 0 none (110 links across internal walls on figure plate 3), 1 verbatim, **2 default** = grown by 0.1 w as a pure BARRIER (`barrier_only`: containment of every link, no 3-stagger cap, no gorge attach, no retrace scan), 3 grown with every splice rule (1092 units vs 884, +2.4 m travel) |

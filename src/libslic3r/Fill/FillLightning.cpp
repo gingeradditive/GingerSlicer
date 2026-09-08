@@ -1,3 +1,6 @@
+#include <chrono>
+#include <atomic>
+#include <cstdlib>
 #include "../ClipperUtils.hpp"
 #include <mutex>
 #include <string>
@@ -47,6 +50,34 @@ bool Filler::surface_in_fused_island(const ExPolygon &surface) const
     return false;
 }
 
+std::atomic<bool> g_ginger_in_fill_stage { false };
+
+namespace {
+// GINGER_SP_PROFILE=1: fasi del riempimento lightning (tempo CPU sommato su tutte le superfici),
+// stampate a fine processo come [SPLN].
+struct LnProfile {
+    enum Phase : unsigned { phLines, phBand, phPockets, phRings, phSplice, phConnector, N };
+    static const char *name(unsigned i) { static const char *n[N] = { "convertToLines", "band offset", "inner+pockets (Clipper)", "rings (clean/simplify)", "splice", "connector/lining" }; return n[i]; }
+    std::atomic<uint64_t> ns[N] {}, cnt[N] {}, ns_stage[N] {}, cnt_stage[N] {};
+    std::atomic<int64_t>  first_ms[N] {}, last_ms[N] {}; // quando (ms dal primo uso) e' stata vista la fase: dice in quale STADIO gira
+    static std::chrono::steady_clock::time_point epoch() { static const auto e = std::chrono::steady_clock::now(); return e; }
+    static bool enabled() { static const bool on = [] { (void)epoch(); return std::getenv("GINGER_SP_PROFILE") != nullptr; }(); return on; }
+    static LnProfile &get() { static LnProfile p; static const bool reg = [] { std::atexit(&LnProfile::dump); return true; }(); (void)reg; return p; }
+    static void dump() { LnProfile &p = get(); for (unsigned i = 0; i < N; ++ i) std::fprintf(stderr, "[SPLN] %-28s %9.3f s  (%llu)  vista da %.1f a %.1f s%c", name(i), p.ns[i].load() * 1e-9, (unsigned long long)p.cnt[i].load(), p.first_ms[i].load() * 1e-3, p.last_ms[i].load() * 1e-3, 10); }
+    struct Scope { unsigned ph; std::chrono::steady_clock::time_point t0; bool on;
+        explicit Scope(unsigned p_) : ph(p_), on(LnProfile::enabled()) {
+            if (on) {
+                t0 = std::chrono::steady_clock::now();
+                auto &p = LnProfile::get();
+                const int64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(t0 - LnProfile::epoch()).count();
+                if (p.cnt[ph].load() == 0) p.first_ms[ph] = ms;
+                p.last_ms[ph] = ms;
+            }
+        }
+        ~Scope() { if (on) { auto &p = LnProfile::get(); const uint64_t d = uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count()); p.ns[ph] += d; ++ p.cnt[ph]; if (g_ginger_in_fill_stage.load()) { p.ns_stage[ph] += d; ++ p.cnt_stage[ph]; } } } };
+};
+} // namespace
+
 void Filler::_fill_surface_single(
     const FillParams              &params,
     unsigned int                   thickness_layers,
@@ -55,7 +86,8 @@ void Filler::_fill_surface_single(
     Polylines                     &polylines_out)
 {
     const Layer &layer      = generator->getTreesForLayer(this->layer_id);
-    Polylines    fill_lines = layer.convertToLines(to_polygons(expolygon), scaled<coord_t>(0.5 * this->spacing - this->overlap));
+    Polylines    fill_lines;
+    { LnProfile::Scope sp(LnProfile::phLines); fill_lines = layer.convertToLines(to_polygons(expolygon), scaled<coord_t>(0.5 * this->spacing - this->overlap)); }
     static const bool ln_dbg_all = ::getenv("GINGER_LN_DEBUG") != nullptr;
     if (ln_dbg_all) {
         const BoundingBox bb = get_extents(expolygon);
@@ -89,7 +121,13 @@ void Filler::_fill_surface_single(
         // banda attorno agli alberi: i suoi due bordi sono le due rotaie, a +-mezzo spacing (giunti e
         // capi tondi, come l'offset Clipper2 di multiline_fill)
         const float half_band = float(scale_(0.5 * this->spacing));
-        Polygons    band      = offset(fill_lines, half_band, ClipperLib::jtRound, 3., ClipperLib::etOpenRound);
+        Polygons    band;
+        // Ginger (2026-09-08, analisi tempi): il quarto parametro di offset() con jtRound NON e' il miter
+        // limit ma l'ArcTolerance di Clipper, in unita' scalate: 3 = tre NANOMETRI, cioe' ~1250 vertici
+        // per giro (pi / acos(1 - 3 / 950000)) su ogni capo e ogni gomito di ogni ramo. Le tasche
+        // ereditavano quei vertici: offset + diff + splice = 2/3 del riempimento lightning. Con
+        // 0.05 mm sono ~30 vertici per giro, lo stesso cerchio a meno di un centesimo di cordone.
+        { LnProfile::Scope sp(LnProfile::phBand); band = offset(fill_lines, half_band, ClipperLib::jtRound, double(scale_(0.05)), ClipperLib::etOpenRound); }
         // contorno interno: l'area di sparse STESSA. Cura arretra di mezza linea perche' il suo
         // inner_contour e' il fianco interno del muro; qui il bordo dell'area e' gia' l'ASSE della
         // lining (arretrato di mezzo spacing meno l'overlap, vedi surface_in_fused_island) ed e'
@@ -108,7 +146,8 @@ void Filler::_fill_surface_single(
             const float half_w = float(scale_(0.5 * params.flow.width()));
             inner = offset2_ex(ExPolygons{ expolygon }, -half_w, +half_w);
         }
-        ExPolygons  pockets   = diff_ex(inner, band);
+        ExPolygons  pockets;
+        { LnProfile::Scope sp(LnProfile::phPockets); pockets = diff_ex(inner, band); }
         static const bool ln_dbg = ::getenv("GINGER_LN_DEBUG") != nullptr;
         if (ln_dbg) {
             char hdr[256];
@@ -178,6 +217,7 @@ void Filler::_fill_surface_single(
                     // muro (plate 3, layer 139: due rotaie da 10 mm sul cordone di parete).
                     island = offset(expolygon, float(scale_(0.1 * params.flow.width())));
                 single_path_splice_begin_layer(long(this->layer_id));
+                LnProfile::Scope sp_splice(LnProfile::phSplice);
                 single_path_splice_loops(rings, scale_(4. * this->spacing * params.multiline), scale_(this->spacing), ln_island ? &island : nullptr, ln_island == 2);
             }
             if (ln_dbg) ln_dump_line("[LNPOCK]   dopo splice=" + std::to_string(rings.size()) + "\n");
@@ -230,6 +270,7 @@ void Filler::_fill_surface_single(
     // for one on every layer: then it is wanted here too, and it is the connector's job to walk it
     // around the gorges the fusion carved out of the boundary.
     lining_params.sparse_wall_lining = ! fused || params.ring_always;
+    LnProfile::Scope sp_conn(LnProfile::phConnector);
     chain_or_connect_infill(std::move(fill_lines), expolygon, polylines_out, this->spacing, lining_params);
 }
 
