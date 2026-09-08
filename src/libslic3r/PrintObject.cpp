@@ -1303,6 +1303,57 @@ void PrintObject::fuse_lightning_into_walls()
     BOOST_LOG_TRIVIAL(debug) << "Fusing lightning into walls - end";
 }
 
+// GINGER_SP_PROFILE=1: dove vanno i secondi del pianificatore dei rib (plate 3: 3.9 s).
+namespace {
+// Chiave della memoria di link_allowed: i due capi del link, in coordinate scalate.
+struct LinkKey {
+    coord_t ax, ay, bx, by;
+    bool operator==(const LinkKey &o) const { return ax == o.ax && ay == o.ay && bx == o.bx && by == o.by; }
+};
+struct LinkKeyHash {
+    size_t operator()(const LinkKey &k) const {
+        uint64_t h = 0xcbf29ce484222325ULL;
+        for (coord_t v : { k.ax, k.ay, k.bx, k.by })
+            h = (h ^ uint64_t(uint32_t(v))) * 0x100000001b3ULL;
+        return size_t(h);
+    }
+};
+struct RibProf {
+    enum Ph : unsigned { phPrep, phPlan, phLinkAllowed, phCanFound, phFound, phCarve, N };
+    static const char *name(unsigned i) {
+        static const char *n[N] = { "raccolta loop/muri/solidi", "plan_wall_ribs", "  di cui link_allowed (lslices)",
+                                    "  di cui can_found (dry-run)", "buttress materializzati", "carve delle fill surfaces" };
+        return n[i];
+    }
+    std::atomic<uint64_t> ns[N] {}, cnt[N] {}, link_calls {}, link_hits {};
+    static bool enabled() { static const bool on = std::getenv("GINGER_SP_PROFILE") != nullptr; return on; }
+    static RibProf &get() {
+        static RibProf p;
+        static const bool reg = [] { std::atexit(&RibProf::dump); return true; }();
+        (void) reg;
+        return p;
+    }
+    static void dump() {
+        RibProf &p = get();
+        if (p.cnt[phPlan].load() == 0)
+            return;
+        fprintf(stderr, "[RIBPROF] ============ pianificatore rib ============\n");
+        for (unsigned i = 0; i < N; ++ i)
+            fprintf(stderr, "[RIBPROF] %-32s %8.2f s  (%llu chiamate)\n", name(i), double(p.ns[i].load()) * 1e-9,
+                    (unsigned long long) p.cnt[i].load());
+        fprintf(stderr, "[RIBPROF] link_allowed: %llu richieste, %llu servite dalla memoria\n",
+                (unsigned long long) p.link_calls.load(), (unsigned long long) p.link_hits.load());
+    }
+    struct Scope {
+        unsigned ph; std::chrono::steady_clock::time_point t0; bool on;
+        explicit Scope(unsigned ph_) : ph(ph_), on(RibProf::enabled()) { if (on) t0 = std::chrono::steady_clock::now(); }
+        ~Scope() { if (on) { auto &p = RibProf::get();
+            p.ns[ph] += uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count());
+            ++ p.cnt[ph]; } }
+    };
+};
+} // namespace
+
 void PrintObject::generate_wall_ribs()
 {
     for (Layer *layer : m_layers)
@@ -1346,6 +1397,18 @@ void PrintObject::generate_wall_ribs()
         support.prev_solid     = &prev_solid;
         Polygons   layer_walls;
         ExPolygons layer_solid;
+        // Ginger (2026-09-08): le bbox delle sezioni del layer, calcolate UNA volta. Il test di
+        // contenimento del link (link_allowed) chiamava ExPolygon::contains(Line), che ricalcola
+        // l'estensione dell'intera expolygon e poi fa una differenza Clipper: 146 us a chiamata,
+        // 2.3 s dei 3.5 s del pianificatore sulla plate 3, quasi tutti su sezioni che non
+        // c'entravano niente. Se un capo del link e' fuori dalla bbox della sezione, contains e'
+        // falsa per forza (un poligono sta dentro la propria bbox), quindi la si salta.
+        std::unordered_map<LinkKey, bool, LinkKeyHash> link_memo;
+        std::vector<BoundingBox> lslice_bb;
+        lslice_bb.reserve(layer->lslices.size());
+        for (const ExPolygon &e : layer->lslices)
+            lslice_bb.emplace_back(get_extents(e));
+        { RibProf::Scope rib_scope(RibProf::phPrep);
         for (LayerRegion *layerm : layer->regions()) {
             for (const ExtrusionEntity *island_ee : layerm->perimeters.entities)
                 if (const auto *island = dynamic_cast<const ExtrusionEntityCollection*>(island_ee))
@@ -1355,6 +1418,7 @@ void PrintObject::generate_wall_ribs()
             for (const Surface &s : layerm->fill_surfaces.surfaces)
                 if (s.is_solid())
                     layer_solid.emplace_back(s.expolygon);
+        }
         }
         for (LayerRegion *layerm : layer->regions()) {
             const PrintRegionConfig &cfg = layerm->region().config();
@@ -1431,19 +1495,38 @@ void PrintObject::generate_wall_ribs()
                 params.support         = &support;
                 // Ginger (2026-09-04, Davide): il link del rib deve stare dentro la sezione del
                 // pezzo (lslices): mai un cordone attraverso una concavita' o fra due lobi.
-                params.link_allowed    = [layer](const Point &a, const Point &b) {
+                // Ginger (2026-09-08): il test costa una differenza Clipper contro l'intera sezione
+                // del layer (146 us) e il pianificatore ripropone gli stessi candidati a ogni giro di
+                // Prim, quindi la risposta si ricorda per isola: e' una funzione pura di (a, b) e
+                // delle lslices, che dentro un piano non cambiano. Sulla plate 3 erano 2.3 s dei 3.5
+                // del pianificatore.
+                link_memo.clear();
+                params.link_allowed    = [layer, &lslice_bb, &link_memo](const Point &a, const Point &b) {
+                    RibProf::Scope rib_scope(RibProf::phLinkAllowed);
+                    if (RibProf::enabled()) ++ RibProf::get().link_calls;
                     if (layer->lslices.empty())
                         return true;
+                    const LinkKey key { a.x(), a.y(), b.x(), b.y() };
+                    auto it = link_memo.find(key);
+                    if (it != link_memo.end()) {
+                        if (RibProf::enabled()) ++ RibProf::get().link_hits;
+                        return it->second;
+                    }
                     const Line l(a, b);
-                    for (const ExPolygon &e : layer->lslices)
-                        if (e.contains(l))
-                            return true;
-                    return false;
+                    bool ok = false;
+                    for (size_t i = 0; i < layer->lslices.size() && ! ok; ++ i) {
+                        if (! lslice_bb[i].contains(a) || ! lslice_bb[i].contains(b))
+                            continue; // fuori dalla bbox: contains sarebbe falsa comunque
+                        ok = layer->lslices[i].contains(l);
+                    }
+                    link_memo.emplace(key, ok);
+                    return ok;
                 };
                 params.stats           = &lstat;
                 // A rib standing on nothing is legal if a foundation buttress can be grown
                 // for it on the layers below (dry-run here, materialized after acceptance).
                 params.can_found       = [layer, w = width](const Point &a, const Point &b) {
+                    RibProf::Scope rib_scope(RibProf::phCanFound);
                     return build_rib_buttress(layer, a, b, w, false);
                 };
                 // Column memory is PER ISLAND: only links near this island's loops feed the
@@ -1465,8 +1548,10 @@ void PrintObject::generate_wall_ribs()
                 static const bool rib_dbg = ::getenv("GINGER_RIBS_DEBUG") != nullptr;
                 if (rib_dbg)
                     std::fprintf(stderr, "[RIBDBG] z=%.2f island loops=%zu prev_links=%zu plan start\n", layer->print_z, loops.size(), island_prev.size());
+                RibProf::Scope *rib_plan_scope = RibProf::enabled() ? new RibProf::Scope(RibProf::phPlan) : nullptr;
                 const bool planned = plan_wall_ribs(loops, params,
                                                     island_prev.empty() ? nullptr : &island_prev, merge, unmerged);
+                delete rib_plan_scope;
                 if (rib_dbg)
                     std::fprintf(stderr, "[RIBDBG] z=%.2f plan done ok=%d founded=%zu\n", layer->print_z, int(planned), merge.founded_links.size());
                 if (planned) {
@@ -1480,6 +1565,7 @@ void PrintObject::generate_wall_ribs()
                     // descent, they are self-standing wall excursions - harmless extra
                     // bead on pellet.
                     bool founded_ok = true;
+                    RibProf::Scope rib_scope(RibProf::phFound);
                     for (const auto &link : merge.founded_links)
                         if (! build_rib_buttress(layer, link.first, link.second, width, true)) {
                             founded_ok = false;
@@ -1505,6 +1591,7 @@ void PrintObject::generate_wall_ribs()
             }
         }
         if (! carve.empty()) {
+            RibProf::Scope rib_scope(RibProf::phCarve);
             // Carve the rib footprints out of every region's fill surfaces of this layer
             // (the shrunk variant: the full corridors stay in the plan for column support).
             for (LayerRegion *layerm : layer->regions()) {
