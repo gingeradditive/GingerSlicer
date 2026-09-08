@@ -1,3 +1,4 @@
+#include <mutex>
 #include "Exception.hpp"
 #include "Print.hpp"
 #include "AABBTreeLines.hpp"
@@ -415,8 +416,51 @@ void PrintObject::make_perimeters()
 // not reproducible. Written to hunt exactly that: 2026-07-27, five identical slices of the stool
 // produced two distinct G-codes (0.04 g apart, layers 3-14), and static reading of the parallel
 // loops had already sent me down one wrong path.
+// Ginger (2026-09-08): i punti di controllo del determinism probe sono gia' messi fra un passo e
+// l'altro della pipeline, quindi con GINGER_SP_PROFILE=1 servono anche da cronometro: si accumula
+// il tempo trascorso dal punto precedente e si stampa il totale per tappa a fine processo. Costa
+// una lettura di orologio per passo per oggetto, e dice quale passo prende i secondi.
+namespace {
+struct StageTimes {
+    std::mutex                                       mutex;
+    std::vector<std::pair<std::string, double>>      totals; // in ordine di prima comparsa
+    std::chrono::steady_clock::time_point            last;
+    bool                                             have_last = false;
+    static StageTimes &get() {
+        static StageTimes st;
+        static const bool reg = [] { std::atexit(&StageTimes::dump); return true; }();
+        (void) reg;
+        return st;
+    }
+    void mark(const char *stage) {
+        const auto now = std::chrono::steady_clock::now();
+        std::lock_guard<std::mutex> lock(mutex);
+        if (have_last) {
+            const double dt = std::chrono::duration<double>(now - last).count();
+            auto it = std::find_if(totals.begin(), totals.end(), [stage](const auto &e) { return e.first == stage; });
+            if (it == totals.end()) totals.emplace_back(stage, dt);
+            else                    it->second += dt;
+        }
+        last = now;
+        have_last = true;
+    }
+    static void dump() {
+        StageTimes &st = get();
+        double tot = 0.;
+        for (const auto &e : st.totals) tot += e.second;
+        fprintf(stderr, "[SPSTAGE] ============ pipeline di slicing (fra i punti di controllo) ============\n");
+        for (const auto &e : st.totals)
+            fprintf(stderr, "[SPSTAGE] %-28s %8.2f s\n", e.first.c_str(), e.second);
+        fprintf(stderr, "[SPSTAGE] totale %.2f s (le fasi in parallelo fra oggetti si sommano)\n", tot);
+    }
+};
+} // namespace
+
 static void determinism_probe(const PrintObject *po, const char *stage)
 {
+    static const bool prof = std::getenv("GINGER_SP_PROFILE") != nullptr;
+    if (prof)
+        StageTimes::get().mark(stage);
     static const bool on = std::getenv("GINGER_DETERMINISM_PROBE") != nullptr;
     if (! on)
         return;
