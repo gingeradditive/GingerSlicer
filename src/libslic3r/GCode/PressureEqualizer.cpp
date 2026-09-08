@@ -1,3 +1,8 @@
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))
+#include <intrin.h>
+#endif
+#include <chrono>
+#include <atomic>
 #include <iostream>
 #include <memory.h>
 #include <cstring>
@@ -27,6 +32,66 @@ static const std::string EXTERNAL_PERIMETER_TAG = ";_EXTERNAL_PERIMETER";
 // Bigger values affect the GCode export speed a lot, and smaller values could
 // affect how distant will be propagated a flow rate adjustment.
 static constexpr int max_look_back_limit = 128;
+
+// Ginger (2026-09-08): i due cicli dell'equalizzatore giravano su TUTTI i ruoli di estrusione
+// (42) per ogni coppia di righe, ma i ruoli "attivi" - quelli con una portata gia' vista, cioe'
+// diversa da FLT_MAX - sono pochissimi: la passata ne accende uno all'inizio e il corpo del ciclo
+// assegna solo ruoli gia' attivi, quindi l'insieme non cresce mai. Scorrere la maschera dei ruoli
+// attivi in ordine crescente da lo STESSO ordine di visita di prima (i saltati facevano continue),
+// e toglie 41 confronti su 42 per ogni riga della finestra: la finestra e' 128 righe per ognuna
+// dei 2.7 milioni di righe della plate 3, cioe' 10 s di export.
+static inline size_t lowest_set_role(uint64_t mask)
+{
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_ARM64))
+    unsigned long i;
+    _BitScanForward64(&i, mask);
+    return size_t(i);
+#elif defined(__GNUC__) || defined(__clang__)
+    return size_t(__builtin_ctzll(mask));
+#else
+    size_t i = 0;
+    while ((mask & 1) == 0) { mask >>= 1; ++ i; }
+    return i;
+#endif
+}
+
+// GINGER_SP_PROFILE=1: cronometro per fase dell'equalizzatore (osservazione pura, un branch
+// cached per scope). L'export della plate 3 e' 11.6 s e questo filtro ne prende 10.7: serve
+// sapere quale fase, non quale funzione.
+namespace {
+struct PEProfile {
+    enum Phase : unsigned { phParse, phSweepEvents, phSegScan, phAdjust, phOutput, N };
+    static const char *name(unsigned i) {
+        static const char *n[N] = { "parse (process_line)", "rebuild_sweep_events", "pellet: scansione segmenti",
+                                    "pellet: adjust_volumetric_rate", "output_gcode_line" };
+        return n[i];
+    }
+    std::atomic<uint64_t> ns[N] {}, cnt[N] {}, lines {}, segs {};
+    static bool enabled() { static const bool on = std::getenv("GINGER_SP_PROFILE") != nullptr; return on; }
+    static PEProfile &get() {
+        static PEProfile p;
+        static const bool reg = [] { std::atexit(&PEProfile::dump); return true; }();
+        (void) reg;
+        return p;
+    }
+    static void dump() {
+        PEProfile &p = get();
+        fprintf(stderr, "[PEPROF] ============ pressure equalizer ============\n");
+        for (unsigned i = 0; i < N; ++ i)
+            fprintf(stderr, "[PEPROF] %-32s %9.3f s  (%llu calls)\n", name(i), double(p.ns[i].load()) * 1e-9,
+                    (unsigned long long) p.cnt[i].load());
+        fprintf(stderr, "[PEPROF] righe=%llu segmenti=%llu\n", (unsigned long long) p.lines.load(),
+                (unsigned long long) p.segs.load());
+    }
+    struct Scope {
+        unsigned ph; std::chrono::steady_clock::time_point t0; bool on;
+        explicit Scope(unsigned ph_) : ph(ph_), on(PEProfile::enabled()) { if (on) t0 = std::chrono::steady_clock::now(); }
+        ~Scope() { if (on) { auto &p = PEProfile::get();
+            p.ns[ph] += uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - t0).count());
+            ++ p.cnt[ph]; } }
+    };
+};
+} // namespace
 
 // Max non-extruding XY distance (travel move) in mm between two continous extrusions where we pretend
 // its all one continous extruded line. Above this distance we assume extruder pressure hits 0
@@ -110,6 +175,7 @@ PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config, const Ca
 void PressureEqualizer::process_layer(const std::string &gcode)
 {
     if (!gcode.empty()) {
+        PEProfile::Scope pe_scope(PEProfile::phParse);
         const char *gcode_begin = gcode.c_str();
         while (*gcode_begin != 0) {
             // Find end of the line.
@@ -127,11 +193,13 @@ void PressureEqualizer::process_layer(const std::string &gcode)
                 ++gcode_begin;
         }
         assert(!this->opened_extrude_set_speed_block);
+        if (PEProfile::enabled()) PEProfile::get().lines += m_gcode_lines.size();
     }
 
     // Ginger per-object sweep: refresh the tag events for the current buffer content
     // (pending previous layer + the layer just parsed).
-    rebuild_sweep_events();
+    { PEProfile::Scope pe_scope(PEProfile::phSweepEvents);
+    rebuild_sweep_events(); }
 
     // at this point, we have an entire layer of gcode lines loaded into m_gcode_lines
     // now we will split the mix of travels and extrudes into segments of continous extrusion and process those
@@ -153,6 +221,7 @@ void PressureEqualizer::process_layer(const std::string &gcode)
             float  travel_distance;
         };
         std::vector<PolylineSegment> segments;
+        PEProfile::Scope *pe_scan = PEProfile::enabled() ? new PEProfile::Scope(PEProfile::phSegScan) : nullptr;
         // --- Pass 1: Parse all POLYLINE_START/END markers and collect segments ---
         long idx = 0;
         while (idx < (long)m_gcode_lines.size()) {
@@ -244,6 +313,9 @@ void PressureEqualizer::process_layer(const std::string &gcode)
         // --- Pass 2: Process ERS for each segment ---
         // Per-object sweep: activate the parameters of the object each segment belongs
         // to (the ;_ERS_SWEEP tag emitted at the object change precedes its polylines).
+        delete pe_scan;
+        if (PEProfile::enabled()) PEProfile::get().segs += segments.size();
+        PEProfile::Scope pe_adj(PEProfile::phAdjust);
         size_t sweep_cursor = 0;
         for (const auto &seg : segments) {
             apply_sweep_events_up_to(seg.seg_start, sweep_cursor);
@@ -256,7 +328,7 @@ void PressureEqualizer::process_layer(const std::string &gcode)
         while (idx_end_current_extrusion < m_gcode_lines.size()) {
             // find beginning of next extrusion segment from current pos
             const long idx_begin_current_extrusion   = find_if(m_gcode_lines.begin() + idx_end_current_extrusion, m_gcode_lines.end(),
-                                                              [](GCodeLine line) { return line.extruding(); }) - m_gcode_lines.begin();
+                                                              [](const GCodeLine &line) { return line.extruding(); }) - m_gcode_lines.begin();
             // Per-object sweep: activate the parameters of the object this extrusion
             // segment belongs to.
             apply_sweep_events_up_to(size_t(idx_begin_current_extrusion), sweep_cursor);
@@ -267,7 +339,7 @@ void PressureEqualizer::process_layer(const std::string &gcode)
             while (idx_end_current_extrusion < m_gcode_lines.size()) {
                 // find end of the current extrusion segment
                 const auto just_after_end_extrusion = find_if(m_gcode_lines.begin() + idx_end_current_extrusion, m_gcode_lines.end(),
-                                                              [](GCodeLine line) { return !line.extruding(); });
+                                                              [](const GCodeLine &line) { return !line.extruding(); });
                 idx_end_current_extrusion = std::max<long>(0,(just_after_end_extrusion - m_gcode_lines.begin()) - 1);
                 const long idx_begin_segment_continuation = advance_segment_beyond_small_gap(idx_end_current_extrusion);
                 if (idx_begin_segment_continuation > idx_end_current_extrusion) {
@@ -586,10 +658,11 @@ LayerResult PressureEqualizer::process_layer(LayerResult &&input)
     // Per-object sweep: ramp profile, flow factors and tau are consumed at output time,
     // so the tag events must be replayed line by line here as well.
     size_t sweep_output_cursor = 0;
+    { PEProfile::Scope pe_scope(PEProfile::phOutput);
     for (size_t line_idx = 0; line_idx < next_layer_first_idx; ++line_idx) {
         apply_sweep_events_up_to(line_idx, sweep_output_cursor);
         output_gcode_line(line_idx);
-    }
+    } }
     m_gcode_lines.erase(m_gcode_lines.begin(), m_gcode_lines.begin() + int(next_layer_first_idx));
     // The erase above invalidated the event line indices; they are rebuilt before the
     // next use, this just prevents accidental reuse.
@@ -1270,8 +1343,16 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
     // Pellet mode boundary handling is applied AFTER the backward/forward passes below,
     // so that the passes don't overwrite the boundary values.
     std::array<float, size_t(ExtrusionRole::erCount)> feedrate_per_extrusion_role{};
+    static_assert(size_t(ExtrusionRole::erCount) <= 64, "la maschera dei ruoli attivi e' a 64 bit");
+    uint64_t active_roles = 0; // bit i = feedrate_per_extrusion_role[i] != FLT_MAX (invariante)
+    auto mark_role = [&active_roles, &feedrate_per_extrusion_role](size_t r) {
+        const uint64_t bit = uint64_t(1) << r;
+        if (feedrate_per_extrusion_role[r] == std::numeric_limits<float>::max()) active_roles &= ~bit;
+        else                                                                    active_roles |= bit;
+    };
     feedrate_per_extrusion_role.fill(std::numeric_limits<float>::max());
     feedrate_per_extrusion_role[int(m_gcode_lines[line_idx].extrusion_role)] = m_gcode_lines[line_idx].volumetric_extrusion_rate_start;
+    mark_role(size_t(m_gcode_lines[line_idx].extrusion_role));
 
     while (line_idx != first_extruding_idx) {
         size_t idx_prev = line_idx - 1;
@@ -1289,10 +1370,12 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
         line_idx        = idx_prev;
         GCodeLine &line = m_gcode_lines[line_idx];
 
-        for (size_t iRole = 1; iRole < size_t(ExtrusionRole::erCount); ++ iRole) {
+        // ruolo 0 (erNone) escluso come nel ciclo originale, che partiva da 1
+        for (uint64_t roles = active_roles & ~uint64_t(1); roles != 0; roles &= roles - 1) {
+            const size_t iRole = lowest_set_role(roles);
             const float &rate_slope = m_max_volumetric_extrusion_rate_slopes[iRole].negative;
-            if (rate_slope == 0 || feedrate_per_extrusion_role[iRole] == std::numeric_limits<float>::max())
-                continue; // The negative rate is unlimited or the rate for ExtrusionRole iRole is unlimited.
+            if (rate_slope == 0)
+                continue; // The negative rate is unlimited.
 
             float rate_end = feedrate_per_extrusion_role[iRole];
             if (iRole == size_t(line.extrusion_role) && rate_succ < rate_end)
@@ -1326,13 +1409,17 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
             }
 //            feedrate_per_extrusion_role[iRole] = (iRole == line.extrusion_role) ? line.volumetric_extrusion_rate_start : rate_start;
             // Don't store feed rate for ironing
-            if (line.extrusion_role != ExtrusionRole::erIroning)
+            if (line.extrusion_role != ExtrusionRole::erIroning) {
                 feedrate_per_extrusion_role[iRole] = line.volumetric_extrusion_rate_start;
+                mark_role(iRole);
+            }
         }
     }
 
     feedrate_per_extrusion_role.fill(std::numeric_limits<float>::max());
+    active_roles = 0;
     feedrate_per_extrusion_role[size_t(m_gcode_lines[line_idx].extrusion_role)] = m_gcode_lines[line_idx].volumetric_extrusion_rate_end;
+    mark_role(size_t(m_gcode_lines[line_idx].extrusion_role));
 
     // Pellet mode: limit feedrate of F-only lines before segment start for proper ramp-up
     // Only when ramp-up was actually applied (travel_before >= threshold)
@@ -1375,10 +1462,11 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
         line_idx = idx_next;
         GCodeLine &line = m_gcode_lines[line_idx];
 
-        for (size_t iRole = 1; iRole < size_t(ExtrusionRole::erCount); ++ iRole) {
+        for (uint64_t roles = active_roles & ~uint64_t(1); roles != 0; roles &= roles - 1) {
+            const size_t iRole = lowest_set_role(roles);
             const float &rate_slope = m_max_volumetric_extrusion_rate_slopes[iRole].positive;
-            if (rate_slope == 0 || feedrate_per_extrusion_role[iRole] == std::numeric_limits<float>::max())
-                continue; // The positive rate is unlimited or the rate for ExtrusionRole iRole is unlimited.
+            if (rate_slope == 0)
+                continue; // The positive rate is unlimited.
 
             float rate_start = feedrate_per_extrusion_role[iRole];
             // don't alter the flow rate for these extrusion types
@@ -1411,8 +1499,10 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
             }
 //            feedrate_per_extrusion_role[iRole] = (iRole == line.extrusion_role) ? line.volumetric_extrusion_rate_end : rate_end;
             // Don't store feed rate for ironing
-            if (line.extrusion_role != ExtrusionRole::erIroning)
+            if (line.extrusion_role != ExtrusionRole::erIroning) {
                 feedrate_per_extrusion_role[iRole] = line.volumetric_extrusion_rate_end;
+                mark_role(iRole);
+            }
         }
     }
     

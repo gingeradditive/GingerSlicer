@@ -87,9 +87,9 @@ using namespace std::literals::string_view_literals;
 // del connettore in FillBase.cpp.
 namespace {
 struct GCodeSPProfile {
-    enum Phase : unsigned { phExport, phLayer, phPerimeters, phSeamPlan, phInfillRouted, phRoutedDecide, phRoutedTour, phSupport, phPressureEq, phCooling, phPAProc, phOutput, N };
+    enum Phase : unsigned { phExport, phLayer, phPerimeters, phSeamPlan, phInfillRouted, phRoutedDecide, phRoutedTour, phSupport, phPressureEq, phCooling, phPAProc, phOutput, phSeamPlacer, phProcessor, N };
     static const char *name(unsigned i) {
-        static const char *n[N] = { "do_export", "process_layer(generator)", "perimeters", "seam_plan(routed plan mode)", "infill_routed(emission)", "routed: decisions (assign/absorb)", "routed: build_tour", "support", "filter: pressure_equalizer", "filter: cooling", "filter: pa_processor", "filter: output write" };
+        static const char *n[N] = { "do_export", "process_layer(generator)", "perimeters", "seam_plan(routed plan mode)", "infill_routed(emission)", "routed: decisions (assign/absorb)", "routed: build_tour", "support", "filter: pressure_equalizer", "filter: cooling", "filter: pa_processor", "filter: output write", "SeamPlacer::init", "GCodeProcessor::finalize" };
         return n[i];
     }
     std::atomic<uint64_t> ns[N] {}, cnt[N] {};
@@ -1624,7 +1624,8 @@ void GCode::do_export(Print* print, const char* path, GCodeProcessorResult* resu
         }
     }
 
-    m_processor.finalize(true);
+    { GCodeSPProfile::Scope sp_prof_proc(GCodeSPProfile::phProcessor);
+    m_processor.finalize(true); }
 //    DoExport::update_print_estimated_times_stats(m_processor, print->m_print_statistics);
     DoExport::update_print_estimated_stats(m_processor, m_writer.extruders(), print->m_print_statistics, print->config());
     if (result != nullptr) {
@@ -2446,7 +2447,8 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
 
     // Collect custom seam data from all objects.
     std::function<void(void)> throw_if_canceled_func = [&print]() { print.throw_if_canceled(); };
-    m_seam_placer.init(print, throw_if_canceled_func);
+    { GCodeSPProfile::Scope sp_prof_seam(GCodeSPProfile::phSeamPlacer);
+    m_seam_placer.init(print, throw_if_canceled_func); }
 
     // BBS: get path for change filament
     if (m_writer.multiple_extruders) {
@@ -2851,6 +2853,7 @@ void GCode::process_layers(
                 //BBS
                 check_placeholder_parser_failed();
                 print.throw_if_canceled();
+                GCodeSPProfile::Scope sp_prof_layer(GCodeSPProfile::phLayer);
                 return this->process_layer(print, { std::move(layer) }, tool_ordering.tools_for_layer(layer.print_z()), &layer == &layers_to_print.back(), nullptr, single_object_idx, prime_extruder);
             }
         });
@@ -2876,10 +2879,12 @@ void GCode::process_layers(
         [&cooling_buffer = *this->m_cooling_buffer.get()](LayerResult in)->std::string {
             if (in.nop_layer_result)
                 return in.gcode;
+            GCodeSPProfile::Scope sp_prof_cool(GCodeSPProfile::phCooling);
             return cooling_buffer.process_layer(std::move(in.gcode), in.layer_id, in.cooling_buffer_flush);
         });
     const auto pa_processor_filter = tbb::make_filter<std::string, std::string>(slic3r_tbb_filtermode::serial_in_order,
         [&pa_processor = *this->m_pa_processor](std::string in) -> std::string {
+            GCodeSPProfile::Scope sp_prof_pa(GCodeSPProfile::phPAProc);
             return pa_processor.process_layer(std::move(in));
         }
     );
