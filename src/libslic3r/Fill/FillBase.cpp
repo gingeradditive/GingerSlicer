@@ -1628,6 +1628,7 @@ struct SPProfile
         phFreeRunClosure, phDefectSlide, phLastResort, phAugmentation, phHierholzerEmit,
         phJoinWeld, phSpliceRingScan, phSpliceAttachScan, phRebuildRetrace, phLinkValid,
         phEmitTrims, phEmitRetraceShorts,
+        phSpliceGather, phSpliceOrder, phSpliceCorners, phSpliceMergeBuild,
         N_PHASES
     };
     static const char *name(unsigned i) {
@@ -1635,7 +1636,8 @@ struct SPProfile
             "gap_blocked", "exact_solve", "init_phase", "phase_swap", "sector_flips",
             "freerun_closure", "defect_slide", "last_resort", "augmentation", "hierholzer_emit",
             "join_weld", "splice_ring_scan", "splice_attach_scan", "rebuild_retrace", "link_valid",
-            "emit_trims", "emit_retrace_shorts"
+            "emit_trims", "emit_retrace_shorts",
+            "splice_gather(cand per coppia)", "splice_order(banda/spigoli/affollamento/sort)", "splice_corners", "splice_merge_build"
         };
         return names[i];
     }
@@ -2318,6 +2320,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         for (double r = std::min(std::max(8. * stagger, scale_(1.)), max_link_distance); ; ) {
             const double r2 = std::min(r * r, max_link2);
             rcands.clear();
+            { SPTimer sp_timer_gather(SPProfile::phSpliceGather);
             for (size_t i = 0; i < rings.size(); ++ i)
                 for (size_t j = 0; j < rings.size(); ++ j) {
                     if (i == j)
@@ -2377,6 +2380,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                     for (const RingCandRaw &c : it->second)
                         rcands.push_back({ c.d2, i, j, c.v, c.s, c.proj, c.pb });
                 }
+            }
             std::stable_sort(rcands.begin(), rcands.end(), [](const RingCand &l, const RingCand &r) { return l.d2 < r.d2; });
             // ordine di prova (deterministico): entro mezzo cordone dal candidato piu' vicino,
             // prima il piu' vicino a un raccordo del layer sotto (entro 3 cordoni), poi il piu'
@@ -2386,6 +2390,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
             std::vector<double> order_val;
             order.reserve(rcands.size());
             if (! rcands.empty()) {
+                SPTimer sp_timer_order(SPProfile::phSpliceOrder);
                 // Ginger (2026-09-05, Davide): la banda parte dalla distanza NOMINALE fra rotaie
                 // gemelle (un cordone), non dal minimo assoluto. Dove due coppie si innestano ad
                 // angolo (stool: spigolo della gamba, corda a 135 gradi su corda a 77) le rotaie
@@ -2405,6 +2410,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                 // innesto e il raccordo tagliava la coppia di corde in 298 layer su 277... cioe'
                 // sempre; sulla parete piana invece non incrocia).
                 std::vector<Points> corners(rings.size());
+                { SPTimer sp_timer_corners_scope(SPProfile::phSpliceCorners);
                 for (size_t k = 0; k < rings.size(); ++ k) {
                     const Points &P = rings[k].points;
                     const size_t n = P.size();
@@ -2431,6 +2437,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                         if (lb > 0. && a.dot(b) / (la * lb) < 0.866)
                             corners[k].emplace_back(P[i]);
                     }
+                }
                 }
                 struct Key { int cls; double v; size_t i; };
                 std::vector<Key> keys;
@@ -2515,7 +2522,9 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                     failed_links.emplace_back(c.proj, pb);
                     continue;
                 }
-                if (link_valid(c.proj, pb) && build_merge(c.i, c.j, c.v, c.s, c.proj, pb, merged_best)) {
+                bool merged_ok = false;
+                if (link_valid(c.proj, pb)) { SPTimer sp_timer_mb(SPProfile::phSpliceMergeBuild); merged_ok = build_merge(c.i, c.j, c.v, c.s, c.proj, pb, merged_best); }
+                if (merged_ok) {
                     bi = c.i; bj = c.j; b_vert = c.v; b_seg = c.s; b_proj = c.proj; b_pb = pb;
                     b_found = true;
                     if (::getenv("GINGER_SP_HYST") != nullptr)

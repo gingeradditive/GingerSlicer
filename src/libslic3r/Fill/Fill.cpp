@@ -19,6 +19,32 @@
 #include "FillTpmsFK.hpp"
 #include "FillConcentric.hpp"
 #include "libslic3r.h"
+#include <chrono>
+#include <mutex>
+#include <map>
+
+namespace {
+// GINGER_SP_PROFILE=1: tempo di riempimento per (ruolo, pattern) su tutti i layer, stampato a fine
+// processo ([SPFILL]). Serve a capire cosa pesa dentro "Generating infill toolpath".
+struct FillPatternProfile {
+    std::mutex mtx;
+    std::map<std::string, std::pair<double, size_t>> acc;
+    static bool enabled() { static const bool on = std::getenv("GINGER_SP_PROFILE") != nullptr; return on; }
+    static FillPatternProfile &get() {
+        static FillPatternProfile p;
+        static const bool reg = [] { std::atexit(&FillPatternProfile::dump); return true; }();
+        (void)reg;
+        return p;
+    }
+    static void dump() {
+        FillPatternProfile &p = get();
+        std::fprintf(stderr, "[SPFILL] ============ riempimento per ruolo/pattern ============\n");
+        for (const auto &kv : p.acc)
+            std::fprintf(stderr, "[SPFILL] %-40s %9.3f s  (%zu superfici)\n", kv.first.c_str(), kv.second.first, kv.second.second);
+    }
+    void add(const std::string &key, double sec) { std::lock_guard<std::mutex> lk(mtx); auto &e = acc[key]; e.first += sec; ++ e.second; }
+};
+} // namespace
 
 namespace Slic3r {
 
@@ -1471,9 +1497,13 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
                 params.dont_adjust = true;
             }
 			// BBS: make fill
+			const auto sp_fill_t0 = FillPatternProfile::enabled() ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point();
 			f->fill_surface_extrusion(&surface_fill.surface,
 				params,
 				m_regions[surface_fill.region_id]->fills.entities);
+			if (FillPatternProfile::enabled())
+				FillPatternProfile::get().add(std::string(ExtrusionEntity::role_to_string(params.extrusion_role)) + " / " + std::string(ConfigOptionEnum<InfillPattern>::get_enum_names()[size_t(params.pattern)]),
+				                              std::chrono::duration<double>(std::chrono::steady_clock::now() - sp_fill_t0).count());
 		}
     }
 
