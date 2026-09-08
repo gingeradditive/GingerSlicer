@@ -68,7 +68,10 @@ void FillConcentricInternal::fill_surface_extrusion(const Surface* surface, cons
         // Keep valid paths only.
         size_t j = firts_poly_idx;
         for (size_t i = firts_poly_idx; i < thick_polylines_out.size(); ++i) {
-            thick_polylines_out[i].clip_end(this->loop_clipping);
+            // Ginger continuous_path: keep the ring closed so variable_width() emits an ExtrusionLoop
+            // (free seam: the router enters it at the nearest point and leaves from the same point).
+            if (! params.connect_polygons)
+                thick_polylines_out[i].clip_end(this->loop_clipping);
             if (thick_polylines_out[i].is_valid()) {
                 if (j < i)
                     thick_polylines_out[j] = std::move(thick_polylines_out[i]);
@@ -82,7 +85,9 @@ void FillConcentricInternal::fill_surface_extrusion(const Surface* surface, cons
     }
 
     ExtrusionEntityCollection *coll_nosort = new ExtrusionEntityCollection();
-    coll_nosort->no_sort = this->no_sort(); //can be sorted inside the pass
+    // Ginger continuous_path: mirrors Fill::fill_surface_extrusion - a connected fill drops no_sort
+    // so the router sees each closed ring as its own loop unit (free entry, exit == entry).
+    coll_nosort->no_sort = this->no_sort() && ! (params.connect_polygons && this->reversible_when_connected()); //can be sorted inside the pass
 
     if (!thick_polylines_out.empty()) {
         Flow new_flow = params.flow.with_spacing(float(this->spacing));
