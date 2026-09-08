@@ -555,13 +555,43 @@ schedule driver — massive short parts cool layer-bound, thin tall parts print 
 | `GINGER_LN_OPEN=1` | — | with pockets: morphological opening of the area by half a bead (`offset2_ex`) so arms narrower than one bead get no pair of overlapping rails (knee: doubled sparse 9.3 % → 1.9 %, but −13 % sparse and travel 2.5 → 7.3 m). Not default |
 | `GINGER_LN_DEBUG=1` | `[LNISLE] [LNISLEC] [LNISLEH]` every expolygon entering the Lightning filler (bbox, tree count, contour); `[LNPOCK] [LNTREE] [LNBAND] [LNINNER] [LNAREA] [LNRING]` per pockets island | pockets bisection. Coordinates are in the OBJECT frame (G-code is in the bed frame); parallel threads interleave stderr — split lines on the `[LN` tags |
 | `GINGER_SP_SEAM_LOOKAHEAD=<w>` / `GINGER_SP_TOUCH_W=<beads>` | `[SPHOOK] seam ...` | wall seam choice with ribs (2026-09-06): candidates = this layer's rib anchors, the upper layer's rib anchors, the infill entry nearest the head; cost = arrival travel + infill hook + w x distance to the nearest upper-layer rib anchor (default w = 0.01: travel first, the rib as tie-break; w = 1 was 14.9 m of layer-change travel on figure plate 3, 0.01 gives 8.5 m). TOUCH_W = suspension contact reach in beads (default 12; cluster hops stay at 4) |
-| `GINGER_SP_PROFILE=1` | `[SPPROF]` `[SPFILL]` `[SPLN]` `[SPTIME]` | wall-clock per phase, dumped at exit: connector phases (FillBase.cpp) and, since 2026-09-08, the G-code export: do_export, perimeters (incl. the seam plan), routed emission, build_tour, support. Figure plate 3: 55 s total, export 13 s of which seam plan 2.9 s; slicing side dominated by `splice_ring_scan` 10 s (thread time) |
+| `GINGER_SP_PROFILE=1` | `[SPPROF]` `[SPFILL]` `[SPLN]` `[SPTIME]` | wall-clock per phase, dumped at exit: connector phases (FillBase.cpp) and, since 2026-09-08, the G-code export: do_export, perimeters (incl. the seam plan), routed emission, build_tour, support. The ring scan also breaks down into `splice_gather` / `splice_order` / `splice_corners` / `splice_merge_build`, plus the counters `cand` (candidates ranked), `banda` (in the band, where the corner criterion applies) and `affollamento_valutato` (crowding actually evaluated). Figure plate 3: 55 s total, export 13 s of which seam plan 2.9 s; fill stage 5.5 s of which `splice_ring_scan` 3.1 s (thread time) |
 | `GINGER_SP_ROUTEDBG=1` | `[ROUTE]` | routed infill emission: per suspended unit (loop or open path) vertices, contacts, units left; `tour di N maggiori`, `piano seam` (planned start, cost), `tour pianificato riusato`; for z < 3 mm also the distance of every remaining unit from the current sweep |
 | `GINGER_SP_TOUR=0` / `GINGER_SP_TOUR_SEAM=0` / `GINGER_SP_EXTENT_W=<beads>` / `GINGER_SP_DEPTH=<n>` / `GINGER_SP_CHANGE_W=<w>` / `GINGER_SP_PLAN_K=<n>` | - | routed infill (2026-09-07): back to greedy order of the majors / seam not planned by the tour / extent (end-to-end distance) above which an open path or monotonic collection is a major instead of an absorbable contact (default 24) / nested suspension depth (default 1 = none; 4 measured worse) (all read once through `SinglePathEnv` in GCode.cpp; the atomic-collection suspension was removed after measuring solid->solid 5.9 -> 47 m on the knee) |
 | `GINGER_LN_NOSPLICE=1` / `GINGER_LN_ISLAND=n` | — | pockets bisection: skip the ring merge / island given to the splice: 0 none (110 links across internal walls on figure plate 3), 1 verbatim, **2 default** = grown by 0.1 w as a pure BARRIER (`barrier_only`: containment of every link, no 3-stagger cap, no gorge attach, no retrace scan), 3 grown with every splice rule (1092 units vs 884, +2.4 m travel) |
 | `GINGER_SP_NO_ORS=1` / `GINGER_SP_ORSDBG=1` | `[SPORS]` | skip / trace the short retracing-run offset pass (see 2.3) |
 | Headless slice | `Ginger-Slicer.exe --slice <plate> --outputdir <dir> project.3mf` | verify slicing changes without GUI (3MF must embed settings) |
+| `GINGER_SP_HYST=1` | `[SPRING]` | ring scan, one block per merge: rings, candidates, band, corners per ring, links of the layer below, then the first six candidates ACTUALLY tried (class, value, distance, midpoint) and the `SCELTO` line. `sp_lab/link_drift.py` reads it to check that the links stay in a column between layers (stool: 828/828 = 100 %) |
 | `--sweep "opt:from:to:step"` | per-layer swept G-code | parameter calibration prints |
+
+### 7.1 Ring-scan cost (2026-09-08)
+
+`single_path_splice_loops` ranks a lot of candidates to pick one link: 7.4 M on figure plate 3
+for 1279 merges, 3.2 M on the stool for 831. Four changes cut that in half **without moving a
+single link** (knee, stool and LN80 byte-identical G-code, plate 3 within its run-to-run noise
+— lightning is not deterministic run to run, so its output cannot be diffed):
+
+- **per-ring caches keyed by the stable ring id** (samples, bounding box, corners). They used to
+  be rebuilt per PAIR and per radius window; the id changes only for the ring that a merge
+  rewrites, so everything else survives the pass.
+- **bounding-box prefilter**: two rings farther apart than the current radius cannot contribute
+  to the window, so the pair is skipped before sampling.
+- **only the band is sorted**. In the band lands 3 % of the candidates (216 k of 7.0 M on plate
+  3) and the trial loop almost always consumes the first one, so the two cascaded `stable_sort`
+  over everything are gone: the band keys are sorted, the rest stay indices and are materialised
+  in blocks with `nth_element` if the loop ever asks for them. The order is
+  (class, value, distance, enumeration) — a total order, identical to what the two sorts gave.
+- **crowding is lazy and the corner distance is pruned**. Crowding (a third ring within 1.5 beads
+  of the link) only pushes a candidate to the tail of its class, so it is evaluated on the
+  candidates actually tried: 20 k instead of 225 k on plate 3. Corners are kept sorted by x and
+  the nearest one is found by walking outwards until the x gap alone beats the best — the same
+  minimum, a fraction of the distances. Note the original criterion silently ignored crowding
+  when a candidate had NO corner at all (`(crowded ? 1e12 : 0) - DBL_MAX` is `-DBL_MAX` either
+  way, the smooth lightning pockets); the flag in the key keeps that behaviour.
+
+Fill stage: plate 3 7.3 → 5.5 s, knee 4.9 → 4.0 s, stool 3.9 → 2.3 s. Inside the scan, ordering
+fell from 2.8 s to 0.4 s (plate 3) and gathering is now the dominant half — each sample still
+pays a heap allocation inside `all_lines_in_radius`, which is the next target.
 
 Filament diameter on Ginger pellet profiles is 1.12838 mm → 1 mm² cross-section: ΔE in mm
 equals mm³ extruded (convenient for G-code analysis).

@@ -1646,6 +1646,9 @@ struct SPProfile
     // Work counters paired with the timers (what scales, not just how long).
     std::atomic<uint64_t> flip_iters {}, flip_cands {}, trails_calls {}, slide_steps {},
                           augment_pairs {}, splice_merges {}, clipper_calls {}, islands {};
+    // Scansione anelli: candidati classificati, quanti finiscono in banda con gli spigoli come
+    // criterio, e quante volte si valuta davvero l'affollamento (dal 2026-09-08 e' pigro).
+    std::atomic<uint64_t> splice_cands {}, splice_band {}, splice_crowd {};
 
     static bool enabled() {
         static const bool on = std::getenv("GINGER_SP_PROFILE") != nullptr;
@@ -1679,6 +1682,9 @@ struct SPProfile
                 (unsigned long long) p.flip_cands.load(), (unsigned long long) p.trails_calls.load(),
                 (unsigned long long) p.slide_steps.load(), (unsigned long long) p.augment_pairs.load(),
                 (unsigned long long) p.splice_merges.load(), (unsigned long long) p.clipper_calls.load());
+        fprintf(stderr, "[SPPROF] splice: cand=%llu banda=%llu affollamento_valutato=%llu\n",
+                (unsigned long long) p.splice_cands.load(), (unsigned long long) p.splice_band.load(),
+                (unsigned long long) p.splice_crowd.load());
     }
 };
 
@@ -2280,6 +2286,110 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
     struct CandKeyHash { size_t operator()(const CandKey &k) const { return (k.id_i * 1000003u) ^ (k.id_j * 7919u) ^ (size_t(k.step) * 0x9e3779b9u); } };
     struct RingCandRaw { double d2; size_t v, s; Point proj; Point pb; }; // pb: punto su B (vertice o campione sul lato v)
     std::unordered_map<CandKey, std::vector<RingCandRaw>, CandKeyHash> cand_cache;
+    // Ginger (2026-09-08): tre cache per ANELLO (chiave = id stabile) di roba che prima si rifaceva
+    // per ogni COPPIA e a ogni passata. I campioni di B (vertici piu' un punto ogni due cordoni sui
+    // lati lunghi) erano rigenerati una volta per ogni anello i, cioe' N volte; gli spigoli erano
+    // ricalcolati per TUTTI gli anelli a ogni finestra di raggio anche se servivano solo per i due
+    // anelli del candidato; la bbox e' il prefiltro - se due anelli distano piu' del raggio corrente
+    // la finestra e' vuota per costruzione e non c'e' niente da campionare ne' da interrogare.
+    std::unordered_map<size_t, std::vector<std::pair<size_t, Point>>> samples_cache;
+    std::unordered_map<size_t, BoundingBox>                           bbox_cache;
+    std::unordered_map<size_t, Points>                                corners_cache;
+    auto bbox_of = [&](size_t k) -> const BoundingBox & {
+        auto it = bbox_cache.find(ring_id[k]);
+        if (it == bbox_cache.end())
+            it = bbox_cache.emplace(ring_id[k], BoundingBox(rings[k].points)).first;
+        return it->second;
+    };
+    auto bbox_gap = [&](size_t a, size_t b) -> double {
+        const BoundingBox &A = bbox_of(a);
+        const BoundingBox &B = bbox_of(b);
+        const double dx = std::max(0., std::max(double(A.min.x()) - double(B.max.x()), double(B.min.x()) - double(A.max.x())));
+        const double dy = std::max(0., std::max(double(A.min.y()) - double(B.max.y()), double(B.min.y()) - double(A.max.y())));
+        return std::sqrt(dx * dx + dy * dy);
+    };
+    auto samples_of = [&](size_t k) -> const std::vector<std::pair<size_t, Point>> & {
+        auto it = samples_cache.find(ring_id[k]);
+        if (it != samples_cache.end())
+            return it->second;
+        // Ginger (2026-09-05, Davide): i candidati non sono solo i VERTICI dell'anello ma anche
+        // punti campionati ogni due cordoni lungo i lati lunghi. I vertici di un anello di grid
+        // stanno tutti sugli spigoli (innesti delle corde, cappucci): con le righe dritte il
+        // raccordo poteva cadere SOLO su uno spigolo, a nodo (misurato: stool, 277 layer su 277
+        // sull innesto della gamba; prima finiva a meta lato solo grazie ai vertici della gobba
+        // "graze", ora tolta).
+        const Points &B = rings[k].points;
+        std::vector<std::pair<size_t, Point>> smp;
+        smp.reserve(B.size() * 2);
+        for (size_t v = 0; v < B.size(); ++ v) {
+            smp.emplace_back(v, B[v]);
+            const Point &b1 = B[(v + 1) % B.size()];
+            const Vec2d  dv = (b1 - B[v]).cast<double>();
+            const double dl = dv.norm();
+            for (double t = 2. * stagger; t < dl - stagger; t += 2. * stagger)
+                smp.emplace_back(v, Point((B[v].cast<double>() + dv * (t / dl)).cast<coord_t>()));
+        }
+        return samples_cache.emplace(ring_id[k], std::move(smp)).first->second;
+    };
+    auto corners_of = [&](size_t k) -> const Points & {
+        auto it = corners_cache.find(ring_id[k]);
+        if (it != corners_cache.end())
+            return it->second;
+        SPTimer sp_timer_corners_scope(SPProfile::phSpliceCorners);
+        const Points &P = rings[k].points;
+        const size_t  n = P.size();
+        Points        cs;
+        // "spigolo" = svolta di oltre 30 gradi accumulata su una finestra di due cordoni
+        // (la punta della gamba e' un semicerchio di piccoli segmenti: nessun vertice
+        // supera i 30 gradi, ma in 6 mm gira di 70 - e li' il raccordo tagliava le rotaie).
+        // Ginger (2026-09-05, Davide): il riferimento e' il tratto che ENTRA nel vertice.
+        // Con il tratto in uscita, su un lato lungo (76 mm) la finestra restava dentro
+        // lo stesso lato e la svolta di 122 gradi all'innesto delle corde non veniva
+        // mai vista: il raccordo finiva proprio li', a nodo, su 277 layer su 277.
+        for (size_t i = 0; i < n && n >= 3; ++ i) {
+            const Vec2d  a  = (P[i] - P[(i + n - 1) % n]).cast<double>();
+            const double la = a.norm();
+            if (la <= 0.)
+                continue;
+            double walked = 0.;
+            size_t j = i;
+            while (walked < 2. * stagger && j + 1 < i + n) {
+                walked += (P[(j + 1) % n] - P[j % n]).cast<double>().norm();
+                ++ j;
+            }
+            const Vec2d  b  = (P[(j + 1) % n] - P[j % n]).cast<double>();
+            const double lb = b.norm();
+            if (lb > 0. && a.dot(b) / (la * lb) < 0.866)
+                cs.emplace_back(P[i]);
+        }
+        // ordinati per x: la distanza minima da un punto si trova senza guardarli tutti (sotto)
+        std::sort(cs.begin(), cs.end(), [](const Point &l, const Point &r) {
+            return l.x() != r.x() ? l.x() < r.x() : l.y() < r.y(); });
+        return corners_cache.emplace(ring_id[k], std::move(cs)).first->second;
+    };
+    // Distanza (al quadrato) dal piu' vicino degli spigoli, cercata a partire dalla x del punto e
+    // fermata appena lo scarto in x da solo supera il migliore: e' lo STESSO minimo del confronto
+    // con tutti (si saltano solo spigoli che non possono essere piu' vicini), ma sulla plate 3
+    // erano 225 mila candidati in banda per qualche centinaio di spigoli ciascuno.
+    auto corners_min2 = [](const Points &C, const Vec2d &mid, double best2) -> double {
+        size_t lo = size_t(std::lower_bound(C.begin(), C.end(), mid.x(),
+                           [](const Point &p, double x) { return double(p.x()) < x; }) - C.begin());
+        for (size_t k = lo; k < C.size(); ++ k) {
+            const Vec2d  v  = C[k].cast<double>() - mid;
+            const double dx = v.x();
+            if (dx * dx >= best2)
+                break;
+            best2 = std::min(best2, v.squaredNorm());
+        }
+        for (size_t k = lo; k-- > 0; ) {
+            const Vec2d  v  = C[k].cast<double>() - mid;
+            const double dx = v.x();
+            if (dx * dx >= best2)
+                break;
+            best2 = std::min(best2, v.squaredNorm());
+        }
+        return best2;
+    };
     for (bool merged_any = true; merged_any && rings.size() > 1; ) {
         merged_any = false;
         SPTimer sp_timer_(SPProfile::phSpliceRingScan);
@@ -2329,50 +2439,39 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                     auto it = cand_cache.find(key);
                     if (it == cand_cache.end()) {
                         std::vector<RingCandRaw> raw;
-                        const Points &B = rings[j].points; // vertices
-                        // Ginger (2026-09-05, Davide): i candidati non sono solo i VERTICI di B ma anche
-                        // punti campionati ogni due cordoni lungo i lati lunghi. I vertici di un anello
-                        // di grid stanno tutti sugli spigoli (innesti delle corde, cappucci): con le
-                        // righe dritte il raccordo poteva cadere SOLO su uno spigolo, a nodo (misurato:
-                        // stool, 277 layer su 277 sull innesto della gamba; prima finiva a meta lato
-                        // solo grazie ai vertici della gobba "graze", ora tolta).
-                        std::vector<std::pair<size_t, Point>> samples;
-                        samples.reserve(B.size() * 2);
-                        for (size_t v = 0; v < B.size(); ++ v) {
-                            samples.emplace_back(v, B[v]);
-                            const Point &b1 = B[(v + 1) % B.size()];
-                            const Vec2d  dv = (b1 - B[v]).cast<double>();
-                            const double dl = dv.norm();
-                            for (double t = 2. * stagger; t < dl - stagger; t += 2. * stagger)
-                                samples.emplace_back(v, Point((B[v].cast<double>() + dv * (t / dl)).cast<coord_t>()));
-                        }
-                        if (step == 0) {
-                            for (const auto &[v, q] : samples) {
-                                // Inflated superset query; the exact filter below uses the same
-                                // closest_on_segment arithmetic as the original full enumeration.
-                                near_segs = ring_tree[i]->all_lines_in_radius(q, r * 1.01);
-                                std::sort(near_segs.begin(), near_segs.end());
-                                for (size_t s : near_segs) {
-                                    const Line &ln   = ring_lines[i][s];
-                                    Point       proj = closest_on_segment(q, ln.a, ln.b);
-                                    double      d    = (q - proj).cast<double>().squaredNorm();
-                                    if (d >= r_prev2 && d < r2)
-                                        raw.push_back({ d, v, s, proj, q });
+                        // Prefiltro: oltre la distanza fra le bbox non c'e' nessun candidato nella
+                        // finestra corrente (i campioni stanno dentro la bbox di B, le proiezioni
+                        // dentro quella di A), quindi la coppia si salta senza campionare.
+                        if (bbox_gap(i, j) <= r * 1.01) {
+                            const std::vector<std::pair<size_t, Point>> &samples = samples_of(j);
+                            if (step == 0) {
+                                for (const auto &[v, q] : samples) {
+                                    // Inflated superset query; the exact filter below uses the same
+                                    // closest_on_segment arithmetic as the original full enumeration.
+                                    near_segs = ring_tree[i]->all_lines_in_radius(q, r * 1.01);
+                                    std::sort(near_segs.begin(), near_segs.end());
+                                    for (size_t s : near_segs) {
+                                        const Line &ln   = ring_lines[i][s];
+                                        Point       proj = closest_on_segment(q, ln.a, ln.b);
+                                        double      d    = (q - proj).cast<double>().squaredNorm();
+                                        if (d >= r_prev2 && d < r2)
+                                            raw.push_back({ d, v, s, proj, q });
+                                    }
                                 }
-                            }
-                        } else {
-                            // Ginger (2026-09-04): oltre la prima finestra il raggio arriva
-                            // all'estensione dell'isola (lightning: tutto il pezzo) e la query
-                            // "tutti i lati entro r" restituiva TUTTO l'anello per OGNI vertice:
-                            // O(V_i x V_j) candidati da ordinare, 150 s di CPU sulla plate 2 di
-                            // figure_production. Qui per ogni vertice entra solo il lato piu'
-                            // vicino: e' il candidato che verrebbe provato per primo da quel
-                            // vertice, e il budget di validazione e' di poche decine di prove.
-                            for (const auto &[v, q] : samples) {
-                                const auto [dist, idx, np] = ring_tree[i]->distance_from_lines_extra<false>(q);
-                                const double d = dist * dist;
-                                if (d >= r_prev2 && d < r2)
-                                    raw.push_back({ d, v, size_t(idx), Point(np.cast<coord_t>()), q });
+                            } else {
+                                // Ginger (2026-09-04): oltre la prima finestra il raggio arriva
+                                // all'estensione dell'isola (lightning: tutto il pezzo) e la query
+                                // "tutti i lati entro r" restituiva TUTTO l'anello per OGNI vertice:
+                                // O(V_i x V_j) candidati da ordinare, 150 s di CPU sulla plate 2 di
+                                // figure_production. Qui per ogni vertice entra solo il lato piu'
+                                // vicino: e' il candidato che verrebbe provato per primo da quel
+                                // vertice, e il budget di validazione e' di poche decine di prove.
+                                for (const auto &[v, q] : samples) {
+                                    const auto [dist, idx, np] = ring_tree[i]->distance_from_lines_extra<false>(q);
+                                    const double d = dist * dist;
+                                    if (d >= r_prev2 && d < r2)
+                                        raw.push_back({ d, v, size_t(idx), Point(np.cast<coord_t>()), q });
+                                }
                             }
                         }
                         it = cand_cache.emplace(key, std::move(raw)).first;
@@ -2381,14 +2480,24 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                         rcands.push_back({ c.d2, i, j, c.v, c.s, c.proj, c.pb });
                 }
             }
-            std::stable_sort(rcands.begin(), rcands.end(), [](const RingCand &l, const RingCand &r) { return l.d2 < r.d2; });
             // ordine di prova (deterministico): entro mezzo cordone dal candidato piu' vicino,
             // prima il piu' vicino a un raccordo del layer sotto (entro 3 cordoni), poi il piu'
             // vicino all'ancora stabile dell'anello da fondere; fuori dalla banda, per distanza.
-            std::vector<size_t> order;
-            std::vector<int>    order_cls;   // diagnostica: classe di ogni candidato in ordine di prova
-            std::vector<double> order_val;
-            order.reserve(rcands.size());
+            // `crowd`: nel criterio originale il valore era (affollato ? 1e12 : 0) - dcorner, quindi
+            // quando un candidato non ha NESSUNO spigolo vicino (dcorner = DBL_MAX, tipico delle
+            // tasche lisce del lightning) i due valori coincidono e l'affollamento non sposta nulla.
+            // Il flag conserva quella regola: si valuta l'affollamento solo dove cambia l'ordine.
+            struct Key { int cls; double v; double d2; uint32_t i; bool crowd; };
+            // Ginger (2026-09-08): in banda finisce il 3% dei candidati (misurato: 216k su 7.0 M sulla
+            // plate 3) ma prima si ordinava TUTTO - due volte, prima i candidati per d2 e poi le
+            // chiavi - mentre il ciclo di prova ne consuma quasi sempre uno solo. Ora si ordinano solo
+            // le chiavi in banda (classi 0 e 1) e i candidati fuori banda restano indici, materializzati
+            // a blocchi con nth_element quando il ciclo arriva davvero a chiederli. L'ordine e'
+            // (classe, valore, distanza, ordine di enumerazione): totale, cioe' identico a quello che
+            // davano i due stable_sort in cascata, quindi le decisioni non cambiano.
+            std::vector<Key>      keys;
+            std::vector<uint32_t> rest;
+            static const bool sp_hyst = ::getenv("GINGER_SP_HYST") != nullptr;
             if (! rcands.empty()) {
                 SPTimer sp_timer_order(SPProfile::phSpliceOrder);
                 // Ginger (2026-09-05, Davide): la banda parte dalla distanza NOMINALE fra rotaie
@@ -2398,106 +2507,134 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                 // stava li', la banda di mezzo cordone conteneva SOLO l'apice del cuneo e il
                 // raccordo ci finiva su tutti i 277 layer, a nodo sulla giunzione (link di 2.9 mm
                 // con cordone da 3.2). Sotto 0.9 cordoni non e' un affiancamento, e' un innesto.
-                double d_ref = -1.;
-                for (const RingCand &c : rcands)
-                    if (std::sqrt(c.d2) >= 0.9 * stagger) { d_ref = std::sqrt(c.d2); break; }
+                double d_ref = -1., d_min = std::numeric_limits<double>::max();
+                for (const RingCand &c : rcands) {
+                    const double d = std::sqrt(c.d2);
+                    d_min = std::min(d_min, d);
+                    if (d >= 0.9 * stagger && (d_ref < 0. || d < d_ref)) d_ref = d;
+                }
                 const double band_lo = d_ref < 0. ? 0. : 0.9 * stagger;
                 if (d_ref < 0.)
-                    d_ref = std::sqrt(rcands.front().d2);
+                    d_ref = d_min;
                 const double band = d_ref + 0.5 * stagger;
                 // senza layer sotto: il raccordo va nel tratto piu' LISCIO, lontano dagli spigoli
                 // di entrambi gli anelli (misurato: l'ancora "vertice a x minima" lo metteva su un
                 // innesto e il raccordo tagliava la coppia di corde in 298 layer su 277... cioe'
-                // sempre; sulla parete piana invece non incrocia).
-                std::vector<Points> corners(rings.size());
-                { SPTimer sp_timer_corners_scope(SPProfile::phSpliceCorners);
-                for (size_t k = 0; k < rings.size(); ++ k) {
-                    const Points &P = rings[k].points;
-                    const size_t n = P.size();
-                    // "spigolo" = svolta di oltre 30 gradi accumulata su una finestra di due cordoni
-                    // (la punta della gamba e' un semicerchio di piccoli segmenti: nessun vertice
-                    // supera i 30 gradi, ma in 6 mm gira di 70 - e li' il raccordo tagliava le rotaie).
-                    // Ginger (2026-09-05, Davide): il riferimento e' il tratto che ENTRA nel vertice.
-                    // Con il tratto in uscita, su un lato lungo (76 mm) la finestra restava dentro
-                    // lo stesso lato e la svolta di 122 gradi all'innesto delle corde non veniva
-                    // mai vista: il raccordo finiva proprio li', a nodo, su 277 layer su 277.
-                    for (size_t i = 0; i < n && n >= 3; ++ i) {
-                        const Vec2d a = (P[i] - P[(i + n - 1) % n]).cast<double>();
-                        const double la = a.norm();
-                        if (la <= 0.)
-                            continue;
-                        double walked = 0.;
-                        size_t j = i;
-                        while (walked < 2. * stagger && j + 1 < i + n) {
-                            walked += (P[(j + 1) % n] - P[j % n]).cast<double>().norm();
-                            ++ j;
-                        }
-                        const Vec2d b = (P[(j + 1) % n] - P[j % n]).cast<double>();
-                        const double lb = b.norm();
-                        if (lb > 0. && a.dot(b) / (la * lb) < 0.866)
-                            corners[k].emplace_back(P[i]);
-                    }
-                }
-                }
-                struct Key { int cls; double v; size_t i; };
-                std::vector<Key> keys;
-                keys.reserve(rcands.size());
+                // sempre; sulla parete piana invece non incrocia). Gli spigoli arrivano dalla cache
+                // per anello: si calcolano solo per gli anelli che compaiono in un candidato, e nel
+                // ciclo si passano per puntatore (la ricerca hash costava piu' del confronto).
+                std::vector<const Points *> corners_p(rings.size(), nullptr);
+                uint64_t n_band = 0;
+                rest.reserve(rcands.size());
                 for (size_t i = 0; i < rcands.size(); ++ i) {
                     const RingCand &c = rcands[i];
-                    const Vec2d mid = 0.5 * (c.proj.cast<double>() + c.pb.cast<double>());
-                    Key k { 2, c.d2, i };
-                    if (std::sqrt(c.d2) >= band_lo && std::sqrt(c.d2) <= band) {
-                        double dprev = std::numeric_limits<double>::max();
-                        for (const Point &q : s_links_prev)
-                            dprev = std::min(dprev, (q.cast<double>() - mid).norm());
-                        if (dprev <= 3. * stagger)
-                            k = { 0, dprev, i };
-                        else {
-                            double dcorner = std::numeric_limits<double>::max();
-                            for (size_t r2 : { c.i, c.j })
-                                for (const Point &q : corners[r2])
-                                    dcorner = std::min(dcorner, (q.cast<double>() - mid).norm());
-                            // ...e lontano da TERZI anelli: alla punta della gamba (arco liscio, zero
-                            // spigoli) convergono quattro rotaie e il raccordo le tagliava (76 layer).
-                            bool crowded = false;
-                            for (size_t r2 = 0; r2 < rings.size() && ! crowded; ++ r2)
-                                if (r2 != c.i && r2 != c.j && ring_tree[r2] &&
-                                    ! ring_tree[r2]->all_lines_in_radius(Point(mid.cast<coord_t>()), 1.5 * stagger).empty())
-                                    crowded = true;
-                            k = { 1, (crowded ? 1e12 : 0.) - dcorner, i }; // piu' lontano dagli spigoli = prima
-                        }
+                    const double    d = std::sqrt(c.d2);
+                    if (d < band_lo || d > band) {
+                        rest.push_back(uint32_t(i));
+                        continue;
                     }
-                    keys.push_back(k);
+                    const Vec2d mid = 0.5 * (c.proj.cast<double>() + c.pb.cast<double>());
+                    double dprev = std::numeric_limits<double>::max();
+                    for (const Point &q : s_links_prev)
+                        dprev = std::min(dprev, (q.cast<double>() - mid).norm());
+                    if (dprev <= 3. * stagger) {
+                        keys.push_back({ 0, dprev, c.d2, uint32_t(i), false });
+                        continue;
+                    }
+                    double dcorner2 = std::numeric_limits<double>::max();
+                    for (size_t r2 : { c.i, c.j }) {
+                        if (corners_p[r2] == nullptr)
+                            corners_p[r2] = &corners_of(r2);
+                        dcorner2 = corners_min2(*corners_p[r2], mid, dcorner2);
+                    }
+                    // la radice del minimo dei quadrati e' lo stesso double del minimo delle radici
+                    const double dcorner = dcorner2 < std::numeric_limits<double>::max() ?
+                                           std::sqrt(dcorner2) : dcorner2;
+                    // piu' lontano dagli spigoli = prima
+                    keys.push_back({ 1, -dcorner, c.d2, uint32_t(i), dcorner < std::numeric_limits<double>::max() });
+                    ++ n_band;
                 }
-                std::stable_sort(keys.begin(), keys.end(), [](const Key &l, const Key &r) {
-                    return l.cls != r.cls ? l.cls < r.cls : l.v < r.v;
+                std::sort(keys.begin(), keys.end(), [](const Key &l, const Key &r) {
+                    if (l.cls != r.cls) return l.cls < r.cls;
+                    if (l.v   != r.v)   return l.v   < r.v;
+                    if (l.d2  != r.d2)  return l.d2  < r.d2;
+                    return l.i < r.i;
                 });
-                for (const Key &k : keys) {
-                    order.push_back(k.i);
-                    order_cls.push_back(k.cls);
-                    order_val.push_back(k.v);
-                }
-                if (::getenv("GINGER_SP_HYST") != nullptr) {
+                sp_profile_count(&SPProfile::splice_cands, rcands.size());
+                sp_profile_count(&SPProfile::splice_band, n_band);
+                if (sp_hyst)
                     std::fprintf(stderr, "[SPRING] z=%.1f anelli=%zu cand=%zu d_ref=%.2f banda=[%.2f,%.2f] spigoli=%zu/%zu prev=%zu\n",
                                  s_sp_debug_z, rings.size(), rcands.size(), d_ref * SCALING_FACTOR,
                                  band_lo * SCALING_FACTOR, band * SCALING_FACTOR,
-                                 corners.size() > 0 ? corners[0].size() : size_t(0), corners.size() > 1 ? corners[1].size() : size_t(0),
+                                 rings.size() > 0 ? corners_of(0).size() : size_t(0),
+                                 rings.size() > 1 ? corners_of(1).size() : size_t(0),
                                  s_links_prev.size());
-                    for (size_t q = 0; q < std::min<size_t>(6, keys.size()); ++ q) {
-                        const RingCand &c = rcands[keys[q].i];
-                        const Vec2d mid = 0.5 * (c.proj.cast<double>() + c.pb.cast<double>());
-                        std::fprintf(stderr, "[SPRING]   #%zu cls=%d v=%.2f d=%.2f mid=(%.1f,%.1f)\n", q, keys[q].cls,
-                                     keys[q].cls == 1 ? -keys[q].v * SCALING_FACTOR : keys[q].v * SCALING_FACTOR,
-                                     std::sqrt(c.d2) * SCALING_FACTOR, mid.x() * SCALING_FACTOR, mid.y() * SCALING_FACTOR);
-                    }
-                }
             }
-            bool budget_out = false;
+            // Ginger (2026-09-08): l'AFFOLLAMENTO (un terzo anello entro 1.5 cordoni dal raccordo:
+            // alla punta della gamba convergono quattro rotaie e il raccordo le tagliava, 76 layer)
+            // e' una query ad albero per OGNI anello su OGNI candidato in banda, ma non cambia la
+            // classe: sposta solo il candidato in CODA alla classe 1. Quindi si valuta soltanto sui
+            // candidati che vengono davvero provati - di solito il primo - e quelli affollati vanno in
+            // una lista che riparte quando la classe 1 e' esaurita, prima di quelli fuori banda.
+            auto crowded_of = [&](const RingCand &c) {
+                const Vec2d mid = 0.5 * (c.proj.cast<double>() + c.pb.cast<double>());
+                for (size_t r2 = 0; r2 < rings.size(); ++ r2)
+                    if (r2 != c.i && r2 != c.j && ring_tree[r2] &&
+                        ! ring_tree[r2]->all_lines_in_radius(Point(mid.cast<coord_t>()), 1.5 * stagger).empty())
+                        return true;
+                return false;
+            };
+            auto rest_less = [&rcands](uint32_t a, uint32_t b) {
+                return rcands[a].d2 != rcands[b].d2 ? rcands[a].d2 < rcands[b].d2 : a < b;
+            };
+            std::vector<uint32_t> deferred; // candidati in banda affollati, nell'ordine della classe 1
+            size_t ki = 0, di = 0, ri = 0, rest_ready = 0;
+            auto next_cand = [&](int &cls_out, double &val_out) -> const RingCand * {
+                for (;;) {
+                    if (ki < keys.size()) {
+                        const Key k = keys[ki ++];
+                        if (k.cls == 1 && k.crowd) {
+                            sp_profile_count(&SPProfile::splice_crowd, 1);
+                            if (crowded_of(rcands[k.i])) { deferred.push_back(k.i); continue; }
+                        }
+                        cls_out = k.cls; val_out = k.v; return &rcands[k.i];
+                    }
+                    if (di < deferred.size()) {
+                        const uint32_t idx = deferred[di ++];
+                        cls_out = 1; val_out = 0.; return &rcands[idx];
+                    }
+                    if (ri >= rest.size())
+                        return nullptr;
+                    if (ri >= rest_ready) {
+                        // blocco successivo dell'ordine per (d2, enumerazione): nth_element porta
+                        // davanti i k piu' piccoli senza ordinare la coda.
+                        const size_t k = std::min(rest.size(), std::max(rest_ready * 8, size_t(64)));
+                        if (k < rest.size())
+                            std::nth_element(rest.begin() + rest_ready, rest.begin() + k, rest.end(), rest_less);
+                        std::sort(rest.begin() + rest_ready, rest.begin() + k, rest_less);
+                        rest_ready = k;
+                    }
+                    const uint32_t idx = rest[ri ++];
+                    cls_out = 2; val_out = rcands[idx].d2; return &rcands[idx];
+                }
+            };
+            bool   budget_out = false;
             size_t oi_pos = 0;
-            for (size_t oi : order) {
+            for (;;) {
+                int    cand_cls = -1;
+                double cand_val = 0.;
+                const RingCand *cand_p = next_cand(cand_cls, cand_val);
+                if (cand_p == nullptr)
+                    break;
                 const size_t    my_pos = oi_pos ++;
-                const RingCand &c = rcands[oi];
-                const Point &pb = c.pb;
+                const RingCand &c  = *cand_p;
+                const Point    &pb = c.pb;
+                if (sp_hyst && my_pos < 6) {
+                    const Vec2d mid = 0.5 * (c.proj.cast<double>() + c.pb.cast<double>());
+                    std::fprintf(stderr, "[SPRING]   #%zu cls=%d v=%.2f d=%.2f mid=(%.1f,%.1f)\n", my_pos, cand_cls,
+                                 (cand_cls == 1 ? -cand_val : cand_val) * SCALING_FACTOR,
+                                 std::sqrt(c.d2) * SCALING_FACTOR, mid.x() * SCALING_FACTOR, mid.y() * SCALING_FACTOR);
+                }
                 if (near_failed(c.proj, pb))
                     continue; // same invalid region: skip without spending budget
                 if (++ tried > max_validations) {
@@ -2527,9 +2664,9 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                 if (merged_ok) {
                     bi = c.i; bj = c.j; b_vert = c.v; b_seg = c.s; b_proj = c.proj; b_pb = pb;
                     b_found = true;
-                    if (::getenv("GINGER_SP_HYST") != nullptr)
+                    if (sp_hyst)
                         std::fprintf(stderr, "[SPRING]   SCELTO pos=%zu cls=%d prove=%zu d=%.2f link=(%.1f,%.1f)-(%.1f,%.1f)\n",
-                                     my_pos, my_pos < order_cls.size() ? order_cls[my_pos] : -1, tried,
+                                     my_pos, cand_cls, tried,
                                      std::sqrt(c.d2) * SCALING_FACTOR,
                                      c.proj.x() * SCALING_FACTOR, c.proj.y() * SCALING_FACTOR, pb.x() * SCALING_FACTOR, pb.y() * SCALING_FACTOR);
                     break;
