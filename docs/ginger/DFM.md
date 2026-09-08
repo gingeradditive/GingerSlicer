@@ -308,7 +308,14 @@ improves.
     the role); the internal-solid fields are disabled in the GUI. Knee (top concentric, internal
     solid was monotonic): 38.0 -> 25.1 m of travel >= 5 mm, all internal solid now printed as top
     (concentric rings, fused); plate 3 and stool unchanged (no internal solid there). Export of the
-    knee 13 -> 25 s (more and longer rings in the tour).
+    knee 13 -> 25 s (more and longer rings in the tour). Consequence: with a concentric top,
+    `split_solid_surface` (Fill.cpp ~606) returns for any non-rectilinear pattern, so
+    `detect_narrow_internal_solid_infill` never routes anything to `ipConcentricInternal` -
+    FillConcentricInternal is reachable only with a rectilinear/monotonic top, where its patches are
+    1-3 rings and a ring fusion would be a no-op; it keeps closed rings and free entry but no fusion
+    (decided 2026-09-08 with the parallel session, same choice as Cura's infill.cpp:117). Knee, the
+    parallel session's metric for continuity: 47.2 m before any of this, 44.0 with closed rings,
+    43.4 with the fusion, 28.1 with the inheritance (-40%).
   What remains structural: a solid layer is cut by the connected rectilinear fill into diagonal
   BANDS whose two ends are far apart (they stop at every notch of the boundary); the chain of
   bands cannot be closed without a hop of the band's extent, so a bottom layer keeps one or two
