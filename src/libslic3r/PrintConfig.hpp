@@ -1013,11 +1013,11 @@ PRINT_CONFIG_CLASS_DEFINE(
     // Orca:
     ((ConfigOptionFloatOrPercent,                infill_combination_max_layer_height))
     ((ConfigOptionInt,                  fill_multiline))
-    ((ConfigOptionBool,                 single_path_mode))
-    ((ConfigOptionBool,                 single_path_wall_ribs))
-    ((ConfigOptionFloat,                single_path_wall_rib_max_length))
-    ((ConfigOptionBool,                 single_path_infill_as_wall))
-    ((ConfigOptionBool,                 single_path_infill_ring_always))
+    ((ConfigOptionBool,                 continuous_path_mode))
+    ((ConfigOptionBool,                 continuous_path_wall_ribs))
+    ((ConfigOptionFloat,                continuous_path_wall_rib_max_length))
+    ((ConfigOptionBool,                 continuous_path_infill_as_wall))
+    ((ConfigOptionBool,                 continuous_path_infill_ring_always))
     // Ironing options
     ((ConfigOptionEnum<IroningType>, ironing_type))
     ((ConfigOptionEnum<InfillPattern>, ironing_pattern))

@@ -1,5 +1,5 @@
 #pragma once
-// Ginger single-path wall rib connectors (single_path_wall_ribs).
+// Ginger single-path wall rib connectors (continuous_path_wall_ribs).
 //
 // Merges the wall loops of one island (outer wall + hole walls, given as their centerline
 // polygons) into ONE closed extrusion walk by inserting a "rib" at the closest approach of

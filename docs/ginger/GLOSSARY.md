@@ -289,7 +289,7 @@ GingerSlicer. Each entry points to the primary source file when applicable.
 
 Full rationale and implementation map in `docs/ginger/DFM.md`.
 
-- **Single path mode** (`single_path_mode`) — Print-wide toggle: walls and
+- **Continuous path mode** (`continuous_path_mode`, until 2026-09-08 `single_path_mode`, before that `connect_infill_polygons`; the old keys load through `handle_legacy`) — Print-wide toggle: walls and
   sparse infill of each island chain into one continuous walk (travels are
   the enemy on pellet: no true retract, melt degrades while idle). Drives
   `FillParams::connect_polygons` for connectable sparse patterns and the
@@ -325,7 +325,7 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   optimum choice, not an unconditional extra loop — layers whose tree is
   empty print no sparse at all (lightning is demand-driven).
 
-- **Wall fusion** (`single_path_infill_as_wall`) — The outer wall loop takes
+- **Wall fusion** (`continuous_path_infill_as_wall`) — The outer wall loop takes
   over the Lightning branches: instead of a branch being anchored against the
   wall (a T junction — the "anchor" that shows through transparent material),
   the loop detours inward around each branch, goes around it and comes back.
@@ -339,7 +339,7 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   `PrintObject::fuse_lightning_into_walls()`. Runs inside `prepare_infill`
   between `combine_infill()` and `generate_wall_ribs()` — the one window where
   the trees already exist, the fill surfaces are final and the rib planner has
-  not run yet. Requires `single_path_mode`, Lightning and `wall_loops = 1`
+  not run yet. Requires `continuous_path_mode`, Lightning and `wall_loops = 1`
   (the gorge is one spacing wide: a second concentric loop has nowhere to go);
   outside those conditions it falls back to the normal infill rings.
   Two consequences of editing a *perimeter* from inside `prepare_infill`, both
@@ -390,7 +390,7 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   Ruled out along the way, all measured: `rand()` elsewhere (only a `#ifdef` and
   two unused joint templates left), the G-code pipeline (every filter is
   `serial_in_order`), the single-path connector (it happens with
-  `single_path_mode = 0`), and the bridge candidate gather (fixed anyway: it
+  `continuous_path_mode = 0`), and the bridge candidate gather (fixed anyway: it
   used a `tbb::concurrent_vector`, whose interleaving order reached an unstable
   presort that ties on the bbox corner and decides which bridge wins the
   anchoring lines — a real coin flip, just not this one). Note
@@ -428,7 +428,7 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   slice with no fusion at all. The gorge tip's tessellation is capped at
   `spacing/500` — see [[Wall fusion]] for why coarser costs print time.
 
-- **Always ring** (`single_path_infill_ring_always`) — Closes the sparse
+- **Always ring** (`continuous_path_infill_ring_always`) — Closes the sparse
   infill ring on every layer with a sparse area instead of leaving the choice
   to the connector (which keeps it only where it costs no extra trail).
   Answers the banding the demand-driven tree causes on low-demand layers. The
@@ -469,7 +469,7 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   (`[SPDEVIATE]`). Scanline patterns only — under lightning wall lining a
   wall-hugging row is the product, not an accident.
 
-- **Wall rib** (`single_path_wall_ribs`) — Two staggered link segments
+- **Wall rib** (`continuous_path_wall_ribs`) — Two staggered link segments
   welding two wall loops into one walk (the automated CAD "micro cut").
   Planned per layer by Prim (`loops − 1` ribs) in
   `PrintObject::generate_wall_ribs()` / `src/libslic3r/WallRibs.hpp`.

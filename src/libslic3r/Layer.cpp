@@ -179,7 +179,7 @@ void Layer::make_perimeters()
 {
     BOOST_LOG_TRIVIAL(trace) << "Generating perimeters for layer " << this->id();
 
-    // Ginger single_path_infill_as_wall: the loops the fusion reshaped are about to be destroyed,
+    // Ginger continuous_path_infill_as_wall: the loops the fusion reshaped are about to be destroyed,
     // so the undo record pointing at them has to go with them (the fresh walls are pristine anyway).
     this->wall_fusion_undo.clear();
     this->wall_fused_islands.clear();

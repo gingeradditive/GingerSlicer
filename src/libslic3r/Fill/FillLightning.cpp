@@ -81,7 +81,7 @@ void Filler::_fill_surface_single(
     // sempre pari o meglio del connettore (capi nel vuoto 0, aria ~0, lining sul 98% del contorno).
     // GINGER_LN_POCKETS=0 torna al percorso vecchio (multiline_fill + ritaglio + connettore).
     static const bool ln_pockets = [] { const char *v = ::getenv("GINGER_LN_POCKETS"); return v == nullptr || std::atoi(v) != 0; }();
-    // Non nelle isole fuse (single_path_infill_as_wall): li' il muro E' l'anello e la lining lungo il
+    // Non nelle isole fuse (continuous_path_infill_as_wall): li' il muro E' l'anello e la lining lungo il
     // contorno, che le tasche portano con se', sarebbe un secondo cordone accanto a un cordone di
     // parete - salvo che l'utente la chieda su ogni layer (ring_always).
     if (ln_pockets && params.connect_polygons && params.multiline == 2 && ! fill_lines.empty() &&
@@ -199,7 +199,7 @@ void Filler::_fill_surface_single(
     // rail that carries it to the wall seam (rib). The connector then prefers the contour
     // phase with maximum wall coverage whenever it costs no extra trail.
     //
-    // EXCEPT where single_path_infill_as_wall already turned the wall into that ring. There the
+    // EXCEPT where continuous_path_infill_as_wall already turned the wall into that ring. There the
     // surface contour is no longer the island outline: the fusion carved a gorge out of it for
     // every branch it took over, so "maximum wall coverage" makes the lining trace the outline of
     // each gorge - a second bead 0.75 spacings from a flank that is itself a wall bead. That is
@@ -208,7 +208,7 @@ void Filler::_fill_surface_single(
     // promises, so the lining preference is dropped for those islands only.
     const bool fused = this->surface_in_fused_island(expolygon);
 
-    // single_path_infill_ring_always: with no fill line at all the connector has nothing to connect
+    // continuous_path_infill_ring_always: with no fill line at all the connector has nothing to connect
     // and emits nothing - that is the band of layers with no second wall (stool: 366 layers of 527
     // print no sparse whatsoever, in runs of up to 100). The ring is then laid down by itself, on
     // the very boundary the lining walks when a tree is there, so the two are the same bead in the

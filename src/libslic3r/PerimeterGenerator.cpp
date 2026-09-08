@@ -224,7 +224,7 @@ static ExtrusionEntityCollection traverse_loops(const PerimeterGenerator &perime
         }
 
         // Ginger (2026-09-07): stessa regola sliver del ramo Arachne (vedi sotto).
-        if (perimeter_generator.config->single_path_mode) {
+        if (perimeter_generator.config->continuous_path_mode) {
             double plen = 0.;
             for (const ExtrusionPath &pp : paths)
                 plen += pp.length();
@@ -524,7 +524,7 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
         // planner dei rib scarta un loop come too_short (non puo' ospitare due tagli a uno stagger).
         // Cosi' ogni anello di parete STAMPATO e' anche un candidato rib; sotto, il foro (diametro
         // < 2.4 mm con cordone 1.9) non e' comunque un anello stampabile.
-        if (! paths.empty() && perimeter_generator.config->single_path_mode) {
+        if (! paths.empty() && perimeter_generator.config->continuous_path_mode) {
             double plen = 0.;
             for (const ExtrusionPath &pp : paths)
                 plen += pp.length();

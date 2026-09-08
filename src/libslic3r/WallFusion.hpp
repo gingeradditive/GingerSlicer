@@ -1,7 +1,7 @@
 #ifndef slic3r_WallFusion_hpp_
 #define slic3r_WallFusion_hpp_
 
-// Ginger single_path_infill_as_wall: the outer wall takes over the Lightning branches.
+// Ginger continuous_path_infill_as_wall: the outer wall takes over the Lightning branches.
 //
 // Instead of anchoring a branch against the wall - a T junction, the "anchor" that shows through
 // transparent material - the wall loop itself detours inward around every branch, goes around it

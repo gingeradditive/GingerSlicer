@@ -519,11 +519,11 @@ private:
     void demote_narrow_solid_infill();
     void discover_horizontal_shells();
     void combine_infill();
-    // Ginger single_path_wall_ribs: plan the per-layer wall rib merges (sequential bottom-up so
+    // Ginger continuous_path_wall_ribs: plan the per-layer wall rib merges (sequential bottom-up so
     // each rib column is anchored to the previous layer = self-standing) and subtract the rib
     // corridors from the fill surfaces so no infill/top/bottom is extruded across the ribs.
     void generate_wall_ribs();
-    // Ginger single_path_infill_as_wall: the outer wall loop takes over the Lightning branches
+    // Ginger continuous_path_infill_as_wall: the outer wall loop takes over the Lightning branches
     // (it detours around each one instead of being anchored against). Runs inside prepare_infill,
     // after the trees exist and before the rib planner, so the fused loop is just another wall loop
     // to everything downstream. See src/libslic3r/WallFusion.hpp.

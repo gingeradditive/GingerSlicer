@@ -902,7 +902,7 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
                 }
                 // Orca: apply fill multiline only for sparse infill
                 params.multiline = params.extrusion_role == erInternalInfill ? int(region_config.fill_multiline) : 1;
-                // Connect infill lines into a single path (Cura-style) under single_path_mode. single_path_mode
+                // Connect infill lines into a single path (Cura-style) under continuous_path_mode. continuous_path_mode
                 // is now a print-wide toggle (it also drives the wall / inter-island seam in GCode.cpp), so the
                 // SPARSE infill is only connected when its pattern is line-based (the connector joins straight
                 // scanlines along the inner wall - it can't handle curved / 3D patterns like Gyroid, Honeycomb,
@@ -913,7 +913,7 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
                            p == ipStars || p == ipCubic || p == ipQuarterCubic || p == ipZigZag ||
                            p == ipCrossZag || p == ipLockedZag || p == ipLightning;
                 };
-                params.connect_polygons = bool(region_config.single_path_mode) &&
+                params.connect_polygons = bool(region_config.continuous_path_mode) &&
                     ((params.extrusion_role == erInternalInfill && connectable_pattern(region_config.sparse_infill_pattern.value)) ||
                      params.extrusion_role == erSolidInfill ||
                      params.extrusion_role == erTopSolidInfill ||
@@ -1341,7 +1341,7 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         } else if (surface_fill.params.pattern == ipLightning) {
             auto *lightning_filler = dynamic_cast<FillLightning::Filler*>(f.get());
             lightning_filler->generator = lightning_generator;
-            // Ginger single_path_infill_as_wall: the islands whose wall already is the ring.
+            // Ginger continuous_path_infill_as_wall: the islands whose wall already is the ring.
             lightning_filler->fused_islands = this->wall_fused_islands.empty() ? nullptr : &this->wall_fused_islands;
         }
         // calculate flow spacing for infill pattern generation
@@ -1386,20 +1386,20 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
 		params.no_extrusion_overlap = surface_fill.params.overlap;
         auto &region_config = layerm->region().config();
         params.config               = &region_config;
-        // Ginger single_path_infill_ring_always: the sparse ring is a second wall, wanted on every
+        // Ginger continuous_path_infill_ring_always: the sparse ring is a second wall, wanted on every
         // layer and not only where the demand-driven tree happens to give the connector something
         // to walk along.
-        params.ring_always          = bool(region_config.single_path_mode) &&
-                                      bool(region_config.single_path_infill_ring_always) &&
+        params.ring_always          = bool(region_config.continuous_path_mode) &&
+                                      bool(region_config.continuous_path_infill_ring_always) &&
                                       surface_fill.params.extrusion_role == erInternalInfill;
         // Ginger (2026-09-01, Davide): isteresi fra layer. Il connettore sceglie una delle due
         // meta' complementari del contorno e a pari costo puo' ribaltarsi da un layer all'altro
         // (basta che il reticolo cambi una corda dall'altra parte del pezzo): il cordolo salta da
         // un muro all'altro dell'appendice e il layer sopra ci stampa sul vuoto. Qui gli passiamo
         // lo sparse gia' emesso nel layer sotto, cosi' a pari costo ricalca quello. Vale solo con
-        // single_path_mode, che per questo riempie i layer in fila (PrintObject::infill).
+        // continuous_path_mode, che per questo riempie i layer in fila (PrintObject::infill).
         Polylines prev_cover;
-        if (bool(region_config.single_path_mode) && surface_fill.params.extrusion_role == erInternalInfill &&
+        if (bool(region_config.continuous_path_mode) && surface_fill.params.extrusion_role == erInternalInfill &&
             this->lower_layer != nullptr) {
             for (const LayerRegion *lr : this->lower_layer->regions())
                 for (const ExtrusionEntity *ee : lr->fills.entities)
@@ -1429,7 +1429,7 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
 
         }
 		// Grid normally forbids reversing a fill line (the two crossing sweeps rely on a fixed
-		// direction). But with single_path_mode the whole region is ONE connected path/loop, so
+		// direction). But with continuous_path_mode the whole region is ONE connected path/loop, so
 		// its global direction is arbitrary: it MUST stay reversible, otherwise the path always starts
 		// at its fixed first point instead of where the wall seam ended — a huge wall->infill travel
 		// across the island (the chainer cannot flip a non-reversible path toward the current position).

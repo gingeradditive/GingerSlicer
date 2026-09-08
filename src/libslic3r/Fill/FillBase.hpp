@@ -66,7 +66,7 @@ struct FillParams
     // equal-cost contour phases prefer the one covering the most wall (set by lightning, whose
     // demand-driven trees would otherwise drop the lining on low-demand layers).
     bool        sparse_wall_lining     { false };
-    // Ginger single_path_infill_ring_always: the lining is a SECOND WALL, so it has to be on every
+    // Ginger continuous_path_infill_ring_always: the lining is a SECOND WALL, so it has to be on every
     // layer or the inner surface bands where it is missing. The tie-break above cannot deliver that
     // on its own - a demand-driven tree leaves whole bands of layers with no fill line at all
     // (stool: 366 layers of 527), and with nothing to connect the connector emits nothing. There
@@ -79,7 +79,7 @@ struct FillParams
     // Nessun criterio geometrico locale puo' evitarlo (provati ancora di parita' e lato fisso: la
     // fase si propaga lungo tutto l'anello), quindi serve sapere cosa ha coperto il layer sotto.
     // Qui ci sono le sue polilinee di sparse; il solver preferisce, a pari costo, la selezione che
-    // le ricalca. Popolato solo con single_path_mode, che per questo riempie i layer in fila.
+    // le ricalca. Popolato solo con continuous_path_mode, che per questo riempie i layer in fila.
     const Polylines *prev_cover     { nullptr };
 
     // Length of an infill anchor along the perimeter.

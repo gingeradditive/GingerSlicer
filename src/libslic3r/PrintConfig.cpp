@@ -2376,9 +2376,9 @@ void PrintConfigDef::init_fff_params()
     def->max = 10; // Maximum number of lines for infill pattern
     def->set_default_value(new ConfigOptionInt(1));
 
-    // Connect infill polygons (Cura-style single-path infill).
-    def             = this->add("single_path_mode", coBool);
-    def->label      = L("Single path");
+    // Continuous path (Cura-style connected infill taken further: one path per island).
+    def             = this->add("continuous_path_mode", coBool);
+    def->label      = L("Continuous path");
     def->category   = L("Others");
     def->tooltip    = L("Pellet travel-minimization mode (similar to Cura's \"Connect Infill Lines\", taken further). "
                         "When enabled: (1) connectable line-based infill (Rectilinear, Grid, Triangles, Lightning, ...) "
@@ -2392,8 +2392,8 @@ void PrintConfigDef::init_fff_params()
     def->mode       = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
-    // Ginger: rib connectors between the wall loops of an island (single_path_mode sub-option).
-    def             = this->add("single_path_wall_ribs", coBool);
+    // Ginger: rib connectors between the wall loops of an island (continuous_path_mode sub-option).
+    def             = this->add("continuous_path_wall_ribs", coBool);
     def->label      = L("Wall rib connectors");
     def->category   = L("Others");
     def->tooltip    = L("Merge all wall loops of an island (outer wall and hole walls) into one continuous "
@@ -2401,24 +2401,24 @@ void PrintConfigDef::init_fff_params()
                         "beads side by side, like a thin internal rib. Eliminates the travel moves between the "
                         "outer wall and each hole wall at the cost of a small amount of extra material, and adds "
                         "stiffness. Only walls printed as closed loops with the same role and width are merged. "
-                        "Requires Single path mode.");
+                        "Requires Continuous path mode.");
     def->mode       = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
-    def             = this->add("single_path_wall_rib_max_length", coFloat);
+    def             = this->add("continuous_path_wall_rib_max_length", coFloat);
     def->label      = L("Wall rib max length");
     def->category   = L("Others");
     def->tooltip    = L("Maximum length of a wall rib connector. Wall loops farther apart than this are not "
                         "merged: a very long rib would cross half the part (and everything below it), while "
-                        "the travel it replaces is already minimized by Single path mode. Keep it in the range "
+                        "the travel it replaces is already minimized by Continuous path mode. Keep it in the range "
                         "of a sensible structural rib.");
     def->sidetext   = L("mm");
     def->min        = 0;
     def->mode       = comAdvanced;
     def->set_default_value(new ConfigOptionFloat(20.));
 
-    // Ginger: the sparse infill becomes the wall (single_path_mode sub-option). See docs/ginger/DFM.md.
-    def             = this->add("single_path_infill_as_wall", coBool);
+    // Ginger: the sparse infill becomes the wall (continuous_path_mode sub-option). See docs/ginger/DFM.md.
+    def             = this->add("continuous_path_infill_as_wall", coBool);
     def->label      = L("Merge infill with wall");
     def->category   = L("Others");
     def->tooltip    = L("The outer wall itself takes over the sparse infill: instead of anchoring the Lightning "
@@ -2431,12 +2431,12 @@ void PrintConfigDef::init_fff_params()
                         "An island whose whole tree the wall absorbs is left with NO sparse infill at all - the "
                         "wall is the infill, ring included; the few islands where a branch cannot be reached "
                         "(around a hole) keep their fill so that branch still gets printed. "
-                        "Requires Single path mode, Lightning sparse infill and exactly ONE wall loop; outside "
+                        "Requires Continuous path mode, Lightning sparse infill and exactly ONE wall loop; outside "
                         "those conditions the normal infill rings are used instead.");
     def->mode       = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
-    def             = this->add("single_path_infill_ring_always", coBool);
+    def             = this->add("continuous_path_infill_ring_always", coBool);
     def->label      = L("Always ring with infill");
     def->category   = L("Others");
     def->tooltip    = L("Close the sparse infill ring on EVERY layer that has a sparse area, instead of leaving "
@@ -7114,9 +7114,19 @@ void PrintConfigDef::init_sla_params()
 void PrintConfigDef::handle_legacy(t_config_option_key &opt_key, std::string &value)
 {
     //BBS: handle legacy options
-    if (opt_key == "connect_infill_polygons") {
-        // Ginger: renamed to single_path_mode (the feature now fuses wall+infill+solid into one path).
-        opt_key = "single_path_mode";
+    if (opt_key == "connect_infill_polygons" || opt_key == "single_path_mode") {
+        // Ginger: connect_infill_polygons -> single_path_mode (2026-07) -> continuous_path_mode
+        // (2026-09-08): the feature guarantees one continuous path per island, whatever the
+        // nozzle or material; old 3MF, presets and G-code keep loading through this alias.
+        opt_key = "continuous_path_mode";
+    } else if (opt_key == "single_path_wall_ribs") {
+        opt_key = "continuous_path_wall_ribs";
+    } else if (opt_key == "single_path_wall_rib_max_length") {
+        opt_key = "continuous_path_wall_rib_max_length";
+    } else if (opt_key == "single_path_infill_as_wall") {
+        opt_key = "continuous_path_infill_as_wall";
+    } else if (opt_key == "single_path_infill_ring_always") {
+        opt_key = "continuous_path_infill_ring_always";
     } else if (opt_key == "enable_wipe_tower") {
         opt_key = "enable_prime_tower";
     } else if (opt_key == "wipe_tower_width") {

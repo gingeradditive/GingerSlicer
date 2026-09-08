@@ -186,7 +186,7 @@ void Fill::fill_surface_extrusion(const Surface* surface, const FillParams& para
         ExtrusionEntityCollection* eec = nullptr;
         out.push_back(eec = new ExtrusionEntityCollection());
         // Only concentric fills are not sorted.
-        // Ginger single-path: a connected fill (connect_polygons, single_path_mode) is one continuous
+        // Ginger single-path: a connected fill (connect_polygons, continuous_path_mode) is one continuous
         // path per surface, so for the monotonic fillers there is no line order left to protect and
         // no_sort would only make the collection non-reversible: the chainer would be forced to enter
         // solid/top/bottom at its fixed first end, paying up to a full region-length approach travel

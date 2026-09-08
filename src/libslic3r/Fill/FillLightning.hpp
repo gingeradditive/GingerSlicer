@@ -23,7 +23,7 @@ public:
     bool is_self_crossing() override { return false; }
 
     Generator   *generator { nullptr };
-    // Ginger single_path_infill_as_wall: the islands of this layer whose wall took over the tree
+    // Ginger continuous_path_infill_as_wall: the islands of this layer whose wall took over the tree
     // (Layer::wall_fused_islands, owned by the Layer). Inside them the lining is skipped - see
     // _fill_surface_single. nullptr / empty when the fusion is off or fused nothing here.
     const Polygons *fused_islands { nullptr };

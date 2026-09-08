@@ -582,23 +582,23 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     bool          have_multiline_infill_pattern = pattern == ipGyroid || pattern == ipGrid || pattern == ipRectilinear || pattern == ipTpmsD || pattern == ipTpmsFK || pattern == ipCrossHatch || pattern == ipHoneycomb || pattern == ipLateralLattice || pattern == ipLateralHoneycomb || pattern == ipConcentric ||
                                                   pattern == ipCubic || pattern == ipStars || pattern == ipAlignedRectilinear || pattern == ipLightning || pattern == ip3DHoneycomb || pattern == ipAdaptiveCubic || pattern == ipSupportCubic|| pattern == ipTriangles || pattern == ipQuarterCubic|| pattern == ipArchimedeanChords || pattern == ipHilbertCurve || pattern == ipOctagramSpiral;
     // If there is infill, enable/disable fill_multiline according to whether the pattern supports multiline infill.
-    // NOTE: single_path_mode is intentionally NOT gated here. It now lives in Others > Special mode and is a
+    // NOTE: continuous_path_mode is intentionally NOT gated here. It now lives in Others > Special mode and is a
     // print-wide travel/seam mode (it also drives the inner-wall and inter-island seam in GCode.cpp), so it stays
     // available even at 0% infill and for any pattern. The infill-CONNECT part only applies to line-based patterns
     // (gated in Fill.cpp by sparse_infill_pattern); the wall / inter-island seam part applies regardless.
-    // Its sub-options (rib connectors between wall loops) only make sense with single_path_mode on.
-    toggle_field("single_path_wall_ribs", config->opt_bool("single_path_mode"));
-    toggle_field("single_path_wall_rib_max_length", config->opt_bool("single_path_mode") && config->opt_bool("single_path_wall_ribs"));
-    // Ginger single_path_infill_as_wall: the fusion needs the Lightning tree and exactly one wall loop
+    // Its sub-options (rib connectors between wall loops) only make sense with continuous_path_mode on.
+    toggle_field("continuous_path_wall_ribs", config->opt_bool("continuous_path_mode"));
+    toggle_field("continuous_path_wall_rib_max_length", config->opt_bool("continuous_path_mode") && config->opt_bool("continuous_path_wall_ribs"));
+    // Ginger continuous_path_infill_as_wall: the fusion needs the Lightning tree and exactly one wall loop
     // (the gorge is one spacing wide - a second concentric loop has nowhere to go). Outside those
     // conditions it silently falls back to the normal infill rings, so the field is greyed out to say so.
-    const bool fusion_possible = config->opt_bool("single_path_mode") &&
+    const bool fusion_possible = config->opt_bool("continuous_path_mode") &&
                                  config->option<ConfigOptionEnum<InfillPattern>>("sparse_infill_pattern")->value == ipLightning &&
                                  config->opt_int("wall_loops") == 1;
-    toggle_field("single_path_infill_as_wall", fusion_possible);
+    toggle_field("continuous_path_infill_as_wall", fusion_possible);
     // With the fusion active the ring IS the wall: always there, nothing left to choose.
-    toggle_field("single_path_infill_ring_always",
-                 config->opt_bool("single_path_mode") && ! (fusion_possible && config->opt_bool("single_path_infill_as_wall")));
+    toggle_field("continuous_path_infill_ring_always",
+                 config->opt_bool("continuous_path_mode") && ! (fusion_possible && config->opt_bool("continuous_path_infill_as_wall")));
     if (have_infill) {
         toggle_field("fill_multiline", have_multiline_infill_pattern);
         // If the infill pattern does not support multiline fill_multiline is changed to 1.

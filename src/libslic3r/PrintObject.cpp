@@ -616,14 +616,14 @@ void PrintObject::prepare_infill()
     m_print->throw_if_canceled();
     determinism_probe(this, "8 combine_infill");
 
-    // Ginger single_path_infill_as_wall: the wall takes over the lightning branches. Must run
+    // Ginger continuous_path_infill_as_wall: the wall takes over the lightning branches. Must run
     // BEFORE the rib planner (which then sees the fused loop as an ordinary candidate) and after
     // the fill surfaces are final (it carves the gorges out of them).
     this->fuse_lightning_into_walls();
     m_print->throw_if_canceled();
     determinism_probe(this, "9 fuse_walls");
 
-    // Ginger single_path_wall_ribs: plan the wall rib merges and carve their corridors out of
+    // Ginger continuous_path_wall_ribs: plan the wall rib merges and carve their corridors out of
     // the final fill surfaces (must run last, when fill_surfaces are final).
     this->generate_wall_ribs();
     m_print->throw_if_canceled();
@@ -646,7 +646,7 @@ void PrintObject::prepare_infill()
     this->set_done(posPrepareInfill);
 }
 
-// Ginger single_path_wall_ribs: dry-run (materialize=false) or grow (materialize=true) the
+// Ginger continuous_path_wall_ribs: dry-run (materialize=false) or grow (materialize=true) the
 // foundation BUTTRESS of one rib link. The rib at `rib_layer` spans `link_a` (on the walk) to
 // `link_b` (on the spliced loop) but stands on nothing - with a big nozzle the sparse infill
 // is far too coarse to catch it, and one solidified pad below would itself bridge over air.
@@ -843,7 +843,7 @@ static bool build_rib_buttress(Layer *rib_layer, const Point &link_a, const Poin
     return false;
 }
 
-// Ginger single_path_wall_ribs. For every layer (sequential, bottom-up), the closed wall loops
+// Ginger continuous_path_wall_ribs. For every layer (sequential, bottom-up), the closed wall loops
 // of each island are planned into ONE walk with rib connectors (plan_wall_ribs, Prim over the
 // loops). Running here - instead of at G-code time - buys the two properties the ribs need:
 //  - the rib CORRIDORS are subtracted from the layer's fill surfaces, so sparse/solid/top/bottom
@@ -852,7 +852,7 @@ static bool build_rib_buttress(Layer *rib_layer, const Point &link_a, const Poin
 //    allows it, so the rib columns stack and are self-standing instead of landing on air over
 //    sparse infill.
 // GCode::extrude_perimeters consumes the stored plan by matching loop first points.
-// Ginger single_path_infill_as_wall. The outer wall loop of every island takes over the layer's
+// Ginger continuous_path_infill_as_wall. The outer wall loop of every island takes over the layer's
 // Lightning branches: instead of a branch being anchored against the wall (a T junction - the
 // "anchor" that shows through transparent material) the loop itself detours inward around each
 // branch, goes around it and comes back. Geometry in WallFusion.cpp; here is the plumbing.
@@ -867,7 +867,7 @@ static bool wall_fusion_enabled(const PrintRegionConfig &cfg)
     // The gorge is one spacing wide: a second concentric wall loop has nowhere to go, and a
     // scanline pattern would cut the island into one cell per chord. Outside these conditions the
     // toggle silently falls back to the normal infill rings (which is what the UI says).
-    return cfg.single_path_mode && cfg.single_path_infill_as_wall &&
+    return cfg.continuous_path_mode && cfg.continuous_path_infill_as_wall &&
            cfg.sparse_infill_pattern == ipLightning && cfg.wall_loops == 1 &&
            cfg.sparse_infill_density > 0;
 }
@@ -1221,7 +1221,7 @@ void PrintObject::fuse_lightning_into_walls()
             WallFusionTimer prof_surfaces(g_wall_fusion_profile.surfaces, profiling);
             // ...unless the user wants the sparse ring on every layer: then the fused island keeps
             // its surface, and the fill lays that ring around the gorges instead of nothing.
-            const bool keep_ring = cfg.single_path_infill_ring_always;
+            const bool keep_ring = cfg.continuous_path_infill_ring_always;
             if ((! carve_gorges.empty() && ! no_carve) || ! layer->wall_fused_islands.empty()) {
                 Surfaces out;
                 out.reserve(layerm->fill_surfaces.surfaces.size());
@@ -1264,7 +1264,7 @@ void PrintObject::generate_wall_ribs()
     bool enabled = false;
     for (size_t region_id = 0; region_id < this->num_printing_regions(); ++ region_id) {
         const PrintRegionConfig &cfg = this->printing_region(region_id).config();
-        if (cfg.single_path_mode && cfg.single_path_wall_ribs) {
+        if (cfg.continuous_path_mode && cfg.continuous_path_wall_ribs) {
             enabled = true;
             break;
         }
@@ -1312,7 +1312,7 @@ void PrintObject::generate_wall_ribs()
         }
         for (LayerRegion *layerm : layer->regions()) {
             const PrintRegionConfig &cfg = layerm->region().config();
-            if (! (cfg.single_path_mode && cfg.single_path_wall_ribs))
+            if (! (cfg.continuous_path_mode && cfg.continuous_path_wall_ribs))
                 continue;
             // One collection per island inside LayerRegion::perimeters.
             for (const ExtrusionEntity *island_ee : layerm->perimeters.entities) {
@@ -1377,7 +1377,7 @@ void PrintObject::generate_wall_ribs()
                 // bead tighter than this, so it fuses into the rib flanks.
                 params.corridor_offset = coord_t(scale_(0.5 * width));
                 // A rib longer than this is worse than the short travel it replaces.
-                params.max_link_length = coord_t(scale_(cfg.single_path_wall_rib_max_length.value));
+                params.max_link_length = coord_t(scale_(cfg.continuous_path_wall_rib_max_length.value));
                 // Per-layer column drift budget: about 45 deg of lean, whichever of half a
                 // bead / one layer height is smaller.
                 params.max_drift       = std::min(coord_t(scale_(0.5 * width)), coord_t(scale_(layer->height)));
@@ -1440,7 +1440,7 @@ void PrintObject::generate_wall_ribs()
                             break;
                         }
                     if (! founded_ok) {
-                        BOOST_LOG_TRIVIAL(warning) << "single_path_wall_ribs: foundation buttress failed to"
+                        BOOST_LOG_TRIVIAL(warning) << "continuous_path_wall_ribs: foundation buttress failed to"
                             " materialize at z=" << layer->print_z << " - dropping the island's rib plan"
                             " (its loops print unmerged this layer)";
                     } else {
@@ -1518,7 +1518,7 @@ void PrintObject::infill()
         const auto& adaptive_fill_octree = this->m_adaptive_fill_octrees.first;
         const auto& support_fill_octree = this->m_adaptive_fill_octrees.second;
 
-        // Ginger (2026-09-01, Davide): con single_path_mode i layer si riempiono IN FILA.
+        // Ginger (2026-09-01, Davide): con continuous_path_mode i layer si riempiono IN FILA.
         // Il connettore sceglie una delle due meta' del contorno e, a pari costo, puo' ribaltarsi
         // da un layer all'altro: il cordolo salta da un muro all'altro di un'appendice e il layer
         // sopra ci stampa sul vuoto (misurato sullo stool: 2 transizioni, 0.59 m di plastica stesa
@@ -1527,7 +1527,7 @@ void PrintObject::infill()
         // parallelismo di questa fase, che sul connettore vale 1.7 s di CPU su 277 layer.
         bool sequential_fill = false;
         for (size_t ri = 0; ri < this->num_printing_regions(); ++ ri)
-            if (this->printing_region(ri).config().single_path_mode) { sequential_fill = true; break; }
+            if (this->printing_region(ri).config().continuous_path_mode) { sequential_fill = true; break; }
         // Sonda di misura (2026-09-03): GINGER_SP_PARALLEL_FILL=1 torna al riempimento parallelo
         // (senza isteresi) per pesare quanto costa la sequenzialita'; GINGER_SP_PROFILE stampa il tempo.
         if (::getenv("GINGER_SP_PARALLEL_FILL") != nullptr)
@@ -1918,7 +1918,7 @@ bool PrintObject::invalidate_state_by_config_options(
             || opt_key == "seam_gap"
             || opt_key == "role_based_wipe_speed"
             || opt_key == "wipe_on_loops"
-            // Ginger single_path_infill_as_wall: the fusion runs inside prepare_infill but it
+            // Ginger continuous_path_infill_as_wall: the fusion runs inside prepare_infill but it
             // REWRITES the island's outer loop, which is a posPerimeters product. Invalidating
             // posPrepareInfill alone re-runs the fill on walls that are still fused from the
             // previous slice: switching the toggle off left the gorges in place and printed the
@@ -1926,8 +1926,8 @@ bool PrintObject::invalidate_state_by_config_options(
             // wall surviving in a "merge off" slice, +194 cm3 / +5.6% material, 83% of the sparse
             // infill lying within 0.3 mm of a wall bead). Only regenerating the perimeters can
             // undo it, so both toggles invalidate posPerimeters.
-            || opt_key == "single_path_infill_as_wall"
-            || opt_key == "single_path_infill_ring_always"
+            || opt_key == "continuous_path_infill_as_wall"
+            || opt_key == "continuous_path_infill_ring_always"
             || opt_key == "wipe_speed") {
             steps.emplace_back(posPerimeters);
         } else if (

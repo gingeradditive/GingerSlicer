@@ -60,7 +60,7 @@ These force four directives that the rest of this document instantiates:
 
 ---
 
-## 2. Travel minimization — the single path (`single_path_mode`)
+## 2. Travel minimization — the single path (`continuous_path_mode`)
 
 Goal: per island and per layer, walls + sparse infill print as one continuous walk.
 
@@ -177,7 +177,7 @@ riding-only collision guard against the other fill lines. **Gated off under ligh
 lining**: there a wall-hugging stretch is the product (the "second wall"), not an accident.
 
 ### 2.4b Multiline single path (`fill_multiline` ≥ 2, connect-before-multiply)
-With `single_path_mode` the connected pattern is built in Cura order: the row centerlines are
+With `continuous_path_mode` the connected pattern is built in Cura order: the row centerlines are
 joined into ONE path first, then `multiline_fill()` widens it into a closed ring and
 `single_path_splice_loops()` merges the ring with the walls of the pockets it encloses. The
 result is already a single closed loop per island, so three things must be done differently
@@ -224,7 +224,7 @@ improves.
   point nearest the toolhead ("free seam") — closed loop = zero fixed ends.
 - Wall-only islands orient their last wall's seam to the closest point of the previous
   island's exit (closest-point chain, `GCode.cpp`).
-- The single-path router (`GCode.cpp`, `single_path_mode`, `extrude_infill_routed`) orders an
+- The single-path router (`GCode.cpp`, `continuous_path_mode`, `extrude_infill_routed`) orders an
   island's infill as one spatial walk; suspension lets a unit be entered, left for a touching
   feature, and resumed at the same vertex. Since 2026-09-07 (figure plate 3, Davide: "un travel
   di 317 mm ai primi layer e' la prima causa di layer shift"):
@@ -287,6 +287,18 @@ improves.
     departure target) instead of falling back to the nearest-entry anchor.
     Measured: figure plate 3 34.2 m (baseline 35.6), figure with supports 111.9 -> 87.8 m, layer
     change 21.2 -> 2.4 m, knee 45.4 -> 41.7 m, no travel to a support above 60 mm (were 400-540 mm).
+  - COST of the tour (2026-09-08, measured by the parallel session on the knee: build_tour was
+    1139 s of a 1145 s export, and the figure forced to concentric tops took 5 hours): the local
+    search now keeps every stop's entry/exit fixed within a pass (rings: the entry found by the
+    current tour, refreshed only after an accepted move; paths: their two ends, swapped by the
+    orientation) so a candidate costs O(n) with no allocation, passes are capped at 20, the tour
+    geometry samples rings at <= 128 points and the seam plan tries only the K nearest starts
+    (`GINGER_SP_PLAN_K`, default 8, 16 on the first layer; the start itself is still the exact
+    nearest fine sample - at 24 samples the planned start fell up to 40 mm from the head and the
+    stool layer changes went from 1 to 115). Knee export 1145 -> 13 s, plate 3 seam plan
+    2.9 -> 0.26 s, the 5-hour case 173 s; travel unchanged (plate 3 34.3 -> 34.0 m, stool identical;
+    the knee 41.7 -> 38.0 m measured on the same build also contains the parallel session's Fill/
+    change - closed concentric rings for narrow tops - which is where that gain belongs).
   What remains structural: a solid layer is cut by the connected rectilinear fill into diagonal
   BANDS whose two ends are far apart (they stop at every notch of the boundary); the chain of
   bands cannot be closed without a hop of the band's extent, so a bottom layer keeps one or two
@@ -295,7 +307,7 @@ improves.
 Debug: `GINGER_SINGLE_PATH_DEBUG=1` → `[SPEXACT] [SPWELD] [SPBRIDGE] [SPDEVIATE] [SPOPEN]
 [SPCUT] [SPCLOSE] [SPDEFECT]` on stderr.
 
-### 2.6 The wall takes over the infill (`single_path_infill_as_wall`)
+### 2.6 The wall takes over the infill (`continuous_path_infill_as_wall`)
 On transparent material the *anchor* — where a Lightning branch meets the wall — is the visible
 defect. Doubling the branch is what removes it: a single branch touching the wall is a degree-3
 vertex (a T, which no non-retracing walk can cross), while a branch with two flanks is entered from
@@ -326,7 +338,7 @@ every flank.
 
 Gated on Lightning + `wall_loops = 1` (the gorge is one spacing wide — a second concentric loop has
 nowhere to go, and a scanline pattern would cut the island into one cell per chord); outside that it
-falls back to the normal infill rings, which `single_path_infill_ring_always` can force on every
+falls back to the normal infill rings, which `continuous_path_infill_ring_always` can force on every
 layer. Rules, all in the geometry: extend roots to the wall centerline (or the gorge never opens);
 clean up the interior only and put the perimeter collar back (the opening run over the whole region
 eats stretches of wall); keep two mouths at least two widths apart.
@@ -388,7 +400,7 @@ Debug: `GINGER_FUSION_DEBUG=1` → `[FUSION]`, `complete=` counts the islands le
 
 ---
 
-## 3. Wall connectivity — ribs (`single_path_wall_ribs`)
+## 3. Wall connectivity — ribs (`continuous_path_wall_ribs`)
 
 Multiple wall loops of one island (outer + holes) are merged into ONE closed walk by inserting
 *ribs*: two link segments staggered by one bead (fused flanks, never a doubled centerline),
@@ -512,8 +524,9 @@ schedule driver — massive short parts cool layer-bound, thin tall parts print 
 | `GINGER_LN_OPEN=1` | — | with pockets: morphological opening of the area by half a bead (`offset2_ex`) so arms narrower than one bead get no pair of overlapping rails (knee: doubled sparse 9.3 % → 1.9 %, but −13 % sparse and travel 2.5 → 7.3 m). Not default |
 | `GINGER_LN_DEBUG=1` | `[LNISLE] [LNISLEC] [LNISLEH]` every expolygon entering the Lightning filler (bbox, tree count, contour); `[LNPOCK] [LNTREE] [LNBAND] [LNINNER] [LNAREA] [LNRING]` per pockets island | pockets bisection. Coordinates are in the OBJECT frame (G-code is in the bed frame); parallel threads interleave stderr — split lines on the `[LN` tags |
 | `GINGER_SP_SEAM_LOOKAHEAD=<w>` / `GINGER_SP_TOUCH_W=<beads>` | `[SPHOOK] seam ...` | wall seam choice with ribs (2026-09-06): candidates = this layer's rib anchors, the upper layer's rib anchors, the infill entry nearest the head; cost = arrival travel + infill hook + w x distance to the nearest upper-layer rib anchor (default w = 0.01: travel first, the rib as tie-break; w = 1 was 14.9 m of layer-change travel on figure plate 3, 0.01 gives 8.5 m). TOUCH_W = suspension contact reach in beads (default 12; cluster hops stay at 4) |
+| `GINGER_SP_PROFILE=1` | `[SPPROF]` | wall-clock per phase, dumped at exit: connector phases (FillBase.cpp) and, since 2026-09-08, the G-code export: do_export, perimeters (incl. the seam plan), routed emission, build_tour, support. Figure plate 3: 55 s total, export 13 s of which seam plan 2.9 s; slicing side dominated by `splice_ring_scan` 10 s (thread time) |
 | `GINGER_SP_ROUTEDBG=1` | `[ROUTE]` | routed infill emission: per suspended unit (loop or open path) vertices, contacts, units left; `tour di N maggiori`, `piano seam` (planned start, cost), `tour pianificato riusato`; for z < 3 mm also the distance of every remaining unit from the current sweep |
-| `GINGER_SP_TOUR=0` / `GINGER_SP_TOUR_SEAM=0` / `GINGER_SP_EXTENT_W=<beads>` / `GINGER_SP_DEPTH=<n>` / `GINGER_SP_ATOMIC_SUSP=1` / `GINGER_SP_CHANGE_W=<w>` | - | routed infill (2026-09-07): back to greedy order of the majors / seam not planned by the tour / extent (end-to-end distance) above which an open path or monotonic collection is a major instead of an absorbable contact (default 24) / nested suspension depth (default 1 = none; 4 measured worse) / suspension between the lines of a monotonic (atomic) collection (default off: on the knee every solid patch pulled in its neighbours after each line, solid->solid 5.9 -> 47 m) |
+| `GINGER_SP_TOUR=0` / `GINGER_SP_TOUR_SEAM=0` / `GINGER_SP_EXTENT_W=<beads>` / `GINGER_SP_DEPTH=<n>` / `GINGER_SP_CHANGE_W=<w>` / `GINGER_SP_PLAN_K=<n>` | - | routed infill (2026-09-07): back to greedy order of the majors / seam not planned by the tour / extent (end-to-end distance) above which an open path or monotonic collection is a major instead of an absorbable contact (default 24) / nested suspension depth (default 1 = none; 4 measured worse) (all read once through `SinglePathEnv` in GCode.cpp; the atomic-collection suspension was removed after measuring solid->solid 5.9 -> 47 m on the knee) |
 | `GINGER_LN_NOSPLICE=1` / `GINGER_LN_ISLAND=n` | — | pockets bisection: skip the ring merge / island given to the splice: 0 none (110 links across internal walls on figure plate 3), 1 verbatim, **2 default** = grown by 0.1 w as a pure BARRIER (`barrier_only`: containment of every link, no 3-stagger cap, no gorge attach, no retrace scan), 3 grown with every splice rule (1092 units vs 884, +2.4 m travel) |
 | `GINGER_SP_NO_ORS=1` / `GINGER_SP_ORSDBG=1` | `[SPORS]` | skip / trace the short retracing-run offset pass (see 2.3) |
 | Headless slice | `Ginger-Slicer.exe --slice <plate> --outputdir <dir> project.3mf` | verify slicing changes without GUI (3MF must embed settings) |
