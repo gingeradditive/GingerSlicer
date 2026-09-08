@@ -561,6 +561,7 @@ schedule driver — massive short parts cool layer-bound, thin tall parts print 
 | `GINGER_LN_NOSPLICE=1` / `GINGER_LN_ISLAND=n` | — | pockets bisection: skip the ring merge / island given to the splice: 0 none (110 links across internal walls on figure plate 3), 1 verbatim, **2 default** = grown by 0.1 w as a pure BARRIER (`barrier_only`: containment of every link, no 3-stagger cap, no gorge attach, no retrace scan), 3 grown with every splice rule (1092 units vs 884, +2.4 m travel) |
 | `GINGER_SP_NO_ORS=1` / `GINGER_SP_ORSDBG=1` | `[SPORS]` | skip / trace the short retracing-run offset pass (see 2.3) |
 | Headless slice | `Ginger-Slicer.exe --slice <plate> --outputdir <dir> project.3mf` | verify slicing changes without GUI (3MF must embed settings) |
+| `GINGER_SP_PROFILE=1` | `[SPSTAGE]` `[RIBPROF]` `[PEPROF]` | the rest of the pipeline: per-stage times taken on the determinism-probe checkpoints (they already sit between the steps of `prepare_infill`), the rib planner broken down (gather, plan, `link_allowed`, `can_found`, buttress, carve, plus how many containment tests the per-island memo served) and the pressure equalizer (parse, sweep events, pellet segment scan, adjust, output) |
 | `GINGER_SP_HYST=1` | `[SPRING]` | ring scan, one block per merge: rings, candidates, band, corners per ring, links of the layer below, then the first six candidates ACTUALLY tried (class, value, distance, midpoint) and the `SCELTO` line. `sp_lab/link_drift.py` reads it to check that the links stay in a column between layers (stool: 828/828 = 100 %) |
 | `--sweep "opt:from:to:step"` | per-layer swept G-code | parameter calibration prints |
 
@@ -592,6 +593,30 @@ single link** (knee, stool and LN80 byte-identical G-code, plate 3 within its ru
 Fill stage: plate 3 7.3 → 5.5 s, knee 4.9 → 4.0 s, stool 3.9 → 2.3 s. Inside the scan, ordering
 fell from 2.8 s to 0.4 s (plate 3) and gathering is now the dominant half — each sample still
 pays a heap allocation inside `all_lines_in_radius`, which is the next target.
+
+### 7.2 Where the rest of the slice goes (figure plate 3, 2026-09-08)
+
+Same day, same plate, measured with the profilers above: **37 s → 27 s**. What moved and what
+is left, in order of size:
+
+| stage | before | after | what happened |
+|---|---|---|---|
+| G-code export | 11.6 s | 4.8 s | the pressure equalizer was 10.7 s of it. The TBB pipeline is `serial_in_order`, so its slowest filter is the ceiling. Its two passes walked ALL 42 extrusion roles for every pair of lines inside a 128-line sliding window, but the roles with a rate already seen are at most one: a pass lights one at the start and the body only ever assigns roles that are already lit. Iterating the mask of live roles keeps the visit order and drops 41 comparisons out of 42 |
+| fill (`make_fills`) | 7.3 s | 5.5 s | ring scan, see 7.1 |
+| wall ribs | 3.9 s | 3.1 s | `link_allowed` (is the link inside the part's section?) is a Clipper difference against the whole section, 146 µs a call. It is a pure function of the two ends and the layer's `lslices`, and Prim re-offers the same candidates every round: a per-island memo serves 30 % of the calls, and a bounding-box prefilter skips sections that cannot contain the link |
+| bridge_over_infill | 2.7 s | 2.7 s | upstream, untouched |
+| perimeters (incl. slicing) | 2.0 s | 2.0 s | untouched |
+
+On lightning-heavy parts the export is dominated by the router instead: on the knee (22 s total)
+`process_layer` is 9.4 s, of which the seam plan 4.0 s (K starts, one tour each) and the routed
+emission 4.7 s. That is the next place to look, together with the ring-scan gathering.
+
+**The output is not reproducible across different timing.** Measured: plate 3 gives a different
+G-code on two runs of the SAME binary (97 k motion lines), and the knee — reproducible when the
+binary and the environment match — changes as soon as `GINGER_SP_PROFILE` is set. Lightning is
+the known source. So a byte-for-byte A/B is only meaningful at equal environment, and on lightning
+parts it is worth nothing at all: there, compare aggregates (travel, line counts) against the
+run-to-run spread of the same build.
 
 Filament diameter on Ginger pellet profiles is 1.12838 mm → 1 mm² cross-section: ΔE in mm
 equals mm³ extruded (convenient for G-code analysis).
