@@ -299,6 +299,16 @@ improves.
     2.9 -> 0.26 s, the 5-hour case 173 s; travel unchanged (plate 3 34.3 -> 34.0 m, stool identical;
     the knee 41.7 -> 38.0 m measured on the same build also contains the parallel session's Fill/
     change - closed concentric rings for narrow tops - which is where that gain belongs).
+  - INTERNAL SOLID INHERITS FROM THE TOP (2026-09-08, Davide: "un accoppiamento che il cliente
+    finale non trovera' mai"): the role promotion internal solid -> top (Fill.cpp, ~line 983) used
+    to fire only when the profile happened to have identical pattern, flow, speed and
+    acceleration for the two; with Orca's defaults it never fired and the two contiguous features
+    were filled separately, with a hop between them. Under continuous path the internal solid now
+    takes the top's pattern, density and flow and is promoted always (speed and acceleration follow
+    the role); the internal-solid fields are disabled in the GUI. Knee (top concentric, internal
+    solid was monotonic): 38.0 -> 25.1 m of travel >= 5 mm, all internal solid now printed as top
+    (concentric rings, fused); plate 3 and stool unchanged (no internal solid there). Export of the
+    knee 13 -> 25 s (more and longer rings in the tour).
   What remains structural: a solid layer is cut by the connected rectilinear fill into diagonal
   BANDS whose two ends are far apart (they stop at every notch of the boundary); the chain of
   bands cannot be closed without a hop of the band's extent, so a bottom layer keeps one or two

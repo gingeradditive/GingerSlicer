@@ -991,7 +991,22 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
                         region_config.top_solid_infill_flow_ratio.value == 1. &&
                         object_config.top_surface_acceleration.value ==
                             object_config.internal_solid_infill_acceleration.get_abs_value(object_config.default_acceleration.value);
-                    if (same_bead && same_dynamics) {
+                    // Ginger (2026-09-08, Davide: "un accoppiamento che il cliente finale non trovera'
+                    // mai"): la promozione condizionata sopra scatta solo se il profilo ha, per caso, top e
+                    // solido interno identici; con i default di Orca (top monotonic, solido rectilinear,
+                    // velocita' diverse) non scatta mai e il continuous path paga il salto fra le due
+                    // feature senza che nessuna interfaccia lo dica (knee: 44 -> 31 m allineando i
+                    // pattern). In continuous path il solido interno EREDITA dal top: pattern, flusso e,
+                    // tramite il ruolo, velocita' e accelerazione. Il solido interno e' invisibile, il
+                    // cordone e' lo stesso, il top e' la superficie che detta le regole. In GUI i campi del
+                    // solido interno sono disabilitati (ConfigManipulation.cpp).
+                    const bool inherit_from_top = region_config.continuous_path_mode.value;
+                    if (inherit_from_top || (same_bead && same_dynamics)) {
+                        if (inherit_from_top && ! same_bead) {
+                            params.pattern = region_config.top_surface_pattern.value;
+                            params.density = 100.f;
+                            params.flow    = layerm.flow(frTopSolidInfill, layer_thickness);
+                        }
                         params.extrusion_role     = erTopSolidInfill;
                         params.top_surface_speed  = region_config.top_surface_speed;
                         params.solid_infill_speed = 0.f;

@@ -660,11 +660,19 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     for (auto el : { "top_surface_line_width", "top_surface_speed" })
         toggle_field(el, has_top_shell);
 
+    // Ginger continuous path (2026-09-08): il solido interno eredita pattern, larghezza, velocita' e
+    // accelerazione dal top (Fill.cpp, promozione del ruolo), cosi' top e solido interno contigui sono
+    // una toppa sola con un solo percorso. I campi del solido interno non contano piu': disabilitati.
+    const bool cp_inherit_solid = config->opt_bool("continuous_path_mode");
+    for (auto el : { "internal_solid_infill_pattern", "internal_solid_infill_line_width", "internal_solid_infill_speed" })
+        toggle_field(el, ! cp_inherit_solid && (have_infill || has_solid_infill));
+
     bool have_default_acceleration = config->opt_float("default_acceleration") > 0;
 
     for (auto el : {"outer_wall_acceleration", "inner_wall_acceleration", "initial_layer_acceleration",
-        "top_surface_acceleration", "travel_acceleration", "bridge_acceleration", "sparse_infill_acceleration", "internal_solid_infill_acceleration"})
+        "top_surface_acceleration", "travel_acceleration", "bridge_acceleration", "sparse_infill_acceleration"})
         toggle_field(el, have_default_acceleration);
+    toggle_field("internal_solid_infill_acceleration", have_default_acceleration && ! cp_inherit_solid);
 
     bool have_default_jerk = config->opt_float("default_jerk") > 0;
 
