@@ -1,3 +1,4 @@
+#include <chrono>
 #include "Config.hpp"
 #include "Exception.hpp"
 #include "Print.hpp"
@@ -1881,8 +1882,49 @@ std::map<ObjectID, unsigned int> getObjectExtruderMap(const Print& print) {
 }
 
 // Slicing process, running at a background thread.
+// Ginger (2026-09-09, GINGER_SP_PROFILE=1): [SPPHASE] = tempo di parete delle fasi di
+// Print::process(). I cronometri [SPSTAGE] dentro PrintObject coprono solo da dopo lo slice in
+// poi, e sul piatto 3 restavano 7 s fuori da ogni conto: qui non ne resta nessuno.
+namespace {
+struct PrintPhases {
+    std::vector<std::pair<std::string, double>> totals;
+    static bool enabled() { static const bool on = std::getenv("GINGER_SP_PROFILE") != nullptr; return on; }
+    static PrintPhases &get() { static PrintPhases p; return p; }
+    void add(const char *name, double dt) {
+        auto it = std::find_if(totals.begin(), totals.end(), [name](const auto &e) { return e.first == name; });
+        if (it == totals.end()) totals.emplace_back(name, dt);
+        else                    it->second += dt;
+    }
+    void dump() {
+        double tot = 0.;
+        for (const auto &e : totals) tot += e.second;
+        fprintf(stderr, "[SPPHASE] ============ fasi di Print::process ============\n");
+        for (const auto &e : totals)
+            fprintf(stderr, "[SPPHASE] %-28s %8.2f s\n", e.first.c_str(), e.second);
+        fprintf(stderr, "[SPPHASE] totale %.2f s\n", tot);
+        totals.clear();
+    }
+};
+struct PrintPhaseScope {
+    const char *name; std::chrono::steady_clock::time_point t0; bool on;
+    explicit PrintPhaseScope(const char *n) : name(n), on(PrintPhases::enabled()) { if (on) t0 = std::chrono::steady_clock::now(); }
+    ~PrintPhaseScope() { if (on) PrintPhases::get().add(name, std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count()); }
+};
+// Dichiarato per primo in process(), distrutto per ultimo: somma il totale e stampa.
+struct PrintPhaseFinal {
+    std::chrono::steady_clock::time_point t0; bool on;
+    PrintPhaseFinal() : on(PrintPhases::enabled()) { if (on) t0 = std::chrono::steady_clock::now(); }
+    ~PrintPhaseFinal() {
+        if (! on) return;
+        PrintPhases::get().add("process() intero", std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
+        PrintPhases::get().dump();
+    }
+};
+} // namespace
+
 void Print::process(long long *time_cost_with_cache, bool use_cache)
 {
+    PrintPhaseFinal sp_phase_total;
     long long start_time = 0, end_time = 0;
     if (time_cost_with_cache)
         *time_cost_with_cache = 0;
@@ -1995,6 +2037,7 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
     BOOST_LOG_TRIVIAL(info) << "Starting the slicing process." << log_memory_info();
     if (!use_cache) {
         for (PrintObject *obj : m_objects) {
+            PrintPhaseScope sp_phase("slice + perimetri");
             if (need_slicing_objects.count(obj) != 0) {
                 obj->make_perimeters();
             }
@@ -2006,6 +2049,7 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
             }
         }
         for (PrintObject *obj : m_objects) {
+            PrintPhaseScope sp_phase("estimate_curled");
             if (need_slicing_objects.count(obj) != 0) {
                 obj->estimate_curled_extrusions();
             }
@@ -2015,6 +2059,7 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
             }
         }
         for (PrintObject *obj : m_objects) {
+            PrintPhaseScope sp_phase("prepare_infill + infill");
             if (need_slicing_objects.count(obj) != 0) {
                 obj->infill();
             }
@@ -2026,6 +2071,7 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
             }
         }
         for (PrintObject *obj : m_objects) {
+            PrintPhaseScope sp_phase("ironing");
             if (need_slicing_objects.count(obj) != 0) {
                 obj->ironing();
             }
@@ -2035,6 +2081,7 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
             }
         }
 
+        PrintPhaseScope sp_phase_sup("support (parallelo)");
         tbb::parallel_for(tbb::blocked_range<int>(0, int(m_objects.size())),
             [this, need_slicing_objects](const tbb::blocked_range<int>& range) {
                 for (int i = range.begin(); i < range.end(); i++) {
@@ -2051,6 +2098,7 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
         );
 
         for (PrintObject* obj : m_objects) {
+            PrintPhaseScope sp_phase("detect_overhangs_for_lift");
             if (need_slicing_objects.count(obj) != 0) {
                 obj->detect_overhangs_for_lift();
             }
@@ -2097,6 +2145,7 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
         }
     }
 
+    { PrintPhaseScope sp_phase("wipe tower");
     if (this->set_started(psWipeTower)) {
         m_wipe_tower_data.clear();
         m_tool_ordering.clear();
@@ -2110,6 +2159,8 @@ void Print::process(long long *time_cost_with_cache, bool use_cache)
         }
         this->set_done(psWipeTower);
     }
+    }
+    PrintPhaseScope sp_phase_skirt("skirt & brim + resto");
     if (this->set_started(psSkirtBrim)) {
         this->set_status(70, L("Generating skirt & brim"));
 

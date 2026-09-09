@@ -1812,8 +1812,25 @@ void PrintObject::generate_support_material()
 void PrintObject::estimate_curled_extrusions()
 {
     if (this->set_started(posEstimateCurledExtrusions)) {
+        if (std::getenv("GINGER_SP_PROFILE") != nullptr) {
+            size_t n_over = 0, n_curl = 0;
+            for (const PrintRegion *r : this->print()->m_print_regions) {
+                n_over += r->config().enable_overhang_speed.getBool() ? 1 : 0;
+                n_curl += r->config().slowdown_for_curled_perimeters.getBool() ? 1 : 0;
+            }
+            std::fprintf(stderr, "[CURL] regioni=%zu con_overhang=%zu con_curled=%zu default_region_curled=%d\n",
+                         this->print()->m_print_regions.size(), n_over, n_curl,
+                         int(m_print->default_region_config().slowdown_for_curled_perimeters.getBool()));
+        }
+        // Ginger (2026-09-09): le linee di arricciamento le legge SOLO la frenata sui bordi
+        // arricciati (ExtrusionProcessor::estimate_extrusion_quality, tutto dentro
+        // if (slowdown_for_curled_edges)), e l'unico posto che scrive layer->curled_lines e'
+        // questa stima. Se nessuna regione chiede quella frenata, stimarle e' lavoro buttato:
+        // 1.2 s sul piatto 3 di Davide, che ha slowdown_for_curled_perimeters = 0.
         if ( std::any_of(this->print()->m_print_regions.begin(), this->print()->m_print_regions.end(),
-                        [](const PrintRegion *region) { return region->config().enable_overhang_speed.getBool(); })) {
+                        [](const PrintRegion *region) { return region->config().enable_overhang_speed.getBool(); }) &&
+             std::any_of(this->print()->m_print_regions.begin(), this->print()->m_print_regions.end(),
+                        [](const PrintRegion *region) { return region->config().slowdown_for_curled_perimeters.getBool(); })) {
 
             // Estimate curling of support material and add it to the malformaition lines of each layer
             float support_flow_width = support_material_flow(this, this->config().layer_height).width();
