@@ -594,10 +594,10 @@ Fill stage: plate 3 7.3 → 5.5 s, knee 4.9 → 4.0 s, stool 3.9 → 2.3 s. Insi
 fell from 2.8 s to 0.4 s (plate 3) and gathering is now the dominant half — each sample still
 pays a heap allocation inside `all_lines_in_radius`, which is the next target.
 
-### 7.2 Where the rest of the slice goes (figure plate 3, 2026-09-08)
+### 7.2 Where the rest of the slice goes (figure plate 3, 2026-09-08/09)
 
-Same day, same plate, measured with the profilers above: **37 s → 27 s**. What moved and what
-is left, in order of size:
+Same plate, measured with the profilers above: **37 s → 26 s**. What moved and what is left,
+in order of size:
 
 | stage | before | after | what happened |
 |---|---|---|---|
@@ -606,17 +606,32 @@ is left, in order of size:
 | wall ribs | 3.9 s | 3.1 s | `link_allowed` (is the link inside the part's section?) is a Clipper difference against the whole section, 146 µs a call. It is a pure function of the two ends and the layer's `lslices`, and Prim re-offers the same candidates every round: a per-island memo serves 30 % of the calls, and a bounding-box prefilter skips sections that cannot contain the link |
 | bridge_over_infill | 2.7 s | 2.7 s | upstream, untouched |
 | perimeters (incl. slicing) | 2.0 s | 2.0 s | untouched |
+| curling estimation | 1.2 s | 0.0 s | `estimate_curled_extrusions` fills `layer->curled_lines`, and the only reader is the curled-edge slowdown inside `estimate_extrusion_quality`, all of it under `if (slowdown_for_curled_edges)`. It ran even with that slowdown off, which is this plate's setting |
 
 On lightning-heavy parts the export is dominated by the router instead: on the knee (22 s total)
 `process_layer` is 9.4 s, of which the seam plan 4.0 s (K starts, one tour each) and the routed
 emission 4.7 s. That is the next place to look, together with the ring-scan gathering.
 
-**The output is not reproducible across different timing.** Measured: plate 3 gives a different
-G-code on two runs of the SAME binary (97 k motion lines), and the knee — reproducible when the
-binary and the environment match — changes as soon as `GINGER_SP_PROFILE` is set. Lightning is
-the known source. So a byte-for-byte A/B is only meaningful at equal environment, and on lightning
-parts it is worth nothing at all: there, compare aggregates (travel, line counts) against the
-run-to-run spread of the same build.
+**The output is not reproducible on lightning parts, full stop.** Measured: plate 3 gives a
+different G-code on two runs of the SAME binary (97 k motion lines), and so does the knee (2772
+lines) — even though the knee had come out identical on five consecutive builds before that.
+Lightning is the known source, and the path depends on thread scheduling. So:
+
+- **Byte-for-byte A/B only on the grid parts** (stool, LN80). They are stable and they are the
+  reference used by every timing commit here.
+- On lightning parts compare aggregates — travel, line counts — against the run-to-run spread of
+  the same build, and never conclude from a single differing run. Two rounds were lost here to a
+  "regression" that was only the knee rolling a different set of trees.
+
+### 7.3 The router in the export (knee, 2026-09-09)
+
+On a lightning-heavy part the export is the router, not the equalizer: on the knee (20 s total)
+`process_layer` is 8.3 s, of which the seam plan 3.2 s and the routed emission 4.3 s. Two of its
+loops compared two units by walking 512 samples against 512, a quarter of a million distances per
+pair. They now sort each unit's samples by x once and search from the query point's x outwards,
+stopping when the x gap alone beats the record — the same minimum and the same sample (ties go to
+the lowest original index, which is what the linear `<` kept), with the samples' bounding boxes as
+a prefilter. Absorbability 0.97 → 0.08 s; the contact costs keep the rest.
 
 Filament diameter on Ginger pellet profiles is 1.12838 mm → 1 mm² cross-section: ΔE in mm
 equals mm³ extruded (convenient for G-code analysis).
