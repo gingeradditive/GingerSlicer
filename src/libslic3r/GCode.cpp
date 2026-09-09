@@ -87,9 +87,9 @@ using namespace std::literals::string_view_literals;
 // del connettore in FillBase.cpp.
 namespace {
 struct GCodeSPProfile {
-    enum Phase : unsigned { phExport, phLayer, phPerimeters, phSeamPlan, phInfillRouted, phRoutedDecide, phRoutedTour, phSupport, phPressureEq, phCooling, phPAProc, phOutput, phSeamPlacer, phProcessor, N };
+    enum Phase : unsigned { phExport, phLayer, phPerimeters, phSeamPlan, phInfillRouted, phRoutedPrep, phRoutedAbsorb, phRoutedDecide, phRoutedTour, phSupport, phPressureEq, phCooling, phPAProc, phOutput, phSeamPlacer, phProcessor, N };
     static const char *name(unsigned i) {
-        static const char *n[N] = { "do_export", "process_layer(generator)", "perimeters", "seam_plan(routed plan mode)", "infill_routed(emission)", "routed: decisions (assign/absorb)", "routed: build_tour", "support", "filter: pressure_equalizer", "filter: cooling", "filter: pa_processor", "filter: output write", "SeamPlacer::init", "GCodeProcessor::finalize" };
+        static const char *n[N] = { "do_export", "process_layer(generator)", "perimeters", "seam_plan(routed plan mode)", "infill_routed(emission)", "routed: unita' e campioni", "routed: assorbibilita'", "routed: decisions (assign/absorb)", "routed: build_tour", "support", "filter: pressure_equalizer", "filter: cooling", "filter: pa_processor", "filter: output write", "SeamPlacer::init", "GCodeProcessor::finalize" };
         return n[i];
     }
     std::atomic<uint64_t> ns[N] {}, cnt[N] {};
@@ -6386,6 +6386,7 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
             for (const ExtrusionEntity *ch : c->entities) { const double w = ee_width(ch); if (w > 0.) return w; }
         return 0.;
     };
+    GCodeSPProfile::Scope *sp_prof_prep = GCodeSPProfile::enabled() ? new GCodeSPProfile::Scope(GCodeSPProfile::phRoutedPrep) : nullptr;
     is_major.assign(units.size(), false);
     for (size_t i = 0; i < units.size(); ++ i)
         is_major[i] = long_unit(units[i], 4. * scale_(ee_width(units[i].ee)));
@@ -6402,6 +6403,65 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
         if (! pts.empty() && (pts.size() - 1) % stride != 0)
             samples[i].emplace_back(pts.back());
     }
+    // Ginger (2026-09-09): confrontare due unita' voleva dire 512 campioni per 512, cioe' 262 mila
+    // distanze a coppia (assorbibilita' 1.0 s e decisioni 2.6 s sul knee). Qui i campioni di ogni
+    // unita' si ordinano per x UNA volta e la distanza minima da un punto si cerca a partire dalla
+    // sua x, fermandosi appena lo scarto in x da solo supera il migliore: stesso minimo e stesso
+    // campione della scansione lineare (a parita' di distanza vince l'indice originale piu' basso,
+    // che e' quello che teneva il `<` del ciclo). Le bbox dei campioni fanno da prefiltro.
+    struct SPt { Point p; uint32_t idx; };
+    std::vector<std::vector<SPt>> sorted_samples(units.size());
+    std::vector<char>             sorted_built(units.size(), 0);
+    auto sorted_of = [&](size_t i) -> const std::vector<SPt> & {
+        if (! sorted_built[i]) {
+            sorted_built[i] = 1;
+            sorted_samples[i].reserve(samples[i].size());
+            for (uint32_t k = 0; k < uint32_t(samples[i].size()); ++ k)
+                sorted_samples[i].push_back({ samples[i][k], k });
+            std::sort(sorted_samples[i].begin(), sorted_samples[i].end(), [](const SPt &a, const SPt &b) {
+                if (a.p.x() != b.p.x()) return a.p.x() < b.p.x();
+                if (a.p.y() != b.p.y()) return a.p.y() < b.p.y();
+                return a.idx < b.idx;
+            });
+        }
+        return sorted_samples[i];
+    };
+    std::vector<BoundingBox> sbb(units.size());
+    for (size_t i = 0; i < units.size(); ++ i)
+        for (const Point &q : samples[i])
+            sbb[i].merge(q);
+    auto bb_dist = [](const BoundingBox &bb, const Point &q) -> double {
+        const double dx = std::max(0., std::max(double(bb.min.x()) - double(q.x()), double(q.x()) - double(bb.max.x())));
+        const double dy = std::max(0., std::max(double(bb.min.y()) - double(q.y()), double(q.y()) - double(bb.max.y())));
+        return std::sqrt(dx * dx + dy * dy);
+    };
+    auto bb_gap = [](const BoundingBox &a, const BoundingBox &b) -> double {
+        const double dx = std::max(0., std::max(double(a.min.x()) - double(b.max.x()), double(b.min.x()) - double(a.max.x())));
+        const double dy = std::max(0., std::max(double(a.min.y()) - double(b.max.y()), double(b.min.y()) - double(a.max.y())));
+        return std::sqrt(dx * dx + dy * dy);
+    };
+    // Aggiorna (best2, best_idx, best_pt) con il campione piu' vicino a q, guardando solo quelli
+    // che possono migliorare il record. Il pareggio si spezza sull'indice originale, come prima.
+    auto nearest_sample = [](const std::vector<SPt> &S, const Point &q, double &best2, uint32_t &best_idx, Point &best_pt) {
+        auto consider = [&](const SPt &sp) {
+            const double d2 = (sp.p - q).cast<double>().squaredNorm();
+            if (d2 < best2 || (d2 == best2 && sp.idx < best_idx)) { best2 = d2; best_idx = sp.idx; best_pt = sp.p; }
+        };
+        size_t lo = size_t(std::lower_bound(S.begin(), S.end(), q.x(),
+                           [](const SPt &sp, coord_t x) { return sp.p.x() < x; }) - S.begin());
+        for (size_t k = lo; k < S.size(); ++ k) {
+            const double dx = double(S[k].p.x()) - double(q.x());
+            if (dx * dx > best2)
+                break; // oltre non puo' esserci un pari merito con indice piu' basso
+            consider(S[k]);
+        }
+        for (size_t k = lo; k-- > 0; ) {
+            const double dx = double(S[k].p.x()) - double(q.x());
+            if (dx * dx > best2)
+                break;
+            consider(S[k]);
+        }
+    };
     // Una corta che sta entro `reach` da una maggiore SOSPENDIBILE ancora da stampare (anello a un
     // path o path aperto) non va in greedy: la stampera' la sospensione, con ritorno corto.
     // (Layer 31: 6 toppe corte in catena greedy 58+121+239+144 mm prima dell'anello che le
@@ -6419,13 +6479,25 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
             entries.emplace_back(sh.ee->first_point());
             entries.emplace_back(sh.ee->last_point());
         }
+        if (entries.empty())
+            return false;
+        BoundingBox ebb;
+        for (const Point &q : entries)
+            ebb.merge(q);
         for (size_t j = 0; j < units.size(); ++ j)
             if (is_major[j] && ! units[j].done && suspendable(units[j])) {
                 const double reach = reach_w_g * scale_(ee_width(units[j].ee));
-                for (const Point &pt : samples[j])
-                    for (const Point &e : entries)
-                        if ((pt - e).cast<double>().norm() <= reach)
-                            return true;
+                if (bb_gap(ebb, sbb[j]) > reach)
+                    continue; // nessun campione puo' stare entro reach
+                const std::vector<SPt> &S = sorted_of(j);
+                double   best2 = std::numeric_limits<double>::max();
+                uint32_t bi    = std::numeric_limits<uint32_t>::max();
+                Point    bp;
+                for (const Point &e : entries) {
+                    nearest_sample(S, e, best2, bi, bp);
+                    if (std::sqrt(best2) <= reach)
+                        return true; // stesso confronto di prima, sulla stessa distanza
+                }
             }
         return false;
     };
@@ -6469,9 +6541,12 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
     // = deviazione dal vertice piu' vicino e ritorno) o FERMATA del tour (costo = inserimento nel
     // tour dei maggiori): vince il costo minore, misurato in mm su questo layer. Il reach (12 w)
     // resta solo come corsia veloce per le unita' addossate a un maggiore.
+    delete sp_prof_prep;
     std::vector<char> absorb_reach(units.size(), 0);
+    { GCodeSPProfile::Scope sp_prof_abs(GCodeSPProfile::phRoutedAbsorb);
     for (size_t i = 0; i < units.size(); ++ i)
         absorb_reach[i] = ! is_major[i] && absorbable(units[i]);
+    }
     std::vector<int>  assigned(units.size(), -1);
     std::vector<bool> in_tour(units.size(), false);
     for (size_t i = 0; i < units.size(); ++ i)
@@ -6642,11 +6717,16 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
                 int    bl = -1;
                 double c_abs = std::numeric_limits<double>::max();
                 for (size_t j = 0; j < units.size(); ++ j)
-                    if (j != i && is_major[j] && units[j].loop != nullptr && suspendable(units[j]))
+                    if (j != i && is_major[j] && units[j].loop != nullptr && suspendable(units[j])) {
+                        // il minimo di d(v,a) + d(v,b) non puo' scendere sotto le due distanze
+                        // dalla bbox dei campioni: se anche cosi' non batte il record, si salta
+                        if (bb_dist(sbb[j], U.ee->first_point()) + bb_dist(sbb[j], U.ee->last_point()) >= c_abs)
+                            continue;
                         for (const Point &v : samples[j]) {
                             const double c = dist(v, U.ee->first_point()) + dist(v, U.ee->last_point());
                             if (c < c_abs) { c_abs = c; bl = int(j); }
                         }
+                    }
                 if (bl < 0) continue;
                 // Costo come fermata: la sua posizione attuale nel tour t0 (prev -> in, out -> next, meno prev -> next).
                 double c_ins = std::numeric_limits<double>::max();
@@ -6689,15 +6769,29 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
             for (size_t j = 0; j < units.size(); ++ j)
                 if (j != i && is_major[j] && suspendable(units[j])) {
                     double best = std::numeric_limits<double>::max();
-                    for (const Point &v : samples[j]) {
-                        double c;
-                        if (U.loop != nullptr) {
-                            double dm = std::numeric_limits<double>::max();
-                            for (const Point &q : samples[i]) dm = std::min(dm, dist(v, q));
-                            c = 2. * dm;
-                        } else
-                            c = dist(v, U.ee->first_point()) + dist(v, U.ee->last_point());
-                        best = std::min(best, c);
+                    if (U.loop != nullptr) {
+                        // 2 x la distanza minima fra i due insiemi di campioni: il doppio ciclo
+                        // 512 x 512 diventa una ricerca potata per ogni campione della maggiore.
+                        if (2. * bb_gap(sbb[i], sbb[j]) >= c_abs)
+                            continue; // non puo' battere il record
+                        const std::vector<SPt> &S = sorted_of(i);
+                        double   best2 = std::numeric_limits<double>::max();
+                        uint32_t bi    = std::numeric_limits<uint32_t>::max();
+                        Point    bp;
+                        for (const Point &v : samples[j]) {
+                            const double lb = bb_dist(sbb[i], v);
+                            if (lb * lb >= best2)
+                                continue; // da qui nessun campione di i puo' migliorare il minimo
+                            nearest_sample(S, v, best2, bi, bp);
+                        }
+                        // insieme vuoto: la scansione lineare dava 2 x DBL_MAX, cioe' infinito
+                        best = best2 == std::numeric_limits<double>::max() ?
+                               std::numeric_limits<double>::infinity() : 2. * std::sqrt(best2);
+                    } else {
+                        if (bb_dist(sbb[j], U.ee->first_point()) + bb_dist(sbb[j], U.ee->last_point()) >= c_abs)
+                            continue;
+                        for (const Point &v : samples[j])
+                            best = std::min(best, dist(v, U.ee->first_point()) + dist(v, U.ee->last_point()));
                     }
                     if (best < c_abs) { c_abs = best; bl = int(j); }
                 }
@@ -6710,8 +6804,9 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
                 for (size_t k = 0; k < exits.size(); ++ k) {
                     Point ue, ux;
                     if (U.loop != nullptr) {
-                        double dm = std::numeric_limits<double>::max();
-                        for (const Point &q : samples[i]) { const double d = dist(exits[k], q); if (d < dm) { dm = d; ue = q; } }
+                        double   best2 = std::numeric_limits<double>::max();
+                        uint32_t bi    = std::numeric_limits<uint32_t>::max();
+                        nearest_sample(sorted_of(i), exits[k], best2, bi, ue);
                         ux = ue;
                     } else {
                         ue = r == 0 ? U.ee->first_point() : U.ee->last_point();
