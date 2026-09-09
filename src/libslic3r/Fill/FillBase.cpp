@@ -2276,8 +2276,31 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
     // vertici) = 134 s di CPU sulla plate 2 di figure_production. Ogni anello ha un id stabile
     // (nuovo id dopo una fusione) cosi' la cache regge anche quando gli indici scalano dopo un erase.
     // L'ordine dei candidati resta (i, j, v, s) crescente sugli indici correnti: pareggi come prima.
-    std::vector<std::vector<Line>>                                  ring_lines_p(rings.size());
-    std::vector<std::optional<AABBTreeLines::LinesDistancer<Line>>> ring_tree_p(rings.size());
+    // Ginger (2026-09-09): l'albero nudo invece di LinesDistancer, perche' la query "tutti i lati
+    // entro r" del distancer restituisce un vettore NUOVO a ogni chiamata e qui si chiama una volta
+    // per campione: 1.7 s dei 3.1 della scansione anelli sulla plate 3, in buona parte malloc e
+    // free. Sono le stesse funzioni di libreria che il distancer chiama, con il risultato in un
+    // buffer riusato: stessi lati, stesso ordine, stesse distanze.
+    using RingTree = AABBTreeIndirect::Tree<2, coord_t>;
+    auto lines_in_radius = [](const std::vector<Line> &lines, const RingTree &tree,
+                              const Point &q, double radius, std::vector<size_t> &out) {
+        out.clear();
+        if (tree.empty())
+            return;
+        auto distancer = AABBTreeLines::detail::IndexedLinesDistancer<Line, RingTree, Vec2d> { lines, tree, q.cast<double>() };
+        AABBTreeIndirect::detail::indexed_primitives_within_distance_squared_recurisve(distancer, size_t(0), radius * radius, out);
+    };
+    // Equivalente esatto di distance_from_lines_extra<false>: distanza, indice del lato, punto.
+    auto nearest_line = [](const std::vector<Line> &lines, const RingTree &tree,
+                           const Point &q, size_t &idx_out, Vec2d &pt_out) -> double {
+        idx_out = size_t(-1);
+        pt_out  = Vec2d::Zero();
+        const Vec2d  p  = q.cast<double>();
+        const double d2 = AABBTreeLines::squared_distance_to_indexed_lines(lines, tree, p, idx_out, pt_out);
+        return d2 < 0. ? std::numeric_limits<double>::infinity() : std::sqrt(d2);
+    };
+    std::vector<std::vector<Line>>          ring_lines_p(rings.size());
+    std::vector<std::optional<RingTree>>    ring_tree_p(rings.size());
     std::vector<size_t>                                             ring_id(rings.size());
     size_t next_ring_id = 0;
     for (size_t i = 0; i < rings.size(); ++ i)
@@ -2416,7 +2439,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                 ring_lines[i].reserve(A.size());
                 for (size_t s = 0; s < A.size(); ++ s)
                     ring_lines[i].emplace_back(A[s], A[(s + 1) % A.size()]);
-                ring_tree[i].emplace(ring_lines[i]);
+                ring_tree[i] = AABBTreeLines::build_aabb_tree_over_indexed_lines(ring_lines[i]);
             }
         size_t bi = 0, bj = 0, b_vert = 0, b_seg = 0;
         Point  b_proj, b_pb;
@@ -2424,7 +2447,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         Polyline merged_best;
         size_t tried   = 0;
         failed_links.clear();
-        std::vector<size_t> near_segs;
+        std::vector<size_t> near_segs, crowd_buf;
         double r_prev2 = 0.; // exclusive-below bound of the d2 window already processed
         unsigned step = 0;   // indice della finestra di raggio: chiave della cache
         for (double r = std::min(std::max(8. * stagger, scale_(1.)), max_link_distance); ; ) {
@@ -2448,7 +2471,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                                 for (const auto &[v, q] : samples) {
                                     // Inflated superset query; the exact filter below uses the same
                                     // closest_on_segment arithmetic as the original full enumeration.
-                                    near_segs = ring_tree[i]->all_lines_in_radius(q, r * 1.01);
+                                    lines_in_radius(ring_lines[i], *ring_tree[i], q, r * 1.01, near_segs);
                                     std::sort(near_segs.begin(), near_segs.end());
                                     for (size_t s : near_segs) {
                                         const Line &ln   = ring_lines[i][s];
@@ -2467,7 +2490,9 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                                 // vicino: e' il candidato che verrebbe provato per primo da quel
                                 // vertice, e il budget di validazione e' di poche decine di prove.
                                 for (const auto &[v, q] : samples) {
-                                    const auto [dist, idx, np] = ring_tree[i]->distance_from_lines_extra<false>(q);
+                                    size_t idx = 0;
+                                    Vec2d  np;
+                                    const double dist = nearest_line(ring_lines[i], *ring_tree[i], q, idx, np);
                                     const double d = dist * dist;
                                     if (d >= r_prev2 && d < r2)
                                         raw.push_back({ d, v, size_t(idx), Point(np.cast<coord_t>()), q });
@@ -2579,9 +2604,11 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
             auto crowded_of = [&](const RingCand &c) {
                 const Vec2d mid = 0.5 * (c.proj.cast<double>() + c.pb.cast<double>());
                 for (size_t r2 = 0; r2 < rings.size(); ++ r2)
-                    if (r2 != c.i && r2 != c.j && ring_tree[r2] &&
-                        ! ring_tree[r2]->all_lines_in_radius(Point(mid.cast<coord_t>()), 1.5 * stagger).empty())
-                        return true;
+                    if (r2 != c.i && r2 != c.j && ring_tree[r2]) {
+                        lines_in_radius(ring_lines[r2], *ring_tree[r2], Point(mid.cast<coord_t>()), 1.5 * stagger, crowd_buf);
+                        if (! crowd_buf.empty())
+                            return true;
+                    }
                 return false;
             };
             auto rest_less = [&rcands](uint32_t a, uint32_t b) {
