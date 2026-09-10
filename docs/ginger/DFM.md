@@ -572,6 +572,12 @@ for 1279 merges, 3.2 M on the stool for 831. Four changes cut that in half **wit
 single link** (knee, stool and LN80 byte-identical G-code, plate 3 within its run-to-run noise
 — lightning is not deterministic run to run, so its output cannot be diffed):
 
+- **the candidate gather runs in parallel**: the fill is sequential per layer (the link
+  hysteresis chains each layer to the one below), so the other cores sit idle. The candidates of
+  one ring pair do not depend on any other pair, so the pairs missing from the cache are computed
+  with a `parallel_for` and inserted afterwards in enumeration order — same `rcands`, same
+  decisions. Under 8 missing pairs it stays sequential. On the 60 % density case: gather 43.7 →
+  26.3 s, slice 92 → 79 s.
 - **per-ring caches keyed by the stable ring id** (samples, bounding box, corners). They used to
   be rebuilt per PAIR and per radius window; the id changes only for the ring that a merge
   rewrites, so everything else survives the pass.
@@ -622,6 +628,31 @@ Lightning is the known source, and the path depends on thread scheduling. So:
 - On lightning parts compare aggregates — travel, line counts — against the run-to-run spread of
   the same build, and never conclude from a single differing run. Two rounds were lost here to a
   "regression" that was only the knee rolling a different set of trees.
+
+### 7.4 What the continuous path actually covers (2026-09-10)
+
+A 33-configuration matrix over one part (`sp_lab/matrix.sh`, CLI overrides on the stool project,
+277 layers; `sp_lab/matrix_diff.py` compares two runs). Total air travel per configuration:
+
+| holds (1.4–3.1 m) | breaks (60–526 m) |
+|---|---|
+| grid 1.42, triangles 1.42, cubic 1.47, rectilinear 2.92, alignedrectilinear 3.11, multiline 1 2.35, lightning ml 2 2.66 | concentric 61, zigzag 78, line 115, adaptivecubic 133, archimedeanchords 264, crosshatch 346, honeycomb 347, tpmsd 356, gyroid 366, 3dhoneycomb 373, hilbertcurve 526 |
+
+With the continuous path switched OFF the same part travels 606 m, so on the second column the
+feature is barely doing anything. Two more gaps, both measured:
+
+- **multiline**: 1 and 2 hold (2.35 / 1.42 m), **3 does not** (24.9 m). On lightning only ml 2
+  holds (2.66 m); ml 1 is 104 m and ml 3 is 70 m, because the pockets path is gated on
+  `params.multiline == 2` and the others still go through crop + connector — which also costs
+  6× the time.
+- **walls**: 1 wall 1.42 m, 2 walls + ribs 18.5 m, 3 walls + ribs 52 m (89.7 m without ribs).
+  The ribs are doing their job — wall→wall is only 2.2 m of those 52 — what breaks is the
+  INFILL: 46.7 m of sparse→sparse. More walls means a thinner infill region broken into islands
+  the connector cannot join, the same wall as the density limit in the GLOSSARY. At 25 % density:
+  1 wall 5.2 m, 3 walls 31 m.
+
+Cost also scales badly with density: on the stool 5 % is 5 s, 25 % 13 s, 60 % 91 s (637 s before
+the 2026-09-08/10 work). 100 % is out of the matrix, too slow to be worth the wall clock.
 
 ### 7.3 The router in the export (knee, 2026-09-09)
 
