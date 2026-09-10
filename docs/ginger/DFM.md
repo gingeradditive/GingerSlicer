@@ -647,9 +647,30 @@ feature is barely doing anything. Two more gaps, both measured:
   6× the time.
 - **walls**: 1 wall 1.42 m, 2 walls + ribs 18.5 m, 3 walls + ribs 52 m (89.7 m without ribs).
   The ribs are doing their job — wall→wall is only 2.2 m of those 52 — what breaks is the
-  INFILL: 46.7 m of sparse→sparse. More walls means a thinner infill region broken into islands
-  the connector cannot join, the same wall as the density limit in the GLOSSARY. At 25 % density:
-  1 wall 5.2 m, 3 walls 31 m.
+  INFILL: 46.7 m of sparse→sparse. At 25 % density: 1 wall 5.2 m, 3 walls 31 m. See 7.5.
+
+### 7.5 The multi-wall gap (2026-09-10)
+
+Anatomy, measured on the stool at 3 walls. It is not fragmentation into many pieces and it is not
+the rib planner: **every single layer has exactly one jump of ~163 mm**, alternating direction,
+between two sparse-infill areas (277 layers, 279 jumps, median 167 mm, at most 3 in a layer). With
+1 wall there is not a single sparse→sparse jump.
+
+One layer, in print order: inner wall (320 extrusions), outer wall (316), inner wall (887), then
+ONE sparse-infill section that contains the jump. The transitions around it are tight — 3 mm from
+the last wall into the infill, 3 mm from the infill into the next layer — so the seam plan is
+doing its part. What happens is that the walls eat the neck of the section: the infill splits into
+two areas ~163 mm apart, and the router visits them one after the other with a straight travel.
+
+The wall loop passes right next to both of them (the infill starts 3 mm from the wall). So the
+travel is avoidable in principle: the wall walk would have to be **split** — walk the wall to the
+first area, print it, resume the wall to the second area, print that, close the wall — which is
+the suspension machinery already used for hole loops and single-bead spurs, extended to infill
+units and to any distance. Today the wall is emitted whole, and only then the infill is routed:
+by that time the head has no wall left to travel along.
+
+Neither `continuous_path_infill_as_wall` nor `continuous_path_infill_ring_always` change it
+(52.08 m with either).
 
 Cost also scales badly with density: on the stool 5 % is 5 s, 25 % 13 s, 60 % 91 s (637 s before
 the 2026-09-08/10 work). 100 % is out of the matrix, too slow to be worth the wall clock.
