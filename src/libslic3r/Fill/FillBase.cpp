@@ -1,3 +1,5 @@
+#include <oneapi/tbb/blocked_range.h>
+#include <oneapi/tbb/parallel_for.h>
 #include <array>
 #include <stdio.h>
 #include <cstdlib>
@@ -2447,60 +2449,98 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         Polyline merged_best;
         size_t tried   = 0;
         failed_links.clear();
-        std::vector<size_t> near_segs, crowd_buf;
+        std::vector<size_t> crowd_buf;
         double r_prev2 = 0.; // exclusive-below bound of the d2 window already processed
         unsigned step = 0;   // indice della finestra di raggio: chiave della cache
         for (double r = std::min(std::max(8. * stagger, scale_(1.)), max_link_distance); ; ) {
             const double r2 = std::min(r * r, max_link2);
             rcands.clear();
             { SPTimer sp_timer_gather(SPProfile::phSpliceGather);
+            // Ginger (2026-09-10): il calcolo dei candidati di una coppia di anelli non dipende
+            // dalle altre coppie, e il riempimento single path e' SEQUENZIALE per layer (l'isteresi
+            // dei raccordi lega ogni layer al precedente), quindi qui i core sono fermi. Le coppie
+            // che mancano dalla cache si calcolano in parallelo e si inseriscono dopo, nell'ordine
+            // di enumerazione: rcands esce identico, decisioni comprese.
+            struct Miss { size_t i, j; CandKey key; };
+            std::vector<Miss> misses;
+            for (size_t i = 0; i < rings.size(); ++ i)
+                for (size_t j = 0; j < rings.size(); ++ j) {
+                    if (i == j)
+                        continue;
+                    const CandKey key{ ring_id[i], ring_id[j], step };
+                    if (cand_cache.find(key) == cand_cache.end()) {
+                        // le cache per anello si riempiono ORA, in sequenziale: dentro il ciclo
+                        // parallelo si leggono soltanto (unordered_map non regge scritture concorrenti)
+                        (void) samples_of(j);
+                        (void) bbox_of(i);
+                        (void) bbox_of(j);
+                        misses.push_back({ i, j, key });
+                    }
+                }
+            std::vector<std::vector<RingCandRaw>> miss_raw(misses.size());
+            auto compute_pair = [&](size_t m) {
+                const size_t i = misses[m].i, j = misses[m].j;
+                std::vector<RingCandRaw> raw;
+                std::vector<size_t>      near_local;
+
+                // Prefiltro: oltre la distanza fra le bbox non c'e' nessun candidato nella
+                // finestra corrente (i campioni stanno dentro la bbox di B, le proiezioni
+                // dentro quella di A), quindi la coppia si salta senza campionare.
+                if (bbox_gap(i, j) <= r * 1.01) {
+                    const std::vector<std::pair<size_t, Point>> &samples = samples_of(j);
+                    if (step == 0) {
+                        for (const auto &[v, q] : samples) {
+                            // Inflated superset query; the exact filter below uses the same
+                            // closest_on_segment arithmetic as the original full enumeration.
+                            lines_in_radius(ring_lines[i], *ring_tree[i], q, r * 1.01, near_local);
+                            std::sort(near_local.begin(), near_local.end());
+                            for (size_t s : near_local) {
+                                const Line &ln   = ring_lines[i][s];
+                                Point       proj = closest_on_segment(q, ln.a, ln.b);
+                                double      d    = (q - proj).cast<double>().squaredNorm();
+                                if (d >= r_prev2 && d < r2)
+                                    raw.push_back({ d, v, s, proj, q });
+                            }
+                        }
+                    } else {
+                        // Ginger (2026-09-04): oltre la prima finestra il raggio arriva
+                        // all'estensione dell'isola (lightning: tutto il pezzo) e la query
+                        // "tutti i lati entro r" restituiva TUTTO l'anello per OGNI vertice:
+                        // O(V_i x V_j) candidati da ordinare, 150 s di CPU sulla plate 2 di
+                        // figure_production. Qui per ogni vertice entra solo il lato piu'
+                        // vicino: e' il candidato che verrebbe provato per primo da quel
+                        // vertice, e il budget di validazione e' di poche decine di prove.
+                        for (const auto &[v, q] : samples) {
+                            size_t idx = 0;
+                            Vec2d  np;
+                            const double dist = nearest_line(ring_lines[i], *ring_tree[i], q, idx, np);
+                            const double d = dist * dist;
+                            if (d >= r_prev2 && d < r2)
+                                raw.push_back({ d, v, size_t(idx), Point(np.cast<coord_t>()), q });
+                        }
+                    }
+                }
+                miss_raw[m] = std::move(raw);
+            };
+            if (misses.size() >= 8)
+                tbb::parallel_for(tbb::blocked_range<size_t>(0, misses.size()),
+                                  [&](const tbb::blocked_range<size_t> &r) {
+                                      for (size_t m = r.begin(); m < r.end(); ++ m)
+                                          compute_pair(m);
+                                  });
+            else
+                for (size_t m = 0; m < misses.size(); ++ m)
+                    compute_pair(m);
+            for (size_t m = 0; m < misses.size(); ++ m)
+                cand_cache.emplace(misses[m].key, std::move(miss_raw[m]));
             for (size_t i = 0; i < rings.size(); ++ i)
                 for (size_t j = 0; j < rings.size(); ++ j) {
                     if (i == j)
                         continue;
                     const CandKey key{ ring_id[i], ring_id[j], step };
                     auto it = cand_cache.find(key);
-                    if (it == cand_cache.end()) {
-                        std::vector<RingCandRaw> raw;
-                        // Prefiltro: oltre la distanza fra le bbox non c'e' nessun candidato nella
-                        // finestra corrente (i campioni stanno dentro la bbox di B, le proiezioni
-                        // dentro quella di A), quindi la coppia si salta senza campionare.
-                        if (bbox_gap(i, j) <= r * 1.01) {
-                            const std::vector<std::pair<size_t, Point>> &samples = samples_of(j);
-                            if (step == 0) {
-                                for (const auto &[v, q] : samples) {
-                                    // Inflated superset query; the exact filter below uses the same
-                                    // closest_on_segment arithmetic as the original full enumeration.
-                                    lines_in_radius(ring_lines[i], *ring_tree[i], q, r * 1.01, near_segs);
-                                    std::sort(near_segs.begin(), near_segs.end());
-                                    for (size_t s : near_segs) {
-                                        const Line &ln   = ring_lines[i][s];
-                                        Point       proj = closest_on_segment(q, ln.a, ln.b);
-                                        double      d    = (q - proj).cast<double>().squaredNorm();
-                                        if (d >= r_prev2 && d < r2)
-                                            raw.push_back({ d, v, s, proj, q });
-                                    }
-                                }
-                            } else {
-                                // Ginger (2026-09-04): oltre la prima finestra il raggio arriva
-                                // all'estensione dell'isola (lightning: tutto il pezzo) e la query
-                                // "tutti i lati entro r" restituiva TUTTO l'anello per OGNI vertice:
-                                // O(V_i x V_j) candidati da ordinare, 150 s di CPU sulla plate 2 di
-                                // figure_production. Qui per ogni vertice entra solo il lato piu'
-                                // vicino: e' il candidato che verrebbe provato per primo da quel
-                                // vertice, e il budget di validazione e' di poche decine di prove.
-                                for (const auto &[v, q] : samples) {
-                                    size_t idx = 0;
-                                    Vec2d  np;
-                                    const double dist = nearest_line(ring_lines[i], *ring_tree[i], q, idx, np);
-                                    const double d = dist * dist;
-                                    if (d >= r_prev2 && d < r2)
-                                        raw.push_back({ d, v, size_t(idx), Point(np.cast<coord_t>()), q });
-                                }
-                            }
-                        }
-                        it = cand_cache.emplace(key, std::move(raw)).first;
-                    }
+                    if (it == cand_cache.end())
+                        continue; // non puo' succedere: le mancanti sono appena state inserite
                     for (const RingCandRaw &c : it->second)
                         rcands.push_back({ c.d2, i, j, c.v, c.s, c.proj, c.pb });
                 }
