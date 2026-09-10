@@ -1,3 +1,4 @@
+#include <mutex>
 #include <oneapi/tbb/blocked_range.h>
 #include <oneapi/tbb/parallel_for.h>
 #include <array>
@@ -1752,10 +1753,17 @@ void single_path_splice_set_preferred(const Points *pts, double radius)
 // geometria); senza layer sotto, quello piu' vicino a un'ancora stabile dell'anello da fondere (il
 // suo vertice a x minima). Il riempimento single-path e' sequenziale per layer: begin_layer sposta
 // i raccordi registrati nel "layer sotto" quando cambia layer_id.
-static thread_local Points s_links_prev, s_links_cur;
-static thread_local long   s_links_layer = -1;
+// Ginger (2026-09-10): i raccordi del layer sotto NON sono piu' per thread. Le superfici di uno
+// stesso layer si riempiono in parallelo (Layer::make_fills), e i layer restano in fila: dentro un
+// layer questi punti si leggono soltanto (li ha scritti il layer precedente, che e' gia' finito) e
+// si accodano quelli scelti, il cui ORDINE non conta - servono come insieme di punti da cui si
+// misura una distanza minima. Il lucchetto copre l'accodamento e lo scambio di fine layer.
+static std::mutex s_links_mutex;
+static Points     s_links_prev, s_links_cur;
+static long       s_links_layer = -1;
 void single_path_splice_begin_layer(long layer_id)
 {
+    std::lock_guard<std::mutex> lock(s_links_mutex);
     if (layer_id != s_links_layer) {
         s_links_prev.swap(s_links_cur);
         s_links_cur.clear();
@@ -2754,7 +2762,7 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                          b_pb.x() * SCALING_FACTOR, b_pb.y() * SCALING_FACTOR,
                          (b_pb - b_proj).cast<double>().norm() * SCALING_FACTOR);
         Polyline merged = std::move(merged_best);
-        s_links_cur.emplace_back((b_proj + b_pb) / 2);
+        { std::lock_guard<std::mutex> lock(s_links_mutex); s_links_cur.emplace_back((b_proj + b_pb) / 2); }
         rings[bi] = std::move(merged);
         rings.erase(rings.begin() + bj);
         ring_tree[bi].reset();

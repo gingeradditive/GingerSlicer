@@ -1,3 +1,5 @@
+#include <oneapi/tbb/blocked_range.h>
+#include <oneapi/tbb/parallel_for.h>
 #include <assert.h>
 #include <stdio.h>
 #include <memory>
@@ -1358,7 +1360,16 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
 	}
 #endif /* SLIC3R_DEBUG_SLICE_PROCESSING */
 
-    for (SurfaceFill &surface_fill : surface_fills) {
+    // Ginger (2026-09-10): le superfici di UN layer si riempiono in parallelo. I layer restano in
+    // fila (l'isteresi dei raccordi e prev_cover guardano il layer sotto, che dev'essere finito),
+    // ma dentro un layer le superfici non si parlano: prev_cover viene dal layer sotto, i raccordi
+    // scelti si accodano a un insieme il cui ordine non conta, e ogni superficie scrive nel proprio
+    // buffer. Le estrusioni si accodano alla regione DOPO, nell'ordine originale, cosi' l'ordine di
+    // stampa non cambia di una virgola.
+    std::vector<ExtrusionEntitiesPtr> fill_out(surface_fills.size());
+    auto fill_one = [&](size_t sf_idx) {
+        SurfaceFill &surface_fill = surface_fills[sf_idx];
+        {
         // Create the filler object.
         std::unique_ptr<Fill> f = std::unique_ptr<Fill>(Fill::new_from_type(surface_fill.params.pattern));
         f->set_bounding_box(bbox);
@@ -1500,12 +1511,26 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
 			const auto sp_fill_t0 = FillPatternProfile::enabled() ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point();
 			f->fill_surface_extrusion(&surface_fill.surface,
 				params,
-				m_regions[surface_fill.region_id]->fills.entities);
+				fill_out[sf_idx]);
 			if (FillPatternProfile::enabled())
 				FillPatternProfile::get().add(std::string(ExtrusionEntity::role_to_string(params.extrusion_role)) + " / " + std::string(ConfigOptionEnum<InfillPattern>::get_enum_names()[size_t(params.pattern)]),
 				                              std::chrono::duration<double>(std::chrono::steady_clock::now() - sp_fill_t0).count());
 		}
-    }
+        }
+    };
+    // Sotto le due superfici non vale la pena di svegliare i thread.
+    if (surface_fills.size() >= 2)
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, surface_fills.size()),
+                          [&fill_one](const tbb::blocked_range<size_t> &r) {
+                              for (size_t k = r.begin(); k < r.end(); ++ k)
+                                  fill_one(k);
+                          });
+    else
+        for (size_t k = 0; k < surface_fills.size(); ++ k)
+            fill_one(k);
+    for (size_t k = 0; k < surface_fills.size(); ++ k)
+        append(m_regions[surface_fills[k].region_id]->fills.entities, std::move(fill_out[k]));
+
 
     // add thin fill regions
     // Unpacks the collection, creates multiple collections per path.
