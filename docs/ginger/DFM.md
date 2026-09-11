@@ -669,8 +669,28 @@ the suspension machinery already used for hole loops and single-bead spurs, exte
 units and to any distance. Today the wall is emitted whole, and only then the infill is routed:
 by that time the head has no wall left to travel along.
 
-Neither `continuous_path_infill_as_wall` nor `continuous_path_infill_ring_always` change it
-(52.08 m with either).
+**Closed (2026-09-11)**: the wall walk now suspends for infill units too, the same way it already
+does for hole loops, single-bead spurs and support. Which units: among the planned tour's stops,
+the closed loops within 12 beads of the wall whose incoming jump is long (over 8 beads) and worth
+more than the detour. Then — and this is the part that matters — **the tour is re-planned without
+those stops and the two costs are compared**: the move happens only if the plan improves by more
+than the detour costs. With the estimate alone, stops with 8-22 mm jumps were being moved and the
+re-planned tour came out worse (lightning ml 3: +1.18 m of travel). The cheap filter runs first
+because re-planning an island with many units costs as much as a plan.
+
+| | before | after |
+|---|---|---|
+| 3 walls + ribs | 52.08 m | 5.93 m |
+| 2 walls + ribs | 18.54 m | 2.54 m |
+| multiline 3 | 24.91 m | 4.11 m |
+| rectilinear | 2.92 m | 1.96 m |
+| alignedrectilinear | 3.11 m | 1.85 m |
+| figure plate 3 | 39.4 m | 38.67 m |
+| knee | 32.20 m | 31.88 m |
+
+One wall stays byte-identical. Of the 33-configuration matrix, 27 are identical and 6 improved,
+none got worse. (Before this, neither `continuous_path_infill_as_wall` nor
+`continuous_path_infill_ring_always` changed anything: 52.08 m with either.)
 
 Cost also scales badly with density: on the stool 5 % is 5 s, 25 % 13 s, 60 % 91 s (637 s before
 the 2026-09-08/10 work). 100 % is out of the matrix, too slow to be worth the wall clock.
