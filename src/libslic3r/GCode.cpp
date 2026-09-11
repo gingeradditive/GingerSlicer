@@ -4980,6 +4980,16 @@ static bool s_single_path_hook_loop = false;
 struct SinglePathPlannedTour { Point start; std::vector<std::pair<const ExtrusionEntity *, bool>> stops; bool valid = false; double cost = 0.; };
 static SinglePathPlannedTour s_single_path_planned_tour;
 
+// Ginger (2026-09-11, Davide, il "buco dei muri"): unita' di riempimento che stampa la CAMMINATA
+// DEL MURO, sospendendosi al vertice piu' vicino, invece del router dopo. Con piu' muri il
+// riempimento si spezza in due aree lontane (misurato: 3 muri sullo stool, un salto di 163 mm per
+// layer, uno per layer, su 277 layer) mentre il muro passa accanto a tutte e due, a 3 mm. Il muro
+// e' l'unico ponte disponibile, ma va speso PRIMA: quando tocca al riempimento, di muro non ne
+// resta. Qui le fermate del tour pianificato che convengono si tolgono al router e diventano
+// contatti del walk. Lista svuotata prima di ogni piano.
+static std::vector<const ExtrusionEntity *> s_sp_infill_walked; // candidate scelte dal piano
+static std::vector<const ExtrusionEntity *> s_sp_infill_done;   // stampate davvero dal walk
+
 std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, double speed, const ExtrusionEntitiesPtr& region_perimeters, const Point* start_point)
 {
     
@@ -5786,7 +5796,101 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                                 if (ie->role() != erIroning)
                                     ex.emplace_back(ie);
                             const Point h = this->last_pos();
+                            s_sp_infill_walked.clear();
+                            s_sp_infill_done.clear();
                             planned = ! ex.empty() && ! this->extrude_infill_routed(ex, "infill", &h, &plan_seam, nullptr, next_island_target).empty();
+                            // Fermate del tour che conviene far stampare al MURO: il walk ci passa
+                            // accanto, il router ci arriverebbe con un salto. Costo onesto: si
+                            // risparmiano i due salti del tour (entrata e uscita) meno il salto che
+                            // resta saltandola, e si paga la deviazione del walk (andata e ritorno
+                            // dal vertice, l'anello si entra e si lascia nello stesso punto).
+                            const auto *wl_plan = dynamic_cast<const ExtrusionLoop *>(ee);
+                            if (planned && s_single_path_planned_tour.valid && s_single_path_planned_tour.stops.size() >= 2 &&
+                                wl_plan != nullptr && ! wl_plan->paths.empty()) {
+                                const double bead  = scale_(double(wl_plan->paths.front().width));
+                                const double reach = 12. * bead;  // oltre, il ponte non e' il muro
+                                Points wall_pts;
+                                wl_plan->collect_points(wall_pts);
+                                // Campioni radi e uscita anticipata: qui serve solo capire QUALI fermate
+                                // valgono la pena, il conto vero lo fa la ripianificazione sotto. Con 256
+                                // campioni per fermata erano 65 mila distanze a coppia e il piano della
+                                // seam del knee passava da 3.2 a 5.9 s.
+                                auto sample = [](const ExtrusionEntity *e, Points &out) {
+                                    Points pts;
+                                    e->collect_points(pts);
+                                    const size_t stride = pts.empty() ? 1 : std::max<size_t>(1, pts.size() / 64);
+                                    for (size_t k = 0; k < pts.size(); k += stride) out.emplace_back(pts[k]);
+                                };
+                                const double close_enough = 0.5 * scale_(double(wl_plan->paths.front().width));
+                                auto dmin = [close_enough](const Points &a, const Points &b) {
+                                    double d = std::numeric_limits<double>::max();
+                                    for (const Point &p : a) {
+                                        for (const Point &q : b) d = std::min(d, (p - q).cast<double>().norm());
+                                        if (d <= close_enough)
+                                            break; // piu' vicino di cosi' non cambia la decisione
+                                    }
+                                    return d;
+                                };
+                                Points wall_s;
+                                {
+                                    const size_t stride = wall_pts.empty() ? 1 : std::max<size_t>(1, wall_pts.size() / 128);
+                                    for (size_t k = 0; k < wall_pts.size(); k += stride) wall_s.emplace_back(wall_pts[k]);
+                                }
+                                const auto &stops = s_single_path_planned_tour.stops;
+                                std::vector<Points> sp(stops.size());
+                                for (size_t k = 0; k < stops.size(); ++ k) sample(stops[k].first, sp[k]);
+                                std::vector<const ExtrusionEntity *> cand;
+                                double detour = 0.;
+                                for (size_t k = 1; k < stops.size(); ++ k) {
+                                    // solo anelli chiusi: si entrano e si lasciano nello stesso punto,
+                                    // quindi la deviazione del walk e' andata e ritorno e basta
+                                    if (dynamic_cast<const ExtrusionLoop *>(stops[k].first) == nullptr)
+                                        continue;
+                                    // e solo entita' di primo livello: quelle annidate non si possono
+                                    // togliere dalla lista per ripianificare
+                                    if (std::find(ex.begin(), ex.end(), stops[k].first) == ex.end())
+                                        continue;
+                                    const double d_wall = dmin(wall_s, sp[k]);
+                                    if (d_wall > reach)
+                                        continue;
+                                    const double d_in = dmin(sp[k - 1], sp[k]);
+                                    // Filtro economico PRIMA di pagare la ripianificazione (che su
+                                    // un'isola con tante unita' costa quanto il piano, 225 ms sul knee):
+                                    // il salto da togliere dev'essere lungo e il guadagno stimato
+                                    // evidente. La ripianificazione poi decide davvero.
+                                    if (d_in <= 8. * bead || d_in - 2. * d_wall <= 5. * bead)
+                                        continue;
+                                    cand.emplace_back(stops[k].first);
+                                    detour += 2. * d_wall;
+                                }
+                                // Il conto vero non e' una stima: si RIPIANIFICA il tour senza quelle
+                                // fermate e si confrontano i due costi. Con la sola stima (salti del
+                                // tour a distanza minima fra insiemi di punti) si spostavano fermate
+                                // da 8-22 mm dove il router, ripianificando, trovava un giro peggiore:
+                                // 1.18 m di travel in piu' su lightning ml=3.
+                                if (! cand.empty()) {
+                                    const double c0 = s_single_path_planned_tour.cost;
+                                    ExtrusionEntitiesPtr ex2;
+                                    for (ExtrusionEntity *ie : ex)
+                                        if (std::find(cand.begin(), cand.end(), ie) == cand.end())
+                                            ex2.emplace_back(ie);
+                                    Point plan_seam2;
+                                    const bool ok2 = ! ex2.empty() &&
+                                        ! this->extrude_infill_routed(ex2, "infill", &h, &plan_seam2, nullptr, next_island_target).empty();
+                                    const double c1 = ok2 ? s_single_path_planned_tour.cost : c0;
+                                    if (ok2 && c0 - c1 > detour + 5. * bead) {
+                                        s_sp_infill_walked = cand;
+                                        plan_seam = plan_seam2;
+                                        if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+                                            std::fprintf(stderr, "[SPBRIDGE] z=%.1f %zu fermate al muro: piano %.0f -> %.0f mm, deviazione %.0f mm\n",
+                                                         this->m_layer ? this->m_layer->print_z : -1., cand.size(),
+                                                         c0 * SCALING_FACTOR, c1 * SCALING_FACTOR, detour * SCALING_FACTOR);
+                                    } else {
+                                        // niente da guadagnare: si rimette il piano originale
+                                        this->extrude_infill_routed(ex, "infill", &h, &plan_seam, nullptr, next_island_target);
+                                    }
+                                }
+                            }
                         }
                     }
                     // Ginger wall ribs: hide the SEAM inside a rib (Davide's "punto strategico").
@@ -5980,7 +6084,7 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                 bool sp_wall_support = false;
                 if (m_sp_support_attach && ! m_sp_support_via_infill && m_sp_support_coll != nullptr)
                     for (char dn : m_sp_support_done) if (! dn) { sp_wall_support = true; break; }
-                if (const auto *wl = dynamic_cast<const ExtrusionLoop *>(ee); single_path && wl != nullptr && (! open_pieces.empty() || has_claimed || sp_wall_support) && ! wl->paths.empty()) {
+                if (const auto *wl = dynamic_cast<const ExtrusionLoop *>(ee); single_path && wl != nullptr && (! open_pieces.empty() || has_claimed || sp_wall_support || ! s_sp_infill_walked.empty()) && ! wl->paths.empty()) {
                     ExtrusionLoop lp = *wl;
                     lp.split_at(seam_ptr != nullptr ? *seam_ptr : this->last_pos(), false);
                     struct V { size_t pi, k; };
@@ -6005,6 +6109,20 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                                     }
                                 contacts.push_back({ bv, size_t(-1), false, emit_order[j] });
                             }
+                    // riempimento portato dentro il walk: contatto al vertice piu' vicino
+                    if (verts.size() >= 3)
+                        for (const ExtrusionEntity *ie : s_sp_infill_walked) {
+                            Points pj;
+                            ie->collect_points(pj);
+                            const size_t istride = pj.empty() ? 1 : std::max<size_t>(1, pj.size() / 256);
+                            double bd = std::numeric_limits<double>::max(); size_t bv = 0;
+                            for (size_t vi = 0; vi < verts.size(); ++ vi)
+                                for (size_t k = 0; k < pj.size(); k += istride) {
+                                    const double d = (pj[k] - vpt(vi)).cast<double>().norm();
+                                    if (d < bd) { bd = d; bv = vi; }
+                                }
+                            contacts.push_back({ bv, size_t(-3), false, ie });
+                        }
                     if (verts.size() >= 3 && sp_wall_support) {
                         Points sp;
                         for (size_t k = 0; k < m_sp_support_ents.size(); ++ k)
@@ -6071,6 +6189,17 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                                     std::fprintf(stderr, "[SPSUP] z=%.1f walk sospeso al vertice %zu/%zu per il support (%zu entita')\n",
                                                  this->m_layer ? this->m_layer->print_z : -1., c.vi, verts.size(), rest.size());
                                 gcode += this->extrude_support_entities(rest, &at);
+                                continue;
+                            }
+                            if (c.piece == size_t(-3)) {
+                                // Riempimento: entrato e lasciato dal punto piu' vicino alla testa,
+                                // che qui e' il vertice del muro. Il router poi lo salta.
+                                if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+                                    std::fprintf(stderr, "[SPBRIDGE] z=%.1f walk sospeso al vertice %zu/%zu per il riempimento (%.1f mm)\n",
+                                                 this->m_layer ? this->m_layer->print_z : -1., c.vi, verts.size(),
+                                                 c.loop_ee->length() * SCALING_FACTOR);
+                                gcode += this->extrude_entity(*c.loop_ee, "infill");
+                                s_sp_infill_done.push_back(c.loop_ee);
                                 continue;
                             }
                             if (c.loop_ee != nullptr) {
@@ -6144,6 +6273,11 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
     std::vector<double> own_cost;
     std::vector<bool>   is_major; // riempito dopo la costruzione delle unita'
     std::function<void(const ExtrusionEntity *)> flatten = [&](const ExtrusionEntity *e) {
+        // gia' stampata dalla camminata del muro come contatto (s_sp_infill_done): il router non
+        // la vede. Il piano invece le vede tutte, e' lui che decide quali spostare.
+        if (plan_start == nullptr && ! s_sp_infill_done.empty() &&
+            std::find(s_sp_infill_done.begin(), s_sp_infill_done.end(), e) != s_sp_infill_done.end())
+            return;
         if (const auto *c = dynamic_cast<const ExtrusionEntityCollection *>(e)) {
             if (c->entities.empty())
                 return;
