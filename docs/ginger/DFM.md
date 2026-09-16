@@ -631,8 +631,8 @@ Lightning is the known source, and the path depends on thread scheduling. So:
 
 ### 7.4 What the continuous path actually covers (2026-09-10)
 
-A 33-configuration matrix over one part (`sp_lab/matrix.sh`, CLI overrides on the stool project,
-277 layers; `sp_lab/matrix_diff.py` compares two runs). Total air travel per configuration:
+A matrix over one part (`sp_lab/matrix.sh`, CLI overrides on the stool project, 277 layers;
+`sp_lab/matrix_diff.py` compares two runs). Total air travel per configuration:
 
 | holds (1.4–3.1 m) | breaks (60–526 m) |
 |---|---|
@@ -694,6 +694,27 @@ none got worse. (Before this, neither `continuous_path_infill_as_wall` nor
 
 Cost also scales badly with density: on the stool 5 % is 5 s, 25 % 13 s, 60 % 91 s (637 s before
 the 2026-09-08/10 work). 100 % is out of the matrix, too slow to be worth the wall clock.
+
+**Trap in the matrix itself (found by the peer session, 2026-09-16).** The stool project has
+`top_shell_layers = bottom_shell_layers = 0`: the part is walls and sparse, nothing else. So any
+row that varies a top or bottom pattern without forcing shells comes out **byte-identical to the
+grid row** and measures nothing — three rows were doing exactly that — and the matrix never
+reaches `FillConcentric`, so never the closed-ring fusion of a patch
+(`splice_concentric_rings`) nor the top-pattern inheritance. The sparse concentric pattern is not
+a way out: `pat_concentric` produces zero `[TOPSPLICE]` lines, the fusion does not run there.
+
+The fix needs no new project: the CLI forces real shells on the same file, and the configuration
+stays byte-reproducible (0 differing lines between two runs of one build).
+
+| row | overrides | what it exercises |
+|---|---|---|
+| `top_monotonic` / `top_rectilinear` / `bottom_concentric` | `--top-shell-layers=4 --bottom-shell-layers=4` plus the pattern | real top and bottom surfaces |
+| `top_concentric` | 6 shells + `--top-surface-pattern=concentric` | the closed-ring fusion: 11 patches, the largest `anelli=51 (chiusi=43) -> 8` |
+| `top_conc_ml1` | the same plus `--fill-multiline=1` | the fusion on a different input geometry |
+
+With those rows the whole 2026-09-08/16 work was re-checked against a build of the sources at
+`d3befd050` (before the ring-scan rewrite): **0 differing lines on all five**, so the rewrite is
+decision-invariant on the concentric branch too — verified, not inferred from aggregate counters.
 
 ### 7.3 The router in the export (knee, 2026-09-09)
 
