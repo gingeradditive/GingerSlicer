@@ -261,7 +261,8 @@ static t_config_enum_values s_keys_map_SeamPosition {
     { "aligned",        spAligned },
     { "aligned_back",   spAlignedBack },
     { "back",           spRear },
-    { "random",         spRandom }
+    { "random",         spRandom },
+    { "minimum_travels", spMinimumTravels }
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(SeamPosition)
 
@@ -4654,18 +4655,23 @@ void PrintConfigDef::init_fff_params()
     def = this->add("seam_position", coEnum);
     def->label = L("Seam position");
     def->category = L("Quality");
-    def->tooltip = L("The start position to print each part of outer wall.");
+    def->tooltip = L("The start position to print each part of outer wall. "
+                     "\"Minimum travels\" ignores the cosmetic position and opens each loop where it "
+                     "costs the least travel - at the point the toolhead is already at, or where the "
+                     "continuous path plans to enter the infill. Continuous path implies this mode.");
     def->enum_keys_map = &ConfigOptionEnum<SeamPosition>::get_enum_values();
     def->enum_values.push_back("nearest");
     def->enum_values.push_back("aligned");
     def->enum_values.push_back("aligned_back");
     def->enum_values.push_back("back");
     def->enum_values.push_back("random");
+    def->enum_values.push_back("minimum_travels");
     def->enum_labels.push_back(L("Nearest"));
     def->enum_labels.push_back(L("Aligned"));
     def->enum_labels.push_back(L("Aligned back"));
     def->enum_labels.push_back(L("Back"));
     def->enum_labels.push_back(L("Random"));
+    def->enum_labels.push_back(L("Minimum travels"));
     def->mode = comSimple;
     def->set_default_value(new ConfigOptionEnum<SeamPosition>(spAligned));
 

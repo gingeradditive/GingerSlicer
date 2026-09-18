@@ -173,7 +173,9 @@ inline bool is_auto(SupportType stype)
 };
 
 enum SeamPosition {
-    spNearest, spAligned, spAlignedBack, spRear, spRandom
+    // Ginger: spMinimumTravels e' in fondo perche' il valore numerico e' l'indice di
+    // serializzazione nei profili; aggiungere in mezzo rinominerebbe le scelte salvate.
+    spNearest, spAligned, spAlignedBack, spRear, spRandom, spMinimumTravels
 };
 
 // Orca

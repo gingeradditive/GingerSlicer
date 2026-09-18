@@ -5010,15 +5010,13 @@ std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, dou
     // or, if `start_point` is specified, start the loop at point closest to it
     Point last_pos = start_point ? *start_point : this->last_pos();
     float seam_overhang = std::numeric_limits<float>::lowest();
-    if (start_point && description == "perimeter" && !m_config.spiral_mode) {
-        // Ginger single-path infill (continuous_path_mode): the caller forces the wall seam to the
-        // infill connection point so the wall ends right where the infill begins -> (near) zero
-        // wall->infill travel. Bypass the SeamPlacer entirely; the cosmetic seam position is
-        // intentionally overridden in favour of a travel-free transition (critical on pellet printers).
-        loop.split_at(*start_point, false);
-    } else if (!m_config.spiral_mode && description == "perimeter") {
+    if (!m_config.spiral_mode && description == "perimeter") {
         assert(m_layer != nullptr);
-        m_seam_placer.place_seam(m_layer, loop, last_pos, seam_overhang);
+        // Ginger: il punto imposto dal percorso continuo (fine muro = inizio riempimento, travel
+        // zero) NON apre piu' il loop qui scavalcando il SeamPlacer: si passa a place_seam, che lo
+        // riconosce come politica "minimum travels" (seam_position). La decisione resta di chi
+        // possiede il percorso, ma e' visibile da dentro il SeamPlacer invece che aggirarlo.
+        m_seam_placer.place_seam(m_layer, loop, last_pos, seam_overhang, start_point);
     } else
         loop.split_at(last_pos, false);
 
@@ -5870,6 +5868,16 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                                 // 1.18 m di travel in piu' su lightning ml=3.
                                 if (! cand.empty()) {
                                     const double c0 = s_single_path_planned_tour.cost;
+                                    // Ginger (2026-09-18): il piano libero si SALVA prima di provare la
+                                    // variante, come fa gia' il ramo rib con free_plan. La modalita' piano
+                                    // di extrude_infill_routed scrive esattamente due cose (*plan_start e
+                                    // s_single_path_planned_tour) ed e' funzione pura dei suoi argomenti,
+                                    // quindi rimetterlo a posto e' una copia: rilanciarlo, come si faceva
+                                    // qui sotto, significa ripagare un piano intero (K build_tour piu' la
+                                    // ricostruzione di unita' e campioni dell'isola) per riottenere un
+                                    // valore che avevamo gia'. plan_seam non serve salvarlo: la variante
+                                    // scrive in plan_seam2.
+                                    const SinglePathPlannedTour plan0 = s_single_path_planned_tour;
                                     ExtrusionEntitiesPtr ex2;
                                     for (ExtrusionEntity *ie : ex)
                                         if (std::find(cand.begin(), cand.end(), ie) == cand.end())
@@ -5887,7 +5895,11 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                                                          c0 * SCALING_FACTOR, c1 * SCALING_FACTOR, detour * SCALING_FACTOR);
                                     } else {
                                         // niente da guadagnare: si rimette il piano originale
-                                        this->extrude_infill_routed(ex, "infill", &h, &plan_seam, nullptr, next_island_target);
+                                        s_single_path_planned_tour = plan0;
+                                        if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+                                            std::fprintf(stderr, "[SPBRIDGE] z=%.1f %zu fermate scartate: piano %.0f -> %.0f mm, deviazione %.0f mm, NON conviene\n",
+                                                         this->m_layer ? this->m_layer->print_z : -1., cand.size(),
+                                                         c0 * SCALING_FACTOR, c1 * SCALING_FACTOR, detour * SCALING_FACTOR);
                                     }
                                 }
                             }

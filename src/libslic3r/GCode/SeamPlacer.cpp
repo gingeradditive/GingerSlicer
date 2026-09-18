@@ -1420,12 +1420,32 @@ void SeamPlacer::align_seam_points(const PrintObject *po, const SeamPlacerImpl::
 
 }
 
+// Ginger: vero quando nessuna seam di questo oggetto consultera' il modello del SeamPlacer.
+static bool seam_comes_from_route(const PrintObject &po) {
+  if (po.config().seam_position.value == spMinimumTravels)
+    return true;
+  if (po.num_printing_regions() == 0)
+    return false;
+  for (size_t i = 0; i < po.num_printing_regions(); ++ i)
+    if (! po.printing_region(i).config().continuous_path_mode.value)
+      return false;
+  return true;
+}
+
 void SeamPlacer::init(const Print &print, std::function<void(void)> throw_if_canceled_func) {
   using namespace SeamPlacerImpl;
   m_seam_per_object.clear();
 
   for (const PrintObject *po : print.objects()) {
     throw_if_canceled_func();
+    // Ginger: se la seam di questo oggetto la decide il percorso (politica "minimum travels", o
+    // percorso continuo su tutte le sue regioni), place_seam esce sul ramo iniziale e non tocca mai
+    // il modello costruito qui. Costruirlo sarebbe lavoro buttato: raccolta dei candidati,
+    // occlusione per raycasting e allineamento fra layer. Misurato sullo stool: 0.305 s su 2.6 s
+    // di export. La condizione e' per OGGETTO e deve valere per TUTTE le sue regioni: se una sola
+    // stampa senza percorso continuo, la sua seam passa ancora di qui e il modello serve.
+    if (seam_comes_from_route(*po))
+      continue;
     SeamPosition configured_seam_preference = po->config().seam_position.value;
     SeamComparator comparator { configured_seam_preference };
 
@@ -1494,9 +1514,19 @@ void SeamPlacer::init(const Print &print, std::function<void(void)> throw_if_can
 }
 
 void SeamPlacer::place_seam(const Layer *layer, ExtrusionLoop &loop,
-                            const Point &last_pos, float& overhang) const {
+                            const Point &last_pos, float& overhang, const Point *forced) const {
   using namespace SeamPlacerImpl;
   const PrintObject *po = layer->object();
+  // Ginger - politica "minimum travels": la posizione estetica della cicatrice viene sacrificata
+  // alla transizione senza travel (decisiva sui pellet, dove ogni spostamento a vuoto degrada il
+  // fuso). Il punto lo sceglie chi possiede il percorso: il piano del tour dell'infill o
+  // un'ancora di rib. Senza un punto imposto la politica vale comunque da sola: si apre il loop
+  // dove la testa gia' si trova, che e' il minimo travel ottenibile senza altra informazione.
+  // Nessun accesso al modello del SeamPlacer, quindi `overhang` resta quello del chiamante.
+  if (forced != nullptr || po->config().seam_position == spMinimumTravels) {
+    loop.split_at(forced != nullptr ? *forced : last_pos, false);
+    return;
+  }
   // Must not be called with supprot layer.
   assert(dynamic_cast<const SupportLayer*>(layer) == nullptr);
   // Object layer IDs are incremented by the number of raft layers.
@@ -1514,8 +1544,16 @@ void SeamPlacer::place_seam(const Layer *layer, ExtrusionLoop &loop,
     return current;
   };
 
-  const PrintObjectSeamData::LayerSeams &layer_perimeters =
-      m_seam_per_object.find(layer->object())->second.layers[layer_index];
+  // Ginger: rete di sicurezza. init() salta gli oggetti la cui seam viene dal percorso, quindi qui
+  // il modello puo' mancare del tutto. Il ramo "minimum travels" sopra intercetta gia' quei casi;
+  // se ci si arriva lo stesso vuol dire che le due condizioni sono andate fuori sincrono, e si
+  // apre il loop dove sta la testa invece di dereferenziare end().
+  const auto seam_data_it = m_seam_per_object.find(layer->object());
+  if (seam_data_it == m_seam_per_object.end()) {
+    loop.split_at(last_pos, false);
+    return;
+  }
+  const PrintObjectSeamData::LayerSeams &layer_perimeters = seam_data_it->second.layers[layer_index];
 
   // Find the closest perimeter in the SeamPlacer to this loop.
   // Repeat search until two consecutive points of the loop are found, that result in the same closest_perimeter

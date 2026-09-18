@@ -587,6 +587,11 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     // available even at 0% infill and for any pattern. The infill-CONNECT part only applies to line-based patterns
     // (gated in Fill.cpp by sparse_infill_pattern); the wall / inter-island seam part applies regardless.
     // Its sub-options (rib connectors between wall loops) only make sense with continuous_path_mode on.
+    // Ginger: sotto percorso continuo la seam del muro la decide il piano del percorso (fine muro =
+    // inizio riempimento): e' la politica "minimum travels" di seam_position, e le posizioni
+    // estetiche non hanno effetto. Il campo si disattiva per dirlo, come gia' fanno i campi del
+    // solido interno che eredita dal top.
+    toggle_field("seam_position", ! config->opt_bool("continuous_path_mode"));
     toggle_field("continuous_path_wall_ribs", config->opt_bool("continuous_path_mode"));
     toggle_field("continuous_path_wall_rib_max_length", config->opt_bool("continuous_path_mode") && config->opt_bool("continuous_path_wall_ribs"));
     // Ginger continuous_path_infill_as_wall: the fusion needs the Lightning tree and exactly one wall loop

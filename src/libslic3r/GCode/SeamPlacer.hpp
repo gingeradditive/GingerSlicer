@@ -143,7 +143,12 @@ public:
 
   void init(const Print &print, std::function<void(void)> throw_if_canceled_func);
 
-  void place_seam(const Layer *layer, ExtrusionLoop &loop, const Point &last_pos, float& overhang) const;
+  // Ginger: `forced` e' il punto imposto dalla politica "minimum travels" - il percorso continuo
+  // sa dove il muro deve finire (l'entrata del riempimento, un'ancora di rib) e lo passa qui.
+  // Prima questa decisione scavalcava il SeamPlacer da fuori (extrude_loop apriva il loop da se'):
+  // ora entra dalla porta, cosi' chi legge questa classe vede che esiste una politica di travel.
+  void place_seam(const Layer *layer, ExtrusionLoop &loop, const Point &last_pos, float& overhang,
+                  const Point *forced = nullptr) const;
 private:
   void gather_seam_candidates(const PrintObject *po, const SeamPlacerImpl::GlobalModelInfo &global_model_info);
   void calculate_candidates_visibility(const PrintObject *po,
