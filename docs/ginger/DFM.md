@@ -629,6 +629,39 @@ Lightning is the known source, and the path depends on thread scheduling. So:
   the same build, and never conclude from a single differing run. Two rounds were lost here to a
   "regression" that was only the knee rolling a different set of trees.
 
+### 7.3b Build traps on this machine (2026-09-19)
+
+Three of them, all paid for at least once.
+
+**Stale objects after a config struct changes size** (found by the peer session). Adding a member
+to `PrintRegionConfig` compiled clean and then segfaulted at 71 % of the slice, inside
+`Detect overhangs for auto-lift` — a function nobody had touched, with only two files modified.
+MSBuild had not rebuilt everything that reaches `PrintConfig.hpp` transitively: 196 objects in
+`build/src` were older than the header, some from late August, and they still saw a
+`PrintRegionConfig` one member short. Every access past the old end wrote where it should not.
+Deleting the stale objects and rebuilding fixed it.
+
+So: **an incremental build is not enough when a change alters the SIZE of a config struct.** Add
+or remove a member and either clean, or drop what is older than the header:
+
+```bash
+H=$(stat -c %Y src/libslic3r/PrintConfig.hpp); find build/src -name "*.obj" ! -newermt "@$H" -delete
+```
+
+Adding values to an enum stays safe — the size does not move. This is the same hazard the comment
+above `s_single_path_hook_loop` in GCode.cpp warns about, which is why the router's plan lives in
+file statics instead of members of `GCode`: touching `GCode.hpp` rebuilds half the project.
+
+**The GUI holds both the DLL and the EXE.** With GingerSlicer open, the link fails with `LNK1104`.
+Renaming `GingerSlicer.dll` out of the way is not enough on its own — `Ginger-Slicer.exe` is
+locked too. Rename both, and after the build check that both files exist and are new, not just
+the DLL.
+
+**Filter the build output for every shape of error.** `cmake --build … | grep` hides the build's
+exit code behind grep's, so the filter is the only thing standing between a failed link and a
+wrong measurement. `grep -iE " error |LNK[0-9]{4} "` catches `LINK : fatal error LNK1104`, a
+pattern like `LNK[0-9]{4} error` does not.
+
 ### 7.4 What the continuous path actually covers (2026-09-10)
 
 A matrix over one part (`sp_lab/matrix.sh`, CLI overrides on the stool project, 277 layers;
