@@ -694,14 +694,22 @@ That claim is now measured, not assumed: the whole matrix run on the build with 
 **byte-identical to the run on the build before it, on all 35 shared configurations** — including
 `cp_off`, where "the old single switch off" and "both new switches off" produce the same G-code.
 
-Each axis alone, on the stool (277 layers, total air travel):
+Each axis alone, on the stool (277 layers). **Metric: `sp_lab/all_travels.py`, column `aria`** —
+the straight line from the last extruded point to the next one. Say which metric, because the three
+available numbers differ and the gap is not noise: on `cp_off` the same file gives 605.90 m as the
+sum of the moves that carry no E, 608.14 m as `aria`, and 638.96 m as `percorso`, the whole
+non-printing path. The 33 m between the last two are the wipes, which walk back over what was just
+printed and carry a negative E; `aria` is the metric used everywhere else in this document.
 
-| configuration | travel |
+| configuration | travel (`aria`) |
 |---|---|
-| all three on (any normal row) | 1.42 m |
-| connection only (`conn_only`) | 1.94 m |
-| routing only (`route_only`) | 464.21 m |
-| all off (`cp_off`) | 605.90 m |
+| all three on (any normal row) | 1.44 m |
+| connection only (`conn_only`) | 1.95 m |
+| routing only (`route_only`) | 467.89 m |
+| all off (`cp_off`) | 608.14 m |
+
+The axes overlap, they do not add up: routing alone recovers 140 m of the 608, the connection alone
+recovers 606, and together they land at 1.44.
 
 On this part the connection does nearly all the work and the routing adds half a metre, because it
 is one island with one wall: there is nothing to order. Routing is what pays on parts with many
@@ -711,14 +719,14 @@ islands and support, which is where it was measured in 7.2.
 solid for the inheritance to act on, and a row isolating it would be one more blind row. It is
 measured where it acts, on the pair of shells rows, and there it is not free:
 
-| 6 shells, concentric top | travel | fused patches | rings |
+| 6 shells, concentric top | travel (`aria`) | fused patches | rings |
 |---|---|---|---|
-| inheritance on (`top_concentric`) | 14.56 m | 11 | 513 (432 closed) → 81 |
-| inheritance off (`top_conc_nosolid`) | 7.82 m | 1 | 51 (43 closed) → 8 |
+| inheritance on (`top_concentric`) | 14.48 m | 11 | 513 (432 closed) → 81 |
+| inheritance off (`top_conc_nosolid`) | 7.84 m | 1 | 51 (43 closed) → 8 |
 
 With the inheritance the internal solid becomes concentric and joins the top — 12 `Top surface`
 sections instead of 1 top plus 12 `Internal solid infill` — and the fusion takes 513 rings down to
-81, not down to 11. Those 81 paths are what the 6.7 m of extra travel pays for. So the cost is not
+81, not down to 11. Those 81 paths are what the 6.6 m of extra travel pays for. So the cost is not
 the inheritance itself but the rings the fusion cannot close: the same open-ring residue tracked in
 the GLOSSARY. Turn the inheritance off and the concentric surface quality goes with it, so this is
 a trade to make with eyes open, not a regression to fix blindly.
