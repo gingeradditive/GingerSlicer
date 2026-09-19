@@ -682,6 +682,47 @@ feature is barely doing anything. Two more gaps, both measured:
   The ribs are doing their job — wall→wall is only 2.2 m of those 52 — what breaks is the
   INFILL: 46.7 m of sparse→sparse. At 25 % density: 1 wall 5.2 m, 3 walls 31 m. See 7.5.
 
+### 7.4b The three axes, measured apart (2026-09-19)
+
+The peer session split the feature into two NEW keys — `connect_infill` (the infill is connected)
+and `solid_infill_as_top` (the internal solid inherits the top's pattern, flow, speed and role) —
+while `continuous_path_mode`, the key that already existed, now governs only the routing (order,
+planned seam, wall bridge). On an existing project the two new keys are switched on by the
+migration, so nothing changes for a file made yesterday.
+
+That claim is now measured, not assumed: the whole matrix run on the build with the separation is
+**byte-identical to the run on the build before it, on all 35 shared configurations** — including
+`cp_off`, where "the old single switch off" and "both new switches off" produce the same G-code.
+
+Each axis alone, on the stool (277 layers, total air travel):
+
+| configuration | travel |
+|---|---|
+| all three on (any normal row) | 1.42 m |
+| connection only (`conn_only`) | 1.94 m |
+| routing only (`route_only`) | 464.21 m |
+| all off (`cp_off`) | 605.90 m |
+
+On this part the connection does nearly all the work and the routing adds half a metre, because it
+is one island with one wall: there is nothing to order. Routing is what pays on parts with many
+islands and support, which is where it was measured in 7.2.
+
+**The third axis is invisible on the stool** — `top_shell_layers = 0`, so there is no internal
+solid for the inheritance to act on, and a row isolating it would be one more blind row. It is
+measured where it acts, on the pair of shells rows, and there it is not free:
+
+| 6 shells, concentric top | travel | fused patches | rings |
+|---|---|---|---|
+| inheritance on (`top_concentric`) | 14.56 m | 11 | 513 (432 closed) → 81 |
+| inheritance off (`top_conc_nosolid`) | 7.82 m | 1 | 51 (43 closed) → 8 |
+
+With the inheritance the internal solid becomes concentric and joins the top — 12 `Top surface`
+sections instead of 1 top plus 12 `Internal solid infill` — and the fusion takes 513 rings down to
+81, not down to 11. Those 81 paths are what the 6.7 m of extra travel pays for. So the cost is not
+the inheritance itself but the rings the fusion cannot close: the same open-ring residue tracked in
+the GLOSSARY. Turn the inheritance off and the concentric surface quality goes with it, so this is
+a trade to make with eyes open, not a regression to fix blindly.
+
 ### 7.5 The multi-wall gap (2026-09-10)
 
 Anatomy, measured on the stool at 3 walls. It is not fragmentation into many pieces and it is not
