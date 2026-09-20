@@ -633,24 +633,46 @@ Lightning is the known source, and the path depends on thread scheduling. So:
 
 Three of them, all paid for at least once.
 
-**Stale objects after a config struct changes size** (found by the peer session). Adding a member
-to `PrintRegionConfig` compiled clean and then segfaulted at 71 % of the slice, inside
-`Detect overhangs for auto-lift` — a function nobody had touched, with only two files modified.
-MSBuild had not rebuilt everything that reaches `PrintConfig.hpp` transitively: 196 objects in
-`build/src` were older than the header, some from late August, and they still saw a
-`PrintRegionConfig` one member short. Every access past the old end wrote where it should not.
-Deleting the stale objects and rebuilding fixed it.
+**Stale objects after an interrupted build** (found by the peer session, then narrowed down by
+it). The first shape of this was wrong and is worth keeping as a lesson. Adding a member to
+`PrintRegionConfig` compiled clean and then segfaulted at 71 % of the slice, inside
+`Detect overhangs for auto-lift` — untouched code, two files modified — and deleting the objects
+older than the header fixed it. The obvious rule followed: *a change to the size of a config
+struct needs a forced rebuild*. That rule is too strong.
 
-So: **an incremental build is not enough when a change alters the SIZE of a config struct.** Add
-or remove a member and either clean, or drop what is older than the header:
+Measured afterwards, from a healthy build state, taking the two keys out of the struct and putting
+them back: **292 files rebuilt in each direction, both slices fine**. And the dependency is
+recorded — decoding `CL.read.*.tlog` (UTF-16, which is why grep finds nothing in it) lists **98
+units that read `PrintConfig.hpp`, `ToolOrdering.cpp` among them**. So MSBuild knows; that morning
+it did not use what it knew.
+
+The likely mechanism, **not reproduced**: an interrupted build leaves the `.tlog` incoherent, and
+without that information MSBuild falls back to comparing `.cpp` against `.obj`, which a header-only
+change never trips. Interruptions had happened — a killed task on one side, `C1060` with surviving
+MSBuild nodes on the other. Objects from 25 August that had survived dozens of header changes fit
+that story.
+
+So the rule to follow:
+
+- **Normally, trust the incremental build**, including when a config struct changes size.
+- **After a build that was interrupted or died halfway** (killed task, `C1060`, `LNK1104`,
+  MSBuild nodes left alive), force the next one: that state can be poisoned silently.
+- **The symptom**: a crash far from what you touched, in code you did not modify, after a clean
+  compile.
+
+The blunt fix deletes everything older than the header, which overshoots: most objects do not
+include it. Today there are 110 objects older than `PrintConfig.hpp` and only **one of the 98 that
+actually read it** (`SVG.cpp.obj`). The precise check intersects the two — decode the tlogs, keep
+the units that read the header, compare their object timestamps — and the blunt one stays as the
+repair:
 
 ```bash
 H=$(stat -c %Y src/libslic3r/PrintConfig.hpp); find build/src -name "*.obj" ! -newermt "@$H" -delete
 ```
 
-Adding values to an enum stays safe — the size does not move. This is the same hazard the comment
-above `s_single_path_hook_loop` in GCode.cpp warns about, which is why the router's plan lives in
-file statics instead of members of `GCode`: touching `GCode.hpp` rebuilds half the project.
+Adding values to an enum stays safe — the size does not move. And this is still why the router's
+plan lives in file statics instead of members of `GCode`: touching `GCode.hpp` rebuilds half the
+project.
 
 **The GUI holds both the DLL and the EXE.** With GingerSlicer open, the link fails with `LNK1104`.
 Renaming `GingerSlicer.dll` out of the way is not enough on its own — `Ginger-Slicer.exe` is
