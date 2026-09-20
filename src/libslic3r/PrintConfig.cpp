@@ -256,6 +256,13 @@ static t_config_enum_values s_keys_map_SupportType{
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(SupportType)
 
+bool infill_pattern_can_connect(InfillPattern p)
+{
+    return p == ipRectilinear || p == ipAlignedRectilinear || p == ipGrid || p == ipTriangles ||
+           p == ipStars || p == ipCubic || p == ipQuarterCubic || p == ipZigZag ||
+           p == ipCrossZag || p == ipLockedZag || p == ipLightning;
+}
+
 static t_config_enum_values s_keys_map_SeamPosition {
     { "nearest",        spNearest },
     { "aligned",        spAligned },
@@ -2372,10 +2379,48 @@ void PrintConfigDef::init_fff_params()
     // Infill multiline
     def             = this->add("fill_multiline", coInt);
     def->label      = L("Fill Multiline");
+    // Ginger: la categoria mancava del tutto, quindi l'opzione restava fuori dai raggruppamenti per
+    // categoria (ricerca e diff delle impostazioni) pur vivendo in Strength > Infill.
+    def->category   = L("Strength");
     def->tooltip    = L("Using multiple lines for the infill pattern, if supported by infill pattern.");
     def->min = 1;
     def->max = 10; // Maximum number of lines for infill pattern
     def->set_default_value(new ConfigOptionInt(1));
+
+    // Ginger: connessione del riempimento in un percorso solo. E' l'equivalente diretto di
+    // connect_infill_polygons / zig_zaggify_infill di Cura, portato oltre: dove Cura unisce cio' che
+    // puo', qui la garanzia e' un percorso per isola. Vive in Strength > Infill perche' e' geometria
+    // di riempimento e sta tutta in Fill/ - l'esportatore non la guarda mai. Indipendente da
+    // continuous_path_mode, che si occupa di come il layer viene percorso, non di cosa viene generato.
+    def             = this->add("connect_infill", coBool);
+    def->label      = L("Connect infill");
+    def->category   = L("Strength");
+    def->tooltip    = L("Join the infill of an island into a single continuous path, so the head never "
+                        "travels inside it. Sparse infill is connected along the inner wall; concentric "
+                        "top, bottom and internal solid come out as closed rings fused into one path. "
+                        "Only line-based sparse patterns can be connected - with the others the option "
+                        "is greyed out, because it would have no effect. Turning this on does NOT plan "
+                        "the order of the layer: that is Continuous path, and the two are independent.");
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    // Ginger: il solido interno smette di essere una feature a se' e diventa top/bottom a tutti gli
+    // effetti - eredita pattern, densita', flusso e, tramite il ruolo, velocita' e accelerazione. Top e
+    // solido interno contigui diventano cosi' UNA toppa con un percorso solo, invece di due feature
+    // adiacenti separate da un salto. Il solido interno e' invisibile e il cordone e' lo stesso: e' la
+    // superficie a vista che detta le regole.
+    def             = this->add("solid_infill_as_top", coBool);
+    def->label      = L("Internal solid as top surface");
+    def->category   = L("Strength");
+    def->tooltip    = L("Print internal solid infill exactly like the top surface: same pattern, flow, "
+                        "speed and acceleration. Where internal solid touches the top of the same layer "
+                        "the two stop being separate features and are filled as one patch, which removes "
+                        "the travel between them. With the stock Orca defaults (monotonic top, rectilinear "
+                        "solid, different speeds) they never match by chance, so the jump is paid without "
+                        "anything in the interface saying so. When this is on, the internal solid infill "
+                        "fields are disabled because they no longer have any effect.");
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
 
     // Continuous path (Cura-style connected infill taken further: one path per island).
     def             = this->add("continuous_path_mode", coBool);
@@ -2388,15 +2433,18 @@ void PrintConfigDef::init_fff_params()
                         "with no connectable infill, the wall seam is placed at the point closest to where the previous "
                         "island ended, minimizing the unavoidable travel between separate islands. Critical for pellet "
                         "printers, where long travel moves degrade the melt. The infill-connect part (1) only applies to "
-                        "line-based patterns; the wall and inter-island seam optimization (2,3) applies to any pattern and "
-                        "even at 0% infill.");
+                        "line-based patterns. Part (2) needs infill in the SAME island: with no infill, or with \"Print "
+                        "infill first\", there is nothing to hook to and only (3) applies - and (3) works with any pattern "
+                        "and even at 0% infill. The wall seam then follows the Minimum travels policy (Seam position), and "
+                        "the scarf joint is suppressed on that one loop.");
     def->mode       = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
     // Ginger: rib connectors between the wall loops of an island (continuous_path_mode sub-option).
+    // Ginger: categoria Strength - sono connettori fra i loop di PARETE, vivono in Strength > Walls.
     def             = this->add("continuous_path_wall_ribs", coBool);
     def->label      = L("Wall rib connectors");
-    def->category   = L("Others");
+    def->category   = L("Strength");
     def->tooltip    = L("Merge all wall loops of an island (outer wall and hole walls) into one continuous "
                         "extrusion path by adding short rib connectors at their closest approach: two touching "
                         "beads side by side, like a thin internal rib. Eliminates the travel moves between the "
@@ -2408,7 +2456,7 @@ void PrintConfigDef::init_fff_params()
 
     def             = this->add("continuous_path_wall_rib_max_length", coFloat);
     def->label      = L("Wall rib max length");
-    def->category   = L("Others");
+    def->category   = L("Strength");
     def->tooltip    = L("Maximum length of a wall rib connector. Wall loops farther apart than this are not "
                         "merged: a very long rib would cross half the part (and everything below it), while "
                         "the travel it replaces is already minimized by Continuous path mode. Keep it in the range "
@@ -2419,9 +2467,10 @@ void PrintConfigDef::init_fff_params()
     def->set_default_value(new ConfigOptionFloat(20.));
 
     // Ginger: the sparse infill becomes the wall (continuous_path_mode sub-option). See docs/ginger/DFM.md.
+    // Ginger: categoria Strength - modi di fare l'anello del riempimento, vivono in Strength > Infill.
     def             = this->add("continuous_path_infill_as_wall", coBool);
     def->label      = L("Merge infill with wall");
-    def->category   = L("Others");
+    def->category   = L("Strength");
     def->tooltip    = L("The outer wall itself takes over the sparse infill: instead of anchoring the Lightning "
                         "branches against the wall (a visible junction, especially on transparent material), the "
                         "wall loop detours inward around every branch, goes around it and comes back. The layer "
@@ -2439,7 +2488,7 @@ void PrintConfigDef::init_fff_params()
 
     def             = this->add("continuous_path_infill_ring_always", coBool);
     def->label      = L("Always ring with infill");
-    def->category   = L("Others");
+    def->category   = L("Strength");
     def->tooltip    = L("Close the sparse infill ring on EVERY layer that has a sparse area, instead of leaving "
                         "the choice to the single-path connector (which keeps it only where it costs no extra "
                         "trail). Lightning is demand-driven, so on layers with a poor tree the ring disappears "
@@ -4692,7 +4741,12 @@ void PrintConfigDef::init_fff_params()
 
     def = this->add("seam_slope_type", coEnum);
     def->label = L("Scarf joint seam (beta)");
-    def->tooltip = L("Use scarf joint to minimize seam visibility and increase seam strength.");
+    def->tooltip = L("Use scarf joint to minimize seam visibility and increase seam strength. "
+                     "Note: with Continuous path the last wall of an island that has infill is pinned to the "
+                     "infill entry, and the scarf is suppressed on that one loop - its taper would end the "
+                     "wall short of the junction and reintroduce the travel the mode exists to remove. With a "
+                     "single wall loop that is every island that has infill; the scarf still applies where "
+                     "there is no infill to hook to.");
     def->enum_keys_map = &ConfigOptionEnum<SeamScarfType>::get_enum_values();
     def->enum_values.push_back("none");
     def->enum_values.push_back("external");
@@ -7326,6 +7380,15 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config)
             config.set_key_value("thumbnails", new ConfigOptionString(thumbnails_str));
         }
     }
+
+    // Ginger (2026-09-19): connect_infill si e' staccata da continuous_path_mode. Fino a ieri il modo
+    // implicava la connessione, quindi ogni profilo, 3MF o G-code che lo ha acceso deve continuare a
+    // connettere: se la chiave nuova non c'e', la si eredita dal modo. Senza questo, aprire un progetto
+    // vecchio darebbe un riempimento non connesso senza che nulla lo spieghi.
+    if (config.has("continuous_path_mode") && ! config.has("connect_infill"))
+        config.set_key_value("connect_infill", new ConfigOptionBool(config.opt_bool("continuous_path_mode")));
+    if (config.has("continuous_path_mode") && ! config.has("solid_infill_as_top"))
+        config.set_key_value("solid_infill_as_top", new ConfigOptionBool(config.opt_bool("continuous_path_mode")));
 
     if (config.has("wiping_volumes_matrix") && !config.has("wiping_volumes_use_custom_matrix")) {
         // This is apparently some pre-2.7.3 config, where the wiping_volumes_matrix was always used.

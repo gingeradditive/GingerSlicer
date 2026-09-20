@@ -936,13 +936,12 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
                 // scanlines along the inner wall - it can't handle curved / 3D patterns like Gyroid, Honeycomb,
                 // Concentric, TPMS, ...). Solid / top / bottom keep the flag as groundwork (they still print
                 // monotonic; the dense single-path / BCD step is future work - see FillRectilinear).
-                auto connectable_pattern = [](InfillPattern p) {
-                    return p == ipRectilinear || p == ipAlignedRectilinear || p == ipGrid || p == ipTriangles ||
-                           p == ipStars || p == ipCubic || p == ipQuarterCubic || p == ipZigZag ||
-                           p == ipCrossZag || p == ipLockedZag || p == ipLightning;
-                };
-                params.connect_polygons = bool(region_config.continuous_path_mode) &&
-                    ((params.extrusion_role == erInternalInfill && connectable_pattern(region_config.sparse_infill_pattern.value)) ||
+                // Ginger (2026-09-19): la lista dei pattern connettibili e' in PrintConfig
+                // (infill_pattern_can_connect), una sola, condivisa con la GUI che su quella spegne
+                // il campo. Il gate e' connect_infill, non piu' il modo: connettere il riempimento e
+                // pianificare il percorso del layer sono due cose indipendenti.
+                params.connect_polygons = bool(region_config.connect_infill) &&
+                    ((params.extrusion_role == erInternalInfill && infill_pattern_can_connect(region_config.sparse_infill_pattern.value)) ||
                      params.extrusion_role == erSolidInfill ||
                      params.extrusion_role == erTopSolidInfill ||
                      params.extrusion_role == erBottomSurface);
@@ -1028,7 +1027,8 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
                     // tramite il ruolo, velocita' e accelerazione. Il solido interno e' invisibile, il
                     // cordone e' lo stesso, il top e' la superficie che detta le regole. In GUI i campi del
                     // solido interno sono disabilitati (ConfigManipulation.cpp).
-                    const bool inherit_from_top = region_config.continuous_path_mode.value;
+                    // Ginger (2026-09-19): opzione sua (solid_infill_as_top), non piu' il modo.
+                    const bool inherit_from_top = region_config.solid_infill_as_top.value;
                     if (inherit_from_top || (same_bead && same_dynamics)) {
                         if (inherit_from_top && ! same_bead) {
                             params.pattern = region_config.top_surface_pattern.value;
@@ -1441,7 +1441,7 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         // Ginger continuous_path_infill_ring_always: the sparse ring is a second wall, wanted on every
         // layer and not only where the demand-driven tree happens to give the connector something
         // to walk along.
-        params.ring_always          = bool(region_config.continuous_path_mode) &&
+        params.ring_always          = bool(region_config.connect_infill) &&
                                       bool(region_config.continuous_path_infill_ring_always) &&
                                       surface_fill.params.extrusion_role == erInternalInfill;
         // Ginger (2026-09-01, Davide): isteresi fra layer. Il connettore sceglie una delle due
@@ -1451,7 +1451,7 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         // lo sparse gia' emesso nel layer sotto, cosi' a pari costo ricalca quello. Vale solo con
         // continuous_path_mode, che per questo riempie i layer in fila (PrintObject::infill).
         Polylines prev_cover;
-        if (bool(region_config.continuous_path_mode) && surface_fill.params.extrusion_role == erInternalInfill &&
+        if (bool(region_config.connect_infill) && surface_fill.params.extrusion_role == erInternalInfill &&
             this->lower_layer != nullptr) {
             for (const LayerRegion *lr : this->lower_layer->regions())
                 for (const ExtrusionEntity *ee : lr->fills.entities)

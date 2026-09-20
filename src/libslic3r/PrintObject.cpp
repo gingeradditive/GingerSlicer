@@ -913,7 +913,8 @@ static bool wall_fusion_enabled(const PrintRegionConfig &cfg)
     // The gorge is one spacing wide: a second concentric wall loop has nowhere to go, and a
     // scanline pattern would cut the island into one cell per chord. Outside these conditions the
     // toggle silently falls back to the normal infill rings (which is what the UI says).
-    return cfg.continuous_path_mode && cfg.continuous_path_infill_as_wall &&
+    // Ginger (2026-09-19): gate su connect_infill - la fusione e' geometria di riempimento.
+    return cfg.connect_infill && cfg.continuous_path_infill_as_wall &&
            cfg.sparse_infill_pattern == ipLightning && cfg.wall_loops == 1 &&
            cfg.sparse_infill_density > 0;
 }
@@ -1660,7 +1661,10 @@ void PrintObject::infill()
         // parallelismo di questa fase, che sul connettore vale 1.7 s di CPU su 277 layer.
         bool sequential_fill = false;
         for (size_t ri = 0; ri < this->num_printing_regions(); ++ ri)
-            if (this->printing_region(ri).config().continuous_path_mode) { sequential_fill = true; break; }
+            // Ginger (2026-09-19): e' l'isteresi dei raccordi a legare un layer al precedente, e
+            // l'isteresi appartiene alla connessione del riempimento, non alla pianificazione del
+            // percorso. Con connect_infill spento i layer tornano a riempirsi in parallelo.
+            if (this->printing_region(ri).config().connect_infill) { sequential_fill = true; break; }
         // Sonda di misura (2026-09-03): GINGER_SP_PARALLEL_FILL=1 torna al riempimento parallelo
         // (senza isteresi) per pesare quanto costa la sequenzialita'; GINGER_SP_PROFILE stampa il tempo.
         if (::getenv("GINGER_SP_PARALLEL_FILL") != nullptr)

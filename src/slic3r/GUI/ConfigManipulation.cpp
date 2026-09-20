@@ -591,19 +591,24 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     // inizio riempimento): e' la politica "minimum travels" di seam_position, e le posizioni
     // estetiche non hanno effetto. Il campo si disattiva per dirlo, come gia' fanno i campi del
     // solido interno che eredita dal top.
+    // Ginger: "Connect infill" si spegne sui pattern che il connettore non sa unire. La lista e'
+    // quella di PrintConfig, la stessa che usa Fill.cpp: quando ne aggiungiamo uno il campo si
+    // riaccende da solo e non c'e' un secondo elenco da ricordarsi di aggiornare.
+    toggle_field("connect_infill",
+                 infill_pattern_can_connect(config->opt_enum<InfillPattern>("sparse_infill_pattern")));
     toggle_field("seam_position", ! config->opt_bool("continuous_path_mode"));
     toggle_field("continuous_path_wall_ribs", config->opt_bool("continuous_path_mode"));
     toggle_field("continuous_path_wall_rib_max_length", config->opt_bool("continuous_path_mode") && config->opt_bool("continuous_path_wall_ribs"));
     // Ginger continuous_path_infill_as_wall: the fusion needs the Lightning tree and exactly one wall loop
     // (the gorge is one spacing wide - a second concentric loop has nowhere to go). Outside those
     // conditions it silently falls back to the normal infill rings, so the field is greyed out to say so.
-    const bool fusion_possible = config->opt_bool("continuous_path_mode") &&
+    const bool fusion_possible = config->opt_bool("connect_infill") &&
                                  config->option<ConfigOptionEnum<InfillPattern>>("sparse_infill_pattern")->value == ipLightning &&
                                  config->opt_int("wall_loops") == 1;
     toggle_field("continuous_path_infill_as_wall", fusion_possible);
     // With the fusion active the ring IS the wall: always there, nothing left to choose.
     toggle_field("continuous_path_infill_ring_always",
-                 config->opt_bool("continuous_path_mode") && ! (fusion_possible && config->opt_bool("continuous_path_infill_as_wall")));
+                 config->opt_bool("connect_infill") && ! (fusion_possible && config->opt_bool("continuous_path_infill_as_wall")));
     if (have_infill) {
         toggle_field("fill_multiline", have_multiline_infill_pattern);
         // If the infill pattern does not support multiline fill_multiline is changed to 1.
@@ -668,9 +673,20 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     // Ginger continuous path (2026-09-08): il solido interno eredita pattern, larghezza, velocita' e
     // accelerazione dal top (Fill.cpp, promozione del ruolo), cosi' top e solido interno contigui sono
     // una toppa sola con un solo percorso. I campi del solido interno non contano piu': disabilitati.
-    const bool cp_inherit_solid = config->opt_bool("continuous_path_mode");
+    const bool cp_inherit_solid = config->opt_bool("solid_infill_as_top");
     for (auto el : { "internal_solid_infill_pattern", "internal_solid_infill_line_width", "internal_solid_infill_speed" })
         toggle_field(el, ! cp_inherit_solid && (have_infill || has_solid_infill));
+
+    // Ginger: il rilevamento delle zone strette lo fa split_solid_surface, che esce subito su qualunque
+    // pattern non sia della famiglia rettilinea (Fill.cpp). Col concentrico l'opzione e' morta - e sotto
+    // percorso continuo il pattern del solido lo eredita dal top, che nei profili Ginger E' concentrico.
+    // Restava accesa promettendo una funzione inesistente: si spegne quando non puo' scattare.
+    const InfillPattern effective_solid_pattern = cp_inherit_solid
+        ? config->opt_enum<InfillPattern>("top_surface_pattern")
+        : config->opt_enum<InfillPattern>("internal_solid_infill_pattern");
+    toggle_field("detect_narrow_internal_solid_infill",
+                 effective_solid_pattern == ipRectilinear   || effective_solid_pattern == ipMonotonic ||
+                 effective_solid_pattern == ipMonotonicLine || effective_solid_pattern == ipAlignedRectilinear);
 
     bool have_default_acceleration = config->opt_float("default_acceleration") > 0;
 

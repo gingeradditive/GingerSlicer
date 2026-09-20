@@ -172,6 +172,12 @@ inline bool is_auto(SupportType stype)
     return std::set<SupportType>{stNormalAuto, stTreeAuto}.count(stype) != 0;
 };
 
+// Ginger: UNICA lista autorevole dei pattern che il connettore del riempimento sa unire in un
+// percorso solo. La usano sia la generazione (Fill.cpp) sia la GUI, che su questa base spegne
+// "Connect infill" dove non funzionerebbe. Tenerla in un posto solo e' il punto: duplicarla
+// significa che il giorno che si aggiunge un pattern l'interfaccia mente.
+bool infill_pattern_can_connect(InfillPattern pattern);
+
 enum SeamPosition {
     // Ginger: spMinimumTravels e' in fondo perche' il valore numerico e' l'indice di
     // serializzazione nei profili; aggiungere in mezzo rinominerebbe le scelte salvate.
@@ -1015,6 +1021,8 @@ PRINT_CONFIG_CLASS_DEFINE(
     // Orca:
     ((ConfigOptionFloatOrPercent,                infill_combination_max_layer_height))
     ((ConfigOptionInt,                  fill_multiline))
+    ((ConfigOptionBool,                 connect_infill))
+    ((ConfigOptionBool,                 solid_infill_as_top))
     ((ConfigOptionBool,                 continuous_path_mode))
     ((ConfigOptionBool,                 continuous_path_wall_ribs))
     ((ConfigOptionFloat,                continuous_path_wall_rib_max_length))

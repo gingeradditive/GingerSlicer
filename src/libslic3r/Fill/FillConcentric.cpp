@@ -44,6 +44,15 @@ static void splice_concentric_rings(ThickPolylines &thick, size_t first, const E
     }
     if (samples.empty())
         return;
+    // Sonda (2026-09-19): i capi dei cordoni APERTI in ingresso. Se combaciano a due a due sono lo
+    // stesso cordone spezzato in un punto di diramazione, e basta ricucirli prima della splice.
+    if (::getenv("GINGER_TOPSPLICE_ENDS") != nullptr)
+        for (const Polyline &pl : rings)
+            if (! (pl.points.size() > 3 && pl.points.front() == pl.points.back()))
+                std::fprintf(stderr, "[TOPENDS] len=%.2f a=(%.3f,%.3f) b=(%.3f,%.3f)\n",
+                             pl.length() * SCALING_FACTOR,
+                             pl.points.front().x() * SCALING_FACTOR, pl.points.front().y() * SCALING_FACTOR,
+                             pl.points.back().x()  * SCALING_FACTOR, pl.points.back().y()  * SCALING_FACTOR);
     const size_t rings_before = rings.size();
     size_t closed_in = 0;
     for (const Polyline &pl : rings)
@@ -63,6 +72,15 @@ static void splice_concentric_rings(ThickPolylines &thick, size_t first, const E
     // centerline lies inside it and a link along it passes the containment test.
     Polygons island = offset(expolygon, float(min_spacing) / 2.f);
     single_path_splice_loops(rings, scale_(link_mult * spacing), scale_(spacing), &island, false);
+    if (::getenv("GINGER_TOPSPLICE_DEBUG") != nullptr) {
+        // Composizione dell'USCITA: serve a distinguere le due letture possibili del residuo -
+        // "i chiusi non si fondono fino in fondo" oppure "i chiusi si fondono e restano gli aperti".
+        size_t out_closed = 0;
+        for (const Polyline &pl : rings)
+            if (pl.points.size() > 3 && pl.points.front() == pl.points.back())
+                ++ out_closed;
+        std::fprintf(stderr, "[TOPSPLICE] uscita: %zu chiusi + %zu aperti\n", out_closed, rings.size() - out_closed);
+    }
     if (::getenv("GINGER_TOPSPLICE_DEBUG") != nullptr)
         std::fprintf(stderr, "[TOPSPLICE] anelli=%zu (chiusi=%zu) -> %zu  link_max=%.2f interassi\n",
                      rings_before, closed_in, rings.size(), link_mult);

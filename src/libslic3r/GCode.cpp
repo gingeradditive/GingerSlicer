@@ -5021,8 +5021,17 @@ std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, dou
         loop.split_at(last_pos, false);
 
     const auto seam_scarf_type = m_config.seam_slope_type.value;
+    // Ginger: la seam viene dalla politica di travel quando e' stata appuntata a una giunzione
+    // (s_single_path_hook_loop) OPPURE quando l'utente ha scelto "minimum travels" da solo. In
+    // entrambi i casi lo scarf va soppresso, per due ragioni diverse: appuntata, la sua rampa
+    // finirebbe il muro prima della giunzione e rimetterebbe il travel; scelta da sola,
+    // place_seam esce senza consultare il proprio modello e quindi senza calcolare `overhang`,
+    // che resta a lowest() - il test su scarf_overhang_threshold passerebbe SEMPRE e lo scarf
+    // finirebbe anche sulle seam a sbalzo, dove chi l'ha acceso non lo vuole.
+    const bool seam_from_travel_policy = s_single_path_hook_loop ||
+        (m_layer != nullptr && m_layer->object()->config().seam_position.value == spMinimumTravels);
     bool enable_seam_slope = ((seam_scarf_type == SeamScarfType::External && !is_hole) || seam_scarf_type == SeamScarfType::All) &&
-        ! s_single_path_hook_loop &&
+        ! seam_from_travel_policy &&
         !m_config.spiral_mode &&
         (loop.role() == erExternalPerimeter || (loop.role() == erPerimeter && m_config.seam_slope_inner_walls)) &&
         layer_id() > 0;

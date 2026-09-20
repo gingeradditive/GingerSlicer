@@ -2193,6 +2193,10 @@ void TabPrint::build()
     optgroup->append_single_option_line("wall_loops", "strength_settings_walls#wall-loops");
         optgroup->append_single_option_line("alternate_extra_wall", "strength_settings_walls#alternate-extra-wall");
         optgroup->append_single_option_line("detect_thin_wall", "strength_settings_walls#detect-thin-wall");
+        // Ginger: i rib sono connettori fra i loop di PARETE. Stavano in Others > Special mode solo perche'
+        // nati col percorso continuo, da cui restano subordinati. L'ancora resta quella del modo.
+        optgroup->append_single_option_line("continuous_path_wall_ribs", "others_settings_special_mode#continuous-path");
+        optgroup->append_single_option_line("continuous_path_wall_rib_max_length", "others_settings_special_mode#continuous-path");
 
         optgroup = page->new_optgroup(L("Top/bottom shells"), L"param_shell");
 
@@ -2210,6 +2214,10 @@ void TabPrint::build()
         optgroup->append_single_option_line("sparse_infill_density", "strength_settings_infill#sparse-infill-density");
         optgroup->append_single_option_line("fill_multiline", "strength_settings_infill#fill-multiline");
         optgroup->append_single_option_line("sparse_infill_pattern", "strength_settings_infill#sparse-infill-pattern");
+        // Ginger: la connessione del riempimento e i suoi due modi di fare l'anello.
+        optgroup->append_single_option_line("connect_infill", "strength_settings_infill#connect-infill");
+        optgroup->append_single_option_line("continuous_path_infill_as_wall", "others_settings_special_mode#continuous-path");
+        optgroup->append_single_option_line("continuous_path_infill_ring_always", "others_settings_special_mode#continuous-path");
         optgroup->append_single_option_line("infill_direction", "strength_settings_infill#direction");
         optgroup->append_single_option_line("sparse_infill_rotate_template", "strength_settings_infill_rotation_template_metalanguage");
         optgroup->append_single_option_line("skin_infill_density", "strength_settings_patterns#locked-zag");
@@ -2226,6 +2234,8 @@ void TabPrint::build()
         optgroup->append_single_option_line("infill_anchor_max", "strength_settings_infill#anchor");
         optgroup->append_single_option_line("infill_anchor", "strength_settings_infill#anchor");
         optgroup->append_single_option_line("internal_solid_infill_pattern", "strength_settings_infill#internal-solid-infill");
+        // Ginger: accanto ai campi che disattiva, cosi' il rapporto si vede.
+        optgroup->append_single_option_line("solid_infill_as_top", "strength_settings_infill#internal-solid-infill");
         optgroup->append_single_option_line("solid_infill_direction", "strength_settings_infill#direction");
         optgroup->append_single_option_line("solid_infill_rotate_template", "strength_settings_infill_rotation_template_metalanguage");
         optgroup->append_single_option_line("gap_fill_target", "strength_settings_infill#apply-gap-fill");
@@ -2415,11 +2425,9 @@ optgroup->append_single_option_line("skirt_loops", "others_settings_skirt#loops"
         optgroup->append_single_option_line("spiral_starting_flow_ratio", "others_settings_special_mode#spiral-starting-flow-ratio");
         optgroup->append_single_option_line("spiral_finishing_flow_ratio", "others_settings_special_mode#spiral-finishing-flow-ratio");
 
+        // Ginger: qui resta il solo interruttore del modo. I sotto-campi sono nelle pagine di
+        // competenza: i rib in Strength > Walls, connessione e anelli in Strength > Infill.
         optgroup->append_single_option_line("continuous_path_mode", "others_settings_special_mode#continuous-path");
-        optgroup->append_single_option_line("continuous_path_wall_ribs", "others_settings_special_mode#continuous-path");
-        optgroup->append_single_option_line("continuous_path_wall_rib_max_length", "others_settings_special_mode#continuous-path");
-        optgroup->append_single_option_line("continuous_path_infill_as_wall", "others_settings_special_mode#continuous-path");
-        optgroup->append_single_option_line("continuous_path_infill_ring_always", "others_settings_special_mode#continuous-path");
 
         optgroup->append_single_option_line("timelapse_type", "others_settings_special_mode#timelapse");
 
