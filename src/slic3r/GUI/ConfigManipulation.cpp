@@ -597,8 +597,11 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     toggle_field("connect_infill",
                  infill_pattern_can_connect(config->opt_enum<InfillPattern>("sparse_infill_pattern")));
     toggle_field("seam_position", ! config->opt_bool("continuous_path_mode"));
-    toggle_field("continuous_path_wall_ribs", config->opt_bool("continuous_path_mode"));
-    toggle_field("continuous_path_wall_rib_max_length", config->opt_bool("continuous_path_mode") && config->opt_bool("continuous_path_wall_ribs"));
+    // Ginger (2026-09-26): i rib sono indipendenti dal modo - uniscono le pareti in un percorso, come
+    // connect_infill fa col riempimento. Restano figli loro il tetto sulla lunghezza e la seam nel rib.
+    const bool ribs_on = config->opt_bool("wall_ribs");
+    toggle_field("wall_rib_max_length", ribs_on);
+    toggle_field("wall_rib_seam", ribs_on);
     // Ginger continuous_path_infill_as_wall: the fusion needs the Lightning tree and exactly one wall loop
     // (the gorge is one spacing wide - a second concentric loop has nowhere to go). Outside those
     // conditions it silently falls back to the normal infill rings, so the field is greyed out to say so.

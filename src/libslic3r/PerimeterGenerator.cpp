@@ -223,8 +223,8 @@ static ExtrusionEntityCollection traverse_loops(const PerimeterGenerator &perime
             paths.emplace_back(std::move(path));
         }
 
-        // Ginger (2026-09-07): stessa regola sliver del ramo Arachne (vedi sotto).
-        if (perimeter_generator.config->continuous_path_mode) {
+        // Ginger (2026-09-07): stessa regola sliver del ramo Arachne (vedi sotto). Gated su wall_ribs.
+        if (perimeter_generator.config->wall_ribs) {
             double plen = 0.;
             for (const ExtrusionPath &pp : paths)
                 plen += pp.length();
@@ -519,12 +519,14 @@ static ExtrusionEntityCollection traverse_extrusions(const PerimeterGenerator& p
         // cordoni (fori che si stanno chiudendo, 1-2 mm di perimetro: 83 in 74 layer) non e' un cordone
         // stampabile ("non verranno mai"), ma e' un OSTACOLO per il planner dei rib (35 dei 55 layer con
         // rib scartati per ostacolo li avevano) e un'unita' in piu' da raggiungere con un travel. Stessa
-        // soglia della regola sui riempimenti sliver. Solo in single path.
+        // soglia della regola sui riempimenti sliver.
         // 2026-09-07 (Davide: "ogni foro deve avere il rib"): soglia = 4 cordoni, la stessa sotto cui il
         // planner dei rib scarta un loop come too_short (non puo' ospitare due tagli a uno stagger).
         // Cosi' ogni anello di parete STAMPATO e' anche un candidato rib; sotto, il foro (diametro
         // < 2.4 mm con cordone 1.9) non e' comunque un anello stampabile.
-        if (! paths.empty() && perimeter_generator.config->continuous_path_mode) {
+        // 2026-09-26: gate spostato da continuous_path_mode a wall_ribs. La soglia e' quella dei rib ed e'
+        // il planner dei rib a volere ogni anello stampato come candidato: senza rib lo scarto non serve.
+        if (! paths.empty() && perimeter_generator.config->wall_ribs) {
             double plen = 0.;
             for (const ExtrusionPath &pp : paths)
                 plen += pp.length();

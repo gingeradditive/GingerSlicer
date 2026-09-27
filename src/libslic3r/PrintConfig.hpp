@@ -1023,9 +1023,10 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionInt,                  fill_multiline))
     ((ConfigOptionBool,                 connect_infill))
     ((ConfigOptionBool,                 solid_infill_as_top))
+    ((ConfigOptionBool,                 wall_rib_seam))
     ((ConfigOptionBool,                 continuous_path_mode))
-    ((ConfigOptionBool,                 continuous_path_wall_ribs))
-    ((ConfigOptionFloat,                continuous_path_wall_rib_max_length))
+    ((ConfigOptionBool,                 wall_ribs))
+    ((ConfigOptionFloat,                wall_rib_max_length))
     ((ConfigOptionBool,                 continuous_path_infill_as_wall))
     ((ConfigOptionBool,                 continuous_path_infill_ring_always))
     // Ironing options

@@ -669,7 +669,7 @@ void PrintObject::prepare_infill()
     m_print->throw_if_canceled();
     determinism_probe(this, "9 fuse_walls");
 
-    // Ginger continuous_path_wall_ribs: plan the wall rib merges and carve their corridors out of
+    // Ginger wall_ribs: plan the wall rib merges and carve their corridors out of
     // the final fill surfaces (must run last, when fill_surfaces are final).
     this->generate_wall_ribs();
     m_print->throw_if_canceled();
@@ -692,7 +692,7 @@ void PrintObject::prepare_infill()
     this->set_done(posPrepareInfill);
 }
 
-// Ginger continuous_path_wall_ribs: dry-run (materialize=false) or grow (materialize=true) the
+// Ginger wall_ribs: dry-run (materialize=false) or grow (materialize=true) the
 // foundation BUTTRESS of one rib link. The rib at `rib_layer` spans `link_a` (on the walk) to
 // `link_b` (on the spliced loop) but stands on nothing - with a big nozzle the sparse infill
 // is far too coarse to catch it, and one solidified pad below would itself bridge over air.
@@ -889,7 +889,7 @@ static bool build_rib_buttress(Layer *rib_layer, const Point &link_a, const Poin
     return false;
 }
 
-// Ginger continuous_path_wall_ribs. For every layer (sequential, bottom-up), the closed wall loops
+// Ginger wall_ribs. For every layer (sequential, bottom-up), the closed wall loops
 // of each island are planned into ONE walk with rib connectors (plan_wall_ribs, Prim over the
 // loops). Running here - instead of at G-code time - buys the two properties the ribs need:
 //  - the rib CORRIDORS are subtracted from the layer's fill surfaces, so sparse/solid/top/bottom
@@ -1362,7 +1362,10 @@ void PrintObject::generate_wall_ribs()
     bool enabled = false;
     for (size_t region_id = 0; region_id < this->num_printing_regions(); ++ region_id) {
         const PrintRegionConfig &cfg = this->printing_region(region_id).config();
-        if (cfg.continuous_path_mode && cfg.continuous_path_wall_ribs) {
+        // Ginger (2026-09-26): i rib non dipendono piu' dal percorso continuo. Uniscono i loop di
+        // parete in un percorso solo aggiungendo cordoni di collegamento: e' l'analogo di connect_infill
+        // sulle pareti, non un figlio dell'instradamento.
+        if (cfg.wall_ribs) {
             enabled = true;
             break;
         }
@@ -1423,7 +1426,7 @@ void PrintObject::generate_wall_ribs()
         }
         for (LayerRegion *layerm : layer->regions()) {
             const PrintRegionConfig &cfg = layerm->region().config();
-            if (! (cfg.continuous_path_mode && cfg.continuous_path_wall_ribs))
+            if (! cfg.wall_ribs)
                 continue;
             // One collection per island inside LayerRegion::perimeters.
             for (const ExtrusionEntity *island_ee : layerm->perimeters.entities) {
@@ -1488,7 +1491,7 @@ void PrintObject::generate_wall_ribs()
                 // bead tighter than this, so it fuses into the rib flanks.
                 params.corridor_offset = coord_t(scale_(0.5 * width));
                 // A rib longer than this is worse than the short travel it replaces.
-                params.max_link_length = coord_t(scale_(cfg.continuous_path_wall_rib_max_length.value));
+                params.max_link_length = coord_t(scale_(cfg.wall_rib_max_length.value));
                 // Per-layer column drift budget: about 45 deg of lean, whichever of half a
                 // bead / one layer height is smaller.
                 params.max_drift       = std::min(coord_t(scale_(0.5 * width)), coord_t(scale_(layer->height)));
@@ -1573,7 +1576,7 @@ void PrintObject::generate_wall_ribs()
                             break;
                         }
                     if (! founded_ok) {
-                        BOOST_LOG_TRIVIAL(warning) << "continuous_path_wall_ribs: foundation buttress failed to"
+                        BOOST_LOG_TRIVIAL(warning) << "wall_ribs: foundation buttress failed to"
                             " materialize at z=" << layer->print_z << " - dropping the island's rib plan"
                             " (its loops print unmerged this layer)";
                     } else {

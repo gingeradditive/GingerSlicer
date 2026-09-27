@@ -2440,9 +2440,10 @@ void PrintConfigDef::init_fff_params()
     def->mode       = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
-    // Ginger: rib connectors between the wall loops of an island (continuous_path_mode sub-option).
+    // Ginger: rib connectors between the wall loops of an island. Porta con se' lo scarto degli anelli di
+    // parete sotto 4 cordoni (PerimeterGenerator): e' la soglia too_short del planner.
     // Ginger: categoria Strength - sono connettori fra i loop di PARETE, vivono in Strength > Walls.
-    def             = this->add("continuous_path_wall_ribs", coBool);
+    def             = this->add("wall_ribs", coBool);
     def->label      = L("Wall rib connectors");
     def->category   = L("Strength");
     def->tooltip    = L("Merge all wall loops of an island (outer wall and hole walls) into one continuous "
@@ -2450,11 +2451,28 @@ void PrintConfigDef::init_fff_params()
                         "beads side by side, like a thin internal rib. Eliminates the travel moves between the "
                         "outer wall and each hole wall at the cost of a small amount of extra material, and adds "
                         "stiffness. Only walls printed as closed loops with the same role and width are merged. "
-                        "Requires Continuous path mode.");
+                        "Wall loops shorter than four bead widths (holes closing up) are dropped, since they are "
+                        "not printable beads and could not host a rib. "
+                        "Independent of Continuous path: ribs remove wall-to-wall travel on their own.");
     def->mode       = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
-    def             = this->add("continuous_path_wall_rib_max_length", coFloat);
+    // Ginger: la cicatrice del loop fuso finisce DENTRO un rib - fra i due cordoni che si toccano,
+    // invece che su una parete a vista. E' una delle due cose che i rib danno (l'altra e' togliere il
+    // travel fra muro esterno e muri dei fori), quindi e' figlia dei rib e non del percorso continuo.
+    def             = this->add("wall_rib_seam", coBool);
+    def->label      = L("Hide seam in wall rib");
+    def->category   = L("Strength");
+    def->tooltip    = L("Place the seam of a rib-merged wall inside one of its ribs, where the start/stop "
+                        "scar is swallowed between the rib's two touching beads instead of sitting on a "
+                        "visible wall. Rib columns are vertical, so the seam column hides with them. With "
+                        "Continuous path on, the rib anchor competes with the travel-optimal seam and the "
+                        "cheaper one wins; with it off, the nearest rib anchor is used. Turn this off to "
+                        "let the normal Seam position rule decide instead.");
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(true));
+
+    def             = this->add("wall_rib_max_length", coFloat);
     def->label      = L("Wall rib max length");
     def->category   = L("Strength");
     def->tooltip    = L("Maximum length of a wall rib connector. Wall loops farther apart than this are not "
@@ -2481,7 +2499,7 @@ void PrintConfigDef::init_fff_params()
                         "An island whose whole tree the wall absorbs is left with NO sparse infill at all - the "
                         "wall is the infill, ring included; the few islands where a branch cannot be reached "
                         "(around a hole) keep their fill so that branch still gets printed. "
-                        "Requires Continuous path mode, Lightning sparse infill and exactly ONE wall loop; outside "
+                        "Requires Connect infill, Lightning sparse infill and exactly ONE wall loop; outside "
                         "those conditions the normal infill rings are used instead.");
     def->mode       = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
@@ -7179,10 +7197,12 @@ void PrintConfigDef::handle_legacy(t_config_option_key &opt_key, std::string &va
         // (2026-09-08): the feature guarantees one continuous path per island, whatever the
         // nozzle or material; old 3MF, presets and G-code keep loading through this alias.
         opt_key = "continuous_path_mode";
-    } else if (opt_key == "single_path_wall_ribs") {
-        opt_key = "continuous_path_wall_ribs";
-    } else if (opt_key == "single_path_wall_rib_max_length") {
-        opt_key = "continuous_path_wall_rib_max_length";
+    } else if (opt_key == "single_path_wall_ribs" || opt_key == "continuous_path_wall_ribs") {
+        // Ginger (2026-09-26): i rib non dipendono piu' dal percorso continuo, quindi il prefisso
+        // continuous_path_ e' caduto. Entrambi i nomi precedenti restano leggibili.
+        opt_key = "wall_ribs";
+    } else if (opt_key == "single_path_wall_rib_max_length" || opt_key == "continuous_path_wall_rib_max_length") {
+        opt_key = "wall_rib_max_length";
     } else if (opt_key == "single_path_infill_as_wall") {
         opt_key = "continuous_path_infill_as_wall";
     } else if (opt_key == "single_path_infill_ring_always") {

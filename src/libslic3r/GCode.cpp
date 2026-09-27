@@ -5559,7 +5559,7 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
             // the wall is just chained by proximity like the others.
             const bool hook_infill = single_path && ! is_infill_first && ! region.infills.empty();
 
-            // Ginger continuous_path_wall_ribs: the island's closed wall loops were PLANNED into one
+            // Ginger wall_ribs: the island's closed wall loops were PLANNED into one
             // walk with rib connectors back in PrintObject::generate_wall_ribs (which also carved
             // the rib corridors out of the fill surfaces and anchored each rib to the previous
             // layer so the columns are self-standing). Here we only consume the stored plan: a
@@ -5576,7 +5576,7 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
             const ExtrusionEntitiesPtr*                 perimeters = &region.perimeters;
             // Even a single-loop island can carry a plan: a foundation buttress STUB spliced
             // into its wall (one-key merge), so the gate is on the plans, not the loop count.
-            if (single_path && m_config.continuous_path_wall_ribs && m_layer != nullptr &&
+            if (m_config.wall_ribs && m_layer != nullptr &&
                 ! m_layer->wall_ribs.empty() && ! region.perimeters.empty()) {
                 const std::vector<WallRibMerge> &merges = m_layer->wall_ribs;
                 std::vector<int> merge_of(region.perimeters.size(), -1);
@@ -5630,7 +5630,7 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                     // given back here, so a drop leaves the rib slots EMPTY - this has to stay a
                     // rare, loud fallback rather than a routine outcome.
                     if (ambiguous[m] != 0 || size_t(matched[m]) != merges[m].loop_keys.size()) {
-                        BOOST_LOG_TRIVIAL(warning) << "continuous_path_wall_ribs: planned merge "
+                        BOOST_LOG_TRIVIAL(warning) << "wall_ribs: planned merge "
                             << (ambiguous[m] != 0 ? "is ambiguous (two wall loops share a start vertex)"
                                                   : "only partially matched")
                             << " at z=" << (m_layer != nullptr ? m_layer->print_z : -1.)
@@ -5952,7 +5952,9 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                         }
                         return next_layer_pts;
                     };
-                    if (rib_it != rib_anchors_of.end()) {
+                    // Ginger (2026-09-26): la preferenza per il rib e' un'opzione (wall_rib_seam);
+                    // spenta, la seam del loop fuso segue le regole normali come ogni altro loop.
+                    if (m_config.wall_rib_seam && rib_it != rib_anchors_of.end()) {
                         const Points &anchors = *rib_it->second;
                         const Point   cur     = this->last_pos();
                         const bool    chain   = is_last && hook_infill;
@@ -6088,6 +6090,21 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                         seam     = this->last_pos();
                         seam_ptr = &seam;
                     }
+                    }
+                } else if (m_config.wall_rib_seam) {
+                    // Ginger (2026-09-26): la seam nel rib SENZA percorso continuo. Con il modo acceso
+                    // l'ancora di rib compete con i candidati di travel nel ramo sopra; qui non c'e'
+                    // nessun percorso da pianificare, quindi si prende semplicemente l'ancora piu'
+                    // vicina alla testa. Nasconde la cicatrice fra i due cordoni del rib, che e' una
+                    // delle due cose per cui i rib esistono - l'altra e' togliere il travel fra il muro
+                    // esterno e i muri dei fori. hook_pin resta false: non c'e' nessuna giunzione da
+                    // proteggere, quindi lo scarf non va soppresso.
+                    if (const auto rib_it = rib_anchors_of.find(ee); rib_it != rib_anchors_of.end() && ! rib_it->second->empty()) {
+                        const Point cur  = this->last_pos();
+                        double      best = std::numeric_limits<double>::max();
+                        for (const Point &a : *rib_it->second)
+                            if (const double d = (a - cur).cast<double>().norm(); d < best) { best = d; seam = a; }
+                        seam_ptr = &seam;
                     }
                 }
                 s_single_path_hook_loop = hook_pin;

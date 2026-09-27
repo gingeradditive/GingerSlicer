@@ -2195,8 +2195,9 @@ void TabPrint::build()
         optgroup->append_single_option_line("detect_thin_wall", "strength_settings_walls#detect-thin-wall");
         // Ginger: i rib sono connettori fra i loop di PARETE. Stavano in Others > Special mode solo perche'
         // nati col percorso continuo, da cui restano subordinati. L'ancora resta quella del modo.
-        optgroup->append_single_option_line("continuous_path_wall_ribs", "others_settings_special_mode#continuous-path");
-        optgroup->append_single_option_line("continuous_path_wall_rib_max_length", "others_settings_special_mode#continuous-path");
+        optgroup->append_single_option_line("wall_ribs", "others_settings_special_mode#continuous-path");
+        optgroup->append_single_option_line("wall_rib_max_length", "others_settings_special_mode#continuous-path");
+        optgroup->append_single_option_line("wall_rib_seam", "others_settings_special_mode#continuous-path");
 
         optgroup = page->new_optgroup(L("Top/bottom shells"), L"param_shell");
 
