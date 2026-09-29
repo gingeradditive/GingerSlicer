@@ -2194,7 +2194,7 @@ void TabPrint::build()
         optgroup->append_single_option_line("alternate_extra_wall", "strength_settings_walls#alternate-extra-wall");
         optgroup->append_single_option_line("detect_thin_wall", "strength_settings_walls#detect-thin-wall");
         // Ginger: i rib sono connettori fra i loop di PARETE. Stavano in Others > Special mode solo perche'
-        // nati col percorso continuo, da cui restano subordinati. L'ancora resta quella del modo.
+        // nati col percorso continuo (tolto il 2026-09-27); sono indipendenti. L'ancora della guida e' la vecchia.
         optgroup->append_single_option_line("wall_ribs", "others_settings_special_mode#continuous-path");
         optgroup->append_single_option_line("wall_rib_max_length", "others_settings_special_mode#continuous-path");
         optgroup->append_single_option_line("wall_rib_seam", "others_settings_special_mode#continuous-path");
@@ -2219,6 +2219,8 @@ void TabPrint::build()
         optgroup->append_single_option_line("connect_infill", "strength_settings_infill#connect-infill");
         optgroup->append_single_option_line("continuous_path_infill_as_wall", "others_settings_special_mode#continuous-path");
         optgroup->append_single_option_line("continuous_path_infill_ring_always", "others_settings_special_mode#continuous-path");
+        // Ginger: l'ordine del riempimento (router), accanto alla sua geometria.
+        optgroup->append_single_option_line("route_infill", "strength_settings_infill#route-infill");
         optgroup->append_single_option_line("infill_direction", "strength_settings_infill#direction");
         optgroup->append_single_option_line("sparse_infill_rotate_template", "strength_settings_infill_rotation_template_metalanguage");
         optgroup->append_single_option_line("skin_infill_density", "strength_settings_patterns#locked-zag");
@@ -2425,10 +2427,6 @@ optgroup->append_single_option_line("skirt_loops", "others_settings_skirt#loops"
         optgroup->append_single_option_line("spiral_mode_max_xy_smoothing", "others_settings_special_mode#max-xy-smoothing");
         optgroup->append_single_option_line("spiral_starting_flow_ratio", "others_settings_special_mode#spiral-starting-flow-ratio");
         optgroup->append_single_option_line("spiral_finishing_flow_ratio", "others_settings_special_mode#spiral-finishing-flow-ratio");
-
-        // Ginger: qui resta il solo interruttore del modo. I sotto-campi sono nelle pagine di
-        // competenza: i rib in Strength > Walls, connessione e anelli in Strength > Infill.
-        optgroup->append_single_option_line("continuous_path_mode", "others_settings_special_mode#continuous-path");
 
         optgroup->append_single_option_line("timelapse_type", "others_settings_special_mode#timelapse");
 

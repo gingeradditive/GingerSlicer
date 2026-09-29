@@ -4527,7 +4527,8 @@ LayerResult GCode::process_layer(
                     ExtrusionRole support_extrusion_role = instance_to_print.object_by_extruder.support_extrusion_role;
                     bool is_overridden = support_extrusion_role == erSupportMaterialInterface ? support_intf_overridden : support_overridden;
                     if (is_overridden == (print_wipe_extrusions != 0)) {
-                        if (m_config.continuous_path_mode && ! print_wipe_extrusions) {
+                        // Ginger (2026-09-27): parte di Seam position = Minimum travels (era continuous_path_mode).
+                        if (m_config.seam_position.value == spMinimumTravels && ! print_wipe_extrusions) {
                             // Ginger (2026-09-08, figure plate 3 con support, Davide): il support stampato
                             // PRIMA delle isole costava ogni layer il viaggio fine-oggetto -> support (18 m
                             // di cambio layer su 21, punte di 540 mm) + support -> seam del wall (6.5 m).
@@ -4594,7 +4595,8 @@ LayerResult GCode::process_layer(
                 }
                 std::vector<Point>        island_entry;
                 std::vector<Point>        next_layer_island_pts;
-                if (m_config.continuous_path_mode && m_layer != nullptr && m_layer->upper_layer != nullptr) {
+                // Ginger (2026-09-27): lo sguardo al layer sopra e' parte di Minimum travels (era continuous_path_mode).
+                if (m_config.seam_position.value == spMinimumTravels && m_layer != nullptr && m_layer->upper_layer != nullptr) {
                     Points pts;
                     for (const LayerRegion *lr : m_layer->upper_layer->regions())
                         for (const ExtrusionEntity *e : lr->perimeters.entities)
@@ -4616,10 +4618,16 @@ LayerResult GCode::process_layer(
                     int    bi = -1, ba = -1;
                     for (size_t i = 0; i < islands.size(); ++ i) {
                         if (! island_real[i]) continue;
+                        // "Con infill" = con un infill INSTRADATO: il support entra come unita' solo nel
+                        // router (route_infill); il concatenamento normale non lo vede e resterebbe a fine
+                        // layer. Senza router lo stampa il walk del muro, come per le isole senza infill.
                         bool inf = false;
-                        for (const ObjectByExtruder::Island::Region &reg : islands[i].by_region)
+                        for (const ObjectByExtruder::Island::Region &reg : islands[i].by_region) {
+                            if (! print.get_print_region(&reg - &islands[i].by_region.front()).config().route_infill)
+                                continue;
                             for (const ExtrusionEntity *ie : reg.infills)
                                 if (ie->role() != erIroning) { inf = true; break; }
+                        }
                         double d = std::numeric_limits<double>::max();
                         for (const Point &a : island_cand[i])
                             for (size_t k = 0; k < sp.size(); k += sstride)
@@ -5012,7 +5020,7 @@ std::string GCode::extrude_loop(ExtrusionLoop loop, std::string description, dou
     float seam_overhang = std::numeric_limits<float>::lowest();
     if (!m_config.spiral_mode && description == "perimeter") {
         assert(m_layer != nullptr);
-        // Ginger: il punto imposto dal percorso continuo (fine muro = inizio riempimento, travel
+        // Ginger: il punto imposto dal piano di Minimum travels (fine muro = inizio riempimento, travel
         // zero) NON apre piu' il loop qui scavalcando il SeamPlacer: si passa a place_seam, che lo
         // riconosce come politica "minimum travels" (seam_position). La decisione resta di chi
         // possiede il percorso, ma e' visibile da dentro il SeamPlacer invece che aggirarlo.
@@ -5529,6 +5537,13 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
 {
     GCodeSPProfile::Scope sp_prof_scope(GCodeSPProfile::phPerimeters);
     std::string gcode;
+    // Ginger (2026-09-27): le due liste del ponte muro->riempimento valgono per UN'isola. Prima si
+    // svuotavano solo all'inizio di un piano: l'isola seguente che arrivava al walk senza piano (nessun
+    // riempimento, o un anello prima dell'ultimo) trovava le fermate dell'isola precedente - anche del
+    // layer sotto - e le ristampava alla quota corrente. Misurato sullo stool a 3 muri: 292 m di sparse
+    // estruso due volte in 172 layer (il pezzo da ~1.85 m di ogni layer ripetuto nel successivo).
+    s_sp_infill_walked.clear();
+    s_sp_infill_done.clear();
     for (const ObjectByExtruder::Island::Region &region : by_region)
         if (! region.perimeters.empty()) {
             m_config.apply(print.get_print_region(&region - &by_region.front()).config());
@@ -5541,6 +5556,10 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
             const bool should_print = is_first_layer ? !is_infill_first
                 : (m_config.is_infill_first == is_infill_first);
             if (!should_print) continue;
+            // Le fermate scelte dal piano di una regione le stampa il walk di QUELLA regione; il walk
+            // della regione dopo non deve vederle. Le gia' stampate invece restano fino alla fine
+            // dell'isola: servono al router di ogni regione per non ristamparle.
+            s_sp_infill_walked.clear();
 
             // Ginger single-path infill: minimize travel by SEAM PLACEMENT only (no connector, no
             // avoid-crossing detours). EVERY wall loop is started at the point CLOSEST to where the
@@ -5553,11 +5572,18 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
             // wall->infill travel); that anchor is the infill point nearest the current position and,
             // when given, orients the infill exit toward the next island. last_pos() is re-read each
             // iteration, so it already reflects where the previous loop ended.
-            const bool single_path = m_config.continuous_path_mode;
+            // Ginger (2026-09-27): seam, ordine e walk dei muri sono Seam position = Minimum travels (era
+            // continuous_path_mode). seam_position e' per OGGETTO: la config di regione applicata sopra
+            // non lo tocca, quindi qui vale quella dell'oggetto applicata in process_layer.
+            const bool single_path = m_config.seam_position.value == spMinimumTravels;
             // Hook the last-printed wall onto the single-path infill ONLY when walls precede infill;
             // with is_infill_first the infill is already extruded, so there is nothing to hook to and
             // the wall is just chained by proximity like the others.
-            const bool hook_infill = single_path && ! is_infill_first && ! region.infills.empty();
+            // Ginger (2026-09-27): e il riempimento dev'essere instradato (route_infill). Il piano chiede
+            // al router da dove comincera' l'infill e toglie al router le fermate che fa stampare al muro:
+            // senza router il riempimento segue il concatenamento normale, il piano punterebbe nel posto
+            // sbagliato e le fermate passate al muro verrebbero stampate due volte.
+            const bool hook_infill = single_path && m_config.route_infill && ! is_infill_first && ! region.infills.empty();
 
             // Ginger wall_ribs: the island's closed wall loops were PLANNED into one
             // walk with rib connectors back in PrintObject::generate_wall_ribs (which also carved
@@ -5804,7 +5830,6 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                                     ex.emplace_back(ie);
                             const Point h = this->last_pos();
                             s_sp_infill_walked.clear();
-                            s_sp_infill_done.clear();
                             planned = ! ex.empty() && ! this->extrude_infill_routed(ex, "infill", &h, &plan_seam, nullptr, next_island_target).empty();
                             // Fermate del tour che conviene far stampare al MURO: il walk ci passa
                             // accanto, il router ci arriverebbe con un salto. Costo onesto: si
@@ -6092,7 +6117,7 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                     }
                     }
                 } else if (m_config.wall_rib_seam) {
-                    // Ginger (2026-09-26): la seam nel rib SENZA percorso continuo. Con il modo acceso
+                    // Ginger (2026-09-26): la seam nel rib SENZA Minimum travels. Con Minimum travels
                     // l'ancora di rib compete con i candidati di travel nel ramo sopra; qui non c'e'
                     // nessun percorso da pianificare, quindi si prende semplicemente l'ancora piu'
                     // vicina alla testa. Nasconde la cicatrice fra i due cordoni del rib, che e' una
@@ -6285,7 +6310,7 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
     return gcode;
 }
 
-// Ginger single-path infill router (continuous_path_mode): print the island's infill as ONE spatial
+// Ginger single-path infill router (route_infill): print the island's infill as ONE spatial
 // chain instead of feature-grouped blocks. Units = the individual continuous paths/loops (sortable
 // collections are flattened, no_sort collections stay atomic), routed greedy nearest-entry, plus
 // LOOP SUSPENSION: while a closed loop (connected sparse) is being laid down and it passes within
@@ -7329,7 +7354,7 @@ std::string GCode::extrude_infill(const Print &print, const std::vector<ObjectBy
                 // Ginger Parameter Sweep: keep swept region-level keys (wipe_speed) active.
                 if (! m_sweep_gcode_overrides.keys().empty())
                     m_config.apply(m_sweep_gcode_overrides);
-                if (m_config.continuous_path_mode && ! ironing) {
+                if (m_config.route_infill && ! ironing) {
                     // Ginger single-path: spatial routing with loop suspension replaces the
                     // per-collection chaining (which printed feature-grouped blocks and then
                     // travelled back across the island for pockets the sparse loop had touched).

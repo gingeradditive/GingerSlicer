@@ -176,7 +176,9 @@ inline bool is_auto(SupportType stype)
 // percorso solo. La usano sia la generazione (Fill.cpp) sia la GUI, che su questa base spegne
 // "Connect infill" dove non funzionerebbe. Tenerla in un posto solo e' il punto: duplicarla
 // significa che il giorno che si aggiunge un pattern l'interfaccia mente.
-bool infill_pattern_can_connect(InfillPattern pattern);
+// Dipende anche da fill_multiline (2026-09-28): il lightning si connette solo a 2 linee (vedi la
+// definizione).
+bool infill_pattern_can_connect(InfillPattern pattern, int multiline);
 
 enum SeamPosition {
     // Ginger: spMinimumTravels e' in fondo perche' il valore numerico e' l'indice di
@@ -1022,9 +1024,9 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloatOrPercent,                infill_combination_max_layer_height))
     ((ConfigOptionInt,                  fill_multiline))
     ((ConfigOptionBool,                 connect_infill))
+    ((ConfigOptionBool,                 route_infill))
     ((ConfigOptionBool,                 solid_infill_as_top))
     ((ConfigOptionBool,                 wall_rib_seam))
-    ((ConfigOptionBool,                 continuous_path_mode))
     ((ConfigOptionBool,                 wall_ribs))
     ((ConfigOptionFloat,                wall_rib_max_length))
     ((ConfigOptionBool,                 continuous_path_infill_as_wall))

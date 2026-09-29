@@ -582,21 +582,13 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     bool          have_multiline_infill_pattern = pattern == ipGyroid || pattern == ipGrid || pattern == ipRectilinear || pattern == ipTpmsD || pattern == ipTpmsFK || pattern == ipCrossHatch || pattern == ipHoneycomb || pattern == ipLateralLattice || pattern == ipLateralHoneycomb || pattern == ipConcentric ||
                                                   pattern == ipCubic || pattern == ipStars || pattern == ipAlignedRectilinear || pattern == ipLightning || pattern == ip3DHoneycomb || pattern == ipAdaptiveCubic || pattern == ipSupportCubic|| pattern == ipTriangles || pattern == ipQuarterCubic|| pattern == ipArchimedeanChords || pattern == ipHilbertCurve || pattern == ipOctagramSpiral;
     // If there is infill, enable/disable fill_multiline according to whether the pattern supports multiline infill.
-    // NOTE: continuous_path_mode is intentionally NOT gated here. It now lives in Others > Special mode and is a
-    // print-wide travel/seam mode (it also drives the inner-wall and inter-island seam in GCode.cpp), so it stays
-    // available even at 0% infill and for any pattern. The infill-CONNECT part only applies to line-based patterns
-    // (gated in Fill.cpp by sparse_infill_pattern); the wall / inter-island seam part applies regardless.
-    // Its sub-options (rib connectors between wall loops) only make sense with continuous_path_mode on.
-    // Ginger: sotto percorso continuo la seam del muro la decide il piano del percorso (fine muro =
-    // inizio riempimento): e' la politica "minimum travels" di seam_position, e le posizioni
-    // estetiche non hanno effetto. Il campo si disattiva per dirlo, come gia' fanno i campi del
-    // solido interno che eredita dal top.
     // Ginger: "Connect infill" si spegne sui pattern che il connettore non sa unire. La lista e'
     // quella di PrintConfig, la stessa che usa Fill.cpp: quando ne aggiungiamo uno il campo si
     // riaccende da solo e non c'e' un secondo elenco da ricordarsi di aggiornare.
-    toggle_field("connect_infill",
-                 infill_pattern_can_connect(config->opt_enum<InfillPattern>("sparse_infill_pattern")));
-    toggle_field("seam_position", ! config->opt_bool("continuous_path_mode"));
+    // 2026-09-28: anche fill_multiline - il lightning si connette solo a 2 linee.
+    const bool connect_ok = infill_pattern_can_connect(config->opt_enum<InfillPattern>("sparse_infill_pattern"),
+                                                       config->opt_int("fill_multiline"));
+    toggle_field("connect_infill", connect_ok);
     // Ginger (2026-09-26): i rib sono indipendenti dal modo - uniscono le pareti in un percorso, come
     // connect_infill fa col riempimento. Restano figli loro il tetto sulla lunghezza e la seam nel rib.
     const bool ribs_on = config->opt_bool("wall_ribs");
@@ -605,13 +597,14 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     // Ginger continuous_path_infill_as_wall: the fusion needs the Lightning tree and exactly one wall loop
     // (the gorge is one spacing wide - a second concentric loop has nowhere to go). Outside those
     // conditions it silently falls back to the normal infill rings, so the field is greyed out to say so.
-    const bool fusion_possible = config->opt_bool("connect_infill") &&
-                                 config->option<ConfigOptionEnum<InfillPattern>>("sparse_infill_pattern")->value == ipLightning &&
+    // 2026-09-28: senza connect_infill - la fusione non connette, toglie il riempimento (vedi PrintObject).
+    const bool fusion_possible = config->option<ConfigOptionEnum<InfillPattern>>("sparse_infill_pattern")->value == ipLightning &&
                                  config->opt_int("wall_loops") == 1;
     toggle_field("continuous_path_infill_as_wall", fusion_possible);
     // With the fusion active the ring IS the wall: always there, nothing left to choose.
     toggle_field("continuous_path_infill_ring_always",
-                 config->opt_bool("connect_infill") && ! (fusion_possible && config->opt_bool("continuous_path_infill_as_wall")));
+                 connect_ok && config->opt_bool("connect_infill") &&
+                 ! (fusion_possible && config->opt_bool("continuous_path_infill_as_wall")));
     if (have_infill) {
         toggle_field("fill_multiline", have_multiline_infill_pattern);
         // If the infill pattern does not support multiline fill_multiline is changed to 1.
@@ -681,8 +674,8 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
         toggle_field(el, ! cp_inherit_solid && (have_infill || has_solid_infill));
 
     // Ginger: il rilevamento delle zone strette lo fa split_solid_surface, che esce subito su qualunque
-    // pattern non sia della famiglia rettilinea (Fill.cpp). Col concentrico l'opzione e' morta - e sotto
-    // percorso continuo il pattern del solido lo eredita dal top, che nei profili Ginger E' concentrico.
+    // pattern non sia della famiglia rettilinea (Fill.cpp). Col concentrico l'opzione e' morta - e con
+    // Internal solid as top surface il pattern del solido lo eredita dal top, che nei profili Ginger E' concentrico.
     // Restava accesa promettendo una funzione inesistente: si spegne quando non puo' scattare.
     const InfillPattern effective_solid_pattern = cp_inherit_solid
         ? config->opt_enum<InfillPattern>("top_surface_pattern")

@@ -930,18 +930,18 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
                 }
                 // Orca: apply fill multiline only for sparse infill
                 params.multiline = params.extrusion_role == erInternalInfill ? int(region_config.fill_multiline) : 1;
-                // Connect infill lines into a single path (Cura-style) under continuous_path_mode. continuous_path_mode
-                // is now a print-wide toggle (it also drives the wall / inter-island seam in GCode.cpp), so the
-                // SPARSE infill is only connected when its pattern is line-based (the connector joins straight
-                // scanlines along the inner wall - it can't handle curved / 3D patterns like Gyroid, Honeycomb,
-                // Concentric, TPMS, ...). Solid / top / bottom keep the flag as groundwork (they still print
-                // monotonic; the dense single-path / BCD step is future work - see FillRectilinear).
+                // Connect infill lines into a single path (Cura-style) under connect_infill. The SPARSE infill is
+                // only connected when its pattern is line-based (the connector joins straight scanlines along the
+                // inner wall - it can't handle curved / 3D patterns like Gyroid, Honeycomb, Concentric, TPMS, ...).
+                // Solid / top / bottom get the flag too: concentric patches come out as closed fused rings
+                // (FillConcentric), the monotonic ones still print as before.
                 // Ginger (2026-09-19): la lista dei pattern connettibili e' in PrintConfig
                 // (infill_pattern_can_connect), una sola, condivisa con la GUI che su quella spegne
                 // il campo. Il gate e' connect_infill, non piu' il modo: connettere il riempimento e
                 // pianificare il percorso del layer sono due cose indipendenti.
+                // 2026-09-28: anche fill_multiline (params.multiline, appena sopra): il lightning solo a 2.
                 params.connect_polygons = bool(region_config.connect_infill) &&
-                    ((params.extrusion_role == erInternalInfill && infill_pattern_can_connect(region_config.sparse_infill_pattern.value)) ||
+                    ((params.extrusion_role == erInternalInfill && infill_pattern_can_connect(region_config.sparse_infill_pattern.value, params.multiline)) ||
                      params.extrusion_role == erSolidInfill ||
                      params.extrusion_role == erTopSolidInfill ||
                      params.extrusion_role == erBottomSurface);
@@ -1441,7 +1441,9 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         // Ginger continuous_path_infill_ring_always: the sparse ring is a second wall, wanted on every
         // layer and not only where the demand-driven tree happens to give the connector something
         // to walk along.
-        params.ring_always          = bool(region_config.connect_infill) &&
+        // 2026-09-28: sulla connessione EFFETTIVA di questa superficie (connect_polygons), non sul solo
+        // interruttore: col lightning a ml != 2 l'interruttore puo' essere acceso ma lo sparse non e' connesso.
+        params.ring_always          = surface_fill.params.connect_polygons &&
                                       bool(region_config.continuous_path_infill_ring_always) &&
                                       surface_fill.params.extrusion_role == erInternalInfill;
         // Ginger (2026-09-01, Davide): isteresi fra layer. Il connettore sceglie una delle due
@@ -1449,9 +1451,10 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         // (basta che il reticolo cambi una corda dall'altra parte del pezzo): il cordolo salta da
         // un muro all'altro dell'appendice e il layer sopra ci stampa sul vuoto. Qui gli passiamo
         // lo sparse gia' emesso nel layer sotto, cosi' a pari costo ricalca quello. Vale solo con
-        // continuous_path_mode, che per questo riempie i layer in fila (PrintObject::infill).
+        // connect_infill, che per questo riempie i layer in fila (PrintObject::infill). Anche qui la
+        // connessione effettiva della superficie (2026-09-28), come ring_always.
         Polylines prev_cover;
-        if (bool(region_config.connect_infill) && surface_fill.params.extrusion_role == erInternalInfill &&
+        if (surface_fill.params.connect_polygons && surface_fill.params.extrusion_role == erInternalInfill &&
             this->lower_layer != nullptr) {
             for (const LayerRegion *lr : this->lower_layer->regions())
                 for (const ExtrusionEntity *ee : lr->fills.entities)
@@ -1481,7 +1484,7 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
 
         }
 		// Grid normally forbids reversing a fill line (the two crossing sweeps rely on a fixed
-		// direction). But with continuous_path_mode the whole region is ONE connected path/loop, so
+		// direction). But with connect_infill the whole region is ONE connected path/loop, so
 		// its global direction is arbitrary: it MUST stay reversible, otherwise the path always starts
 		// at its fixed first point instead of where the wall seam ended — a huge wall->infill travel
 		// across the island (the chainer cannot flip a non-reversible path toward the current position).

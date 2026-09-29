@@ -57,6 +57,14 @@ Pellet-relevant: `fill_multiline` prints infill as N parallel lines (max 10) ins
 - UI gating: `src/slic3r/GUI/ConfigManipulation.cpp` `toggle_print_fff_options` → `have_multiline_infill_pattern` list + `if (have_infill) { toggle_field("fill_multiline", ...) }`. Max value `10` defined in `PrintConfig.cpp` (`fill_multiline`).
 
 ### Single-path infill (`single_path_mode`) — Cura "Connect Infill Lines" port, taken further
+**Current state (2026-09-27) — the notes below are HISTORY.** The single switch (`single_path_mode`,
+later `continuous_path_mode`) no longer exists. It was split by what each part does: `connect_infill`
+(geometry: the infill is one path; the `FillParams::connect_polygons` gate), `solid_infill_as_top`,
+`route_infill` (order: the infill router `GCode::extrude_infill_routed`), `seam_position =
+minimum_travels` (order: wall seam/order/walk, island tour with look-ahead, deferred support) and
+`wall_ribs` / `wall_rib_seam` (walls). Old files migrate in `handle_legacy_composite`; the CLI rejects
+the old key. The `tests/` suites cited below were removed (see CLAUDE.md). Map and rationale:
+`docs/ginger/GLOSSARY.md` ("Continuous path mode" and the entries after it) and `docs/ginger/DFM.md`.
 Goal: make the inner wall + infill a single continuous extrusion path (no travel moves) for line-based patterns. Use with `fill_multiline=2` + `wall_loops=0`. Param key: `single_path_mode` (bool, default false; renamed 2026-06-13 from `connect_infill_polygons`, kept as a legacy alias in `PrintConfigDef::handle_legacy`). The internal `FillParams::connect_polygons` field keeps its name (not user-facing).
 - **Cura cardinal points** (`CuraEngine/src/infill.cpp`): (1) **connect BEFORE multiply** — `connectLines()` joins single scanlines into one continuous path tracing the boundary, then `multiplyInfill()` offsets that path; (2) **vertex-by-vertex boundary walk, NO trimming** — guarantees full inner-wall coverage; (3) **UnionFind** prevents premature loop closure only.
 - **GingerSlicer 3 blockers** (all in `FillBase.cpp` `connect_infill()`): (a) `mark_boundary_segments_touching_infill()` trims boundary segments near infill → gaps; (b) multiline-skip `if (params.multiline > 1 && arc.arc_length < spacing*multiline) continue;` → gaps; (c) `polyline_idx1 != polyline_idx2` blocks self-loop closure.

@@ -913,8 +913,11 @@ static bool wall_fusion_enabled(const PrintRegionConfig &cfg)
     // The gorge is one spacing wide: a second concentric wall loop has nowhere to go, and a
     // scanline pattern would cut the island into one cell per chord. Outside these conditions the
     // toggle silently falls back to the normal infill rings (which is what the UI says).
-    // Ginger (2026-09-19): gate su connect_infill - la fusione e' geometria di riempimento.
-    return cfg.connect_infill && cfg.continuous_path_infill_as_wall &&
+    // Ginger (2026-09-28): NON serve connect_infill. La fusione non connette il riempimento: lo toglie e
+    // fa percorrere gli alberi al muro, e funziona con qualunque fill_multiline (LN80 40% a ml=1: 139/139
+    // isole complete, sparse 0, travel 2.4 m). Col lightning connect_infill vale solo a ml=2 (vedi
+    // infill_pattern_can_connect): legata a lui, la fusione a 1 linea sarebbe diventata irraggiungibile.
+    return cfg.continuous_path_infill_as_wall &&
            cfg.sparse_infill_pattern == ipLightning && cfg.wall_loops == 1 &&
            cfg.sparse_infill_density > 0;
 }
@@ -1655,7 +1658,7 @@ void PrintObject::infill()
         const auto& adaptive_fill_octree = this->m_adaptive_fill_octrees.first;
         const auto& support_fill_octree = this->m_adaptive_fill_octrees.second;
 
-        // Ginger (2026-09-01, Davide): con continuous_path_mode i layer si riempiono IN FILA.
+        // Ginger (2026-09-01, Davide): con connect_infill i layer si riempiono IN FILA.
         // Il connettore sceglie una delle due meta' del contorno e, a pari costo, puo' ribaltarsi
         // da un layer all'altro: il cordolo salta da un muro all'altro di un'appendice e il layer
         // sopra ci stampa sul vuoto (misurato sullo stool: 2 transizioni, 0.59 m di plastica stesa
@@ -1667,7 +1670,12 @@ void PrintObject::infill()
             // Ginger (2026-09-19): e' l'isteresi dei raccordi a legare un layer al precedente, e
             // l'isteresi appartiene alla connessione del riempimento, non alla pianificazione del
             // percorso. Con connect_infill spento i layer tornano a riempirsi in parallelo.
-            if (this->printing_region(ri).config().connect_infill) { sequential_fill = true; break; }
+            // 2026-09-28: sulla connessione EFFETTIVA dello sparse (col lightning a ml != 2 non c'e').
+            if (const PrintRegionConfig &rc = this->printing_region(ri).config();
+                rc.connect_infill && infill_pattern_can_connect(rc.sparse_infill_pattern.value, rc.fill_multiline.value)) {
+                sequential_fill = true;
+                break;
+            }
         // Sonda di misura (2026-09-03): GINGER_SP_PARALLEL_FILL=1 torna al riempimento parallelo
         // (senza isteresi) per pesare quanto costa la sequenzialita'; GINGER_SP_PROFILE stampa il tempo.
         if (::getenv("GINGER_SP_PARALLEL_FILL") != nullptr)

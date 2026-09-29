@@ -60,9 +60,15 @@ These force four directives that the rest of this document instantiates:
 
 ---
 
-## 2. Travel minimization — the single path (`continuous_path_mode`)
+## 2. Travel minimization — the single path
 
 Goal: per island and per layer, walls + sparse infill print as one continuous walk.
+
+Until 2026-09-27 this was one switch, `continuous_path_mode`. It is now split by what each part
+does (see 7.6 and the GLOSSARY entry): **geometry** — `connect_infill` (the infill is one path,
+2.1–2.4b), `solid_infill_as_top`, `wall_ribs` (section 3); **order** — `route_infill` (the infill
+router, 2.5) and `seam_position = minimum_travels` (wall seam/order/walk, island tour with
+look-ahead, deferred support, 2.5).
 
 ### 2.1 The Euler connector
 Sparse scanlines (chords) + the island boundary form a graph: chord endpoints are vertices on
@@ -177,7 +183,7 @@ riding-only collision guard against the other fill lines. **Gated off under ligh
 lining**: there a wall-hugging stretch is the product (the "second wall"), not an accident.
 
 ### 2.4b Multiline single path (`fill_multiline` ≥ 2, connect-before-multiply)
-With `continuous_path_mode` the connected pattern is built in Cura order: the row centerlines are
+With `connect_infill` the connected pattern is built in Cura order: the row centerlines are
 joined into ONE path first, then `multiline_fill()` widens it into a closed ring and
 `single_path_splice_loops()` merges the ring with the walls of the pockets it encloses. The
 result is already a single closed loop per island, so three things must be done differently
@@ -224,7 +230,7 @@ improves.
   point nearest the toolhead ("free seam") — closed loop = zero fixed ends.
 - Wall-only islands orient their last wall's seam to the closest point of the previous
   island's exit (closest-point chain, `GCode.cpp`).
-- The single-path router (`GCode.cpp`, `continuous_path_mode`, `extrude_infill_routed`) orders an
+- The single-path router (`GCode.cpp`, `route_infill`, `extrude_infill_routed`) orders an
   island's infill as one spatial walk; suspension lets a unit be entered, left for a touching
   feature, and resumed at the same vertex. Since 2026-09-07 (figure plate 3, Davide: "un travel
   di 317 mm ai primi layer e' la prima causa di layer shift"):
@@ -303,7 +309,8 @@ improves.
     finale non trovera' mai"): the role promotion internal solid -> top (Fill.cpp, ~line 983) used
     to fire only when the profile happened to have identical pattern, flow, speed and
     acceleration for the two; with Orca's defaults it never fired and the two contiguous features
-    were filled separately, with a hop between them. Under continuous path the internal solid now
+    were filled separately, with a hop between them. Under continuous path (since 2026-09-19 its own
+    option, `solid_infill_as_top`) the internal solid now
     takes the top's pattern, density and flow and is promoted always (speed and acceleration follow
     the role); the internal-solid fields are disabled in the GUI. Knee (top concentric, internal
     solid was monotonic): 38.0 -> 25.1 m of travel >= 5 mm, all internal solid now printed as top
@@ -326,7 +333,8 @@ improves.
     metrics unchanged. Export: a sortable collection whose paths chain end to end (Arachne beads
     split by width) is one unit of the router, not hundreds of tour stops (knee export 25 -> 10 s);
     local search capped above 60/150 stops. Still open, in order: lazy "crowded" test and banded
-    candidate gathering in the ring scan, seam placer skipped in continuous path (0.8 s), rib
+    candidate gathering in the ring scan, seam placer skipped in continuous path (0.8 s; done - now
+    skipped whenever Seam position = Minimum travels), rib
     planner 4 s, then the decision/execution split for a parallel fill (the pure parallel fill,
     `GINGER_SP_PARALLEL_FILL=1`, is 6-8x faster but breaks the link column on the stool: 100 -> 53%
     in column, so the layer-below hysteresis is necessary).
@@ -431,7 +439,14 @@ Debug: `GINGER_FUSION_DEBUG=1` → `[FUSION]`, `complete=` counts the islands le
 
 ---
 
-## 3. Wall connectivity — ribs (`continuous_path_wall_ribs`)
+## 3. Wall connectivity — ribs (`wall_ribs`)
+
+Key renamed 2026-09-26 (from `continuous_path_wall_ribs`, before that `single_path_wall_ribs`; both
+load through `handle_legacy`) and no longer gated on the routing: the ribs are the wall-side
+analogue of `connect_infill` and work with Minimum travels off too (knee: −16.3 m, −123
+retractions). The seam inside the rib is its own option, `wall_rib_seam` (default on), and the
+drop of wall loops shorter than 4 beads (`PerimeterGenerator`, the planner's `too_short`
+threshold) follows `wall_ribs` as well.
 
 Multiple wall loops of one island (outer + holes) are merged into ONE closed walk by inserting
 *ribs*: two link segments staggered by one bead (fused flanks, never a doubled centerline),
@@ -819,6 +834,103 @@ stays byte-reproducible (0 differing lines between two runs of one build).
 With those rows the whole 2026-09-08/16 work was re-checked against a build of the sources at
 `d3befd050` (before the ring-scan rewrite): **0 differing lines on all five**, so the rewrite is
 decision-invariant on the concentric branch too — verified, not inferred from aggregate counters.
+
+### 7.6 Continuous path removed (2026-09-27)
+
+`continuous_path_mode` no longer exists. After the 2026-09-19 split (7.4b) what was left inside it
+was only order, and it was also at the wrong level: a *region* key read by two *layer* decisions
+(support deferral, island tour) from whatever region had been applied last. Each part went where it
+belongs (full map in the GLOSSARY entry "Continuous path mode"):
+
+| part | now | level |
+|---|---|---|
+| infill router (one tour, suspensions) | `route_infill` (Strength › Infill) | region |
+| wall seam, wall order and walk, island tour with look-ahead, deferred support, SeamPlacer model skipped | `seam_position = minimum_travels` | object |
+| last wall hooked onto the infill, infill stops printed by the wall walk | both of the above (the plan asks the router where the infill starts; without the router the stops would print twice) | |
+| support attached to an island without a routed infill | printed by that island's wall walk | |
+
+Migration: a file with the mode on loads with `route_infill = 1` and `seam_position =
+minimum_travels` (the mode ignored the written seam position anyway: with it on, a loop without a
+forced point fell into the SeamPlacer's safety net, which opens it where the head is — exactly
+`minimum_travels`). The key is then erased. It stays defined only for that, is `nocli`, and the CLI
+answers "Invalid option". One visible change: with Minimum travels the scarf is off on every loop;
+under the mode it was off only on the pinned last wall and, on the other loops, applied without
+the overhang check (the model it needs was never built).
+
+**Verification — the whole matrix** (`MAT_NOCP` against `MAT_SPLIT`, 37 shared configurations):
+30 byte-identical, including `cp_off` and `conn_only` rewritten with the new keys
+(`--route-infill=0 --seam-position=nearest` is exactly the old `--continuous-path-mode=0` on the
+stool, whose seam position is Nearest). The 7 differences are the 4 lightning rows (not
+reproducible run to run, travel within noise: ln80_ml2 2.66 / 2.70 m) and `walls_3`, below.
+
+The order axes measured apart, with the connection OFF (stool, `aria`):
+
+| configuration | travel |
+|---|---|
+| all order off (`cp_off`) | 605.90 m |
+| Minimum travels only (`mintravel_only`) | 602.98 m |
+| router only (`router_only`) | 502.43 m |
+| both (`route_only`) | 464.21 m |
+
+They are not additive: most of the gain of the pair comes from the wall hooked onto the routed
+infill, which needs both. On the knee, with everything else on, the router alone takes the travel
+from 111 m to 42 m.
+
+**The wall bridge printed the infill twice.** The two lists of the wall bridge (7.5, "closed
+2026-09-11") were cleared only when a new plan started, so the next island reaching a walk without
+a plan — the layer's first loop, an island without infill — re-printed the previous island's
+stops, even the layer below's, at the current height. On the stool at 3 walls without ribs: 172
+re-prints in 172 layers, **292 m of sparse printed twice** (sparse per layer 5000 instead of 3150
+mm), 15.18 → 13.81 kg, 19h00 → 17h05; matrix `walls_3` 80.72 → 46.88 m. With ribs the merged loop
+is one per island and the plan always precedes its walk, so the 7.5 table stays valid: `walls_3_ribs`
+5.93 m and `walls_2_ribs` 2.54 m reproduce it exactly after the fix (both rows are in the matrix
+now; on the stool the ribs are blind only at 1 wall — with 2-3 walls they merge the concentric
+loops). Fix: both lists cleared at `extrude_perimeters` entry, `walked` also per region, and the
+plan no longer clears `done` (every region's router needs it). See the GLOSSARY entry "Wall bridge".
+
+**Lightning at ml = 1 does not hold, at any density** (LN80 project, 1 wall, no shells; one run
+each, lightning is not reproducible, so read magnitudes):
+
+| density | config | travel | units / layer | free ends in void | sparse | sparse doubled | filament | time |
+|---|---|---|---|---|---|---|---|---|
+| 40 % | ml 1, connect on | 86.5 m | 28.4 | 2261 | 390 m | 8.7 % | 5.07 kg | 7h59 |
+| 40 % | ml 1, connect off | 147.3 m | 51.0 | 4413 | 156 m | 0.1 % | 3.98 kg | 7h22 |
+| 40 % | ml 2, connect on | 2.7 m | 1.0 | 0 | 377 m | 0.0 % | 5.01 kg | 6h44 |
+| 60 % | ml 1, connect on | 93.2 m | 33.7 | 3051 | 475 m | 13.2 % | 5.47 kg | 9h09 |
+| 60 % | ml 1, connect off | 171.7 m | 75.7 | 6112 | 202 m | 0.4 % | 4.20 kg | 8h49 |
+| 60 % | ml 2, connect on | 2.7 m | 1.0 | 0 | 405 m | 0.1 % | 5.14 kg | 7h16 |
+| 80 % | ml 1, connect on | 104.3 m | 39.2 | 3626 | 542 m | 15.8 % | 5.78 kg | 10h06 |
+| 80 % | ml 1, connect off | 209.4 m | 100.8 | 7156 | 240 m | 1.4 % | 4.37 kg | 10h09 |
+| 80 % | ml 2, connect on | 2.7 m | 1.0 | 0 | 480 m | 0.1 % | 5.49 kg | 8h02 |
+
+(`ln_units.py`, `doppi_ln.py` criterion: a parallel sparse stretch closer than 0.9 w.) At ml 1 the
+connector halves the travel but stays at 28-39 pieces per layer, more than doubles the sparse
+(the lining plus the retraced branches), and the doubled share grows with density to 16 %. Two
+thirds of the doubled length is more than 3 w from the wall: it is not the lining, it is the
+branches walked back. That is topology, not a tuning problem: a single-line tree cannot be walked
+end to end without going back over its branches or travelling, and the connector chooses an
+offset retrace. At ml 2 every branch is two rails, the pockets path (`GINGER_LN_POCKETS`, gated on
+`multiline == 2`) closes each tree into a ring, and it holds at every density: one piece per
+layer, no free end, 2.7 m, nothing doubled, less filament than ml 1 connected from 60 % up, and
+3-4 s of slicing against 5-28 s. Cura reaches the same ring by construction (its pocket
+boundaries are the rails around each tree), and at ml 1 it does not try at all: the trees come out
+as lines (the same `convertToPolylines` as ours, branch ends pulled back w/2 at the junction), no
+connector runs on them, Zig Zaggify is not offered for lightning and Connect Infill Polygons is
+enabled only for an even multiplier. Measured with CuraEngine 5.10.2 on obj9 of the figure (80 %,
+same trees at ml 1 and 2 — Cura's line distance does not include the multiplier;
+`sp_lab/cura_test/run_ml1.sh`): ml 1 36.5 pieces per layer, 911 free ends, 193 m of travel, 0.4 %
+doubled; forcing Zig Zaggify only stitches ends within w (27.2 pieces, same travel), forcing
+Connect Infill Polygons changes nothing; ml 2 4.9 pieces all closed, 0 free ends, 154 m. So at ml 1
+Cura pays travel and Ginger pays re-extrusion; neither makes a single path, because neither can.
+
+**Decided and done (2026-09-28): like Cura.** `infill_pattern_can_connect(pattern, multiline)` —
+the one list shared by `Fill.cpp` and the GUI — answers yes for lightning only at `multiline == 2`
+(ml 3 went through crop + connector too and broke at 70 m). At ml 1 and 3 the trees stay open, as in
+Cura: no doubled sparse, about a quarter less material, more travel. `prev_cover`, `ring_always` and
+the sequential fill follow the connection actually in effect (`connect_polygons`), not the bare
+switch. The single path at one line is still there: Merge infill with wall no longer requires
+Connect infill (it does not connect the infill, it removes it and walks the trees with the wall),
+and at ml 1 it holds — LN80 40 %: 139/139 islands complete, sparse 0, travel 2.4 m.
 
 ### 7.3 The router in the export (knee, 2026-09-09)
 

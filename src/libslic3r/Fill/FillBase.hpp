@@ -79,7 +79,7 @@ struct FillParams
     // Nessun criterio geometrico locale puo' evitarlo (provati ancora di parita' e lato fisso: la
     // fase si propaga lungo tutto l'anello), quindi serve sapere cosa ha coperto il layer sotto.
     // Qui ci sono le sue polilinee di sparse; il solver preferisce, a pari costo, la selezione che
-    // le ricalca. Popolato solo con continuous_path_mode, che per questo riempie i layer in fila.
+    // le ricalca. Popolato solo con connect_infill, che per questo riempie i layer in fila.
     const Polylines *prev_cover     { nullptr };
 
     // Length of an infill anchor along the perimeter.

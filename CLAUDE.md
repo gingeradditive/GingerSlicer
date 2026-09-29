@@ -14,8 +14,10 @@ GingerSlicer is Ginger Additive's pellet-focused fork of OrcaSlicer (itself fork
 - **DFM reference**: `docs/ginger/DFM.md` — the pellet design-for-manufacturing principles
   and how the slicer implements them (single path, physical link rules, wall ribs/buttress,
   overhang via layer height, ERS/cooling constraints, debug env vars). Read it before
-  touching `single_path_mode`, `connect_infill_single_path`, `single_path_splice_loops`
-  or the wall ribs planner; keep it updated when those areas change.
+  touching `connect_infill`, `route_infill`, `seam_position = minimum_travels`,
+  `connect_infill_single_path`, `single_path_splice_loops` or the wall ribs planner; keep it
+  updated when those areas change. (`continuous_path_mode`, ex `single_path_mode`, was removed
+  2026-09-27 and split into those options — see the GLOSSARY entry.)
 - **Pellet ERS** lives in `src/libslic3r/GCode/PressureEqualizer.cpp` (tags
   `;_ERS_RAMPUP/RAMPDOWN/STEADY`). Feedrates re-emitted by the PressureEqualizer are
   quantized to 0.1 mm/s (NOT 1 mm/s as upstream Orca): pellet beads are several mm²,

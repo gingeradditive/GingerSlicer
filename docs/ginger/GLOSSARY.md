@@ -289,11 +289,60 @@ GingerSlicer. Each entry points to the primary source file when applicable.
 
 Full rationale and implementation map in `docs/ginger/DFM.md`.
 
-- **Continuous path mode** (`continuous_path_mode`, until 2026-09-08 `single_path_mode`, before that `connect_infill_polygons`; the old keys load through `handle_legacy`) — Print-wide toggle: walls and
-  sparse infill of each island chain into one continuous walk (travels are
-  the enemy on pellet: no true retract, melt degrades while idle). Drives
-  `FillParams::connect_polygons` for connectable sparse patterns and the
-  wall/seam routing in `GCode.cpp`.
+- **Continuous path mode** (`continuous_path_mode`, REMOVED 2026-09-27; until 2026-09-08
+  `single_path_mode`, before that `connect_infill_polygons`) — The old single switch "walls and
+  infill of each island as one continuous walk". It mixed geometry (what is generated) with
+  routing (in which order it is printed), so it was split into options that each do one thing:
+
+  | what the mode did | now | GUI |
+  |---|---|---|
+  | connect the infill into one path | `connect_infill` | Strength › Infill › Connect infill |
+  | internal solid printed like the top | `solid_infill_as_top` | Strength › Infill › Internal solid as top surface |
+  | infill printed as one tour with suspensions | `route_infill` | Strength › Infill › Route infill as one chain |
+  | wall seam/order/walk, island look-ahead, support inside the tour | `seam_position = minimum_travels` | Quality › Seam › Seam position = Minimum travels |
+  | rib connectors, seam inside the rib, drop of < 4-bead wall loops | `wall_ribs`, `wall_rib_seam` | Strength › Walls |
+
+  Migration (`handle_legacy_composite`): a file with the mode on loads with the four keys on and
+  `seam_position = minimum_travels` (the mode greyed Seam position out and ignored its value, so
+  the written value is overwritten), then the key is erased. The definition survives only for
+  that; it belongs to no config class and is `nocli` — the CLI answers "Invalid option" instead of
+  silently ignoring it (its meaning changed over time, so it cannot be translated there).
+
+- **Connect infill** (`connect_infill`, Strength › Infill) — Geometry: the infill of an island
+  becomes one path. Sparse only on line-based patterns (`infill_pattern_can_connect()`, one list
+  shared by `Fill.cpp` and the GUI, which greys the field out elsewhere; since 2026-09-28 it takes
+  `fill_multiline` too: lightning only at 2 lines — at 1 a tree cannot be walked without retracing
+  its branches, the connector did it offset, 9-16 % of the sparse printed twice, DFM 7.6); concentric
+  top / bottom / internal solid come out as closed fused rings. Also switches on the layer-to-layer hysteresis
+  (`prev_cover`), which is why the fill stage then runs layers in sequence.
+
+- **Internal solid as top surface** (`solid_infill_as_top`, Strength › Infill) — The internal solid
+  inherits the top's pattern, flow and (through the role) speed and acceleration, so a solid patch
+  touching the top of the same layer is filled together with it. Code: `Fill.cpp`, the
+  `erSolidInfill` promotion (`inherit_from_top`); the GUI disables the internal-solid fields.
+
+- **Route infill as one chain** (`route_infill`, Strength › Infill; router in
+  `GCode::extrude_infill_routed`) — Order, not geometry: all infill pieces of an island (sparse,
+  internal solid, top, bottom, plus attached support) are stops of one tour, and the sparse loop is
+  suspended where it passes next to a patch. Per region (applied right before routing). Without it
+  Orca's chaining prints each feature whole. Knee with the rest off: 111 m → 42 m.
+
+- **Minimum travels** (`seam_position = minimum_travels`, Quality › Seam) — The layer is planned
+  for travel and the cosmetic seam is given up: each loop opens where the head is, walls are
+  walked (closed loops first, nearby rings and spurs absorbed as contacts), the last wall ends
+  where the routed infill begins (needs `route_infill` as well), islands are toured looking ahead
+  to the next layer's start, support is deferred into the tour, the SeamPlacer model is not built,
+  and the scarf is not used. Per object, as `seam_position` always was — which also removed the old
+  scope bug of the mode (a region key read as a layer decision from whatever region printed last).
+
+- **Wall bridge** (`s_sp_infill_walked` / `s_sp_infill_done`, `GCode.cpp`) — Stops of the planned
+  infill tour that the WALL walk prints as it passes (it goes by them, the router would jump). The
+  two lists live for ONE island: cleared at `extrude_perimeters` entry, `walked` also per region.
+  Until 2026-09-27 they were cleared only when a new plan started, so the next island reaching a
+  walk without a plan re-printed the previous island's stops — even the layer below's — at the
+  current height: 292 m of sparse printed twice on the stool at 3 walls (1.4 kg). Measure with
+  `GINGER_SINGLE_PATH_DEBUG=1`: `[SPBRIDGE] N fermate al muro` (plan) vs `walk sospeso ... per il
+  riempimento` (print) — prints beyond N are re-prints.
 
 - **Euler connector** — `connect_infill_single_path()` in
   `src/libslic3r/Fill/FillBase.cpp`: chords (scanlines) + boundary gap arcs
@@ -339,7 +388,9 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   `PrintObject::fuse_lightning_into_walls()`. Runs inside `prepare_infill`
   between `combine_infill()` and `generate_wall_ribs()` — the one window where
   the trees already exist, the fill surfaces are final and the rib planner has
-  not run yet. Requires `continuous_path_mode`, Lightning and `wall_loops = 1`
+  not run yet. Requires Lightning and `wall_loops = 1`, any `fill_multiline` (since 2026-09-28 NOT
+  `connect_infill`: the fusion removes the infill, it does not connect it — and lightning connects
+  only at ml 2, which would have locked the fusion out at one line, where it holds)
   (the gorge is one spacing wide: a second concentric loop has nowhere to go);
   outside those conditions it falls back to the normal infill rings.
   Two consequences of editing a *perimeter* from inside `prepare_infill`, both
@@ -389,8 +440,8 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   code in the tree — a much bigger call than anything downstream.
   Ruled out along the way, all measured: `rand()` elsewhere (only a `#ifdef` and
   two unused joint templates left), the G-code pipeline (every filter is
-  `serial_in_order`), the single-path connector (it happens with
-  `continuous_path_mode = 0`), and the bridge candidate gather (fixed anyway: it
+  `serial_in_order`), the single-path connector (it happens with the connector
+  off — then `continuous_path_mode = 0`), and the bridge candidate gather (fixed anyway: it
   used a `tbb::concurrent_vector`, whose interleaving order reached an unstable
   presort that ties on the bbox corner and decides which bridge wins the
   anchoring lines — a real coin flip, just not this one). Note
@@ -469,14 +520,21 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   (`[SPDEVIATE]`). Scanline patterns only — under lightning wall lining a
   wall-hugging row is the product, not an accident.
 
-- **Wall rib** (`continuous_path_wall_ribs`) — Two staggered link segments
+- **Wall rib** (`wall_ribs`, Strength › Walls; until 2026-09-26 `continuous_path_wall_ribs`, before
+  that `single_path_wall_ribs` — both load through `handle_legacy`) — Two staggered link segments
   welding two wall loops into one walk (the automated CAD "micro cut").
   Planned per layer by Prim (`loops − 1` ribs) in
   `PrintObject::generate_wall_ribs()` / `src/libslic3r/WallRibs.hpp`.
   EVERY closed loop of the island is a candidate — no role/width/flow
   partition (exact-equality grouping left Arachne's variable-width loops
   each in its own group: zero ribs). Rib scalars and emission link flow
-  come from the DOMINANT (longest) source path.
+  come from the DOMINANT (longest) source path. Independent of routing since
+  2026-09-26 (knee with Minimum travels off: −16.3 m of travel, −123 retractions).
+  Owns two rules: wall loops shorter than 4 beads are dropped (`PerimeterGenerator`,
+  the planner's `too_short` threshold, so every printed hole wall can host a rib),
+  and `wall_rib_seam` (Hide seam in wall rib, default on) puts the merged loop's
+  seam inside a rib — competing with the travel-optimal seam under Minimum travels,
+  nearest rib anchor otherwise.
 
 - **Rib obstacle field** (`rib_segment_conflicts`, `WallRibs.hpp`) — A
   link/stub axis may not cross a foreign bead anywhere (own curves exempt

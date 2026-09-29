@@ -1422,14 +1422,7 @@ void SeamPlacer::align_seam_points(const PrintObject *po, const SeamPlacerImpl::
 
 // Ginger: vero quando nessuna seam di questo oggetto consultera' il modello del SeamPlacer.
 static bool seam_comes_from_route(const PrintObject &po) {
-  if (po.config().seam_position.value == spMinimumTravels)
-    return true;
-  if (po.num_printing_regions() == 0)
-    return false;
-  for (size_t i = 0; i < po.num_printing_regions(); ++ i)
-    if (! po.printing_region(i).config().continuous_path_mode.value)
-      return false;
-  return true;
+  return po.config().seam_position.value == spMinimumTravels;
 }
 
 void SeamPlacer::init(const Print &print, std::function<void(void)> throw_if_canceled_func) {
@@ -1438,12 +1431,10 @@ void SeamPlacer::init(const Print &print, std::function<void(void)> throw_if_can
 
   for (const PrintObject *po : print.objects()) {
     throw_if_canceled_func();
-    // Ginger: se la seam di questo oggetto la decide il percorso (politica "minimum travels", o
-    // percorso continuo su tutte le sue regioni), place_seam esce sul ramo iniziale e non tocca mai
-    // il modello costruito qui. Costruirlo sarebbe lavoro buttato: raccolta dei candidati,
-    // occlusione per raycasting e allineamento fra layer. Misurato sullo stool: 0.305 s su 2.6 s
-    // di export. La condizione e' per OGGETTO e deve valere per TUTTE le sue regioni: se una sola
-    // stampa senza percorso continuo, la sua seam passa ancora di qui e il modello serve.
+    // Ginger: se la seam di questo oggetto la decide il percorso (politica "minimum travels"),
+    // place_seam esce sul ramo iniziale e non tocca mai il modello costruito qui. Costruirlo sarebbe
+    // lavoro buttato: raccolta dei candidati, occlusione per raycasting e allineamento fra layer.
+    // Misurato sullo stool: 0.305 s su 2.6 s di export. seam_position e' per oggetto, quindi basta lui.
     if (seam_comes_from_route(*po))
       continue;
     SeamPosition configured_seam_preference = po->config().seam_position.value;
