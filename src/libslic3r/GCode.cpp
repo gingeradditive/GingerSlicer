@@ -7702,6 +7702,18 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
     // una sola per tutto il cordone, ma il limite di portata del filamento si calcola sul segmento piu'
     // largo, altrimenti nei tratti larghi la portata lo supererebbe. Per l'anteprima ;WIDTH ai cambi.
     const bool   vw_path = path.has_variable_width() && path.mm3_per_mm > 0.;
+    // Rete di sicurezza: larghezze presenti ma disallineate dai vertici = qualcuno ha modificato la
+    // polilinea senza portarsele dietro. Il cordone esce alla larghezza nominale (mai fuori dal cordone),
+    // ma va segnalato: e' il bug che questa struttura deve evitare. GINGER_VW_DEBUG=1: una riga per caso.
+    if (! path.widths.empty() && ! path.has_variable_width()) {
+        static std::atomic<int> vw_broken { 0 };
+        if (vw_broken ++ < 3)
+            BOOST_LOG_TRIVIAL(warning) << "Variable-width path with " << path.widths.size() << " widths for "
+                                       << path.polyline.points.size() << " points (" << description << "): printed at nominal width";
+        if (::getenv("GINGER_VW_DEBUG") != nullptr)
+            std::fprintf(stderr, "[VWBROKEN] z=%.2f %s widths=%zu punti=%zu\n", m_layer ? m_layer->print_z : -1.,
+                         description.c_str(), path.widths.size(), path.polyline.points.size());
+    }
     auto vw_factor = [&path, vw_path](size_t seg) -> double {
         return vw_path ? path.segment_mm3_per_mm(seg) / path.mm3_per_mm : 1.;
     };
