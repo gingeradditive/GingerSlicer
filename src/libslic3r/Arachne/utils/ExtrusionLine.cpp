@@ -282,17 +282,28 @@ double ExtrusionLine::area() const
 } // namespace Slic3r::Arachne
 
 namespace Slic3r {
+// Ginger (2026-10-01): un cordone di muro Arachne = UN path con larghezza per segmento, come in classic,
+// invece dei tratti a larghezza costante (che a valle erano pezzi separati per l'ERS e per il router).
+// Lo sbalzo stampato col flusso di ponte resta un path a flusso costante, come prima.
+static void append_wall_thick_polyline(ExtrusionPaths &dst, const ThickPolyline &thick_polyline, const ExtrusionRole role, const Flow &flow)
+{
+    if (arachne_split_legacy() || (role == erOverhangPerimeter && flow.bridge())) {
+        Slic3r::append(dst, thick_polyline_to_multi_path(thick_polyline, role, flow, scaled<float>(0.05), float(SCALED_EPSILON)).paths);
+        return;
+    }
+    ExtrusionPath path = thick_polyline_to_variable_width_path(thick_polyline, role, flow, true);
+    if (path.polyline.points.size() >= 2)
+        dst.emplace_back(std::move(path));
+}
+
 void extrusion_paths_append(ExtrusionPaths &dst, const ClipperLib_Z::Paths &extrusion_paths, const ExtrusionRole role, const Flow &flow)
 {
-    for (const ClipperLib_Z::Path &extrusion_path : extrusion_paths) {
-        ThickPolyline thick_polyline = Arachne::to_thick_polyline(extrusion_path);
-        Slic3r::append(dst, thick_polyline_to_multi_path(thick_polyline, role, flow, scaled<float>(0.05), float(SCALED_EPSILON)).paths);
-    }
+    for (const ClipperLib_Z::Path &extrusion_path : extrusion_paths)
+        append_wall_thick_polyline(dst, Arachne::to_thick_polyline(extrusion_path), role, flow);
 }
 
 void extrusion_paths_append(ExtrusionPaths &dst, const Arachne::ExtrusionLine &extrusion, const ExtrusionRole role, const Flow &flow)
 {
-    ThickPolyline thick_polyline = Arachne::to_thick_polyline(extrusion);
-    Slic3r::append(dst, thick_polyline_to_multi_path(thick_polyline, role, flow, scaled<float>(0.05), float(SCALED_EPSILON)).paths);
+    append_wall_thick_polyline(dst, Arachne::to_thick_polyline(extrusion), role, flow);
 }
 } // namespace Slic3r

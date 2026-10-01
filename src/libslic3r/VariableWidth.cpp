@@ -1,4 +1,6 @@
 #include "VariableWidth.hpp"
+#include <cstdlib>
+#include <algorithm>
 
 namespace Slic3r {
 
@@ -213,8 +215,91 @@ static ExtrusionPaths thick_polyline_to_extrusion_paths_2(const ThickPolyline& t
     return paths;
 }
 
+bool arachne_split_legacy()
+{
+    static const bool legacy = ::getenv("GINGER_ARACHNE_SPLIT") != nullptr;
+    return legacy;
+}
+
+ExtrusionPath thick_polyline_to_variable_width_path(const ThickPolyline& thick_polyline, ExtrusionRole role, const Flow& flow, bool width_from_max)
+{
+    ExtrusionPath path(role);
+    path.height = flow.height();
+    // Stessa granularita' di prima: una linea la cui larghezza varia piu' di `tolerance` fra i due capi
+    // viene suddivisa, cosi' la larghezza cresce a gradini piccoli lungo la linea. Prima ogni gradino era un
+    // path a se'; qui e' un segmento dello stesso path.
+    const coordf_t tolerance = scaled<coordf_t>(0.05);
+    const float    extra     = flow.height() * float(1. - 0.25 * PI); // da larghezza Arachne (spaziatura) a larghezza del cordone
+    auto push_segment = [&](const Point &a, const Point &b, coordf_t wa, coordf_t wb) {
+        const coordf_t w = width_from_max ? std::max(wa, wb) : 0.5 * (wa + wb);
+        if (path.polyline.points.empty())
+            path.polyline.points.push_back(a);
+        if (path.polyline.points.back() == b)
+            return;
+        path.polyline.points.push_back(b);
+        path.widths.push_back(unscale<float>(w) + extra);
+    };
+    for (const ThickLine &line : thick_polyline.thicklines()) {
+        const coordf_t line_len = line.length();
+        if (line_len < SCALED_EPSILON) {
+            // troppo corta per contare: si attacca al capo precedente
+            if (! path.polyline.points.empty())
+                path.polyline.points.back() = line.b;
+            continue;
+        }
+        const coordf_t delta = std::abs(line.a_width - line.b_width);
+        if (delta > tolerance) {
+            const unsigned int nsub = (unsigned int)std::ceil(delta / tolerance);
+            const Vec2d        a = line.a.cast<double>(), d = (line.b - line.a).cast<double>();
+            Point              prev = line.a;
+            coordf_t           wprev = line.a_width;
+            for (unsigned int j = 1; j <= nsub; ++ j) {
+                const double   t  = double(j) / double(nsub);
+                const Point    pj = j == nsub ? line.b : Point((a + d * t).cast<coord_t>());
+                const coordf_t wj = line.a_width + t * (line.b_width - line.a_width);
+                push_segment(prev, pj, wprev, wj);
+                prev = pj; wprev = wj;
+            }
+        } else
+            push_segment(line.a, line.b, line.a_width, line.b_width);
+    }
+    if (path.polyline.points.size() < 2) {
+        path.polyline.points.clear();
+        path.widths.clear();
+        return path;
+    }
+    // Larghezza costante su tutto il cordone: nessuna larghezza per segmento, valori presi da Flow come
+    // facevano i tratti di prima - cosi' un cordone che non varia esce identico, cifra per cifra.
+    if (std::all_of(path.widths.begin(), path.widths.end(), [&path](float w) { return w == path.widths.front(); })) {
+        const Flow f = flow.with_width(path.widths.front());
+        path.mm3_per_mm = f.mm3_per_mm();
+        path.width      = f.width();
+        path.height     = f.height();
+        path.widths.clear();
+        return path;
+    }
+    path.update_nominal_from_widths();
+    return path;
+}
+
 void variable_width(const ThickPolylines& polylines, ExtrusionRole role, const Flow& flow, std::vector<ExtrusionEntity*>& out)
 {
+    if (! arachne_split_legacy()) {
+        // Ginger (2026-10-01): un cordone = un path (chiuso: un anello a un path), come in classic.
+        for (const ThickPolyline& p : polylines) {
+            ExtrusionPath path = thick_polyline_to_variable_width_path(p, role, flow, false);
+            if (path.polyline.points.size() < 2)
+                continue;
+            if (path.first_point() == path.last_point()) {
+                ExtrusionPaths paths;
+                paths.emplace_back(std::move(path));
+                out.emplace_back(new ExtrusionLoop(std::move(paths)));
+            } else
+                out.emplace_back(new ExtrusionPath(std::move(path)));
+        }
+        return;
+    }
+
     // This value determines granularity of adaptive width, as G-code does not allow
     // variable extrusion within a single move; this value shall only affect the amount
     // of segments, and any pruning shall be performed before we apply this tolerance.

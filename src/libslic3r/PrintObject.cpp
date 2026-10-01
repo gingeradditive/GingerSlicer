@@ -938,11 +938,17 @@ static ExtrusionLoop rebuild_fused_loop(const Polygon &ring, const ExtrusionLoop
 {
     Lines               lines;
     std::vector<size_t> owner;
-    for (size_t pi = 0; pi < src.paths.size(); ++ pi)
+    std::vector<float>  line_w;  // Ginger (2026-10-01): larghezza del segmento sorgente
+    bool                src_var = false;
+    for (size_t pi = 0; pi < src.paths.size(); ++ pi) {
+        src_var |= src.paths[pi].has_variable_width();
+        size_t si = 0;
         for (const Line &l : src.paths[pi].polyline.lines()) {
             lines.emplace_back(l);
             owner.emplace_back(pi);
+            line_w.emplace_back(src.paths[pi].segment_width(si ++));
         }
+    }
     // The dominant path lends its flow to the new stretches - never whatever short special
     // stretch the loop happens to start with (same rule as the rib planner).
     size_t dom = 0;
@@ -958,16 +964,19 @@ static ExtrusionLoop rebuild_fused_loop(const Polygon &ring, const ExtrusionLoop
         return ExtrusionLoop();
     pts.emplace_back(pts.front());
 
-    const size_t     n = pts.size() - 1;
-    std::vector<int> seg_owner(n, -1);
+    const size_t       n = pts.size() - 1;
+    std::vector<int>   seg_owner(n, -1);
+    std::vector<float> seg_w(n, -1.f);
     if (! lines.empty()) {
         AABBTreeLines::LinesDistancer<Line> src_d(lines);
         for (size_t k = 0; k < n; ++ k) {
             const Point mid = (pts[k] + pts[k + 1]) / 2;
             auto [d, idx, np] = src_d.distance_from_lines_extra<false>(mid);
             (void) np;
-            if (d <= double(tol) && idx < owner.size())
+            if (d <= double(tol) && idx < owner.size()) {
                 seg_owner[k] = int(owner[idx]);
+                seg_w[k]     = line_w[idx];
+            }
         }
     }
 
@@ -980,6 +989,12 @@ static ExtrusionLoop rebuild_fused_loop(const Polygon &ring, const ExtrusionLoop
         const ExtrusionPath &proto = src.paths[seg_owner[k] >= 0 ? size_t(seg_owner[k]) : dom];
         ExtrusionPath        p(proto.role(), proto.mm3_per_mm, proto.width, proto.height);
         p.polyline.points.assign(pts.begin() + k, pts.begin() + m + 2);
+        if (src_var) {
+            // Ginger (2026-10-01): larghezza di ogni segmento dal segmento sorgente (le gole nuove: nominale)
+            for (size_t q = k; q <= m; ++ q)
+                p.widths.push_back(seg_w[q] > 0.f ? seg_w[q] : proto.width);
+            p.update_nominal_from_widths();
+        }
         out.paths.emplace_back(std::move(p));
         k = m + 1;
     }

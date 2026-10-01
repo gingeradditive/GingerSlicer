@@ -344,6 +344,22 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   `GINGER_SINGLE_PATH_DEBUG=1`: `[SPBRIDGE] N fermate al muro` (plan) vs `walk sospeso ... per il
   riempimento` (print) — prints beyond N are re-prints.
 
+- **Variable-width path** (`ExtrusionPath::widths`, 2026-10-01) — An Arachne bead (wall, concentric
+  top/bottom ring, gap fill) is ONE `ExtrusionPath` with a width per segment, like a classic bead,
+  instead of N constant-width pieces cut every 0.05 mm of width change. Downstream it is one object:
+  one ERS polyline (knee: 81 689 -> 5 793 `;POLYLINE_START`), one router unit that the router can enter
+  from its ends, tour as a major and suspend (stool, 6 shells, concentric top: 101 resumes of the same
+  bead -> 13, the 88 "far" ones -> 0, travel 15.1 -> 5.4 m). `width`/`mm3_per_mm` stay the NOMINAL values
+  (length-weighted), so every scalar reader keeps working; `_extrude` scales E per segment and emits
+  `;WIDTH` at each change for the preview; the speed is one per bead, capped on the widest segment.
+  A bead whose width never changes stays a classic path (no `widths`): matrix 31/44 rows byte-identical,
+  the 13 that differ are the ones where the width really varies (volume within 0.001 % on walls).
+  INVARIANT `widths.size() + 1 == polyline.points.size()`: code that edits the polyline must use
+  `sub_path`, `clip_end`/`clip_start`, `reverse`, `assign_widths_by_length` (or keep it by hand, as the
+  rib and fusion rebuilds do); when broken, `has_variable_width()` is false and the bead prints at its
+  nominal width. Simplify is width-aware (runs within 0.05 mm, length-weighted merge); no arc fitting on
+  a variable bead. `GINGER_ARACHNE_SPLIT=1` restores the old pieces (byte-identical to the build before).
+
 - **Euler connector** — `connect_infill_single_path()` in
   `src/libslic3r/Fill/FillBase.cpp`: chords (scanlines) + boundary gap arcs
   form a ring graph; an alternating gap *phase* makes every vertex even;

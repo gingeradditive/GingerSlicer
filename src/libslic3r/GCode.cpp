@@ -5700,6 +5700,8 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                     // case still emits the single path it always did.
                     Lines                              src_lines;
                     std::vector<const ExtrusionPath *> src_owner;
+                    std::vector<float>                 src_w;      // Ginger: larghezza del segmento sorgente
+                    bool                               src_var = false;
                     const ExtrusionPath               *dom     = nullptr;
                     double                             dom_len = -1.;
                     for (size_t i = 0; i < region.perimeters.size(); ++ i)
@@ -5711,9 +5713,11 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                                         dom_len = plen;
                                         dom     = &p;
                                     }
+                                    src_var |= p.has_variable_width();
                                     for (size_t j = 1; j < p.polyline.points.size(); ++ j) {
                                         src_lines.emplace_back(p.polyline.points[j - 1], p.polyline.points[j]);
                                         src_owner.emplace_back(&p);
+                                        src_w.emplace_back(p.segment_width(j - 1));
                                     }
                                 }
                     if (dom == nullptr)
@@ -5748,7 +5752,16 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                             if (! same)
                                 start_path(attr, closed[j - 1]);
                             cur_path->polyline.points.emplace_back(closed[j]);
+                            // Ginger (2026-10-01): con sorgenti a larghezza variabile ogni segmento prende la
+                            // larghezza del segmento sorgente su cui sta (i raccordi nuovi: quella nominale).
+                            if (src_var)
+                                cur_path->widths.push_back(attr != nullptr ? src_w[size_t(line_idx)] : cur_path->width);
                         }
+                        if (src_var)
+                            for (ExtrusionPath &mp_ : merged->paths) {
+                                if (! mp_.has_variable_width()) mp_.widths.clear();
+                                mp_.update_nominal_from_widths();
+                            }
                     }
                     if (merged->paths.empty()) {
                         ExtrusionPath path(pth.role(), pth.mm3_per_mm, pth.width, pth.height);
@@ -6242,13 +6255,12 @@ std::string GCode::extrude_perimeters(const Print &print, const std::vector<Obje
                                 const size_t k1 = pi == verts[v_to].pi ? verts[v_to].k : pts.size() - 1;
                                 if (k1 <= k0)
                                     continue;
-                                ExtrusionPath sub(lp.paths[pi]);
-                                sub.polyline.points.assign(pts.begin() + k0, pts.begin() + k1 + 1);
-                                mp.paths.emplace_back(std::move(sub));
+                                // Ginger (2026-10-01): sub_path porta con se' le larghezze per segmento.
+                                mp.paths.emplace_back(lp.paths[pi].sub_path(k0, k1));
                             }
                             if (last && m_enable_loop_clipping && seam_gap > 0. && ! mp.paths.empty()) {
-                                Polyline &tail = mp.paths.back().polyline;
-                                if (tail.length() > 2. * seam_gap)
+                                ExtrusionPath &tail = mp.paths.back();
+                                if (tail.polyline.length() > 2. * seam_gap)
                                     tail.clip_end(seam_gap);
                                 else
                                     mp.paths.pop_back();
@@ -7227,10 +7239,12 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
         // path is entered from its nearer end.
         ExtrusionLoop lp;
         Polyline      open_poly;
+        ExtrusionPath open_oriented; // Ginger (2026-10-01): il path intero, cosi' i ritagli portano le larghezze
         if (open_path != nullptr) {
-            open_poly = open_path->polyline;
+            open_oriented = *open_path;
             if (rev) // orientamento deciso dal tour (non il capo piu' vicino: conta dove si esce)
-                open_poly.reverse();
+                open_oriented.reverse();
+            open_poly = open_oriented.polyline;
         } else {
             lp = *un.loop;
             lp.split_at(cur, false);
@@ -7283,9 +7297,7 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
             // No neighbour to interleave: print the unit whole (identical to the plain path,
             // including seam gap clipping and wipe handling; open paths from the nearer end).
             if (open_path != nullptr) {
-                ExtrusionPath whole(*open_path);
-                whole.polyline = poly;
-                gcode += this->extrude_path(whole, extrusion_name);
+                gcode += this->extrude_path(open_oriented, extrusion_name);
             } else
                 gcode += this->extrude_entity(*un.ee, extrusion_name);
             return;
@@ -7295,12 +7307,13 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
         auto emit_arc = [&](size_t i_from, size_t i_to, bool clip_tail) {
             if (i_to <= i_from)
                 return;
-            ExtrusionPath arc(proto.role(), proto.mm3_per_mm, proto.width, proto.height);
-            arc.polyline.points.assign(poly.points.begin() + i_from, poly.points.begin() + i_to + 1);
+            // Ginger (2026-10-01): il tratto fra due sospensioni, con le sue larghezze per segmento.
+            const ExtrusionPath &arc_src = open_path != nullptr ? open_oriented : lp.paths.front();
+            ExtrusionPath arc = arc_src.sub_path(i_from, i_to);
             if (clip_tail && open_path == nullptr && m_enable_loop_clipping) {
                 const double seam_gap = scale_(m_config.seam_gap.get_abs_value(EXTRUDER_CONFIG(nozzle_diameter)));
                 if (arc.polyline.length() > 2. * seam_gap)
-                    arc.polyline.clip_end(seam_gap);
+                    arc.clip_end(seam_gap);
             }
             if (arc.polyline.size() >= 2)
                 gcode += this->extrude_path(arc, extrusion_name);
@@ -7684,6 +7697,26 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
     // m_writer.extruder()->e_per_mm3() below is (filament flow ratio / cross-sectional area)
     double e_per_mm = m_writer.extruder()->e_per_mm3() * _mm3_per_mm;
     e_per_mm /= filament_flow_ratio;
+    // Ginger (2026-10-01): cordone Arachne in UN path con larghezza per segmento (ExtrusionPath::widths).
+    // e_per_mm resta quello NOMINALE; ogni segmento lo scala con il suo mm3/mm (vw_factor). La velocita' e'
+    // una sola per tutto il cordone, ma il limite di portata del filamento si calcola sul segmento piu'
+    // largo, altrimenti nei tratti larghi la portata lo supererebbe. Per l'anteprima ;WIDTH ai cambi.
+    const bool   vw_path = path.has_variable_width() && path.mm3_per_mm > 0.;
+    auto vw_factor = [&path, vw_path](size_t seg) -> double {
+        return vw_path ? path.segment_mm3_per_mm(seg) / path.mm3_per_mm : 1.;
+    };
+    const double _mm3_per_mm_cap = vw_path ? _mm3_per_mm * (path.max_mm3_per_mm() / path.mm3_per_mm) : _mm3_per_mm;
+    auto vw_width_tag = [this, &path, vw_path](size_t seg) -> std::string {
+        if (! vw_path)
+            return std::string();
+        const float w = path.segment_width(seg);
+        if (std::abs(w - m_last_width) <= 0.001f)
+            return std::string();
+        m_last_width = w;
+        char tag[64];
+        sprintf(tag, ";%s%g\n", GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Width).c_str(), w);
+        return std::string(tag);
+    };
 
 
 
@@ -7728,7 +7761,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
     }
     //BBS: if not set the speed, then use the filament_max_volumetric_speed directly
     if (speed == 0)
-        speed = EXTRUDER_CONFIG(filament_max_volumetric_speed) / _mm3_per_mm;
+        speed = EXTRUDER_CONFIG(filament_max_volumetric_speed) / _mm3_per_mm_cap;
     if (this->on_first_layer()) {
         //BBS: for solid infill of initial layer, speed can be higher as long as
         //wall lines have be attached
@@ -7768,7 +7801,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
     //}
     if (EXTRUDER_CONFIG(filament_max_volumetric_speed) > 0) {
         // cap speed with max_volumetric_speed anyway (even if user is not using autospeed)
-        speed = std::min(speed, EXTRUDER_CONFIG(filament_max_volumetric_speed) / _mm3_per_mm);
+        speed = std::min(speed, EXTRUDER_CONFIG(filament_max_volumetric_speed) / _mm3_per_mm_cap);
     }
     // ORCA: resonance‑avoidance on short external perimeters
 {
@@ -7785,7 +7818,7 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         if (EXTRUDER_CONFIG(filament_max_volumetric_speed) > 0) {
             speed = std::min(
                 speed,
-                EXTRUDER_CONFIG(filament_max_volumetric_speed) / _mm3_per_mm
+                EXTRUDER_CONFIG(filament_max_volumetric_speed) / _mm3_per_mm_cap
             );
         }
 
@@ -7808,10 +7841,10 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
             bool is_external = is_external_perimeter(path.role());
             double ref_speed   = is_external ? m_config.get_abs_value("outer_wall_speed") : m_config.get_abs_value("inner_wall_speed");
             if (ref_speed == 0)
-                ref_speed = EXTRUDER_CONFIG(filament_max_volumetric_speed) / _mm3_per_mm;
+                ref_speed = EXTRUDER_CONFIG(filament_max_volumetric_speed) / _mm3_per_mm_cap;
 
             if (EXTRUDER_CONFIG(filament_max_volumetric_speed) > 0) {
-                ref_speed = std::min(ref_speed, EXTRUDER_CONFIG(filament_max_volumetric_speed) / _mm3_per_mm);
+                ref_speed = std::min(ref_speed, EXTRUDER_CONFIG(filament_max_volumetric_speed) / _mm3_per_mm_cap);
             }
             if (sloped) {
                 ref_speed = std::min(ref_speed, m_config.scarf_joint_speed.get_abs_value(ref_speed));
@@ -7923,8 +7956,8 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
         gcode += buf;
     }
 
-    if (last_was_wipe_tower || m_last_width != path.width) {
-        m_last_width = path.width;
+    if (const float w0 = vw_path ? path.widths.front() : path.width; last_was_wipe_tower || m_last_width != w0) {
+        m_last_width = w0;
         sprintf(buf, ";%s%g\n", GCodeProcessor::reserved_tag(GCodeProcessor::ETags::Width).c_str(), m_last_width);
         gcode += buf;
     }
@@ -8128,13 +8161,16 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
             if (!m_config.enable_arc_fitting || path.polyline.fitting_result.empty() || m_config.spiral_mode || sloped != nullptr) {
                 double path_length = 0.;
                 double total_length = sloped == nullptr ? 0. : path.polyline.length() * SCALING_FACTOR;
+                size_t vw_seg = size_t(-1);
                 for (const Line& line : path.polyline.lines()) {
+                    ++ vw_seg; // indice del segmento, anche per quelli troppo corti che si saltano
                     std::string tempDescription = description;
                     const double line_length = line.length() * SCALING_FACTOR;
                     if (line_length < EPSILON)
                         continue;
                     path_length += line_length;
-                    auto dE = e_per_mm * line_length;
+                    auto dE = e_per_mm * line_length * vw_factor(vw_seg);
+                    gcode += vw_width_tag(vw_seg);
                     if (_needSAFC(path)) {
                         auto oldE = dE;
                         dE = m_small_area_infill_flow_compensator->modify_flow(line_length, dE, path.role());
@@ -8246,10 +8282,26 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
             pre_fan_enabled = true;
 
         double path_length = 0.;
+        // Ginger: per il cordone a larghezza variabile, segmento originale di ogni tratto ricampionato.
+        std::vector<double> vw_cum;
+        size_t              vw_j = 0;
+        double              vw_s = 0.;
+        if (vw_path) {
+            vw_cum.assign(path.polyline.points.size(), 0.);
+            for (size_t k = 1; k < path.polyline.points.size(); ++ k)
+                vw_cum[k] = vw_cum[k - 1] + (path.polyline.points[k] - path.polyline.points[k - 1]).cast<double>().norm();
+        }
         for (size_t i = 1; i < new_points.size(); i++) {
             std::string tempDescription = description;
             const ProcessedPoint &processed_point = new_points[i];
             const ProcessedPoint &pre_processed_point = new_points[i-1];
+            if (vw_path) {
+                const double l   = (processed_point.p - pre_processed_point.p).cast<double>().norm();
+                const double mid = vw_s + 0.5 * l;
+                while (vw_j + 2 < vw_cum.size() && vw_cum[vw_j + 1] < mid)
+                    ++ vw_j;
+                vw_s += l;
+            }
             Vec2d p = this->point_to_gcode_quantized(processed_point.p);
             if (m_enable_cooling_markers) {
                 if (enable_overhang_bridge_fan) {
@@ -8323,7 +8375,8 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
                 gcode += m_writer.set_speed(F, "", comment);
                 last_set_speed = F;
             }
-            auto dE = e_per_mm * line_length;
+            auto dE = e_per_mm * line_length * vw_factor(vw_j);
+            gcode += vw_width_tag(vw_j);
             if (_needSAFC(path)) {
                 auto oldE = dE;
                 dE = m_small_area_infill_flow_compensator->modify_flow(line_length, dE, path.role());

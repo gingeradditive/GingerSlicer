@@ -27,17 +27,165 @@ void ExtrusionPath::subtract_expolygons(const ExPolygons &collection, ExtrusionE
 
 void ExtrusionPath::clip_end(double distance)
 {
+    const bool var = this->has_variable_width();
     this->polyline.clip_end(distance);
+    // Tagliare dalla fine toglie segmenti in coda e accorcia l'ultimo rimasto: le larghezze dei segmenti
+    // rimasti sono un PREFISSO di quelle di prima.
+    if (var)
+        this->widths.resize(this->polyline.points.size() >= 2 ? this->polyline.points.size() - 1 : 0);
+}
+
+void ExtrusionPath::clip_start(double distance)
+{
+    const bool   var    = this->has_variable_width();
+    const size_t n_segs = var ? this->widths.size() : 0;
+    this->polyline.clip_start(distance);
+    if (var) {
+        // Dall'inizio: le larghezze rimaste sono un SUFFISSO.
+        const size_t n_new = this->polyline.points.size() >= 2 ? this->polyline.points.size() - 1 : 0;
+        this->widths.erase(this->widths.begin(), this->widths.begin() + (n_segs - std::min(n_segs, n_new)));
+    }
 }
 
 void ExtrusionPath::simplify(double tolerance)
 {
-    this->polyline.simplify(tolerance);
+    if (! this->has_variable_width()) {
+        this->polyline.simplify(tolerance);
+        return;
+    }
+    // Ginger (2026-10-01): semplificazione che rispetta la larghezza. Prima di avere un path per cordone,
+    // Arachne lo spezzava in tratti dove la larghezza variava piu' di 0.05 mm e ogni tratto si semplificava
+    // per conto suo: i punti di cambio larghezza sopravvivevano. Qui si fa lo stesso dentro il path: lo si
+    // divide in "corse" di larghezza entro 0.05 mm, si semplifica (Douglas-Peucker) ogni corsa, e ogni
+    // segmento che ne fonde piu' d'uno prende la media pesata sulla lunghezza - il volume non cambia.
+    const Points        &pts = this->polyline.points;
+    const float          tol_w = 0.05f;
+    Points               out_pts;
+    std::vector<float>   out_w;
+    size_t               i0 = 0;
+    const size_t         nseg = this->widths.size();
+    while (i0 < nseg) {
+        float wmin = this->widths[i0], wmax = this->widths[i0];
+        size_t i1 = i0 + 1;
+        while (i1 < nseg && std::max(wmax, this->widths[i1]) - std::min(wmin, this->widths[i1]) <= tol_w) {
+            wmin = std::min(wmin, this->widths[i1]);
+            wmax = std::max(wmax, this->widths[i1]);
+            ++ i1;
+        }
+        // corsa = segmenti [i0, i1), vertici [i0, i1]
+        Points run(pts.begin() + i0, pts.begin() + i1 + 1);
+        Points kept = MultiPoint::_douglas_peucker(run, tolerance);
+        // i punti tenuti sono un sottoinsieme ordinato di `run`: ritrova i loro indici
+        std::vector<size_t> idx;
+        idx.reserve(kept.size());
+        for (size_t k = 0, j = 0; k < kept.size() && j < run.size(); ++ j)
+            if (run[j] == kept[k]) { idx.push_back(j); ++ k; }
+        if (idx.size() != kept.size() || idx.size() < 2 || idx.front() != 0 || idx.back() != run.size() - 1) {
+            // non dovrebbe succedere: la corsa resta com'era
+            idx.resize(run.size());
+            std::iota(idx.begin(), idx.end(), size_t(0));
+        }
+        if (out_pts.empty())
+            out_pts.push_back(run[idx.front()]);
+        for (size_t k = 1; k < idx.size(); ++ k) {
+            double len = 0., acc = 0.;
+            for (size_t j = idx[k - 1]; j < idx[k]; ++ j) {
+                const double l = (run[j + 1] - run[j]).cast<double>().norm();
+                len += l;
+                acc += l * double(this->widths[i0 + j]);
+            }
+            out_pts.push_back(run[idx[k]]);
+            out_w.push_back(len > 0. ? float(acc / len) : this->widths[i0 + idx[k - 1]]);
+        }
+        i0 = i1;
+    }
+    this->polyline.points = std::move(out_pts);
+    this->polyline.fitting_result.clear();
+    this->widths = std::move(out_w);
 }
 
 void ExtrusionPath::simplify_by_fitting_arc(double tolerance)
 {
+    // Ginger: niente archi su un cordone a larghezza variabile - un arco fonderebbe segmenti di larghezze
+    // diverse in un movimento solo, con un solo E/mm. Semplificazione lineare che rispetta la larghezza.
+    if (this->has_variable_width()) {
+        this->simplify(tolerance);
+        return;
+    }
     this->polyline.simplify_by_fitting_arc(tolerance);
+}
+
+double ExtrusionPath::segment_mm3_per_mm(size_t i) const
+{
+    if (! this->has_variable_width())
+        return this->mm3_per_mm;
+    const double h = double(this->height);
+    return std::max(0., h * (double(this->widths[i]) - h * (1. - 0.25 * PI)));
+}
+
+double ExtrusionPath::max_mm3_per_mm() const
+{
+    if (! this->has_variable_width())
+        return this->mm3_per_mm;
+    double m = 0.;
+    for (size_t i = 0; i < this->widths.size(); ++ i)
+        m = std::max(m, this->segment_mm3_per_mm(i));
+    return m;
+}
+
+void ExtrusionPath::update_nominal_from_widths()
+{
+    if (! this->has_variable_width())
+        return;
+    double len = 0., vol = 0., wsum = 0.;
+    for (size_t i = 0; i < this->widths.size(); ++ i) {
+        const double l = (this->polyline.points[i + 1] - this->polyline.points[i]).cast<double>().norm();
+        len  += l;
+        vol  += l * this->segment_mm3_per_mm(i);
+        wsum += l * double(this->widths[i]);
+    }
+    if (len <= 0.)
+        return;
+    this->mm3_per_mm = vol / len;
+    this->width      = float(wsum / len);
+}
+
+ExtrusionPath ExtrusionPath::sub_path(size_t i_from, size_t i_to) const
+{
+    ExtrusionPath out(this->role(), this->mm3_per_mm, this->width, this->height, this->is_force_no_extrusion());
+    if (i_to >= this->polyline.points.size())
+        i_to = this->polyline.points.size() - 1;
+    if (i_from >= i_to)
+        return out;
+    out.polyline.points.assign(this->polyline.points.begin() + i_from, this->polyline.points.begin() + i_to + 1);
+    if (this->has_variable_width()) {
+        out.widths.assign(this->widths.begin() + i_from, this->widths.begin() + i_to);
+        out.update_nominal_from_widths();
+    }
+    return out;
+}
+
+void ExtrusionPath::assign_widths_by_length(const ExtrusionPath &src, double s_offset)
+{
+    this->widths.clear();
+    if (! src.has_variable_width() || this->polyline.points.size() < 2)
+        return;
+    // lunghezze cumulate di src
+    std::vector<double> cum(src.polyline.points.size(), 0.);
+    for (size_t i = 1; i < src.polyline.points.size(); ++ i)
+        cum[i] = cum[i - 1] + (src.polyline.points[i] - src.polyline.points[i - 1]).cast<double>().norm();
+    this->widths.reserve(this->polyline.points.size() - 1);
+    double s = s_offset;
+    size_t j = 0; // segmento di src corrente: [cum[j], cum[j+1]]
+    for (size_t i = 1; i < this->polyline.points.size(); ++ i) {
+        const double l   = (this->polyline.points[i] - this->polyline.points[i - 1]).cast<double>().norm();
+        const double mid = s + 0.5 * l;
+        while (j + 2 < cum.size() && cum[j + 1] < mid)
+            ++ j;
+        this->widths.push_back(src.widths[j]);
+        s += l;
+    }
+    this->update_nominal_from_widths();
 }
 
 double ExtrusionPath::length() const
@@ -171,9 +319,16 @@ bool ExtrusionLoop::split_at_vertex(const Point &point, const double scaled_epsi
                 Polyline p1, p2;
                 path->polyline.split_at_index(idx, &p1, &p2);
                 if (p1.is_valid() && p2.is_valid()) {
+                    // Ginger: anello chiuso ruotato al vertice idx - le larghezze ruotano con lui.
+                    const bool var = path->has_variable_width();
                     p2.append(std::move(p1));
                     std::swap(path->polyline.points, p2.points);
                     std::swap(path->polyline.fitting_result, p2.fitting_result);
+                    if (var) {
+                        std::rotate(path->widths.begin(), path->widths.begin() + std::min<size_t>(size_t(idx), path->widths.size()), path->widths.end());
+                        if (! path->has_variable_width())
+                            path->widths.clear(); // la rotazione ha cambiato il numero di vertici: si torna al nominale
+                    }
                 }
             } else {
                 // new paths list starts with the second half of current path
@@ -185,6 +340,12 @@ bool ExtrusionLoop::split_at_vertex(const Point &point, const double scaled_epsi
                     ExtrusionPath p = *path;
                     std::swap(p.polyline.points, p2.points);
                     std::swap(p.polyline.fitting_result, p2.fitting_result);
+                    if (path->has_variable_width()) {
+                        // seconda meta': segmenti da idx in poi
+                        p.widths.assign(path->widths.begin() + std::min<size_t>(size_t(idx), path->widths.size()), path->widths.end());
+                        if (! p.has_variable_width()) p.widths.clear();
+                        p.update_nominal_from_widths();
+                    }
                     if (p.polyline.is_valid()) new_paths.push_back(p);
                 }
             
@@ -199,6 +360,12 @@ bool ExtrusionLoop::split_at_vertex(const Point &point, const double scaled_epsi
                     ExtrusionPath p = *path;
                     std::swap(p.polyline.points, p1.points);
                     std::swap(p.polyline.fitting_result, p1.fitting_result);
+                    if (path->has_variable_width()) {
+                        // prima meta': segmenti fino a idx escluso
+                        p.widths.assign(path->widths.begin(), path->widths.begin() + std::min<size_t>(size_t(idx), path->widths.size()));
+                        if (! p.has_variable_width()) p.widths.clear();
+                        p.update_nominal_from_widths();
+                    }
                     if (p.polyline.is_valid()) new_paths.push_back(p);
                 }
                 // we can now override the old path list with the new one and stop looping
@@ -267,20 +434,37 @@ void ExtrusionLoop::split_at(const Point &point, bool prefer_non_overhang, const
     ExtrusionPath p1(path.role(), path.mm3_per_mm, path.width, path.height);
     ExtrusionPath p2(path.role(), path.mm3_per_mm, path.width, path.height);
     path.polyline.split_at(p, &p1.polyline, &p2.polyline);
-    
+    // Ginger: le due meta' seguono il path originale - p1 dall'inizio, p2 dalla fine di p1.
+    if (path.has_variable_width()) {
+        p1.assign_widths_by_length(path, 0.);
+        p2.assign_widths_by_length(path, p1.polyline.length());
+    }
+
     if (this->paths.size() == 1) {
         if (!p1.polyline.is_valid()) {
             std::swap(this->paths.front().polyline.points, p2.polyline.points);
             std::swap(this->paths.front().polyline.fitting_result, p2.polyline.fitting_result);
+            std::swap(this->paths.front().widths, p2.widths);
         }
         else if (!p2.polyline.is_valid()) {
             std::swap(this->paths.front().polyline.points, p1.polyline.points);
             std::swap(this->paths.front().polyline.fitting_result, p1.polyline.fitting_result);
+            std::swap(this->paths.front().widths, p1.widths);
         }
         else {
+            // Ginger: con le larghezze, p2 + p1 (l'anello e' chiuso: il primo punto di p1 coincide con
+            // l'ultimo di p2 e append non lo duplica).
+            std::vector<float> w;
+            if (p1.has_variable_width() && p2.has_variable_width()) {
+                w = p2.widths;
+                w.insert(w.end(), p1.widths.begin(), p1.widths.end());
+            }
             p2.polyline.append(std::move(p1.polyline));
             std::swap(this->paths.front().polyline.points, p2.polyline.points);
             std::swap(this->paths.front().polyline.fitting_result, p2.polyline.fitting_result);
+            this->paths.front().widths = std::move(w);
+            if (! this->paths.front().has_variable_width())
+                this->paths.front().widths.clear();
         }
     } else {
         // install the two paths
@@ -304,7 +488,7 @@ void ExtrusionLoop::clip_end(double distance, ExtrusionPaths* paths) const
             paths->pop_back();
             distance -= len;
         } else {
-            last.polyline.clip_end(distance);
+            last.clip_end(distance);
             break;
         }
     }
@@ -435,6 +619,8 @@ ExtrusionLoopSloped::ExtrusionLoopSloped(ExtrusionPaths&   original_paths,
         }
 
         starts.emplace_back(detailed_poly, path, ExtrusionPathSloped::Slope{ratio_begin, ratio_begin}, ExtrusionPathSloped::Slope{ratio_end, ratio_end});
+        // Ginger: il tratto di rampa segue `path` dall'inizio (suddiviso, stessa geometria).
+        starts.back().assign_widths_by_length(path, 0.);
 
         if (is_approx(ratio_end, 1.) && seam_gap > 0) {
             // Remove the segments that has no extrusion
@@ -452,7 +638,10 @@ ExtrusionLoopSloped::ExtrusionLoopSloped(ExtrusionPaths&   original_paths,
                 detailed_poly.clear();
             }
         }
-        if (!detailed_poly.empty()) { ends.emplace_back(detailed_poly, path, ExtrusionPathSloped::Slope{1., 1. - ratio_begin}, ExtrusionPathSloped::Slope{1., 1. - ratio_end}); }
+        if (!detailed_poly.empty()) {
+            ends.emplace_back(detailed_poly, path, ExtrusionPathSloped::Slope{1., 1. - ratio_begin}, ExtrusionPathSloped::Slope{1., 1. - ratio_end});
+            ends.back().assign_widths_by_length(path, 0.);
+        }
 
     };
 
@@ -471,7 +660,10 @@ ExtrusionLoopSloped::ExtrusionLoopSloped(ExtrusionPaths&   original_paths,
             add_slop(*path, slope_path, start_ratio, 1);
             start_ratio = 1;
 
+            const double slope_len = slope_path.length();
             paths.emplace_back(std::move(flat_path), *path);
+            // Ginger: la parte piatta e' il resto di *path, dopo la rampa.
+            paths.back().assign_widths_by_length(*path, slope_len);
             remaining_length = 0;
         } else {
             remaining_length -= path_len;
@@ -521,7 +713,7 @@ void ExtrusionLoopSloped::clip_end(const double distance)
             ends_slope.pop_back();
             clip_dist -= len;
         } else {
-            last_path.polyline.clip_end(clip_dist);
+            last_path.clip_end(clip_dist);
             break;
         }
     }
@@ -543,9 +735,7 @@ void ExtrusionLoopSloped::clip_front(const double distance)
             start_slope.erase(start_slope.begin());
             clip_dist -= len;
         } else {
-            first_path.polyline.reverse();
-            first_path.polyline.clip_end(clip_dist);
-            first_path.polyline.reverse();
+            first_path.clip_start(clip_dist);
             break;
         }
     }

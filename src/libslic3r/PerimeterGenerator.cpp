@@ -858,8 +858,22 @@ ExtrusionPaths sort_extra_perimeters(const ExtrusionPaths& extra_perims, int ind
     for (const ExtrusionPath &path : sorted_paths) {
         if (!reconnected.empty() && (reconnected.back().last_point() - path.first_point()).cast<double>().squaredNorm() <
                                         extrusion_spacing * extrusion_spacing * 4.0) {
-            reconnected.back().polyline.points.insert(reconnected.back().polyline.points.end(), path.polyline.points.begin(),
-                                                      path.polyline.points.end());
+            ExtrusionPath &dst = reconnected.back();
+            // Ginger (2026-10-01): concatenazione con le larghezze per segmento: quelle di dst, il raccordo
+            // (larghezza del primo segmento di path), quelle di path.
+            const bool keep_w = dst.has_variable_width() || path.has_variable_width();
+            std::vector<float> w;
+            if (keep_w) {
+                for (size_t q = 0; q + 1 < dst.polyline.points.size(); ++ q) w.push_back(dst.segment_width(q));
+                w.push_back(path.segment_width(0));
+                for (size_t q = 0; q + 1 < path.polyline.points.size(); ++ q) w.push_back(path.segment_width(q));
+            }
+            dst.polyline.points.insert(dst.polyline.points.end(), path.polyline.points.begin(), path.polyline.points.end());
+            if (keep_w) {
+                dst.widths = std::move(w);
+                if (! dst.has_variable_width()) dst.widths.clear();
+                dst.update_nominal_from_widths();
+            }
         } else {
             reconnected.push_back(path);
         }

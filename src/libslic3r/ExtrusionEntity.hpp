@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <string_view>
 #include <numeric>
+#include <algorithm>
 
 namespace Slic3r {
 
@@ -157,6 +158,16 @@ public:
     float width;
     // Height of the extrusion, used for visualization purposes.
     float height;
+    // Ginger (2026-10-01): larghezza per SEGMENTO (mm, stessa semantica di `width`), una per ogni coppia di
+    // vertici consecutivi. Vuota = larghezza costante (classic, e tutto cio' che non viene da Arachne).
+    // Piena = un cordone Arachne intero in UN path, come in classic: prima Arachne lo spezzava in tratti a
+    // larghezza costante, e a valle ogni tratto era un pezzo a se' (una polilinea per l'ERS, un'unita' per il
+    // router). `width` e `mm3_per_mm` restano i valori NOMINALI (media pesata sulla lunghezza), quindi chi li
+    // legge come numero solo continua a funzionare; solo l'emissione usa il valore del segmento.
+    // INVARIANTE: widths.size() + 1 == polyline.points.size(). Chi modifica la polilinea a mano deve
+    // mantenerla (sub_path, clip_end, reverse, assign_widths_by_length); se si rompe, has_variable_width()
+    // torna falso e il path esce alla larghezza nominale - sbagliato ma mai fuori dal cordone.
+    std::vector<float> widths;
 
     ExtrusionPath() : mm3_per_mm(-1), width(-1), height(-1), m_role(erNone), m_no_extrusion(false) {}
     ExtrusionPath(ExtrusionRole role) : mm3_per_mm(-1), width(-1), height(-1), m_role(role), m_no_extrusion(false) {}
@@ -167,6 +178,7 @@ public:
         , mm3_per_mm(rhs.mm3_per_mm)
         , width(rhs.width)
         , height(rhs.height)
+        , widths(rhs.widths)
         , m_can_reverse(rhs.m_can_reverse)
         , m_role(rhs.m_role)
         , m_no_extrusion(rhs.m_no_extrusion)
@@ -176,6 +188,7 @@ public:
         , mm3_per_mm(rhs.mm3_per_mm)
         , width(rhs.width)
         , height(rhs.height)
+        , widths(std::move(rhs.widths))
         , m_can_reverse(rhs.m_can_reverse)
         , m_role(rhs.m_role)
         , m_no_extrusion(rhs.m_no_extrusion)
@@ -207,6 +220,7 @@ public:
         this->width = rhs.width;
         this->height = rhs.height;
         this->polyline = rhs.polyline;
+        this->widths = rhs.widths;
         return *this;
     }
     ExtrusionPath& operator=(ExtrusionPath&& rhs) {
@@ -217,13 +231,14 @@ public:
         this->width = rhs.width;
         this->height = rhs.height;
         this->polyline = std::move(rhs.polyline);
+        this->widths = std::move(rhs.widths);
         return *this;
     }
 
 	ExtrusionEntity* clone() const override { return new ExtrusionPath(*this); }
     // Create a new object, initialize it with this object using the move semantics.
 	ExtrusionEntity* clone_move() override { return new ExtrusionPath(std::move(*this)); }
-    void reverse() override { this->polyline.reverse(); }
+    void reverse() override { this->polyline.reverse(); std::reverse(this->widths.begin(), this->widths.end()); }
     const Point& first_point() const override { return this->polyline.points.front(); }
     const Point& last_point() const override { return this->polyline.points.back(); }
     size_t size() const { return this->polyline.size(); }
@@ -236,8 +251,26 @@ public:
     // Currently not used.
     void subtract_expolygons(const ExPolygons &collection, ExtrusionEntityCollection* retval) const;
     void clip_end(double distance);
+    // Ginger: toglie `distance` dall'inizio (come Polyline::clip_start), tenendo allineate le larghezze.
+    void clip_start(double distance);
     void simplify(double tolerance);
     double length() const override;
+
+    // Ginger (2026-10-01): larghezza per segmento, vedi `widths`.
+    bool   has_variable_width() const { return ! this->widths.empty() && this->widths.size() + 1 == this->polyline.points.size(); }
+    float  segment_width(size_t i) const { return this->has_variable_width() ? this->widths[i] : this->width; }
+    // mm3/mm del segmento i, nella convenzione di Flow per i cordoni non a ponte (rettangolo a estremi tondi):
+    // la stessa che VariableWidth usava per ogni tratto. Senza larghezze variabili = mm3_per_mm.
+    double segment_mm3_per_mm(size_t i) const;
+    double max_mm3_per_mm() const;
+    // width e mm3_per_mm nominali = media pesata sulla lunghezza dei segmenti (il volume totale non cambia).
+    void   update_nominal_from_widths();
+    // Il path fra i vertici i_from e i_to compresi, con le sue larghezze.
+    ExtrusionPath sub_path(size_t i_from, size_t i_to) const;
+    // Per un path la cui polilinea SEGUE quella di `src` (un suo pezzo, eventualmente suddiviso), che comincia
+    // a `s_offset` (unita' scalate) dall'inizio di `src`: larghezza di ogni segmento = quella del segmento di
+    // `src` che contiene il suo punto medio, misurato lungo il percorso. Senza larghezze in src: le svuota.
+    void   assign_widths_by_length(const ExtrusionPath &src, double s_offset = 0.);
     ExtrusionRole role() const override { return m_role; }
     // Produce a list of 2D polygons covered by the extruded paths, offsetted by the extrusion width.
     // Increase the offset by scaled_epsilon to achieve an overlap, so a union will produce no gaps.

@@ -932,6 +932,33 @@ switch. The single path at one line is still there: Merge infill with wall no lo
 Connect infill (it does not connect the infill, it removes it and walks the trees with the wall),
 and at ml 1 it holds — LN80 40 %: 139/139 islands complete, sparse 0, travel 2.4 m.
 
+### 7.7 One Arachne bead, one path (2026-10-01)
+
+Arachne gives every bead a width per vertex; Orca's `ExtrusionPath` had one width, so `variable_width`
+and the Arachne wall conversion cut each bead into constant-width pieces (a new piece every 0.05 mm of
+width change). Downstream every piece was an object of its own: an ERS polyline (`;POLYLINE_START` per
+path, which forced the 0.05 mm floor on `pellet_ers_travel_threshold`), and - for OPEN beads, emitted as
+loose paths in the surface collection - a router unit each. The router's "chained" check only kept a
+collection together when ALL of it was one chain, so a top patch with several beads was flattened into
+hundreds of pieces: on the stool with 6 shells and a concentric top the 81 fused paths printed as 368
+runs, and 88 times the head left a half-printed bead, went 200-500 mm away and came back later.
+
+Now the bead is one path with a width per segment (GLOSSARY "Variable-width path"). Measured:
+
+| | before | after |
+|---|---|---|
+| stool 6 shells, concentric top: top runs / resumes of the same bead / far resumes | 368 / 101 / 88 | 95 / 13 / 0 |
+| same: travel (`tm.py` total) / retractions | 15.09 m / 144 | 5.37 m / 40 |
+| matrix `top_concentric` / `top_conc_ml1` / `bottom_concentric` (`aria`) | 14.56 / 15.90 / 10.37 m | 5.09 / 5.54 / 5.13 m |
+| knee: ERS polylines / travel `aria` | 81 689 / 32.2 m | 5 793 / 30.7 m |
+
+Byte-identical: classic walls, `GINGER_ARACHNE_SPLIT=1` against the previous build, and 31 of the 44
+matrix rows (every bead of constant width stays a classic path). The 13 rows that differ are the ones
+where widths really vary; on the multi-wall rows the volume is within 0.001 % (E is redistributed per
+segment), on the knee and the shells stool the top loses 0.1-0.2 % - the old fill average used the start
+width of the last piece, the new one the mean of both ends. On the knee the length that moved is
+Top->Top 7.2 -> 3.6 m (patches now finish in one go) against Top->Sparse 12.7 -> 16.8 m; net -1.5 m.
+
 ### 7.3 The router in the export (knee, 2026-09-09)
 
 On a lightning-heavy part the export is the router, not the equalizer: on the knee (20 s total)
