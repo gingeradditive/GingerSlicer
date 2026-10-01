@@ -316,6 +316,15 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   top / bottom / internal solid come out as closed fused rings. Also switches on the layer-to-layer hysteresis
   (`prev_cover`), which is why the fill stage then runs layers in sequence.
 
+- **Connect top surface / Connect bottom surface** (`connect_top_surface`, `connect_bottom_surface`,
+  Strength › Top/bottom shells, 2026-10-02) — Split out of Connect infill, which until then also drove
+  top, bottom and internal solid (while the GUI greyed it out on the sparse pattern alone, so with a
+  non-connectable sparse it kept acting on the surfaces with no way to turn it off). Per surface:
+  concentric rings kept closed and fused, line patterns enterable from either end, patches under 2.5
+  widths dropped, closed paths emitted as loops. The internal solid follows Connect top surface (Davide;
+  with Internal solid as top surface it is a top anyway). Migration: both inherit `connect_infill`, so
+  existing projects slice identically. Connect infill now means the SPARSE only.
+
 - **Internal solid as top surface** (`solid_infill_as_top`, Strength › Infill) — The internal solid
   inherits the top's pattern, flow and (through the role) speed and acceleration, so a solid patch
   touching the top of the same layer is filled together with it. Code: `Fill.cpp`, the

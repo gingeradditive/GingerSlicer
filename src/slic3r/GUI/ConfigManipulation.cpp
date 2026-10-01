@@ -646,6 +646,9 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     bool has_solid_infill = has_top_shell || has_bottom_shell;
     toggle_field("top_surface_pattern", has_top_shell);
     toggle_field("bottom_surface_pattern", has_bottom_shell);
+    // Ginger: il solido interno segue la connessione del top, quindi conta anche senza gusci di top.
+    toggle_field("connect_top_surface", has_top_shell || has_bottom_shell);
+    toggle_field("connect_bottom_surface", has_bottom_shell);
     toggle_field("top_surface_density", has_top_shell);
     toggle_field("bottom_surface_density", has_bottom_shell);
 

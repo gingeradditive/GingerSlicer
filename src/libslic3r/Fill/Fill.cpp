@@ -940,11 +940,14 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
                 // il campo. Il gate e' connect_infill, non piu' il modo: connettere il riempimento e
                 // pianificare il percorso del layer sono due cose indipendenti.
                 // 2026-09-28: anche fill_multiline (params.multiline, appena sopra): il lightning solo a 2.
-                params.connect_polygons = bool(region_config.connect_infill) &&
-                    ((params.extrusion_role == erInternalInfill && infill_pattern_can_connect(region_config.sparse_infill_pattern.value, params.multiline)) ||
-                     params.extrusion_role == erSolidInfill ||
-                     params.extrusion_role == erTopSolidInfill ||
-                     params.extrusion_role == erBottomSurface);
+                // 2026-10-02: ogni superficie con la sua opzione - lo sparse connect_infill, top e solido
+                // interno connect_top_surface, bottom connect_bottom_surface (i ponti mai, come prima).
+                params.connect_polygons =
+                    (params.extrusion_role == erInternalInfill && bool(region_config.connect_infill) &&
+                     infill_pattern_can_connect(region_config.sparse_infill_pattern.value, params.multiline)) ||
+                    ((params.extrusion_role == erSolidInfill || params.extrusion_role == erTopSolidInfill) &&
+                     bool(region_config.connect_top_surface)) ||
+                    (params.extrusion_role == erBottomSurface && bool(region_config.connect_bottom_surface));
 
                 if (params.extrusion_role == erInternalInfill) {
                     params.angle = calculate_infill_rotation_angle(layer.object(), layer.id(), region_config.infill_direction.value,

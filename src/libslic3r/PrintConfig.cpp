@@ -2406,9 +2406,9 @@ void PrintConfigDef::init_fff_params()
     def             = this->add("connect_infill", coBool);
     def->label      = L("Connect infill");
     def->category   = L("Strength");
-    def->tooltip    = L("Join the infill of an island into a single continuous path, so the head never "
-                        "travels inside it. Sparse infill is connected along the inner wall; concentric "
-                        "top, bottom and internal solid come out as closed rings fused into one path. "
+    def->tooltip    = L("Join the sparse infill of an island into a single continuous path along the inner "
+                        "wall, so the head never travels inside it. Top and bottom surfaces have their own "
+                        "options (Connect top surface, Connect bottom surface). "
                         "Only line-based sparse patterns can be connected - with the others the option "
                         "is greyed out, because it would have no effect. Lightning is connected only with "
                         "Fill multiline = 2, where every tree becomes a closed ring: with one line a tree "
@@ -2416,6 +2416,32 @@ void PrintConfigDef::init_fff_params()
                         "path at one line use Merge infill with wall). Connecting changes the geometry, "
                         "not the printing order: the order is Route infill as one chain, and the two are "
                         "independent.");
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    // Ginger (2026-10-02): la connessione delle superfici, staccata da connect_infill. Prima connect_infill
+    // valeva anche per top, bottom e solido interno, e la GUI lo spegneva guardando solo il pattern dello
+    // sparse: con uno sparse non connettibile il campo era grigio ma continuava ad agire sulle superfici.
+    // Il solido interno segue la superficie di top (Davide): con solid_infill_as_top lo diventa comunque.
+    def             = this->add("connect_top_surface", coBool);
+    def->label      = L("Connect top surface");
+    def->category   = L("Strength");
+    def->tooltip    = L("Print each top surface patch, and the internal solid infill, as few continuous paths as "
+                        "possible. With the concentric pattern the rings are kept closed and fused into one path; "
+                        "with the line patterns the patch can be entered from either end instead of always the "
+                        "same one. Patches shorter than 2.5 line widths are not printed: they cost a dedicated "
+                        "travel and would never form a bead.");
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def             = this->add("connect_bottom_surface", coBool);
+    def->label      = L("Connect bottom surface");
+    def->category   = L("Strength");
+    def->tooltip    = L("Print each bottom surface patch as few continuous paths as possible. With the concentric "
+                        "pattern the rings are kept closed and fused into one path; with the line patterns the "
+                        "patch can be entered from either end instead of always the same one. Patches shorter "
+                        "than 2.5 line widths are not printed: they cost a dedicated travel and would never "
+                        "form a bead.");
     def->mode       = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
@@ -7459,6 +7485,12 @@ void PrintConfigDef::handle_legacy_composite(DynamicPrintConfig &config)
             config.set_key_value("seam_position", new ConfigOptionEnum<SeamPosition>(spMinimumTravels));
         config.erase("continuous_path_mode");
     }
+    // Ginger (2026-10-02): connect_infill valeva anche per top, bottom e solido interno. Chi lo aveva acceso
+    // (o lo eredita dal modo, sopra) continua a connettere anche le superfici.
+    if (config.has("connect_infill") && ! config.has("connect_top_surface"))
+        config.set_key_value("connect_top_surface", new ConfigOptionBool(config.opt_bool("connect_infill")));
+    if (config.has("connect_infill") && ! config.has("connect_bottom_surface"))
+        config.set_key_value("connect_bottom_surface", new ConfigOptionBool(config.opt_bool("connect_infill")));
 
     if (config.has("wiping_volumes_matrix") && !config.has("wiping_volumes_use_custom_matrix")) {
         // This is apparently some pre-2.7.3 config, where the wiping_volumes_matrix was always used.
