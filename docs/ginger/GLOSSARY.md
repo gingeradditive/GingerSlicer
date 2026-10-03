@@ -325,6 +325,29 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   with Internal solid as top surface it is a top anyway). Migration: both inherit `connect_infill`, so
   existing projects slice identically. Connect infill now means the SPARSE only.
 
+- **Unfillable solid returns to sparse** (`return_unfillable_solid_to_sparse`, PrintObject.cpp, 2026-10-02/03)
+  — The PART of an internal-solid region that its pattern cannot print is given back to the sparse at
+  classification time, so the sparse is computed with it and reaches the wall, instead of leaving a hole
+  between sparse and wall. Only the narrow fill (`FillConcentricInternal`, on the un-shrunk region) prints
+  narrow solid reliably, and it is reached only with `detect_narrow_internal_solid_infill` and an EFFECTIVE
+  rectilinear-family pattern (with Internal solid as top surface the effective pattern is the top's): then
+  nothing is returned. Otherwise "unprintable" = narrower than the pattern can hold, found with a
+  morphological opening per part (also a strip attached to a bigger solid): rectilinear family < 2 spacings
+  (lines at a fixed pitch on a region shrunk by half a spacing per side: a strip parallel to the lines may
+  hold none, and gap fill only runs when the pattern produced something), other patterns < 1.5 spacings
+  (the shrunk core breaks into short pieces that the connected-fill sliver drop discards). Crumbs below
+  half a spacing squared stay as they were. Runs twice: before `bridge_over_infill` (so the lightning trees
+  grow in the returned areas) and after it (the one-spacing anchoring strip `bridge_over_infill` creates
+  under the edge of an internal bridge). The first version (2026-10-02) only returned regions that vanished
+  entirely under a half-spacing shrink: the one-bead vertical-shell strip along a sloped wall (2.8-3.1 mm,
+  spacing 2.92) survived by a thread and stayed empty. Bar Stool, band 2 mm inside the walls left uncovered
+  versus detect-narrow ON: plate 1 detect-narrow OFF +4343 -> +417 mm2, Internal solid as top -> better than
+  ON; plate 2 +1729 -> +247 mm2. CAVEAT with lightning: the returned zone is sparse, and lightning prints
+  only where a tree is - an island with no tree gets nothing unless "Always ring with infill"
+  (`continuous_path_infill_ring_always`) lays the ring; the Bar Stool numbers above are with it on. Under a
+  0% sparse modifier the returned zone is (correctly) void. Top and bottom are untouched (visible skin).
+  Debug `GINGER_SOLID2SPARSE_DEBUG=1` -> `[SOLID2SPARSE]`.
+
 - **Internal solid as top surface** (`solid_infill_as_top`, Strength › Infill) — The internal solid
   inherits the top's pattern, flow and (through the role) speed and acceleration, so a solid patch
   touching the top of the same layer is filled together with it. Code: `Fill.cpp`, the

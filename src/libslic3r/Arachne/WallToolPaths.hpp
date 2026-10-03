@@ -20,17 +20,22 @@ inline coord_t    meshfix_maximum_resolution() { return scaled<coord_t>(0.5); }
 inline coord_t    meshfix_maximum_deviation() { return scaled<coord_t>(0.025); }
 inline coord_t    meshfix_maximum_extrusion_area_deviation() { return scaled<coord_t>(2.); }
 
+// Ginger (2026-10-03): valori di default su tutti i campi. I riempimenti concentrici (FillConcentric,
+// FillConcentricInternal) costruiscono i parametri a mano e non impostavano min_length_factor ne'
+// is_top_or_bottom_layer: removeSmallLines leggeva memoria non inizializzata e poteva buttare i cordoni
+// dispari aperti di qualsiasi lunghezza - la linea centrale delle strisce strette spariva (Bar Stool: zone da
+// 26 mm2 con 1.6 mm di cordone), e in modo non deterministico.
 class WallToolPathsParams
 {
 public:
-    float   min_bead_width;
-    float   min_feature_size;
-    float   min_length_factor;
-    float   wall_transition_length;
-    float   wall_transition_angle;
-    float   wall_transition_filter_deviation;
-    int     wall_distribution_count;
-    bool    is_top_or_bottom_layer;
+    float   min_bead_width                   { 0.f };
+    float   min_feature_size                 { 0.f };
+    float   min_length_factor                { 0.5f };
+    float   wall_transition_length           { 0.f };
+    float   wall_transition_angle            { 10.f };
+    float   wall_transition_filter_deviation { 0.f };
+    int     wall_distribution_count          { 1 };
+    bool    is_top_or_bottom_layer           { false };
 };
 
 WallToolPathsParams make_paths_params(const int layer_id, const PrintObjectConfig &print_object_config, const PrintConfig &print_config);

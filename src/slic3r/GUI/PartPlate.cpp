@@ -1870,6 +1870,11 @@ Vec3d PartPlate::get_center_origin()
 
 void PartPlate::generate_plate_name_texture()
 {
+    // Ginger (2026-10-02): da riga di comando non c'e' l'interfaccia (m_plater nullo, nessuna wxGetApp):
+    // la texture dell'etichetta non serve e generarla mandava in crash il caricamento di ogni 3MF con
+    // piatti con un nome. Il nome resta assegnato (set_plate_name), si salta solo la grafica.
+    if (m_plater == nullptr)
+        return;
     m_plate_name_icon.reset();
 
 	// generate m_name_texture texture from m_name with generate_from_text_string

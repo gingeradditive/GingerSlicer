@@ -302,6 +302,104 @@ void PrintObject::_transform_hole_to_polyholes()
 // 3) Generates perimeters, gap fills and fill regions (fill regions of type stInternal).
 static void determinism_probe(const PrintObject *po, const char *stage);
 
+// Ginger (2026-10-02, Davide): lo SPARSE si riprende le zone di solido interno che nessun riempimento puo'
+// stampare. Prima l'area veniva classificata solido, tolta allo sparse, e poi al riempimento il pattern non
+// ci metteva niente: un buco fra lo sparse e il muro, e lo sparse calcolato come se il solido ci fosse.
+// Casi tipici (Bar Stool): la striscia di ancoraggio larga un passo che bridge_over_infill crea sotto il bordo
+// di un ponte interno, e la striscia di guscio verticale larga un cordone lungo un muro inclinato.
+// L'unico che stampa sicuro le strisce strette e' il riempimento "zona stretta" (FillConcentricInternal,
+// sulla regione non arretrata), e ci arriva solo con detect_narrow_internal_solid_infill e un pattern
+// EFFETTIVO della famiglia rettilinea (con solid_infill_as_top il pattern effettivo e' quello del top): in
+// quel caso la zona resta solido. Altrimenti e' "non stampabile" la PARTE di solido (non solo la superficie
+// intera: anche la striscia attaccata a un solido piu' grande) piu' stretta di quanto il pattern regge:
+//  - famiglia rettilinea: linee a passo fisso s su una regione arretrata di s/2 per lato; una striscia
+//    parallela alle linee e piu' stretta di 2s puo' non contenerne nessuna (FillRectilinear: "Not a single
+//    infill line fits"), e il gap fill parte solo se il pattern ha prodotto qualcosa;
+//  - concentrico e gli altri: sotto 1.5s il nucleo arretrato si riduce a un filo che si spezza, e i pezzi
+//    corti di una superficie connessa vengono scartati (scarto delle schegge in Fill::fill_surface_extrusion).
+// 2026-10-03: prima il test era "la superficie intera sparisce arretrando di s/2": la striscia di guscio da
+// 2.8-3.1 mm (passo 2.92) sopravviveva di un filo, passava per stampabile e restava vuota.
+// Solo stInternalSolid: top e bottom sono pelle a vista, non possono diventare sparse.
+static void return_unfillable_solid_to_sparse(PrintObject *po, const char *stage)
+{
+    static const bool dbg = std::getenv("GINGER_SOLID2SPARSE_DEBUG") != nullptr;
+    const bool detect_narrow = po->config().detect_narrow_internal_solid_infill.value;
+    std::atomic<size_t> n_layers { 0 };
+    std::atomic<size_t> n_parts  { 0 };
+    std::atomic<long long> area_mm2_x100 { 0 };
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, po->layers().size()), [&](const tbb::blocked_range<size_t> &range) {
+        for (size_t lidx = range.begin(); lidx < range.end(); ++ lidx) {
+            bool layer_touched = false;
+            for (LayerRegion *layerm : po->layers()[lidx]->regions()) {
+                const PrintRegionConfig &rc = layerm->region().config();
+                const InfillPattern pattern = rc.solid_infill_as_top ? rc.top_surface_pattern.value : rc.internal_solid_infill_pattern.value;
+                const bool narrow_fill = detect_narrow &&
+                    (pattern == ipRectilinear || pattern == ipMonotonic || pattern == ipMonotonicLine || pattern == ipAlignedRectilinear);
+                if (narrow_fill)
+                    continue;
+                ExPolygons solid;
+                for (const Surface &sf : layerm->fill_surfaces.surfaces)
+                    if (sf.surface_type == stInternalSolid)
+                        solid.emplace_back(sf.expolygon);
+                if (solid.empty())
+                    continue;
+                // Sull'unione: due superfici solide adiacenti si riempiono insieme (group_fills le unisce),
+                // e insieme possono contenere linee che separate non conterrebbero.
+                solid = union_ex(solid);
+                const double spacing = double(layerm->flow(rc.solid_infill_as_top ? frTopSolidInfill : frSolidInfill).scaled_spacing());
+                const bool   rectilinear_family =
+                    pattern == ipRectilinear || pattern == ipMonotonic || pattern == ipMonotonicLine || pattern == ipAlignedRectilinear;
+                // raggio dell'apertura = meta' della larghezza minima stampabile (2s rettilinea, 1.5s gli altri)
+                const double radius = (rectilinear_family ? 1.0 : 0.75) * spacing;
+                ExPolygons unfillable = diff_ex(solid, opening_ex(solid, float(radius - SCALED_EPSILON)));
+                // briciole (gli spigoli che l'apertura arrotonda): restano com'erano
+                const double min_area = 0.5 * spacing * spacing;
+                unfillable.erase(std::remove_if(unfillable.begin(), unfillable.end(),
+                                                [min_area](const ExPolygon &e) { return e.area() < min_area; }),
+                                 unfillable.end());
+                if (unfillable.empty())
+                    continue;
+                Surfaces   kept;
+                ExPolygons sparse = unfillable;
+                const Surface *sparse_template = nullptr;
+                for (const Surface &sf : layerm->fill_surfaces.surfaces) {
+                    if (sf.surface_type == stInternalSolid) {
+                        for (const ExPolygon &e : diff_ex(sf.expolygon, unfillable))
+                            kept.emplace_back(sf, e);
+                    } else if (sf.surface_type == stInternal) {
+                        sparse.emplace_back(sf.expolygon);
+                        if (sparse_template == nullptr)
+                            sparse_template = &sf;
+                    } else
+                        kept.emplace_back(sf);
+                }
+                // La zona si fonde con lo sparse accanto: un'area sola fino al muro, niente cucitura.
+                for (const ExPolygon &e : union_ex(sparse)) {
+                    if (sparse_template != nullptr)
+                        kept.emplace_back(*sparse_template, e);
+                    else
+                        kept.emplace_back(stInternal, e);
+                }
+                double a = 0.;
+                for (const ExPolygon &e : unfillable)
+                    a += e.area();
+                layerm->fill_surfaces.surfaces = std::move(kept);
+                n_parts += unfillable.size();
+                area_mm2_x100 += (long long)(a * SCALING_FACTOR * SCALING_FACTOR * 100.);
+                layer_touched = true;
+                if (dbg)
+                    std::fprintf(stderr, "[SOLID2SPARSE] %s layer %zu: %zu zone, %.1f mm2 restituite allo sparse\n",
+                                 stage, lidx, unfillable.size(), a * SCALING_FACTOR * SCALING_FACTOR);
+            }
+            if (layer_touched)
+                ++ n_layers;
+        }
+    });
+    if (n_parts > 0)
+        BOOST_LOG_TRIVIAL(info) << "Unfillable internal solid returned to sparse (" << stage << "): " << n_parts.load()
+                                << " parts on " << n_layers.load() << " layers, " << double(area_mm2_x100.load()) / 100. << " mm2";
+}
+
 void PrintObject::make_perimeters()
 {
     // prerequisites
@@ -650,12 +748,18 @@ void PrintObject::prepare_infill()
     this->demote_narrow_solid_infill();
     m_print->throw_if_canceled();
     determinism_probe(this, "6b demote_narrow_solid");
+    // Prima di bridge_over_infill, che costruisce gli alberi del lightning: le zone restituite qui ci sono gia'.
+    return_unfillable_solid_to_sparse(this, "prima dei ponti");
+    m_print->throw_if_canceled();
 
     // the following step needs to be done before combination because it may need
     // to remove only half of the combined infill
     this->bridge_over_infill();
     m_print->throw_if_canceled();
     determinism_probe(this, "7 bridge_over_infill");
+    // Dopo: la striscia di ancoraggio sotto i ponti interni nasce li' dentro (gli alberi l'hanno vista sparse).
+    return_unfillable_solid_to_sparse(this, "dopo i ponti");
+    m_print->throw_if_canceled();
 
     // combine fill surfaces to honor the "infill every N layers" option
     this->combine_infill();
