@@ -106,8 +106,9 @@ Every artificial connection is an extruded bead governed by D2, not by a length 
   overlap anyway);
 - **virtual edges** (trail split points) are extruded as micro-bridges when they pass the
   rules; **open pieces with almost-touching ends** are joined; **residual closed loops** are
-  welded into the walk by `single_path_splice_loops()` (staggered double link, non-crossing
-  ladder orientation, candidate validation budgeted per distinct region).
+  welded into the walk by `single_path_splice_loops()` (double link on aligned cut gaps,
+  links at least 0.85 stagger apart and crossing no existing line, candidate validation
+  budgeted per distinct region - see "Aligned cut gaps" below).
 
 **Connections ride the wall (2026-08-26, stool).** Rules (a)+(b) alone still admitted straight
 chords through the open interior, and on a curved leg they are exactly what came out: the splice
@@ -133,6 +134,31 @@ The merge now carries the attach ceiling: longer than 3 stagger and the candidat
 (no cordolo routing here - riding the perimeter for 220 mm would cost more extruded bead than
 the travel it saves). Measured: air 7.84 m -> 0.15 m, longest 221 -> 30 mm, sparse 668 -> 656 m,
 travels 116.42 -> 116.66 m (+0.2 %), and the whole sp_lab suite (37 cases) byte-identical.
+
+**Aligned cut gaps in the ring-to-ring merge (2026-10-03, Bar Stool top concentric).** Merging two
+closed rings cuts a gap of one stagger in each and adds two links. The links used to be
+`b_exit -> cproj` and `a_exit -> cpb`: each tied the END of one gap to the START of the other, so they
+were diagonal by construction (0.71 stagger apart in the best case) and, when the candidate was
+inclined along the ring, two long links in opposite directions almost on top of each other (Bar
+Stool plate 2, last layer: 6.7 + 6.6 mm links 0.5-1.8 mm apart with a 3.2 mm bead). The centerlines
+never cross, so the orientation test (`segments_cross`, strict) let them through - in the preview
+they read as an "X" of beads, and it is 6-9 mm2 of double material per junction. Now
+`build_merge` walks ring A BACKWARDS (from `a_exit` to `cproj`, with `a_exit` the side facing
+`b_exit`): the two links are the two sides of the same aligned gap, `b_exit -> a_exit` and, on
+closing, `cproj -> cpb` - radial and parallel at one stagger on concentric rings, the PolygonConnector
+of Cura. Two guards on every construction: the links must stay at least **0.85 stagger** apart
+(sampled, the same interasse rule as the gorge attach) and must not cross any existing line (the
+`link_valid` index: a 17 mm Lightning link cut a 29 mm sparse line 14 mm away from the junction,
+beyond the 4-bead local self-crossing test). The old construction stays as a fallback only if it
+passes the same guards; otherwise the next candidate is tried. With `island == nullptr`
+(trapezoidal multiline) the interasse guard is off, as every link was accepted there before.
+Measured (area covered twice by non-consecutive beads, band = spacing): Bar Stool plate 2
+top/bottom concentric 438 -> 259 mm2 (Internal solid as top: 685 -> 293), stool top concentric
+2114 -> 1375, knee 2276 -> 1960, and the sparse merges too - grid 5 % ml=2 1496 -> 91, triangles
+953 -> 84, ml=3 8887 -> 6971; Lightning ml=2 unchanged (241 -> 239), 0 crossings. Travel mixed and
+small: stool top concentric 5.07 -> 5.50 m, dens 60 % 2.41 -> 1.89, walls_3_ribs 5.93 -> 5.76,
+grid/triangles/cubic identical. A few more separate pieces where no construction holds the
+interasse (Bar Stool plate 2 top 29 -> 34, same travel).
 
 **4-flip + Z-bridge (2026-08-28, the current mechanism).** With one gap per vertex (forced:
 a vertex has 1 chord + 2 gaps and even degree needs exactly one) the selection family is

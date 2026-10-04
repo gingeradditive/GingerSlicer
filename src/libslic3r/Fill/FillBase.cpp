@@ -1724,9 +1724,9 @@ inline void sp_profile_count(std::atomic<uint64_t> SPProfile::*counter, uint64_t
 
 // Splice a set of closed loops (e.g. the outline walls of a dilated infill band: one outer wall plus
 // the hole walls of the pockets it encloses) into a single closed loop. Loops are linked pairwise at
-// their closest approach with two short link segments crossing the empty space in between; the cuts in
-// the two loops are staggered by ~one extrusion width, so the links land in the cut gaps instead of
-// over already extruded material. Rings that remain (no other ring within reach) are attached to the
+// their closest approach with two short link segments crossing the empty space in between; each loop is
+// cut open for ~one extrusion width and the two gaps face each other (2026-10-03, build_merge), so the
+// links are the two parallel sides of the same gap and land in it instead of over extruded material. Rings that remain (no other ring within reach) are attached to the
 // closest open polyline as a detour; open polylines are otherwise left untouched.
 // z del layer corrente, solo per i print di debug (il fill lavora un layer per thread).
 static thread_local double s_sp_debug_z = -1.;
@@ -2251,34 +2251,106 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         };
         if (pieceB.empty() || pieceA_f.empty() || pieceA_b.empty())
             return false;
-        bool   f_cross = segments_cross(pieceB.back(), cproj, pieceA_f.back(), pieceB.front());
-        bool   b_cross = segments_cross(pieceB.back(), cproj, pieceA_b.back(), pieceB.front());
+        // auto-incrocio locale: tutti i tratti del fuso entro 4 cordoni dal raccordo, a coppie
+        auto self_crosses_near_link = [&](const Polyline &pl) -> bool {
+            const size_t n = pl.points.size();
+            std::vector<size_t> near;
+            const double rr = 4. * stagger;
+            for (size_t i = 0; i < n; ++ i) {
+                const Point &p0 = pl.points[i], &p1 = pl.points[(i + 1) % n];
+                if ((p0 - cproj).cast<double>().norm() < rr || (p1 - cproj).cast<double>().norm() < rr)
+                    near.push_back(i);
+            }
+            for (size_t a = 0; a < near.size(); ++ a)
+                for (size_t b = a + 1; b < near.size(); ++ b) {
+                    const size_t i = near[a], j = near[b];
+                    if (j == i + 1 || (i == 0 && j == n - 1))
+                        continue;
+                    if (segments_cross(pl.points[i], pl.points[(i + 1) % n], pl.points[j], pl.points[(j + 1) % n]))
+                        return true;
+                }
+            return false;
+        };
+        // Ginger (2026-10-03, Davide: "in alcune connessioni si intreccia creando una zona di
+        // sovraestrusione"). Interasse minimo fra i due ponti, campionato su entrambi: con cordoni piu'
+        // larghi del passo due ponti piu' vicini di cosi' si stampano uno sopra l'altro. Il test di
+        // incrocio guarda solo le LINEE CENTRALI, e due ponti lunghi quasi paralleli in versi opposti a
+        // 0.5-1.8 mm l'uno dall'altro non si incrociano: passavano, e in anteprima sono una X di cordoni.
+        auto rung_gap = [](const Point &a1, const Point &a2, const Point &b1, const Point &b2) -> double {
+            auto seg_dist = [](const Vec2d &p, const Vec2d &s1, const Vec2d &s2) {
+                const Vec2d  d  = s2 - s1;
+                const double l2 = d.squaredNorm();
+                const double t  = l2 <= 0. ? 0. : std::clamp((p - s1).dot(d) / l2, 0., 1.);
+                return (s1 + d * t - p).norm();
+            };
+            const Vec2d A1 = a1.cast<double>(), A2 = a2.cast<double>(), B1 = b1.cast<double>(), B2 = b2.cast<double>();
+            double g = std::numeric_limits<double>::max();
+            for (int k = 0; k <= 8; ++ k) {
+                const double t = k / 8.;
+                g = std::min(g, seg_dist(A1 + (A2 - A1) * t, B1, B2));
+                g = std::min(g, seg_dist(B1 + (B2 - B1) * t, A1, A2));
+            }
+            return g;
+        };
+        // Con island == nullptr (trapezoidale multiline) ogni raccordo e' accettato, come prima.
+        const double min_rung_gap = island == nullptr ? 0. : 0.85 * stagger;
+        const Point &b_exit = pieceB.back();
+        // Un ponte non deve attraversare nessuna linea gia' presente (anelli e tratti aperti, l'indice di
+        // link_valid): il test di auto-incrocio qui sotto guarda solo entro 4 cordoni dal raccordo, e un
+        // ponte lungo (lightning: 17 mm) puo' tagliare un tratto piu' in la'. Le intersezioni ai capi del
+        // ponte sono gli anelli stessi su cui atterra, e non contano.
+        auto rung_hits_lines = [&](const Point &p, const Point &q) -> bool {
+            if (! retrace)
+                return false;
+            const double end_r2 = sqr(0.25 * stagger);
+            for (const auto &hit : retrace->intersections_with_line<false>(Line(p, q))) {
+                const Vec2d h = hit.first.template cast<double>();
+                if ((h - p.cast<double>()).squaredNorm() > end_r2 && (h - q.cast<double>()).squaredNorm() > end_r2)
+                    return true;
+            }
+            return false;
+        };
+
+        // 1) VARCHI ALLINEATI. Il varco su B va da cpb a b_exit (uno stagger); quello su A va da cproj a
+        //    a_exit, uno stagger nel verso in cui a_exit cade di fronte a b_exit. A si percorre AL
+        //    CONTRARIO (da a_exit a cproj), cosi' i due ponti sono i due lati dello stesso varco:
+        //    b_exit -> a_exit e, alla chiusura, cproj -> cpb (il raccordo candidato). Su anelli concentrici
+        //    a un passo vengono radiali e paralleli a uno stagger, come il PolygonConnector di Cura.
+        //    Prima i ponti erano b_exit -> cproj e a_exit -> cpb: ciascuno legava la fine di un varco
+        //    all'inizio dell'altro, quindi diagonali per costruzione (interasse 0.71 stagger nel caso
+        //    migliore), e con un raccordo inclinato due ponti lunghi in versi opposti quasi coincidenti.
+        {
+            const bool use_f = (pieceA_f.back() - b_exit).cast<double>().squaredNorm() <=
+                               (pieceA_b.back() - b_exit).cast<double>().squaredNorm();
+            const Points &pieceA = use_f ? pieceA_f : pieceA_b;
+            const Point  &a_exit = pieceA.back();
+            out.points.clear();
+            out.points.reserve(pieceA.size() + pieceB.size());
+            out.points.insert(out.points.end(), pieceB.begin(), pieceB.end());
+            out.points.insert(out.points.end(), pieceA.rbegin(), pieceA.rend());
+            if (! segments_cross(b_exit, a_exit, cproj, cpb) &&
+                rung_gap(b_exit, a_exit, cproj, cpb) >= min_rung_gap &&
+                ! rung_hits_lines(b_exit, a_exit) && ! rung_hits_lines(cproj, cpb) &&
+                ! self_crosses_near_link(out))
+                return true;
+        }
+
+        // 2) Ripiego: la costruzione di prima (ponti b_exit -> cproj e a_exit -> cpb), accettata solo se
+        //    rispetta lo stesso interasse. Se nemmeno questa regge si passa al candidato successivo.
+        bool   f_cross = segments_cross(b_exit, cproj, pieceA_f.back(), pieceB.front());
+        bool   b_cross = segments_cross(b_exit, cproj, pieceA_b.back(), pieceB.front());
         double f_len   = (pieceA_f.back() - pieceB.front()).cast<double>().squaredNorm();
         double b_len   = (pieceA_b.back() - pieceB.front()).cast<double>().squaredNorm();
         Points &pieceA = (f_cross != b_cross) ? (b_cross ? pieceA_f : pieceA_b)
                                               : (f_len <= b_len ? pieceA_f : pieceA_b);
+        if (rung_gap(b_exit, cproj, pieceA.back(), pieceB.front()) < min_rung_gap ||
+            rung_hits_lines(b_exit, cproj) || rung_hits_lines(pieceA.back(), pieceB.front()))
+            return false;
         out.points.clear();
         out.points.reserve(pieceA.size() + pieceB.size());
         out.points.insert(out.points.end(), pieceB.begin(), pieceB.end());
         out.points.insert(out.points.end(), pieceA.begin(), pieceA.end());
-        // auto-incrocio locale: tutti i tratti del fuso entro 4 cordoni dal raccordo, a coppie
-        const size_t n = out.points.size();
-        std::vector<size_t> near;
-        const double rr = 4. * stagger;
-        for (size_t i = 0; i < n; ++ i) {
-            const Point &p0 = out.points[i], &p1 = out.points[(i + 1) % n];
-            if ((p0 - cproj).cast<double>().norm() < rr || (p1 - cproj).cast<double>().norm() < rr)
-                near.push_back(i);
-        }
-        for (size_t a = 0; a < near.size(); ++ a)
-            for (size_t b = a + 1; b < near.size(); ++ b) {
-                const size_t i = near[a], j = near[b];
-                if (j == i + 1 || (i == 0 && j == n - 1))
-                    continue;
-                if (segments_cross(out.points[i], out.points[(i + 1) % n], out.points[j], out.points[(j + 1) % n]))
-                    return false;
-            }
-        return true;
+        return ! self_crosses_near_link(out);
     };
     // Ginger (2026-09-04): alberi per anello e candidati per coppia PERSISTENTI fra le passate di
     // fusione. A ogni fusione cambia solo l'anello fuso (bi) e sparisce bj: gli altri restano
