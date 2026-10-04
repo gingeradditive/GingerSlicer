@@ -104,6 +104,13 @@ static constexpr long max_ignored_gap_between_extruding_segments = 3;
 // this speed anyway, leaving the bead and the reservoir charge reference out of step.
 static constexpr float min_emitted_feedrate = 60.f;
 
+// Pellet boundary ramps: maximum flow ratio between the two ends of an emitted piece. Each piece
+// runs at a constant feedrate while the reservoir follows the continuous ramp, so the bead ripples
+// inside the piece by about half this ratio (1.15 -> +-7%). Only binds at low flow (ramp ends),
+// where the flow changes by an order of magnitude within a fraction of a millimetre; elsewhere
+// max_volumetric_extrusion_rate_slope_segment_length is the tighter limit.
+static constexpr float ramp_piece_flow_ratio = 1.15f;
+
 PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config, const Calib_Params *calib_params) : m_use_relative_e_distances(config.use_relative_e_distances.value)
 {
     // Preallocate some data, so that output_buffer.data() will return an empty string.
@@ -1094,11 +1101,10 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
                         std::min(float(law_dn.q_hi(q_to, len - s)), q_from);
         };
         // Emit the ramp zone [x0, x0 + len] (mm from the line start).
-        // Boundary ramps are also split by flow change (at most 1.5x per piece): near the
-        // min-rate end the flow changes by an order of magnitude within the first millimetre,
-        // and a single piece emitted at its midpoint flow would demand a reservoir state far
-        // above the one the previous ramp-down left behind (the charge reference of
-        // push_line_to_output is the emitted flow of the outermost piece).
+        // Boundary ramps are also split by flow change (at most ramp_piece_flow_ratio per piece):
+        // near the ramp ends the flow changes by an order of magnitude within a fraction of a
+        // millimetre, and a long piece emitted at its midpoint flow would both ripple the bead
+        // and demand a reservoir state far from the one the previous ramp-down left behind.
         const float q_floor = min_emitted_feedrate * area; // flow at the feedrate floor of push_line_to_output
         auto emit_ramp = [&](float x0, float len, bool up, float q_from, float q_to) {
             const size_t nSeg = std::max(size_t(1), size_t(ceil(len / m_max_segment_length)));
@@ -1110,11 +1116,11 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
                 if (line.pellet_ramp) {
                     const float q0 = ramp_q(up, q_from, q_to, len, s0);
                     if (up) {
-                        const float q_lim = 1.5f * std::max(q0, q_floor);
+                        const float q_lim = ramp_piece_flow_ratio * std::max(q0, q_floor);
                         if (q_lim < q_to)
                             s1 = std::min(s1, s0 + float(law_up.dist(q0, q_lim)));
-                    } else if (q0 > 1.5f * q_floor && q0 / 1.5f > q_to) {
-                        s1 = std::min(s1, s0 + float(law_dn.dist(q0 / 1.5f, q0)));
+                    } else if (q0 > ramp_piece_flow_ratio * q_floor && q0 / ramp_piece_flow_ratio > q_to) {
+                        s1 = std::min(s1, s0 + float(law_dn.dist(q0 / ramp_piece_flow_ratio, q0)));
                     }
                     s1 = std::min(len, std::max(s1, s0 + 0.01f));
                 }

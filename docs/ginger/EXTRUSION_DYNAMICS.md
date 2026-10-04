@@ -185,7 +185,9 @@ neutral retract cycle (unretract = retract) hands the ramp-up exactly the
 state `τ·Q_end` the ramp-down left; the "only τ" goal needs no
 `retract_restart_extra`. For this to hold the outermost pieces must emit a
 flow close to the ramp end flow: boundary ramps are therefore split by flow
-change too (at most 1.5× per piece), not only by length — with a large τ
+change too (at most 1.15× per piece, `ramp_piece_flow_ratio`: the bead
+ripples inside a constant-feedrate piece by about half the ratio, ±7%), not
+only by `max_volumetric_extrusion_rate_slope_segment_length` — with a large τ
 the flow can rise by an order of magnitude within the first millimetre.
 
 ### Known limits / future work
