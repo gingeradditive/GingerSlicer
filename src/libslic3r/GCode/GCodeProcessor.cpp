@@ -1148,6 +1148,7 @@ void GCodeProcessor::reset()
     m_forced_width = 0.0f;
     m_forced_height = 0.0f;
     m_mm3_per_mm = 0.0f;
+    m_screw_mm3_per_mm = 0.0f;
     m_travel_dist = 0.0f;
     m_fan_speed = 0.0f;
     m_z_offset = 0.0f;
@@ -2703,6 +2704,8 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line, const std::o
         }
         // volume extruded filament / tool displacement = area toolpath cross section
         m_mm3_per_mm = area_toolpath_cross_section;
+        // Commanded volume per mm (screw), differs from the bead on charged ERS ramp pieces.
+        m_screw_mm3_per_mm = volume_extruded_filament / delta_xyz;
 #if ENABLE_GCODE_VIEWER_DATA_CHECKING
         m_mm3_per_mm_compare.update(area_toolpath_cross_section, m_extrusion_role);
 #endif // ENABLE_GCODE_VIEWER_DATA_CHECKING
@@ -3190,6 +3193,7 @@ void  GCodeProcessor::process_G2_G3(const GCodeReader::GCodeLine& line)
         }
         //BBS: volume extruded filament / tool displacement = area toolpath cross section
         m_mm3_per_mm = area_toolpath_cross_section;
+        m_screw_mm3_per_mm = area_toolpath_cross_section;
 #if ENABLE_GCODE_VIEWER_DATA_CHECKING
         m_mm3_per_mm_compare.update(area_toolpath_cross_section, m_extrusion_role);
 #endif // ENABLE_GCODE_VIEWER_DATA_CHECKING
@@ -5003,6 +5007,7 @@ void GCodeProcessor::store_move_vertex(EMoveType type, EMovePathType path_type)
         path_type,
         Vec3f(m_arc_center(0, 0) + m_x_offset, m_arc_center(1, 0) + m_y_offset, m_arc_center(2, 0)) + m_extruder_offsets[m_extruder_id],
         m_interpolation_points,
+        m_screw_mm3_per_mm,
     });
 
     if (type == EMoveType::Seam) {

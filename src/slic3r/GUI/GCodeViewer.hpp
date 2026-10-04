@@ -46,6 +46,8 @@ class GCodeViewer
     static const std::vector<ColorRGBA> Options_Colors;
     static const std::vector<ColorRGBA> Travel_Colors;
     static const std::vector<ColorRGBA> Range_Colors;
+    // Ginger: colors of the screw reverse branch of the "Screw flow" view (light -> strong reverse).
+    static const std::vector<ColorRGBA> Reverse_Colors;
     static const ColorRGBA              Wipe_Color;
     static const ColorRGBA              Neutral_Color;
 
@@ -220,6 +222,7 @@ class GCodeViewer
         float fan_speed{ 0.0f };
         float temperature{ 0.0f };
         float volumetric_rate{ 0.0f };
+        float screw_rate{ 0.0f };
         float layer_time{ 0.0f };
         unsigned char extruder_id{ 0 };
         unsigned char cp_color_id{ 0 };
@@ -425,6 +428,8 @@ class GCodeViewer
             Range fan_speed;
             // Color mapping by volumetric extrusion rate.
             Range volumetric_rate;
+            // Ginger: color mapping by the volumetric rate commanded to the screw (may be negative).
+            Range screw_rate;
             // Color mapping by extrusion temperature.
             Range temperature;
             // Color mapping by layer time.
@@ -436,6 +441,7 @@ Range layer_duration_log;
                 feedrate.reset();
                 fan_speed.reset();
                 volumetric_rate.reset();
+                screw_rate.reset();
                 temperature.reset();
                 layer_duration.reset();
                 layer_duration_log.reset(true);
@@ -720,6 +726,8 @@ public:
         FilamentId,
         LayerTime,
         LayerTimeLog,
+        // Ginger: volumetric rate commanded to the screw by the G-code E (bead geometry unchanged).
+        ScrewRate,
         Count
     };
 
@@ -884,6 +892,9 @@ private:
     //BBS: always load shell at preview
     //void load_shells(const Print& print);
     void refresh_render_paths(bool keep_sequential_current_first, bool keep_sequential_current_last) const;
+    // Ginger: diverging color of the "Screw flow" view: Range_Colors over [max(min, 0), max] for
+    // forward flow, Reverse_Colors over [min, 0) for the screw reversing.
+    ColorRGBA screw_rate_color(float value) const;
     void render_toolpaths();
     void render_shells(int canvas_width, int canvas_height);
 

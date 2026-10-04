@@ -152,7 +152,11 @@ GingerSlicer. Each entry points to the primary source file when applicable.
   negative, and computes width/flow rate from `e0` — the preview shows the
   bead flow ramp, while filament usage keeps the commanded E. Point
   retracts (`G1 E-…`) and wipes carry no token and are classified as
-  before.
+  before. The **Screw flow** preview view (`EViewType::ScrewRate`,
+  `MoveVertex::screw_rate()`) colors the same bead geometry by the flow
+  commanded to the screw instead: forward on the usual scale, reverse
+  (negative E) on a separate pink→purple scale; the hover tooltip shows
+  both bead flow and screw flow.
 
 - **Feedrate quantization** — `push_line_to_output` rounds every re-emitted
   feedrate to **0.1 mm/s** (was 1 mm/s upstream). With pellet bead

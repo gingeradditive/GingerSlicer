@@ -179,8 +179,14 @@ class Print;
             EMovePathType move_path_type{ EMovePathType::Noop_move };
             Vec3f arc_center_position{ Vec3f::Zero() };      // mm
             std::vector<Vec3f> interpolation_points;     // interpolation points of arc for drawing
+            // Ginger: volume per mm commanded by the G-code E (the screw). Equals mm3_per_mm except
+            // on pellet ERS ramp pieces, whose bead (mm3_per_mm, from the e0 tag) differs from the
+            // command by the reservoir charge; negative while the screw reverses.
+            float screw_mm3_per_mm{ 0.0f };
 
             float volumetric_rate() const { return feedrate * mm3_per_mm; }
+            // Ginger: volumetric rate commanded to the screw (mm³/s), negative in reverse.
+            float screw_rate() const { return feedrate * screw_mm3_per_mm; }
             //BBS: new function to support arc move
             bool is_arc_move_with_interpolation_points() const {
                 return (move_path_type == EMovePathType::Arc_move_ccw || move_path_type == EMovePathType::Arc_move_cw) && interpolation_points.size();
@@ -709,6 +715,7 @@ class Print;
         float m_forced_width; // mm
         float m_forced_height; // mm
         float m_mm3_per_mm;
+        float m_screw_mm3_per_mm;
         float m_travel_dist; // mm
         float m_fan_speed; // percentage
         float m_z_offset; // mm

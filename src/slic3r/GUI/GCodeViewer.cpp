@@ -80,6 +80,8 @@ static std::string get_view_type_string(GCodeViewer::EViewType view_type)
         return _u8L("Layer Time");
 else if (view_type == GCodeViewer::EViewType::LayerTimeLog)
         return _u8L("Layer Time (log)");
+    else if (view_type == GCodeViewer::EViewType::ScrewRate)
+        return _u8L("Screw flow");
     return "";
 }
 
@@ -191,7 +193,9 @@ bool GCodeViewer::Path::matches(const GCodeProcessorResult::MoveVertex& move) co
         return type == move.type && extruder_id == move.extruder_id && cp_color_id == move.cp_color_id && role == move.extrusion_role &&
             move.position.z() <= sub_paths.front().first.position.z() && feedrate == move.feedrate && fan_speed == move.fan_speed &&
             height == round_to_bin(move.height) && width == round_to_bin(move.width) &&
-            matches_percent(volumetric_rate, move.volumetric_rate(), 0.05f) && layer_time == move.layer_duration;
+            matches_percent(volumetric_rate, move.volumetric_rate(), 0.05f) && layer_time == move.layer_duration &&
+            // Ginger: the screw command may be negative, compare with an absolute floor
+            std::abs(move.screw_rate() - screw_rate) <= 0.05f * std::max(std::abs(screw_rate), 1.0f);
     }
     case EMoveType::Travel: {
         return type == move.type && feedrate == move.feedrate && extruder_id == move.extruder_id && cp_color_id == move.cp_color_id;
@@ -225,7 +229,7 @@ void GCodeViewer::TBuffer::add_path(const GCodeProcessorResult::MoveVertex& move
     paths.push_back({ move.type, move.extrusion_role, move.delta_extruder,
         round_to_bin(move.height), round_to_bin(move.width),
         move.feedrate, move.fan_speed, move.temperature,
-        move.volumetric_rate(), move.layer_duration, move.extruder_id, move.cp_color_id, { { endpoint, endpoint } } });
+        move.volumetric_rate(), move.screw_rate(), move.layer_duration, move.extruder_id, move.cp_color_id, { { endpoint, endpoint } } });
 }
 
 ColorRGBA GCodeViewer::Extrusions::Range::get_color_at(float value) const
@@ -359,6 +363,7 @@ void GCodeViewer::SequentialView::Marker::render(int canvas_width, int canvas_he
     std::string width = ImGui::ColorMarkerStart + _u8L("Width: ") + ImGui::ColorMarkerEnd;
     std::string speed = ImGui::ColorMarkerStart + _u8L("Speed: ") + ImGui::ColorMarkerEnd;
     std::string flow = ImGui::ColorMarkerStart + _u8L("Flow: ") + ImGui::ColorMarkerEnd;
+    std::string screw = ImGui::ColorMarkerStart + _u8L("Screw: ") + ImGui::ColorMarkerEnd;
     std::string layer_time = ImGui::ColorMarkerStart + _u8L("Layer Time: ") + ImGui::ColorMarkerEnd;
     std::string fanspeed = ImGui::ColorMarkerStart + _u8L("Fan: ") + ImGui::ColorMarkerEnd;
     std::string temperature = ImGui::ColorMarkerStart + _u8L("Temperature: ") + ImGui::ColorMarkerEnd;
@@ -413,6 +418,19 @@ void GCodeViewer::SequentialView::Marker::render(int canvas_width, int canvas_he
         if (m_curr_move.type != EMoveType::Extrude) break;
         ImGui::SameLine(startx2);
         sprintf(buf, "%s%.2f", flow.c_str(), m_curr_move.volumetric_rate());
+        ImGui::PushItemWidth(item_size);
+        imgui.text(buf);
+        break;
+    }
+    case EViewType::ScrewRate: {
+        // Ginger: bead flow next to the flow commanded to the screw.
+        if (m_curr_move.type != EMoveType::Extrude) break;
+        ImGui::SameLine(startx2);
+        sprintf(buf, "%s%.2f", flow.c_str(), m_curr_move.volumetric_rate());
+        ImGui::PushItemWidth(item_size);
+        imgui.text(buf);
+        ImGui::SameLine(startx3);
+        sprintf(buf, "%s%.2f", screw.c_str(), m_curr_move.screw_rate());
         ImGui::PushItemWidth(item_size);
         imgui.text(buf);
         break;
@@ -736,6 +754,16 @@ const std::vector<ColorRGBA> GCodeViewer::Range_Colors{ {
     decode_color_to_float_array("#942616")   // dark red
 }};
 
+// Ginger: screw reverse branch of the "Screw flow" view, from barely reversing to the strongest
+// reverse of the print. Hues kept away from Range_Colors so reverse never reads as low flow.
+const std::vector<ColorRGBA> GCodeViewer::Reverse_Colors{ {
+    decode_color_to_float_array("#f3c6f0"),  // light pink
+    decode_color_to_float_array("#e08fe0"),
+    decode_color_to_float_array("#c45cd0"),  // magenta
+    decode_color_to_float_array("#9632b4"),
+    decode_color_to_float_array("#5e1480")   // deep purple
+}};
+
 const ColorRGBA GCodeViewer::Wipe_Color    = ColorRGBA::YELLOW();
 const ColorRGBA GCodeViewer::Neutral_Color = ColorRGBA::DARK_GRAY();
 
@@ -879,6 +907,7 @@ void GCodeViewer::update_by_mode(ConfigOptionMode mode)
     view_type_items.push_back(EViewType::Height);
     view_type_items.push_back(EViewType::Width);
     view_type_items.push_back(EViewType::VolumetricRate);
+    view_type_items.push_back(EViewType::ScrewRate);
     view_type_items.push_back(EViewType::LayerTime);
 view_type_items.push_back(EViewType::LayerTimeLog);
     view_type_items.push_back(EViewType::FanSpeed);
@@ -1137,6 +1166,11 @@ void GCodeViewer::refresh(const GCodeProcessorResult& gcode_result, const std::v
                     if (curr.extrusion_role != erCustom || is_visible(erCustom))
                         m_extrusions.ranges.volumetric_rate.update_from(round_to_bin(curr.volumetric_rate()));
                 }
+            }
+            // Ginger: screw command, negative while reversing (round_to_bin expects a positive value).
+            if (curr.travel_dist > 0.01 && (curr.extrusion_role != erCustom || is_visible(erCustom))) {
+                const float screw_rate = curr.screw_rate();
+                m_extrusions.ranges.screw_rate.update_from(screw_rate < 0.f ? -round_to_bin(-screw_rate) : round_to_bin(screw_rate));
             }
 
             if (curr.layer_duration > 0.f) {
@@ -2798,6 +2832,22 @@ void GCodeViewer::load_shells(const Print& print, bool initialized, bool force_p
         % m_shells.print_id % m_shells.print_modify_count % object_count %m_shells.volumes.volumes.size();
 }
 
+ColorRGBA GCodeViewer::screw_rate_color(float value) const
+{
+    const Extrusions::Range &range = m_extrusions.ranges.screw_rate;
+    if (value >= 0.f || range.min >= 0.f) {
+        // Forward flow: same scale as the flow view, starting at 0 when the print also reverses.
+        Extrusions::Range forward = range;
+        forward.min = std::max(forward.min, 0.f);
+        return forward.get_color_at(value);
+    }
+    // Reverse: 0 -> light, most negative of the print -> strongest.
+    const float  t      = std::clamp(value / range.min, 0.f, 1.f) * static_cast<float>(Reverse_Colors.size() - 1);
+    const size_t low_id = std::min(static_cast<size_t>(t), Reverse_Colors.size() - 1);
+    const size_t hi_id  = std::min(low_id + 1, Reverse_Colors.size() - 1);
+    return lerp(Reverse_Colors[low_id], Reverse_Colors[hi_id], t - static_cast<float>(low_id));
+}
+
 void GCodeViewer::refresh_render_paths(bool keep_sequential_current_first, bool keep_sequential_current_last) const
 {
 #if ENABLE_GCODE_VIEWER_STATISTICS
@@ -2818,6 +2868,7 @@ void GCodeViewer::refresh_render_paths(bool keep_sequential_current_first, bool 
         case EViewType::LayerTime:      { color = m_extrusions.ranges.layer_duration.get_color_at(path.layer_time); break; }
         case EViewType::LayerTimeLog:   { color = m_extrusions.ranges.layer_duration_log.get_color_at(path.layer_time); break; }
         case EViewType::VolumetricRate: { color = m_extrusions.ranges.volumetric_rate.get_color_at(path.volumetric_rate); break; }
+        case EViewType::ScrewRate:      { color = screw_rate_color(path.screw_rate); break; }
         case EViewType::Tool:           { color = m_tools.m_tool_colors[path.extruder_id]; break; }
         case EViewType::ColorPrint:     {
             if (path.cp_color_id >= static_cast<unsigned char>(m_tools.m_tool_colors.size()))
@@ -4490,6 +4541,7 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
     case EViewType::VolumetricRate: { imgui.title(_u8L("Volumetric flow rate (mm³/s)")); break; }
     case EViewType::LayerTime:      { imgui.title(_u8L("Layer Time")); break; }
     case EViewType::LayerTimeLog:   { imgui.title(_u8L("Layer Time (log)")); break; }
+    case EViewType::ScrewRate:      { imgui.title(_u8L("Screw flow rate (mm³/s)")); break; }
 
     case EViewType::Tool:
     {
@@ -4647,6 +4699,22 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
     case EViewType::LayerTime:      { append_range(m_extrusions.ranges.layer_duration, 2); break; }
     case EViewType::LayerTimeLog:   { append_range(m_extrusions.ranges.layer_duration_log, 2); break; }
     case EViewType::VolumetricRate: { append_range(m_extrusions.ranges.volumetric_rate, 2); break; }
+    case EViewType::ScrewRate: {
+        // Ginger: forward branch on the usual scale, then the reverse branch (negative values).
+        const Extrusions::Range &range = m_extrusions.ranges.screw_rate;
+        Extrusions::Range forward = range;
+        forward.min = std::max(forward.min, 0.f);
+        append_range(forward, 2);
+        if (range.min < 0.f) {
+            char buf[64];
+            const int n = static_cast<int>(Reverse_Colors.size());
+            for (int i = 1; i < n; ++i) {
+                ::sprintf(buf, "%.2f", range.min * static_cast<float>(i) / static_cast<float>(n - 1));
+                append_item(EItemType::Rect, Reverse_Colors[i], { { buf, 0 } });
+            }
+        }
+        break;
+    }
     case EViewType::Tool:
     {
         // shows only extruders actually used
@@ -4846,6 +4914,13 @@ void GCodeViewer::render_legend(float &legend_height, int canvas_width, int canv
             unit = " mm\xC2\xB3/s";
             active_range = &m_extrusions.ranges.volumetric_rate;
             show_value = value > 0.f;
+            break;
+        case EViewType::ScrewRate:
+            // Ginger: diverging scale, no single Range to hand to the generic code below.
+            if (curr.type == EMoveType::Extrude) {
+                ::sprintf(val_buf, "%.2f mm\xC2\xB3/s", curr.screw_rate());
+                append_item(EItemType::Rect, screw_rate_color(curr.screw_rate()), { { _u8L("Current layer") + ": " + std::string(val_buf), 0 } });
+            }
             break;
         case EViewType::LayerTime:
             if (top_layer_idx < time_mode.layers_times.size()) {
