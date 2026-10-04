@@ -45,7 +45,7 @@ inline double calib_sweep_effective_step(const Calib_Params &params, size_t laye
 inline bool calib_is_ers_param(const std::string &key)
 {
     return key == "max_volumetric_extrusion_rate_slope" || key == "pellet_ers_deceleration_slope" ||
-           key == "pellet_ers_min_rate" || key == "pellet_ers_ramp_profile" ||
+           key == "pellet_ers_min_rate" ||
            key == "pellet_ers_rampup_flow" || key == "pellet_ers_rampdown_flow" ||
            key == "pellet_ers_pressure_tau";
 }

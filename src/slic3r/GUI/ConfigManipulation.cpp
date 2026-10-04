@@ -545,7 +545,6 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     toggle_line("pellet_ers_mode", have_volumetric_extrusion_rate_slope);
     bool have_pellet_ers_mode = have_volumetric_extrusion_rate_slope && config->opt_bool("pellet_ers_mode");
     toggle_line("pellet_ers_travel_threshold_mm", have_pellet_ers_mode);
-    toggle_line("pellet_ers_ramp_profile", have_pellet_ers_mode);
     toggle_line("pellet_ers_deceleration_slope", have_pellet_ers_mode);
     toggle_line("pellet_ers_min_rate", have_pellet_ers_mode);
     toggle_line("pellet_ers_pressure_tau", have_pellet_ers_mode);

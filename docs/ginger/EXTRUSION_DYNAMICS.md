@@ -119,18 +119,20 @@ knowledge, the first open implementation.
 The theory above maps 1:1 onto what `PressureEqualizer` does in pellet mode:
 
 1. **Command shaping (ERS ramps)** — bounds `|dQ/dt| ≤ slope` so the screw
-   is never asked to do the impossible. The **Sqrt profile is the
-   slope-exact shape** (constant dQ/dt along the ramp — the kinematic law);
-   the configured slope should approximate the screw's real tracking limit,
+   is never asked to do the impossible. The ramp follows the kinematic law
+   (constant dQ/dt along the ramp), further bounded by the screw limits when
+   τ > 0 (see *Physically achievable ramps* below); the configured slope should approximate the screw's real tracking limit,
    calibrated per nozzle with the sweep tool.
 2. **First-order inversion (τ compensation)** — `pellet_ers_pressure_tau`
-   scales the extruded amount per ramp segment:
-   `E_scale = 1 ± τ·slope/Q(x)`. This is the discrete, slicer-side
-   equivalent of ORNL's lead-filter numerator (`u + τ·du/dt`) and of
-   firmware pressure advance — but firmware-agnostic and applied exactly
-   where the G-code already gets rewritten. During ramp-up the extra
-   material charges the reservoir; during ramp-down the stored pressure
-   supplies the bead.
+   adds the reservoir charge to every ramp piece: `E = E_nominal +
+   τ·(Q_end − Q_start)`. Integrated over a piece this is exactly ORNL's
+   lead-filter numerator (`u + τ·du/dt`) — the discrete, slicer-side
+   equivalent of firmware pressure advance, but for screw dynamics and
+   applied exactly where the G-code already gets rewritten. The charge
+   telescopes across pieces and lines: a whole ramp gets `τ·ΔQ`
+   independently of the segmentation. During ramp-up the extra material
+   charges the reservoir; during ramp-down the stored pressure supplies the
+   bead.
 3. **Residual trim** — `pellet_ers_rampup_flow` / `pellet_ers_rampdown_flow`
    (%) multiply on top, absorbing what the linear model misses
    (shear-thinning τ(Q), screw feed non-linearity, temperature drift).
@@ -141,20 +143,50 @@ The theory above maps 1:1 onto what `PressureEqualizer` does in pellet mode:
    τ ≈ 0.06–0.09 s (large nozzle) suggests the expected order of magnitude;
    expect substantially larger values on the 1–2 mm nozzles.
 
-### Saturation condition
+### Physically achievable ramps (pellet RampLaw)
 
-The ramp-down compensation `1 − τ·s/Q` goes **negative** when
-`τ·slope > Q`: the model would demand suction, which the E-scaling clamps
-at 5%. The compensation is therefore complete only while
+The screw command `Qin = Q + τ·dQ/dt` must stay within `[−R, Qmax]`
+(`Qmax = filament_max_volumetric_speed`, `R` = `retraction_speed` as a
+volumetric reverse rate: a pellet screw can decompress while the head
+moves). Instead of clipping the material
+(which just moves the defect elsewhere), the **ramp itself is shaped** —
+only the feedrate changes, the volume per mm is never reduced:
 
 ```
-τ · slope_eff ≤ min_rate
+ramp-up:   dQ/dt ≤ min(slope, (Qmax − Q)/τ)     exponential approach near Qmax
+ramp-down: |dQ/dt| ≤ min(slope_dec, (Q + R)/τ)  below τ·slope_dec − R: screw
+                                                reversing at R, reservoir draining
 ```
 
-(e.g. min_rate 50 mm³/s and slope 50 mm³/s² → τ usable up to ~1 s). If the
-calibrated τ exceeds this bound, the ramp tail stays under-compensated:
-raise `pellet_ers_min_rate` or lower the slope. Verified empirically with
-the invariant checker at τ = 2 s (clamped tail, residual over-extrusion).
+Both laws have closed-form path lengths (`RampLaw::dist`) and are inverted
+by bisection (`RampLaw::q_hi`); with τ = 0 they reduce to the constant-slope
+law `Q² = Q0² + 2·slope·area·x`. When the steady flow equals `Qmax` the
+approach would be asymptotic, so the ceiling gets 2% headroom over the
+target. The ramp-down tail lasts `τ·ln((Q_s + R)/(Q_end + R))` with
+`Q_s = τ·slope_dec − R`: without reverse (R = 0) a large τ gives
+multi-second tails (≈10 s at τ = 2 s), which is why the reverse is allowed.
+On those pieces E is negative. They carry the nominal bead E in their tag
+(`e0=`), which the G-code preview uses to draw them as extrusions with the
+bead flow rate (a plain XY move with negative E would be drawn as travel).
+
+History: until 2026-10-03 the charge was a per-segment factor
+`1 ± τ·slope/Q` clamped to [5%, 4×]. The 4× cap cut the charge exactly at
+the ramp start (needed 5–16× near min rate), the midpoint discretization
+over-charged the first piece, and the 5% floor left the reservoir charged at
+every path end. Simulating the reservoir on the sliced G-code with a real
+τ of 0.5 s: the τ = 0 G-code gives ~60% bead along the whole ramp-up (plus
+a standstill blob when `retract_restart_extra` > 0); the RampLaw version
+with τ = 0.5 s stays within 89–102% from the first millimetre.
+
+**Reservoir state at the ramp start.** Boundary ramps end at
+`max(pellet_ers_min_rate, flow at the 1 mm/s feedrate floor)` — the same
+value at the end of a ramp-down and at the start of the next ramp-up — so a
+neutral retract cycle (unretract = retract) hands the ramp-up exactly the
+state `τ·Q_end` the ramp-down left; the "only τ" goal needs no
+`retract_restart_extra`. For this to hold the outermost pieces must emit a
+flow close to the ramp end flow: boundary ramps are therefore split by flow
+change too (at most 1.5× per piece), not only by length — with a large τ
+the flow can rise by an order of magnitude within the first millimetre.
 
 ### Known limits / future work
 

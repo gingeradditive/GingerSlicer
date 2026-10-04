@@ -4803,7 +4803,7 @@ int CLI::run(int argc, char **argv)
                                     calib_is_gcode_param(params.sweep_param))) {
                         BOOST_LOG_TRIVIAL(error) << "--sweep: unsupported parameter \"" << params.sweep_param
                             << "\". Supported: max_volumetric_extrusion_rate_slope, pellet_ers_deceleration_slope,"
-                               " pellet_ers_min_rate, pellet_ers_ramp_profile, pellet_ers_rampup_flow,"
+                               " pellet_ers_min_rate, pellet_ers_rampup_flow,"
                                " pellet_ers_rampdown_flow, pellet_ers_pressure_tau, retraction_length,"
                                " retraction_speed, deretraction_speed, retract_restart_extra,"
                                " wipe_distance, wipe_speed" << std::endl;

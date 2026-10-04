@@ -2654,12 +2654,32 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line, const std::o
     if (max_abs_delta == 0.0f)
         return;
 
+    // Ginger pellet ERS: ramp pieces carrying a melt-reservoir charge are tagged
+    // ";_ERS_RAMPUP e0=<E>" / ";_ERS_RAMPDOWN e0=<E>" by the PressureEqualizer, e0 being the
+    // nominal (bead) E. The commanded E adds the charge and turns negative on a ramp-down tail
+    // (the screw decompresses while the head keeps moving and the reservoir lays the bead):
+    // such a move is still an extrusion. Width and flow rate are shown from the bead E, the
+    // usage statistics keep the commanded E. Point retracts and wipes carry no tag.
+    float ers_bead_e = 0.0f;
+    {
+        const std::string_view comment = line.comment();
+        if (comment.find("_ERS_RAMP") != std::string_view::npos) {
+            const size_t pos = comment.find(" e0=");
+            if (pos != std::string_view::npos)
+                ers_bead_e = std::strtof(std::string(comment.substr(pos + 4)).c_str(), nullptr);
+        }
+    }
+
     EMoveType type = move_type(delta_pos);
+    if (ers_bead_e > 0.0f && !m_wiping && (delta_pos[X] != 0.0f || delta_pos[Y] != 0.0f))
+        type = EMoveType::Extrude;
     if (type == EMoveType::Extrude) {
         const float delta_xyz = std::sqrt(sqr(delta_pos[X]) + sqr(delta_pos[Y]) + sqr(delta_pos[Z]));
         m_travel_dist = delta_xyz;
         float volume_extruded_filament = area_filament_cross_section * delta_pos[E];
-        float area_toolpath_cross_section = volume_extruded_filament / delta_xyz;
+        // E of the deposited bead (see the ERS tag above), drives width and flow rate.
+        const float bead_e = ers_bead_e > 0.0f ? ers_bead_e : delta_pos[E];
+        float area_toolpath_cross_section = area_filament_cross_section * bead_e / delta_xyz;
 
         // Accumulate per-layer volume and path length for debug display
         if (m_layer_id > 0) {
@@ -2711,13 +2731,13 @@ void GCodeProcessor::process_G1(const GCodeReader::GCodeLine& line, const std::o
             m_width = m_forced_width;
         else if (m_extrusion_role == erExternalPerimeter)
             // cross section: rectangle
-            m_width = delta_pos[E] * static_cast<float>(M_PI * sqr(1.05f * filament_radius)) / (delta_xyz * m_height);
+            m_width = bead_e * static_cast<float>(M_PI * sqr(1.05f * filament_radius)) / (delta_xyz * m_height);
         else if (m_extrusion_role == erBridgeInfill || m_extrusion_role == erInternalBridgeInfill || m_extrusion_role == erNone)
             // cross section: circle
-            m_width = static_cast<float>(m_result.filament_diameters[m_extruder_id]) * std::sqrt(delta_pos[E] / delta_xyz);
+            m_width = static_cast<float>(m_result.filament_diameters[m_extruder_id]) * std::sqrt(bead_e / delta_xyz);
         else
             // cross section: rectangle + 2 semicircles
-            m_width = delta_pos[E] * static_cast<float>(M_PI * sqr(filament_radius)) / (delta_xyz * m_height) + static_cast<float>(1.0 - 0.25 * M_PI) * m_height;
+            m_width = bead_e * static_cast<float>(M_PI * sqr(filament_radius)) / (delta_xyz * m_height) + static_cast<float>(1.0 - 0.25 * M_PI) * m_height;
 
         if (m_width == 0.0f)
             m_width = DEFAULT_TOOLPATH_WIDTH;

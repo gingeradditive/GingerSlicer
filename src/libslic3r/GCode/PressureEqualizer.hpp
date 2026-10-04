@@ -4,6 +4,7 @@
 #include "../libslic3r.h"
 #include "../PrintConfig.hpp"
 
+#include <cfloat>
 #include <queue>
 
 namespace Slic3r {
@@ -68,20 +69,52 @@ private:
     ExtrusionRateSlope              m_max_volumetric_extrusion_rate_slopes[size_t(ExtrusionRole::erCount)];
     // Effective slopes (mm³/min²) actually used by the passes: derived from the raw
     // configured values by apply_effective_slopes() (deceleration substitution on the
-    // negative side and ramp-profile peak correction, both pellet mode only).
+    // negative side, pellet mode only).
     float                           m_max_volumetric_extrusion_rate_slope_positive;
     float                           m_max_volumetric_extrusion_rate_slope_negative;
     // Raw configured slopes (mm³/min²), kept for the sweep and for re-deriving the
     // effective values when a swept parameter changes.
     float                           m_slope_positive_raw { 0.f };
     float                           m_slope_negative_raw { 0.f };
-    // Derive the effective slopes + per-role table from the raw values, the deceleration
-    // slope and the ramp profile.
+    // Derive the effective slopes + per-role table from the raw values and the deceleration
+    // slope.
     void                            apply_effective_slopes();
 
     // Configuration extracted from config.
     // Area of the crossestion of each filament. Necessary to calculate the volumetric flow rate.
     std::vector<float>              m_filament_crossections;
+    // filament_max_volumetric_speed per extruder (mm³/min, 0 = unlimited). Pellet mode: ceiling
+    // for the screw command Qin = Q + τ·dQ/dt during a ramp-up (see RampLaw).
+    std::vector<float>              m_max_volumetric_speeds;
+    // retraction_speed per extruder as screw reverse rate (mm³/min). Pellet mode: floor for
+    // the screw command during a ramp-down, Qin >= -reverse (decompression while moving).
+    std::vector<float>              m_max_reverse_rates;
+
+    // Pellet ramp law: the flow Q(x) along a boundary ramp under the first-order melt reservoir
+    // model τ·dQ/dt + Q = Qin. The screw command must stay physically achievable:
+    //   ramp-up:   Qin = Q + τ·dQ/dt <= Qmax  ->  dQ/dt <= min(slope, (Qmax - Q)/τ)
+    //   ramp-down: Qin = Q - τ·|dQ/dt| >= -R  ->  |dQ/dt| <= min(slope, (Q + R)/τ)
+    // where R is the screw reverse rate (retraction_speed): the screw may decompress while the
+    // head keeps moving, so the ramp-down tail stays short even with a large τ.
+    // Only the feedrate follows the law (Q = area·F): the extruded volume per mm stays nominal,
+    // the reservoir charge τ·ΔQ is added on top at output time. With τ = 0 it degenerates to the
+    // constant-slope law Q² = Q0² + 2·slope·area·x used by the native passes.
+    struct RampLaw {
+        double slope { 0. };      // mm³/min²
+        double tau   { 0. };      // min
+        double qmax  { DBL_MAX }; // mm³/min, ramp-up only
+        double rev   { 0. };      // mm³/min, ramp-down only: max screw reverse rate
+        double area  { 1. };      // mm², Q = area * F
+        bool   up    { true };
+        // Path length (mm) spent while the flow moves across [lo, hi].
+        double dist(double lo, double hi) const;
+        // Flow at the high end of a stretch of length x whose low end is at lo. For a ramp-up
+        // that is the flow after x mm; for a ramp-down it is the flow x mm BEFORE reaching lo.
+        double q_hi(double lo, double x) const;
+    };
+    // Law for a line with nominal rate `target` (mm³/min) and nominal feedrate `feedrate`.
+    // tau_aware = false gives the plain constant-slope law (native ERS transitions).
+    RampLaw make_ramp_law(bool up, float slope, float target, float feedrate, size_t extruder_id, bool tau_aware) const;
 
     // Internal data.
     // X,Y,Z,E,F
@@ -102,8 +135,6 @@ private:
     bool                           m_pellet_ers_mode { false };
     // Travel threshold below which ramp-up/ramp-down is skipped (treated as continuous)
     float                          m_pellet_ers_travel_threshold { 3.0f };
-    // Feedrate interpolation curve shape during ramp-up/ramp-down
-    PelletERSRampProfile           m_pellet_ers_ramp_profile { PelletERSRampProfile::Sqrt };
     // Separate deceleration slope (mm³/min²). 0 = use main slope for both directions.
     float                          m_pellet_ers_deceleration_slope { 0.f };
     // Minimum volumetric rate at ramp boundaries (mm³/min, converted from mm³/s at init)
@@ -123,13 +154,12 @@ private:
     // Parameter sweep (CalibMode::Calib_Param_Sweep): which ERS parameter is varied
     // layer by layer from sweep_start towards sweep_end, changing by sweep_step at
     // every layer. Values are in user units (mm³/s² for slopes, mm³/s for min rate,
-    // 0/1/2 = linear/sqrt/exponential for the ramp profile).
+    // % for the flow trims, s for tau).
     enum class SweepParam {
         None,         // sweep disabled or handled elsewhere
         Slope,        // max_volumetric_extrusion_rate_slope
         DecelSlope,   // pellet_ers_deceleration_slope
         MinRate,      // pellet_ers_min_rate
-        RampProfile,  // pellet_ers_ramp_profile
         RampupFlow,   // pellet_ers_rampup_flow (%)
         RampdownFlow, // pellet_ers_rampdown_flow (%)
         PressureTau,  // pellet_ers_pressure_tau (s)
@@ -151,7 +181,6 @@ private:
         float                slope_negative;   // raw, mm³/min²
         float                decel_slope;      // raw, mm³/min²
         float                min_rate;         // mm³/min
-        PelletERSRampProfile ramp_profile;
         float                rampup_flow;      // factor, 1.0 = off
         float                rampdown_flow;    // factor, 1.0 = off
         float                pressure_tau;     // seconds, 0 = off
@@ -305,7 +334,10 @@ private:
     inline void push_to_output(const std::string &text, bool add_eol);
     inline void push_to_output(const char *text, size_t len, bool add_eol = true);
     // Push a G-code line to the output.
-    void push_line_to_output(size_t line_idx, float new_feedrate, const char *comment, const char *ers_tag = nullptr);
+    // q_start/q_end (mm³/min): flow at the two ends of this piece along a pellet ramp. When both
+    // are given on a ramp piece, the reservoir charge τ·(q_end - q_start) is added to its E.
+    void push_line_to_output(size_t line_idx, float new_feedrate, const char *comment, const char *ers_tag = nullptr,
+                             float q_start = -1.f, float q_end = -1.f);
 
 public:
     std::queue<LayerResult*> m_layer_results;

@@ -99,6 +99,11 @@ struct PEProfile {
 // lines where some extruder pressure will remain (so we should equalize between these small travels)
 static constexpr long max_ignored_gap_between_extruding_segments = 3;
 
+// Lowest feedrate push_line_to_output emits (mm/min). In pellet mode the boundary ramps end at
+// max(pellet_ers_min_rate, flow at this feedrate): a ramp drawn below it would be emitted at
+// this speed anyway, leaving the bead and the reservoir charge reference out of step.
+static constexpr float min_emitted_feedrate = 60.f;
+
 PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config, const Calib_Params *calib_params) : m_use_relative_e_distances(config.use_relative_e_distances.value)
 {
     // Preallocate some data, so that output_buffer.data() will return an empty string.
@@ -121,6 +126,15 @@ PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config, const Ca
         double a = 0.25f * M_PI * r * r;
         m_filament_crossections.push_back(float(a));
     }
+    m_max_volumetric_speeds.clear();
+    for (double q : config.filament_max_volumetric_speed.values)
+        m_max_volumetric_speeds.push_back(float(std::max(q, 0.)) * 60.f); // mm³/s → mm³/min
+    m_max_reverse_rates.clear();
+    for (size_t i = 0; i < config.retraction_speed.values.size(); ++ i) {
+        const float crossection = m_filament_crossections.empty() ? 1.f :
+                                  m_filament_crossections[std::min(i, m_filament_crossections.size() - 1)];
+        m_max_reverse_rates.push_back(float(std::max(config.retraction_speed.values[i], 0.)) * crossection * 60.f); // mm/s → mm³/min
+    }
 
     // Volumetric rate of a 0.45mm x 0.2mm extrusion at 60mm/s XY movement: 0.45*0.2*60*60=5.4*60 = 324 mm^3/min
     // Volumetric rate of a 0.45mm x 0.2mm extrusion at 20mm/s XY movement: 0.45*0.2*20*60=1.8*60 = 108 mm^3/min
@@ -136,7 +150,6 @@ PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config, const Ca
         // scarf-seam split of a loop) would otherwise trigger a full ramp-down/ramp-up
         // cycle across a zero-length gap, plunging the flow far below the minimum rate.
         m_pellet_ers_travel_threshold = std::max(float(config.pellet_ers_travel_threshold_mm.value), 0.05f);
-        m_pellet_ers_ramp_profile = config.pellet_ers_ramp_profile.value;
         m_pellet_ers_deceleration_slope = float(config.pellet_ers_deceleration_slope.value) * 60.f * 60.f; // mm³/s² → mm³/min²
         m_pellet_ers_min_rate = float(config.pellet_ers_min_rate.value) * 60.f; // mm³/s → mm³/min
         if (m_pellet_ers_mode) {
@@ -387,19 +400,88 @@ long PressureEqualizer::advance_segment_beyond_small_gap(const long idx_orig)
      return idx_orig;
 }
 
+double PressureEqualizer::RampLaw::dist(double lo, double hi) const
+{
+    if (hi <= lo || slope <= 0. || area <= 0.)
+        return 0.;
+    // Constant-slope stretch: Q·dQ = slope·area·dx.
+    auto sqrt_part = [this](double a, double b) { return (b * b - a * a) / (2. * slope * area); };
+    if (tau <= 0.)
+        return sqrt_part(lo, hi);
+    if (up) {
+        // Above qs the screw ceiling binds: dQ/dt = (qmax - Q)/τ.
+        const double qs = qmax - tau * slope;
+        double d = 0.;
+        if (lo < qs)
+            d += sqrt_part(lo, std::min(hi, qs));
+        if (hi > qs) {
+            const double a = std::max(lo, qs);
+            const double b = std::min(hi, qmax * (1. - 1e-9));
+            if (b > a)
+                d += tau * ((a - b) + qmax * std::log((qmax - a) / (qmax - b))) / area;
+        }
+        return d;
+    }
+    // Ramp-down, below qs the screw reverses at its maximum rate R and the reservoir drains:
+    // dQ/dt = -(Q + R)/τ, i.e. dx = τ·Q·dQ / (area·(Q + R)). With R = 0 this is the free
+    // drain, linear in space (dQ/dx = -area/τ).
+    const double qs = tau * slope - rev;
+    double d = 0.;
+    if (lo < qs) {
+        const double b = std::min(hi, qs);
+        d += tau * ((b - lo) - (rev > 0. ? rev * std::log((b + rev) / (lo + rev)) : 0.)) / area;
+    }
+    if (hi > qs)
+        d += sqrt_part(std::max(lo, qs), hi);
+    return d;
+}
+
+double PressureEqualizer::RampLaw::q_hi(double lo, double x) const
+{
+    if (x <= 0. || slope <= 0. || area <= 0.)
+        return lo;
+    // |dQ/dt| <= slope everywhere, so the constant-slope law bounds the result from above.
+    double hi = std::sqrt(lo * lo + 2. * slope * area * x);
+    if (tau <= 0.)
+        return hi;
+    if (up)
+        hi = std::min(hi, qmax * (1. - 1e-9));
+    if (hi <= lo || this->dist(lo, hi) <= x)
+        return hi;
+    double a = lo;
+    for (int i = 0; i < 60; ++ i) {
+        const double m = 0.5 * (a + hi);
+        if (this->dist(lo, m) < x)
+            a = m;
+        else
+            hi = m;
+    }
+    return 0.5 * (a + hi);
+}
+
+PressureEqualizer::RampLaw PressureEqualizer::make_ramp_law(bool up, float slope, float target, float feedrate, size_t extruder_id, bool tau_aware) const
+{
+    RampLaw law;
+    law.up    = up;
+    law.slope = slope;
+    law.area  = (feedrate > 0.f) ? double(target) / double(feedrate) : 1.;
+    if (tau_aware && m_pellet_ers_mode && m_pellet_ers_pressure_tau > 0.f) {
+        law.tau = double(m_pellet_ers_pressure_tau) / 60.; // s → min
+        if (up) {
+            const float qmax = extruder_id < m_max_volumetric_speeds.size() ? m_max_volumetric_speeds[extruder_id] : 0.f;
+            if (qmax > 0.f)
+                // When the target sits at (or above) the ceiling the approach would be asymptotic:
+                // keep a 2% headroom over the target so the ramp completes in finite length.
+                law.qmax = std::max(double(qmax), double(target) / 0.98);
+        } else if (extruder_id < m_max_reverse_rates.size()) {
+            law.rev = m_max_reverse_rates[extruder_id];
+        }
+    }
+    return law;
+}
+
 void PressureEqualizer::apply_effective_slopes()
 {
-    // Ramp profile peak correction (pellet mode): the ramp length is computed for a
-    // constant dQ/dt (the Sqrt law). Linear and Exponential redistribute the same ramp
-    // with local peaks of ~2x / ~3x the average — divide the effective slope so the
-    // instantaneous flow acceleration never exceeds the configured mm³/s² value.
-    float divisor = 1.f;
-    if (m_pellet_ers_mode) {
-        if (m_pellet_ers_ramp_profile == PelletERSRampProfile::Linear)
-            divisor = 2.f;
-        else if (m_pellet_ers_ramp_profile == PelletERSRampProfile::Exponential)
-            divisor = 3.f;
-    }
     // Pellet mode: the deceleration slope (when set) applies to ALL negative transitions,
     // not only to the boundary ramp-downs — the pressure release asymmetry is a property
     // of the screw, not of the travels.
@@ -407,8 +489,8 @@ void PressureEqualizer::apply_effective_slopes()
     if (m_pellet_ers_mode && m_pellet_ers_deceleration_slope > 0.f)
         negative_raw = m_pellet_ers_deceleration_slope;
 
-    m_max_volumetric_extrusion_rate_slope_positive = m_slope_positive_raw / divisor;
-    m_max_volumetric_extrusion_rate_slope_negative = negative_raw / divisor;
+    m_max_volumetric_extrusion_rate_slope_positive = m_slope_positive_raw;
+    m_max_volumetric_extrusion_rate_slope_negative = negative_raw;
     for (ExtrusionRateSlope &extrusion_rate_slope : m_max_volumetric_extrusion_rate_slopes) {
         extrusion_rate_slope.negative = m_max_volumetric_extrusion_rate_slope_negative;
         extrusion_rate_slope.positive = m_max_volumetric_extrusion_rate_slope_positive;
@@ -426,7 +508,6 @@ PressureEqualizer::SweepSnapshot PressureEqualizer::snapshot_sweep_params() cons
              m_slope_negative_raw,
              m_pellet_ers_deceleration_slope,
              m_pellet_ers_min_rate,
-             m_pellet_ers_ramp_profile,
              m_pellet_ers_rampup_flow,
              m_pellet_ers_rampdown_flow,
              m_pellet_ers_pressure_tau };
@@ -438,7 +519,6 @@ void PressureEqualizer::restore_sweep_params(const SweepSnapshot &params)
     m_slope_negative_raw            = params.slope_negative;
     m_pellet_ers_deceleration_slope = params.decel_slope;
     m_pellet_ers_min_rate           = params.min_rate;
-    m_pellet_ers_ramp_profile       = params.ramp_profile;
     m_pellet_ers_rampup_flow        = params.rampup_flow;
     m_pellet_ers_rampdown_flow      = params.rampdown_flow;
     m_pellet_ers_pressure_tau       = params.pressure_tau;
@@ -453,8 +533,6 @@ PressureEqualizer::SweepParam PressureEqualizer::sweep_param_from_key(const std:
         return SweepParam::DecelSlope;
     if (key == "pellet_ers_min_rate")
         return SweepParam::MinRate;
-    if (key == "pellet_ers_ramp_profile")
-        return SweepParam::RampProfile;
     if (key == "pellet_ers_rampup_flow")
         return SweepParam::RampupFlow;
     if (key == "pellet_ers_rampdown_flow")
@@ -488,15 +566,6 @@ std::string PressureEqualizer::sweep_apply_to_snapshot(SweepSnapshot &params, Sw
         params.min_rate = value * 60.f; // mm³/s → mm³/min
         param_name = "min_rate";
         break;
-    case SweepParam::RampProfile: {
-        // Discrete sweep: 0 = linear, 1 = sqrt, 2 = exponential.
-        const int profile_idx = std::clamp(int(std::lround(value)), 0, 2);
-        params.ramp_profile = PelletERSRampProfile(profile_idx);
-        param_name = "ramp_profile";
-        const char *profile_names[] = {"linear", "sqrt", "exponential"};
-        snprintf(value_str, sizeof(value_str), "%s", profile_names[profile_idx]);
-        break;
-    }
     case SweepParam::RampupFlow:
         value = std::clamp(value, 10.f, 300.f); // %
         params.rampup_flow = value * 0.01f;
@@ -943,32 +1012,6 @@ bool PressureEqualizer::process_line(const char *line, const char *line_end, GCo
     return true;
 }
 
-/// Interpolates feedrate at parametric position t ∈ [0,1] within a ramp zone.
-///
-/// @param f_start  Feedrate at zone start (mm/min)
-/// @param f_end    Feedrate at zone end   (mm/min)
-/// @param t        Parametric position within the zone, 0 = start, 1 = end
-/// @param profile  Curve shape selector
-/// @return         Interpolated feedrate (mm/min)
-///
-/// Profile shapes (ramp-up, f_start < f_end):
-///   Linear:      constant acceleration — f(t) = f_start + (f_end - f_start) * t
-///   Sqrt:        kinematic v² = v₀²+2as — fast initial ramp, gentle approach to target
-///   Exponential: first-order response   — fastest initial ramp, asymptotic approach (k=3 → ~95% at t=1)
-///
-/// For ramp-down (f_start > f_end) the same formulas apply; the curve is automatically mirrored.
-static float interpolate_ramp(float f_start, float f_end, float t, PelletERSRampProfile profile)
-{
-    switch (profile) {
-    case PelletERSRampProfile::Sqrt:
-        return sqrtf(f_start * f_start + (f_end * f_end - f_start * f_start) * t);
-    case PelletERSRampProfile::Exponential:
-        return f_end - (f_end - f_start) * expf(-3.f * t);
-    case PelletERSRampProfile::Linear:
-    default:
-        return f_start + (f_end - f_start) * t;
-    }
-}
 void PressureEqualizer::output_gcode_line(const size_t line_idx)
 {
     GCodeLine &line = m_gcode_lines[line_idx];
@@ -1018,170 +1061,126 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
     // is below the target vol_rate, this line needs internal segmentation.
     // Try trapezoidal (ramp-up -> steady@vol_rate -> ramp-down) first.
     // If both ramps don't fit, use triangular (ramp-up meets ramp-down at reduced peak).
-    if (m_pellet_ers_mode && (rate_start < vol_rate * 0.98f || rate_end < vol_rate * 0.98f) && l > 2.f * m_max_segment_length) {
+    // Ramp lengths and the flow inside the ramps follow RampLaw (τ-aware on the pellet boundary
+    // ramps, plain constant slope on native ERS transitions): only the feedrate changes, the
+    // volume per mm stays nominal. Every ramp piece hands its end-point flows to
+    // push_line_to_output, which adds the reservoir charge τ·ΔQ.
+    // Boundary ramp lines (pellet_ramp) always take this path, whatever their length: the
+    // linear fallback below would emit them as coarse pieces.
+    if (m_pellet_ers_mode && (rate_start < vol_rate * 0.98f || rate_end < vol_rate * 0.98f) &&
+        (l > 2.f * m_max_segment_length || line.pellet_ramp)) {
         float slope_pos = line.max_volumetric_extrusion_rate_slope_positive;
         float slope_neg = line.max_volumetric_extrusion_rate_slope_negative;
         if (slope_pos <= 0.f) slope_pos = m_max_volumetric_extrusion_rate_slope_positive;
         if (slope_neg <= 0.f) slope_neg = m_max_volumetric_extrusion_rate_slope_negative;
-        // Ramp distances to reach vol_rate from each end.
-        // Clamp to 0: when rate_start/rate_end >= vol_rate, no ramp is needed on that side
-        // and the formula would produce a negative distance, corrupting position interpolation.
-        float l_rampup  = std::max(0.f, (vol_rate * vol_rate - rate_start * rate_start) * original_feedrate / (2.f * slope_pos * vol_rate));
-        float l_rampdown = std::max(0.f, (vol_rate * vol_rate - rate_end * rate_end) * original_feedrate / (2.f * slope_neg * vol_rate));
+        const RampLaw law_up  = make_ramp_law(true,  slope_pos, vol_rate, original_feedrate, line.extruder_id, line.pellet_ramp);
+        const RampLaw law_dn  = make_ramp_law(false, slope_neg, vol_rate, original_feedrate, line.extruder_id, line.pellet_ramp);
+        const float   area    = float(law_up.area); // mm², Q = area * F
 
+        float pos_orig_start[5], pos_orig_end[5];
+        memcpy(pos_orig_start, line.pos_start, sizeof(float) * 5);
+        memcpy(pos_orig_end, line.pos_end, sizeof(float) * 5);
+        // Move the end of the piece being emitted to the parametric position t of the original line.
+        auto set_end_at = [&](float t) {
+            for (int j = 0; j < 4; ++j) {
+                line.pos_end[j] = pos_orig_start[j] + (pos_orig_end[j] - pos_orig_start[j]) * t;
+                line.pos_provided[j] = true;
+            }
+        };
+        // Flow at distance s into a ramp zone of length len going from q_from to q_to.
+        auto ramp_q = [&](bool up, float q_from, float q_to, float len, float s) -> float {
+            // The ramp-down law is integrated from its low end (q_to) backwards.
+            return up ? std::min(float(law_up.q_hi(q_from, s)), q_to) :
+                        std::min(float(law_dn.q_hi(q_to, len - s)), q_from);
+        };
+        // Emit the ramp zone [x0, x0 + len] (mm from the line start).
+        // Boundary ramps are also split by flow change (at most 1.5x per piece): near the
+        // min-rate end the flow changes by an order of magnitude within the first millimetre,
+        // and a single piece emitted at its midpoint flow would demand a reservoir state far
+        // above the one the previous ramp-down left behind (the charge reference of
+        // push_line_to_output is the emitted flow of the outermost piece).
+        const float q_floor = min_emitted_feedrate * area; // flow at the feedrate floor of push_line_to_output
+        auto emit_ramp = [&](float x0, float len, bool up, float q_from, float q_to) {
+            const size_t nSeg = std::max(size_t(1), size_t(ceil(len / m_max_segment_length)));
+            const float  step = len / float(nSeg);
+            float s1 = 0.f;
+            while (s1 < len - 1e-4f) {
+                const float s0 = s1;
+                s1 = std::min(len, s0 + step);
+                if (line.pellet_ramp) {
+                    const float q0 = ramp_q(up, q_from, q_to, len, s0);
+                    if (up) {
+                        const float q_lim = 1.5f * std::max(q0, q_floor);
+                        if (q_lim < q_to)
+                            s1 = std::min(s1, s0 + float(law_up.dist(q0, q_lim)));
+                    } else if (q0 > 1.5f * q_floor && q0 / 1.5f > q_to) {
+                        s1 = std::min(s1, s0 + float(law_dn.dist(q0 / 1.5f, q0)));
+                    }
+                    s1 = std::min(len, std::max(s1, s0 + 0.01f));
+                }
+                // Fold a sub-0.01 mm remainder into this piece: a sliver emitted on its own
+                // carries a finite charge over a few milliseconds (Qin spike).
+                if (len - s1 < 0.01f)
+                    s1 = len;
+                set_end_at(std::min((x0 + s1) / l, 1.f));
+                const float q_mid = ramp_q(up, q_from, q_to, len, 0.5f * (s0 + s1));
+                push_line_to_output(line_idx, q_mid / area, comment, up ? ";_ERS_RAMPUP" : ";_ERS_RAMPDOWN",
+                                    ramp_q(up, q_from, q_to, len, s0), ramp_q(up, q_from, q_to, len, s1));
+                comment = nullptr;
+                memcpy(line.pos_start, line.pos_end, sizeof(float) * 5);
+            }
+        };
+        // Catch-all: ensure the entire original line is covered.
+        auto emit_rest = [&](float feedrate) {
+            float dx = pos_orig_end[0] - line.pos_start[0];
+            float dy = pos_orig_end[1] - line.pos_start[1];
+            if (dx * dx + dy * dy > 0.0001f) {
+                set_end_at(1.f);
+                push_line_to_output(line_idx, feedrate, comment, ";_ERS_STEADY");
+            }
+        };
+
+        const float l_rampup   = rate_start < vol_rate ? float(law_up.dist(rate_start, vol_rate)) : 0.f;
+        const float l_rampdown = rate_end   < vol_rate ? float(law_dn.dist(rate_end, vol_rate)) : 0.f;
         if (l_rampup + l_rampdown <= l) {
             // === TRAPEZOIDAL PROFILE: ramp-up + steady + ramp-down ===
-            float l_steady = l - l_rampup - l_rampdown;
-            float pos_orig_start[5], pos_orig_end[5];
-            memcpy(pos_orig_start, line.pos_start, sizeof(float) * 5);
-            memcpy(pos_orig_end, line.pos_end, sizeof(float) * 5);
-
-            // --- RAMP-UP zone ---
-            if (l_rampup >= 0.5f * m_max_segment_length) {
-                size_t nSeg = size_t(ceil(l_rampup / m_max_segment_length));
-                float t_rampup_end = l_rampup / l; // parametric position where ramp-up ends
-                float f_start = rate_start * original_feedrate / vol_rate;
-                float f_end   = original_feedrate; // full speed at vol_rate
-                for (size_t i = 1; i <= nSeg; ++i) {
-                    float t_local = float(i) / float(nSeg); // 0..1 within ramp-up
-                    float t_global = t_local * t_rampup_end; // 0..t_rampup_end
-                    for (int j = 0; j < 4; ++j) {
-                        line.pos_end[j] = pos_orig_start[j] + (pos_orig_end[j] - pos_orig_start[j]) * t_global;
-                        line.pos_provided[j] = true;
-                    }
-                    float t_mid = (float(i) - 0.5f) / float(nSeg);
-                    float f_interp = interpolate_ramp(f_start, f_end, t_mid, m_pellet_ers_ramp_profile);
-                    push_line_to_output(line_idx, f_interp, comment, ";_ERS_RAMPUP");
-                    comment = nullptr;
-                    memcpy(line.pos_start, line.pos_end, sizeof(float) * 5);
-                }
-            }
-
-            // --- STEADY zone ---
+            // Ramps are emitted down to 0.01 mm: skipping a short ramp piece would drop its
+            // share of the reservoir charge (the charge telescopes across lines).
+            const float l_steady = l - l_rampup - l_rampdown;
+            if (l_rampup > 0.01f)
+                emit_ramp(0.f, l_rampup, true, rate_start, vol_rate);
             if (l_steady >= 0.5f * m_max_segment_length) {
-                float t_steady_start = l_rampup / l;
-                float t_steady_end   = (l_rampup + l_steady) / l;
-                for (int j = 0; j < 4; ++j) {
-                    line.pos_end[j] = pos_orig_start[j] + (pos_orig_end[j] - pos_orig_start[j]) * t_steady_end;
-                    line.pos_provided[j] = true;
-                }
+                set_end_at((l_rampup + l_steady) / l);
                 push_line_to_output(line_idx, original_feedrate, comment, ";_ERS_STEADY");
                 comment = nullptr;
                 memcpy(line.pos_start, line.pos_end, sizeof(float) * 5);
             }
-
-            // --- RAMP-DOWN zone ---
-            if (l_rampdown >= 0.5f * m_max_segment_length) {
-                size_t nSeg = size_t(ceil(l_rampdown / m_max_segment_length));
-                float f_start = original_feedrate; // full speed at vol_rate
-                float f_end   = rate_end * original_feedrate / vol_rate;
-                for (size_t i = 1; i <= nSeg; ++i) {
-                    float t_local = float(i) / float(nSeg);
-                    float t_global_start = (l_rampup + l_steady) / l;
-                    float t_global = t_global_start + t_local * (l_rampdown / l);
-                    for (int j = 0; j < 4; ++j) {
-                        line.pos_end[j] = pos_orig_start[j] + (pos_orig_end[j] - pos_orig_start[j]) * t_global;
-                        line.pos_provided[j] = true;
-                    }
-                    float t_mid = (float(i) - 0.5f) / float(nSeg);
-                    float f_interp = interpolate_ramp(f_start, f_end, t_mid, m_pellet_ers_ramp_profile);
-                    push_line_to_output(line_idx, f_interp, comment, ";_ERS_RAMPDOWN");
-                    comment = nullptr;
-                    memcpy(line.pos_start, line.pos_end, sizeof(float) * 5);
-                }
-            } else if (l_rampdown > 0.01f) {
-                // Remaining ramp-down too short to segment, emit as final piece
-                for (int j = 0; j < 4; ++j) {
-                    line.pos_end[j] = pos_orig_end[j];
-                    line.pos_provided[j] = true;
-                }
-                float f_avg = rate_end * original_feedrate / vol_rate;
-                push_line_to_output(line_idx, f_avg, comment, ";_ERS_RAMPDOWN");
-                memcpy(line.pos_start, line.pos_end, sizeof(float) * 5);
-            }
-            // Catch-all: ensure the entire original line is covered.
-            // If short steady/ramp-down zones were skipped due to minimum length
-            // filtering, emit one final segment to reach the original endpoint.
-            {
-                float dx = pos_orig_end[0] - line.pos_start[0];
-                float dy = pos_orig_end[1] - line.pos_start[1];
-                if (dx * dx + dy * dy > 0.0001f) {
-                    for (int j = 0; j < 4; ++j) {
-                        line.pos_end[j] = pos_orig_end[j];
-                        line.pos_provided[j] = true;
-                    }
-                    push_line_to_output(line_idx, original_feedrate, comment, ";_ERS_STEADY");
-                }
-            }
+            if (l_rampdown > 0.01f)
+                emit_ramp(l - l_rampdown, l_rampdown, false, vol_rate, rate_end);
+            emit_rest(original_feedrate);
             return;
         }
         // === TRIANGULAR PROFILE: ramp-up meets ramp-down, no steady zone ===
-        // Both ramps can't reach vol_rate within this line — find where they meet.
-        float k_pos = 2.f * slope_pos * vol_rate / original_feedrate;
-        float k_neg = 2.f * slope_neg * vol_rate / original_feedrate;
-        float x_meet = (rate_end * rate_end - rate_start * rate_start + k_neg * l) / (k_pos + k_neg);
-        x_meet = std::clamp(x_meet, 0.f, l);
-        float l_up   = x_meet;
-        float l_down = l - x_meet;
-        bool has_rampup   = l_up   >= 0.5f * m_max_segment_length;
-        bool has_rampdown = l_down >= 0.5f * m_max_segment_length;
-        if (has_rampup || has_rampdown) {
-            float peak = sqrtf(rate_start * rate_start + k_pos * x_meet);
-            peak = std::min(peak, vol_rate);
-            float pos_orig_start[5], pos_orig_end[5];
-            memcpy(pos_orig_start, line.pos_start, sizeof(float) * 5);
-            memcpy(pos_orig_end, line.pos_end, sizeof(float) * 5);
-            float f_peak = peak * original_feedrate / vol_rate;
-            // --- RAMP-UP zone (rate_start -> peak) ---
-            if (has_rampup) {
-                size_t nSeg = std::max(size_t(1), size_t(ceil(l_up / m_max_segment_length)));
-                float t_up_end = l_up / l;
-                float f_start_up = rate_start * original_feedrate / vol_rate;
-                for (size_t i = 1; i <= nSeg; ++i) {
-                    float t_local = float(i) / float(nSeg);
-                    float t_global = t_local * t_up_end;
-                    for (int j = 0; j < 4; ++j) {
-                        line.pos_end[j] = pos_orig_start[j] + (pos_orig_end[j] - pos_orig_start[j]) * t_global;
-                        line.pos_provided[j] = true;
-                    }
-                    float t_mid = (float(i) - 0.5f) / float(nSeg);
-                    float f_interp = interpolate_ramp(f_start_up, f_peak, t_mid, m_pellet_ers_ramp_profile);
-                    push_line_to_output(line_idx, f_interp, comment, ";_ERS_RAMPUP");
-                    comment = nullptr;
-                    memcpy(line.pos_start, line.pos_end, sizeof(float) * 5);
-                }
-            }
-            // --- RAMP-DOWN zone (peak -> rate_end) ---
-            if (has_rampdown) {
-                size_t nSeg = std::max(size_t(1), size_t(ceil(l_down / m_max_segment_length)));
-                float f_end_down = rate_end * original_feedrate / vol_rate;
-                for (size_t i = 1; i <= nSeg; ++i) {
-                    float t_local = float(i) / float(nSeg);
-                    float t_global = (l_up + t_local * l_down) / l;
-                    for (int j = 0; j < 4; ++j) {
-                        line.pos_end[j] = pos_orig_start[j] + (pos_orig_end[j] - pos_orig_start[j]) * t_global;
-                        line.pos_provided[j] = true;
-                    }
-                    float t_mid = (float(i) - 0.5f) / float(nSeg);
-                    float f_interp = interpolate_ramp(f_peak, f_end_down, t_mid, m_pellet_ers_ramp_profile);
-                    push_line_to_output(line_idx, f_interp, comment, ";_ERS_RAMPDOWN");
-                    comment = nullptr;
-                    memcpy(line.pos_start, line.pos_end, sizeof(float) * 5);
-                }
-            }
-            // Catch-all: ensure the entire original line is covered.
-            {
-                float dx = pos_orig_end[0] - line.pos_start[0];
-                float dy = pos_orig_end[1] - line.pos_start[1];
-                if (dx * dx + dy * dy > 0.0001f) {
-                    for (int j = 0; j < 4; ++j) {
-                        line.pos_end[j] = pos_orig_end[j];
-                        line.pos_provided[j] = true;
-                    }
-                    float f_end = rate_end * original_feedrate / vol_rate;
-                    push_line_to_output(line_idx, std::max(f_end, original_feedrate * 0.1f), comment, ";_ERS_STEADY");
-                }
-            }
+        // Both ramps can't reach vol_rate within this line — find where they meet. The ramp-up
+        // flow grows with x and the ramp-down flow (integrated back from the end) shrinks.
+        float x_lo = 0.f, x_hi = l;
+        for (int i = 0; i < 50; ++i) {
+            const float x = 0.5f * (x_lo + x_hi);
+            if (law_up.q_hi(rate_start, x) < law_dn.q_hi(rate_end, l - x))
+                x_lo = x;
+            else
+                x_hi = x;
+        }
+        const float x_meet = 0.5f * (x_lo + x_hi);
+        const float l_up   = x_meet;
+        const float l_down = l - x_meet;
+        if (l_up >= 0.5f * m_max_segment_length || l_down >= 0.5f * m_max_segment_length || line.pellet_ramp) {
+            const float peak = std::min(float(law_up.q_hi(rate_start, x_meet)), vol_rate);
+            if (l_up > 0.01f)
+                emit_ramp(0.f, l_up, true, rate_start, peak);
+            if (l_down > 0.01f)
+                emit_ramp(l_up, l_down, false, peak, rate_end);
+            emit_rest(std::max(rate_end / area, original_feedrate * 0.1f));
             return;
         }
         // else: line too short for any meaningful segmentation — fall through to standard linear
@@ -1218,7 +1217,7 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
     // Or if the line size is equal in length with the smallest segment.
     // If so, then emit the line as a single extrusion, i.e. dont split into segments.
     if ( nSegments == 1 || delta_volumetric_rate < 10) {
-        push_line_to_output(line_idx, line.feedrate() * line.volumetric_correction_avg(), comment, ers_tag);
+        push_line_to_output(line_idx, line.feedrate() * line.volumetric_correction_avg(), comment, ers_tag, rate_start, rate_end);
     } else // The line needs to be split the line into segments and apply extrusion rate smoothing
     {
         bool accelerating = rate_start < rate_end;
@@ -1289,7 +1288,9 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
                 line.pos_provided[j] = true;
             } 
             // Interpolate the feed rate at the center of the segment.
-            push_line_to_output(line_idx, pos_start[4] + (pos_end[4] - pos_start[4]) * (float(i) - 0.5f) / float(nSegments), comment, ers_tag);
+            push_line_to_output(line_idx, pos_start[4] + (pos_end[4] - pos_start[4]) * (float(i) - 0.5f) / float(nSegments), comment, ers_tag,
+                                rate_start + (rate_end - rate_start) * float(i - 1) / float(nSegments),
+                                rate_start + (rate_end - rate_start) * float(i) / float(nSegments));
             comment = nullptr;
             memcpy(line.pos_start, line.pos_end, sizeof(float)*5);
         }
@@ -1304,7 +1305,8 @@ void PressureEqualizer::output_gcode_line(const size_t line_idx)
                 line.pos_end[i] = pos_end[i];
                 line.pos_provided[i] = true;
             }
-            push_line_to_output(line_idx, pos_end[4], comment, ers_tag);
+            push_line_to_output(line_idx, pos_end[4], comment, ers_tag,
+                                rate_start + (rate_end - rate_start) * float(nSegments - 1) / float(nSegments), rate_end);
         }
     }
     
@@ -1524,16 +1526,18 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
                 }
             }
             if (ramp_slope > 0.f) {
-                float ramp_target = first_line.volumetric_extrusion_rate;
-                // Walk forward through extruding lines, distributing the ramp-up
-                // across as many GCodeLines as needed until the target rate is reached.
-                float rate_prec = m_pellet_ers_min_rate;
+                // Walk forward through extruding lines, distributing the ramp-up across as many
+                // GCodeLines as needed until each line's own nominal rate is reached. The flow
+                // follows the pellet RampLaw (τ-aware: the screw command never exceeds Qmax).
+                float rate_prec = std::max(m_pellet_ers_min_rate,
+                    min_emitted_feedrate * first_line.volumetric_extrusion_rate / std::max(first_line.feedrate(), 1.f));
                 for (size_t idx = first_extruding_idx; idx <= last_extruding_idx; ++idx) {
                     GCodeLine &line = m_gcode_lines[idx];
                     if (!line.extruding() || !line.adjustable_flow)
                         continue;
+                    const float target = line.volumetric_extrusion_rate;
                     // Ramp completed — stop
-                    if (rate_prec >= ramp_target)
+                    if (rate_prec >= target * 0.999f)
                         break;
                     float dist = line.dist_xyz();
                     float feedrate = line.feedrate();
@@ -1542,15 +1546,13 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
                     // Use std::min to preserve stricter limits already set by the
                     // backward/forward passes (mirrors the ramp-down handling below).
                     line.volumetric_extrusion_rate_start = std::min(rate_prec, line.volumetric_extrusion_rate_start);
-                    // rate_end = sqrt(rate_start^2 + 2 * slope * vol * dist / F)
-                    float rate_end = sqrtf(rate_prec * rate_prec
-                        + 2.f * ramp_slope * line.volumetric_extrusion_rate * dist / feedrate);
-                    rate_end = std::min(rate_end, ramp_target);
+                    const RampLaw law = make_ramp_law(true, ramp_slope, target, feedrate, line.extruder_id, true);
+                    const float rate_end = std::min(float(law.q_hi(line.volumetric_extrusion_rate_start, dist)), target);
                     line.volumetric_extrusion_rate_end = std::min(rate_end, line.volumetric_extrusion_rate_end);
                     line.max_volumetric_extrusion_rate_slope_positive = ramp_slope;
                     line.modified = true;
                     line.pellet_ramp = true;
-                    rate_prec = rate_end;
+                    rate_prec = line.volumetric_extrusion_rate_end;
                 }
             }
         }
@@ -1563,7 +1565,7 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
         } else if (last_line.adjustable_flow) {
             // Find the negative slope for the last line's extrusion role. The per-role
             // table already embodies the dedicated deceleration slope (when configured)
-            // and the ramp-profile peak correction — see apply_effective_slopes().
+            // — see apply_effective_slopes().
             float ramp_slope = 0.f;
             for (size_t iRole = 1; iRole < size_t(ExtrusionRole::erCount); ++iRole) {
                 if (m_max_volumetric_extrusion_rate_slopes[iRole].negative > 0 &&
@@ -1573,31 +1575,32 @@ void PressureEqualizer::adjust_volumetric_rate(const size_t first_line_idx, cons
                 }
             }
             if (ramp_slope > 0.f) {
-                float ramp_target = last_line.volumetric_extrusion_rate;
-                // Walk backward through extruding lines, distributing the ramp-down
-                // across as many GCodeLines as needed until the target rate is reached.
-                float rate_succ = m_pellet_ers_min_rate;
+                // Walk backward through extruding lines, distributing the ramp-down across as
+                // many GCodeLines as needed until each line's own nominal rate is reached. The
+                // flow follows the pellet RampLaw (τ-aware: the screw command never goes
+                // negative, the tail is the reservoir draining with the screw stopped).
+                float rate_succ = std::max(m_pellet_ers_min_rate,
+                    min_emitted_feedrate * last_line.volumetric_extrusion_rate / std::max(last_line.feedrate(), 1.f));
                 size_t idx = last_extruding_idx;
                 while (true) {
                     GCodeLine &line = m_gcode_lines[idx];
                     if (line.extruding() && line.adjustable_flow) {
+                        const float target = line.volumetric_extrusion_rate;
                         // Ramp completed — stop
-                        if (rate_succ >= ramp_target)
+                        if (rate_succ >= target * 0.999f)
                             break;
                         float dist = line.dist_xyz();
                         float feedrate = line.feedrate();
                         if (feedrate > 0.f && dist > 0.f) {
                             // Use std::min to preserve ramp-up values already set
                             line.volumetric_extrusion_rate_end = std::min(rate_succ, line.volumetric_extrusion_rate_end);
-                            // rate_start = sqrt(rate_end^2 + 2 * slope * vol * dist / F)
-                            float rate_start = sqrtf(rate_succ * rate_succ
-                                + 2.f * ramp_slope * line.volumetric_extrusion_rate * dist / feedrate);
-                            rate_start = std::min(rate_start, ramp_target);
+                            const RampLaw law = make_ramp_law(false, ramp_slope, target, feedrate, line.extruder_id, true);
+                            const float rate_start = std::min(float(law.q_hi(line.volumetric_extrusion_rate_end, dist)), target);
                             line.volumetric_extrusion_rate_start = std::min(rate_start, line.volumetric_extrusion_rate_start);
                             line.max_volumetric_extrusion_rate_slope_negative = ramp_slope;
                             line.modified = true;
                             line.pellet_ramp = true;
-                            rate_succ = rate_start;
+                            rate_succ = line.volumetric_extrusion_rate_start;
                         }
                     }
                     if (idx <= first_extruding_idx)
@@ -1692,11 +1695,12 @@ inline bool is_just_line_with_extrude_set_speed_tag(const std::string &line)
     return p_line <= line_end && is_eol(*p_line);
 }
 
-void PressureEqualizer::push_line_to_output(const size_t line_idx, float new_feedrate, const char *comment, const char *ers_tag)
+void PressureEqualizer::push_line_to_output(const size_t line_idx, float new_feedrate, const char *comment, const char *ers_tag,
+                                            float q_start, float q_end)
 {
     // Orca: sanity check, 1 mm/s is the minimum feedrate.
-    if (new_feedrate < 60)
-        new_feedrate = 60;
+    if (new_feedrate < min_emitted_feedrate)
+        new_feedrate = min_emitted_feedrate;
     // Quantize speed changes to reduce gcode volume for trivial speed changes.
     // Upstream Orca rounds to 1 mm/s, but with the large bead cross-sections of pellet
     // extruders (several mm²) 1 mm/s of speed is worth several mm³/s of flow — enough to
@@ -1723,39 +1727,36 @@ void PressureEqualizer::push_line_to_output(const size_t line_idx, float new_fee
         feedrate_formatter.emit_string(std::string(EXTERNAL_PERIMETER_TAG.data(), EXTERNAL_PERIMETER_TAG.length()));
     push_to_output(feedrate_formatter);
 
-    // Ramp flow compensation (pellet mode, relative E only): the feedrate ramp keeps the
-    // nominal E per mm, so the bead is under-extruded during ramp-up (material charges
-    // the melt reservoir) and over-extruded during ramp-down (the reservoir discharges).
-    // Primary compensation: first-order reservoir model, E_scale = 1 ± τ·(dQ/dt)/Q,
-    // computed per segment so it adapts to the slope and to the position along the ramp
-    // (stronger near the minimum rate). The rampup/rampdown flow percentages act as an
-    // empirical trim on top for what the linear model does not capture.
+    // Ramp flow compensation (pellet mode, relative E only). The feedrate ramp keeps the
+    // nominal volume per mm, but the screw feeds a compressible melt reservoir (first-order
+    // model τ·dQout/dt + Qout = Qin): to get the ramped flow Q at the nozzle the screw must
+    // supply Q + τ·dQ/dt. Integrated over this piece that is the nominal E plus the charge
+    // τ·(q_end - q_start) — positive on a ramp-up (pressurize), negative on a ramp-down (the
+    // stored pressure feeds the bead). The charge telescopes across pieces and lines, so a
+    // whole ramp receives exactly τ·ΔQ regardless of how it is split. RampLaw already keeps the
+    // resulting screw command within [-R, Qmax] by stretching the feedrate ramp, so no material
+    // is dropped here; on a ramp-down tail E may be negative (the screw decompresses while the
+    // head moves, the reservoir still feeds the bead). The rampup/rampdown flow percentages act as an empirical trim on top.
+    float extra_e    = 0.f;
     float flow_scale = 1.f;
     if (m_pellet_ers_mode && m_use_relative_e_distances && ers_tag != nullptr) {
         const bool is_rampup   = strcmp(ers_tag, ";_ERS_RAMPUP") == 0;
         const bool is_rampdown = strcmp(ers_tag, ";_ERS_RAMPDOWN") == 0;
         if (is_rampup || is_rampdown) {
-            if (m_pellet_ers_pressure_tau > 0.f) {
-                const float de   = line.pos_end[3] - line.pos_start[3]; // filament mm (relative)
-                const float dist = line.dist_xyz();
-                if (de > 0.f && dist > 1e-6f && new_feedrate > 0.f) {
-                    // Volumetric flow of this segment (mm³/s).
-                    const float q = de * m_filament_crossections[line.extruder_id] / dist * (new_feedrate / 60.f);
-                    // Effective slope driving this ramp (mm³/min² → mm³/s²).
-                    float slope = is_rampup ? line.max_volumetric_extrusion_rate_slope_positive
-                                            : line.max_volumetric_extrusion_rate_slope_negative;
-                    if (slope <= 0.f)
-                        slope = is_rampup ? m_max_volumetric_extrusion_rate_slope_positive
-                                          : m_max_volumetric_extrusion_rate_slope_negative;
-                    slope /= 3600.f;
-                    if (q > 1e-3f && slope > 0.f)
-                        flow_scale = 1.f + (is_rampup ? 1.f : -1.f) * m_pellet_ers_pressure_tau * slope / q;
-                }
+            const float de   = line.pos_end[3] - line.pos_start[3]; // filament mm (relative)
+            const float dist = line.dist_xyz();
+            if (m_pellet_ers_pressure_tau > 0.f && q_start >= 0.f && q_end >= 0.f && de > 0.f && dist > 1e-6f) {
+                const float crossection = m_filament_crossections[line.extruder_id];
+                // Flow below the feedrate floor cannot be emitted: clamp the end points to it, so
+                // the state a ramp-down leaves (τ·q_end) is exactly the one the next ramp-up
+                // starts from (τ·q_start) across a neutral retract/unretract.
+                const float q_floor = de * crossection / dist * min_emitted_feedrate; // mm³/min
+                q_start = std::max(q_start, q_floor);
+                q_end   = std::max(q_end, q_floor);
+                extra_e = (m_pellet_ers_pressure_tau / 60.f) * (q_end - q_start) / crossection;
             }
             // Empirical trim on top of the model (default 100% = no trim).
-            flow_scale *= is_rampup ? m_pellet_ers_rampup_flow : m_pellet_ers_rampdown_flow;
-            // Safety clamp: near the minimum rate the model can demand extreme factors.
-            flow_scale = std::clamp(flow_scale, 0.05f, 4.f);
+            flow_scale = is_rampup ? m_pellet_ers_rampup_flow : m_pellet_ers_rampdown_flow;
         }
     }
 
@@ -1763,7 +1764,7 @@ void PressureEqualizer::push_line_to_output(const size_t line_idx, float new_fee
     for (size_t axis_idx = 0; axis_idx < 3; ++axis_idx)
         if (line.pos_provided[axis_idx])
             extrusion_formatter.emit_axis(char('X' + axis_idx), line.pos_end[axis_idx], GCodeFormatter::XYZF_EXPORT_DIGITS);
-    extrusion_formatter.emit_axis('E', m_use_relative_e_distances ? (line.pos_end[3] - line.pos_start[3]) * flow_scale : line.pos_end[3], GCodeFormatter::E_EXPORT_DIGITS);
+    extrusion_formatter.emit_axis('E', m_use_relative_e_distances ? (line.pos_end[3] - line.pos_start[3] + extra_e) * flow_scale : line.pos_end[3], GCodeFormatter::E_EXPORT_DIGITS);
 
     if (comment != nullptr)
         extrusion_formatter.emit_string(std::string(comment));
@@ -1773,6 +1774,14 @@ void PressureEqualizer::push_line_to_output(const size_t line_idx, float new_fee
             extrusion_formatter.emit_string(std::string(ers_tag));
         else
             extrusion_formatter.emit_string(";_ERS");
+        // Pieces carrying a reservoir charge also report the nominal (bead) E: the commanded E
+        // differs from it and may be negative on a ramp-down tail. GCodeProcessor uses e0 to
+        // keep these moves as extrusions in the preview, with the bead width and flow rate.
+        if (ers_tag != nullptr && extra_e != 0.f) {
+            char buf[32];
+            snprintf(buf, sizeof(buf), " e0=%.5f", double(line.pos_end[3] - line.pos_start[3]));
+            extrusion_formatter.emit_string(buf);
+        }
     }
 
     push_to_output(extrusion_formatter);

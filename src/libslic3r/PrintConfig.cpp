@@ -99,13 +99,6 @@ static t_config_enum_values s_keys_map_GCodeFlavor {
 };
 CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(GCodeFlavor)
 
-static t_config_enum_values s_keys_map_PelletERSRampProfile {
-    { "linear",      int(PelletERSRampProfile::Linear) },
-    { "sqrt",        int(PelletERSRampProfile::Sqrt) },
-    { "exponential", int(PelletERSRampProfile::Exponential) }
-};
-CONFIG_OPTION_ENUM_DEFINE_STATIC_MAPS(PelletERSRampProfile)
-
 static t_config_enum_values s_keys_map_FuzzySkinType {
     { "none",           int(FuzzySkinType::None) },
     { "external",       int(FuzzySkinType::External) },
@@ -4114,33 +4107,6 @@ void PrintConfigDef::init_fff_params()
     def->min = 0;
     def->max = 100;
 
-    def = this->add("pellet_ers_ramp_profile", coEnum);
-    def->label = L("ERS ramp profile");
-    def->tooltip = L(
-        "Shape of the feedrate curve during ramp-up and ramp-down in Pellet ERS mode.\n\n"
-        "• Sqrt (recommended): kinematic law v² = v₀² + 2as — the ONLY profile with "
-        "constant flow acceleration, exactly equal to the configured slope, along the "
-        "whole ramp. Shortest possible ramp that respects the slope limit, and the only "
-        "shape for which the pressure time constant compensation is exact. Use this for "
-        "both calibration and production.\n\n"
-        "• Linear: linear feedrate over distance. The effective slope is halved "
-        "internally to keep the instantaneous peak within the configured limit, so ramps "
-        "are ~2x longer than Sqrt. Keep as a control experiment only.\n\n"
-        "• Exponential: not recommended — even with the internal 3x slope reduction the "
-        "local peak still exceeds the configured limit, and the ramp never exactly "
-        "reaches the target rate.\n\n"
-        "Only affects Pellet ERS mode."
-    );
-    def->enum_keys_map = &ConfigOptionEnum<PelletERSRampProfile>::get_enum_values();
-    def->enum_values.push_back("linear");
-    def->enum_values.push_back("sqrt");
-    def->enum_values.push_back("exponential");
-    def->enum_labels.push_back(L("Linear"));
-    def->enum_labels.push_back(L("Sqrt (kinematic)"));
-    def->enum_labels.push_back(L("Exponential"));
-    def->mode = comAdvanced;
-    def->set_default_value(new ConfigOptionEnum<PelletERSRampProfile>(PelletERSRampProfile::Sqrt));
-
     def = this->add("pellet_ers_deceleration_slope", coFloat);
     def->label = L("ERS deceleration slope");
     def->tooltip = L(
@@ -7417,6 +7383,8 @@ void PrintConfigDef::handle_legacy(t_config_option_key &opt_key, std::string &va
         "internal_bridge_support_thickness","extruder_clearance_max_radius", "top_area_threshold", "reduce_wall_solid_infill","filament_load_time","filament_unload_time",
         "smooth_coefficient", "overhang_totally_speed", "silent_mode",
         "overhang_speed_classic",
+        // Ginger (2026-10-03): the pellet ramp shape is now the physical RampLaw (ex "sqrt").
+        "pellet_ers_ramp_profile",
     };
 
     if (ignore.find(opt_key) != ignore.end()) {
@@ -8450,7 +8418,7 @@ CLIMiscConfigDef::CLIMiscConfigDef()
                      "The value starts at 'start', changes by 'step' at every layer and holds once 'end' is reached. "
                      "Supported parameters: retraction_length, retraction_speed, deretraction_speed, retract_restart_extra, "
                      "max_volumetric_extrusion_rate_slope, pellet_ers_deceleration_slope, pellet_ers_min_rate, "
-                     "pellet_ers_ramp_profile (0=linear 1=sqrt 2=exponential).");
+                     "pellet_ers_rampup_flow, pellet_ers_rampdown_flow, pellet_ers_pressure_tau.");
     def->cli = "sweep";
     def->cli_params = "\"parameter:start:end:step\"";
     def->set_default_value(new ConfigOptionString(""));

@@ -2326,7 +2326,6 @@ optgroup->append_single_option_line("top_bottom_infill_wall_overlap", "strength_
         optgroup->append_single_option_line("extrusion_rate_smoothing_external_perimeter_only", "speed_settings_advanced");
         optgroup->append_single_option_line("pellet_ers_mode", "speed_settings_advanced");
         optgroup->append_single_option_line("pellet_ers_travel_threshold_mm", "speed_settings_advanced");
-        optgroup->append_single_option_line("pellet_ers_ramp_profile", "speed_settings_advanced");
         optgroup->append_single_option_line("pellet_ers_deceleration_slope", "speed_settings_advanced");
         optgroup->append_single_option_line("pellet_ers_min_rate", "speed_settings_advanced");
         optgroup->append_single_option_line("pellet_ers_pressure_tau", "speed_settings_advanced");

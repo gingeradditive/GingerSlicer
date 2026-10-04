@@ -53,7 +53,6 @@ static const SweepParamEntry s_sweep_params[] = {
     {"max_volumetric_extrusion_rate_slope",  "ERS smoothing slope (mm3/s2)",                  5,   40},
     {"pellet_ers_deceleration_slope",        "ERS deceleration slope (mm3/s2)",               5,   40},
     {"pellet_ers_min_rate",                  "ERS minimum flow rate (mm3/s)",                 0.2, 3},
-    {"pellet_ers_ramp_profile",              "ERS ramp profile (0=linear 1=sqrt 2=exp)",      0,   2},
     {"pellet_ers_rampup_flow",               "ERS ramp-up flow (%)",                          100, 160},
     {"pellet_ers_rampdown_flow",             "ERS ramp-down flow (%)",                        100, 40},
     {"pellet_ers_pressure_tau",              "ERS pressure time constant (s)",                0,   0.5},
