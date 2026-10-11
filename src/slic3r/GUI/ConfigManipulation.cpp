@@ -649,6 +649,18 @@ void ConfigManipulation::toggle_print_fff_options(DynamicPrintConfig *config, co
     // Ginger: il solido interno segue la connessione del top, quindi conta anche senza gusci di top.
     toggle_field("connect_top_surface", has_top_shell || has_bottom_shell);
     toggle_field("connect_bottom_surface", has_bottom_shell);
+    // anelli pari: solo dove una superficie connessa usa il concentrico
+    {
+        const bool conc_top = config->opt_enum<InfillPattern>("top_surface_pattern") == ipConcentric ||
+                              config->opt_enum<InfillPattern>("internal_solid_infill_pattern") == ipConcentric;
+        const bool conc_bot = config->opt_enum<InfillPattern>("bottom_surface_pattern") == ipConcentric;
+        const bool even_ok  = (conc_top && config->opt_bool("connect_top_surface") && has_solid_infill) ||
+                              (conc_bot && config->opt_bool("connect_bottom_surface") && has_bottom_shell);
+        toggle_field("concentric_even_beads", even_ok);
+        const bool even_on = even_ok && config->opt_bool("concentric_even_beads");
+        for (const char *k : { "concentric_max_bead_width", "concentric_min_hairpin_width", "concentric_band_beads" })
+            toggle_field(k, even_on);
+    }
     toggle_field("top_surface_density", has_top_shell);
     toggle_field("bottom_surface_density", has_bottom_shell);
 

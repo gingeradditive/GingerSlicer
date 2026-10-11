@@ -80,6 +80,7 @@ using namespace std::literals;
 
 #include <atomic>
 namespace Slic3r { namespace FillLightning { extern std::atomic<bool> g_ginger_in_fill_stage; } } // profiling, definita in Fill/FillLightning.cpp
+namespace Slic3r { void single_path_splice_start_object(bool hysteresis); } // Fill/FillBase.cpp
 namespace Slic3r {
 
 // Constructor is called from the main thread, therefore all Model / ModelObject / ModelIntance data are valid.
@@ -337,10 +338,12 @@ static void return_unfillable_solid_to_sparse(PrintObject *po, const char *stage
                     (pattern == ipRectilinear || pattern == ipMonotonic || pattern == ipMonotonicLine || pattern == ipAlignedRectilinear);
                 if (narrow_fill)
                     continue;
-                ExPolygons solid;
+                ExPolygons solid, top;
                 for (const Surface &sf : layerm->fill_surfaces.surfaces)
                     if (sf.surface_type == stInternalSolid)
                         solid.emplace_back(sf.expolygon);
+                    else if (sf.surface_type == stTop)
+                        top.emplace_back(sf.expolygon);
                 if (solid.empty())
                     continue;
                 // Sull'unione: due superfici solide adiacenti si riempiono insieme (group_fills le unisce),
@@ -351,7 +354,13 @@ static void return_unfillable_solid_to_sparse(PrintObject *po, const char *stage
                     pattern == ipRectilinear || pattern == ipMonotonic || pattern == ipMonotonicLine || pattern == ipAlignedRectilinear;
                 // raggio dell'apertura = meta' della larghezza minima stampabile (2s rettilinea, 1.5s gli altri)
                 const double radius = (rectilinear_family ? 1.0 : 0.75) * spacing;
-                ExPolygons unfillable = diff_ex(solid, opening_ex(solid, float(radius - SCALED_EPSILON)));
+                // Ginger (2026-10-10, sedile): con solid_infill_as_top il solido e il top dello stesso layer si stampano
+                // INSIEME (stesso ruolo, group_fills li unisce): una striscia di solido attaccata a un top e' stampabile.
+                // L'apertura si fa sull'unione e si restituisce solo il solido stretto anche insieme al top (493 pezzi
+                // del sedile restituiti accanto a un top, 991 mm2 rimasti vuoti). Stesso criterio dell'esenzione di
+                // demote_narrow_solid_infill per il solido che tocca un top.
+                const ExPolygons printable_region = (rc.solid_infill_as_top && ! top.empty()) ? union_ex(solid, top) : solid;
+                ExPolygons unfillable = diff_ex(solid, opening_ex(printable_region, float(radius - SCALED_EPSILON)));
                 // briciole (gli spigoli che l'apertura arrotonda): restano com'erano
                 const double min_area = 0.5 * spacing * spacing;
                 unfillable.erase(std::remove_if(unfillable.begin(), unfillable.end(),
@@ -359,13 +368,34 @@ static void return_unfillable_solid_to_sparse(PrintObject *po, const char *stage
                                  unfillable.end());
                 if (unfillable.empty())
                     continue;
+                // Ginger (2026-10-10, sedile): la zona restituita deve FONDERSI con lo sparse accanto. Un pezzo che non
+                // tocca nessuno sparse resterebbe un'isola di sparse piu' stretta di 1.5 passi, che il riempimento
+                // arretra di mezzo passo per lato: niente da stampare (sedile: 125 pezzi isolati, 45 attaccati solo a un
+                // ponte). Quelli restano solido, com'erano.
+                const float touch = float(scale_(0.02));
+                Polygons sparse_orig;
+                for (const Surface &sf : layerm->fill_surfaces.surfaces)
+                    if (sf.surface_type == stInternal)
+                        polygons_append(sparse_orig, to_polygons(sf.expolygon));
+                {
+                    ExPolygons touching;
+                    for (ExPolygon &e : unfillable)
+                        if (! sparse_orig.empty() && ! intersection(offset(e, touch), sparse_orig).empty())
+                            touching.emplace_back(std::move(e));
+                    unfillable = std::move(touching);
+                }
+                if (unfillable.empty())
+                    continue;
                 Surfaces   kept;
                 ExPolygons sparse = unfillable;
+                Polygons   solid_kept;
                 const Surface *sparse_template = nullptr;
                 for (const Surface &sf : layerm->fill_surfaces.surfaces) {
                     if (sf.surface_type == stInternalSolid) {
-                        for (const ExPolygon &e : diff_ex(sf.expolygon, unfillable))
+                        for (const ExPolygon &e : diff_ex(sf.expolygon, unfillable)) {
                             kept.emplace_back(sf, e);
+                            polygons_append(solid_kept, to_polygons(e));
+                        }
                     } else if (sf.surface_type == stInternal) {
                         sparse.emplace_back(sf.expolygon);
                         if (sparse_template == nullptr)
@@ -373,8 +403,14 @@ static void return_unfillable_solid_to_sparse(PrintObject *po, const char *stage
                     } else
                         kept.emplace_back(sf);
                 }
-                // La zona si fonde con lo sparse accanto: un'area sola fino al muro, niente cucitura.
-                for (const ExPolygon &e : union_ex(sparse)) {
+                // La zona si fonde con lo sparse accanto: un'area sola fino al muro, niente cucitura. Con una CHIUSURA di
+                // 0.02 mm: i pezzi restituiti toccano lo sparse ma union_ex senza tolleranza li lasciava separati (sedile:
+                // 1358 su 1392, il 77% a meno di 0.01 mm) e ognuno, arretrato di mezzo passo, spariva. Lo sconfinamento
+                // della chiusura sul solido rimasto si toglie.
+                ExPolygons merged = offset2_ex(union_ex(sparse), touch, -touch);
+                if (! solid_kept.empty())
+                    merged = diff_ex(merged, solid_kept);
+                for (const ExPolygon &e : merged) {
                     if (sparse_template != nullptr)
                         kept.emplace_back(*sparse_template, e);
                     else
@@ -883,7 +919,33 @@ static bool build_rib_buttress(Layer *rib_layer, const Point &link_a, const Poin
                                 append(open_lines, ee->as_polyline().lines());
             if (best > double(stagger))
                 return false; // no wall continues under the base: this side cannot carry it
-            const Point tip = foot + (dir * len).cast<coord_t>();
+            // Ginger (2026-10-10, poppot plate 2): la punta del moncone deve stare ad almeno uno stagger da ogni ALTRO
+            // cordone. Il controllo dei conflitti qui sotto considera "proprio" tutto il walk unito (che, attraverso la
+            // colonna, contiene anche l'anello del foro opposto) ed esenta le curve proprie vicine alla punta: la punta
+            // arrivava sul muro opposto e ci ripassava sopra (42 mm di cordone doppio). Si esclude solo il tratto del muro
+            // sotto il piede; se la punta non ci sta, il moncone di questo layer si accorcia (la rib sopra resta retta dal
+            // moncone e dal muro opposto). Sotto uno stagger il moncone e' rientrato nel muro.
+            double len_eff = len;
+            {
+                const double foot_zone = 2. * double(stagger);
+                Lines clearance = open_lines;
+                for (const Polygon &pg : bead_polys)
+                    for (const Line &l : pg.lines())
+                        if (l.distance_to(foot) > foot_zone)
+                            clearance.emplace_back(l);
+                auto clear_at = [&](double L) {
+                    const Point t = foot + (dir * L).cast<coord_t>();
+                    for (const Line &l : clearance)
+                        if (l.distance_to(t) < double(stagger))
+                            return false;
+                    return true;
+                };
+                while (len_eff > double(stagger) && ! clear_at(len_eff))
+                    len_eff -= 0.25 * double(stagger);
+                if (len_eff <= double(stagger))
+                    return true; // no room for a stub here: it melts back into the wall
+            }
+            const Point tip = foot + (dir * len_eff).cast<coord_t>();
             // Ginger (2026-09-04, Davide): il gradino deve stare DENTRO la sezione del pezzo a
             // questo layer. Il rib in alto puo' collegare il muro a un anello che qui sotto non
             // esiste ancora (la figura si allarga salendo): senza questo vincolo la fondazione
@@ -1799,6 +1861,8 @@ void PrintObject::infill()
         // (senza isteresi) per pesare quanto costa la sequenzialita'; GINGER_SP_PROFILE stampa il tempo.
         if (::getenv("GINGER_SP_PARALLEL_FILL") != nullptr)
             sequential_fill = false;
+        // isteresi dei raccordi della fusione: si riparte da zero a ogni oggetto, e solo coi layer in fila
+        single_path_splice_start_object(sequential_fill);
         const auto sp_fill_t0 = std::chrono::steady_clock::now();
         BOOST_LOG_TRIVIAL(debug) << (sequential_fill ? "Filling layers sequentially (single path) - start"
                                                      : "Filling layers in parallel - start");
@@ -1819,6 +1883,8 @@ void PrintObject::infill()
             }
         );
         FillLightning::g_ginger_in_fill_stage = false;
+        // dopo l'infill (supporti, stiratura) nessuna isteresi: non restano i raccordi dell'ultimo layer di quest'oggetto
+        single_path_splice_start_object(false);
         m_print->throw_if_canceled();
         determinism_probe(this, "11 make_fills");
         BOOST_LOG_TRIVIAL(debug) << "Filling layers in parallel - end";
@@ -2400,7 +2466,11 @@ bool PrintObject::invalidate_state_by_config_options(
             || opt_key == "small_area_infill_flow_compensation"
             || opt_key == "lateral_lattice_angle_1"
             || opt_key == "lateral_lattice_angle_2"
-            || opt_key == "infill_overhang_angle") {
+            || opt_key == "infill_overhang_angle"
+            || opt_key == "concentric_even_beads"
+            || opt_key == "concentric_max_bead_width"
+            || opt_key == "concentric_min_hairpin_width"
+            || opt_key == "concentric_band_beads") {
             steps.emplace_back(posInfill);
         } else if (opt_key == "sparse_infill_pattern"
                    || opt_key == "symmetric_infill_y_axis"

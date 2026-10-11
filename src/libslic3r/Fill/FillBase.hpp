@@ -253,6 +253,11 @@ public:
 
     // Non-static: needs this->z for the single-path debug prints.
     void chain_or_connect_infill(Polylines &&infill_ordered, const ExPolygon &boundary, Polylines &polylines_out, const double spacing, const FillParams &params);
+    // Ginger single-path: drops the tiny isolated pieces (extent < 1.5 line widths in both axes) appended to
+    // polylines_out from index `from` on. One rule for every way a connected sparse fill can end (connector
+    // output, "always ring" contour of a pocket with no tree). Line width = params.flow, or `spacing` (unscaled)
+    // where the caller has no flow (sparse lines for the internal-bridge anchoring).
+    static void drop_stray_fragments(Polylines &polylines_out, size_t from, const FillParams &params, double spacing);
 
     static void connect_base_support(Polylines &&infill_ordered, const std::vector<const Polygon*> &boundary_src, const BoundingBox &bbox, Polylines &polylines_out, const double spacing, const FillParams &params);
     static void connect_base_support(Polylines &&infill_ordered, const Polygons &boundary_src, const BoundingBox &bbox, Polylines &polylines_out, const double spacing, const FillParams &params);

@@ -50,6 +50,8 @@ struct FillPatternProfile {
 
 namespace Slic3r {
 
+void single_path_splice_begin_layer(long layer_id); // FillBase.cpp
+
 // Calculate infill rotation angle (in radians) for a given layer from a rotation template.
 // Grammar subset handled (rotation only):
 //   [±]α[*Z or !][joint][-][N|B|T][length][* or !]
@@ -1146,7 +1148,11 @@ std::vector<SurfaceFill> group_fills(const Layer &layer, LockRegionParam &lock_p
 					Polygons polys = to_polygons(std::move(fill.expolygons));
 		            // Make a union of polygons, use a safety offset, subtract the preceding polygons.
 				    // Bridges are processed first (see SurfaceFill::operator<())
-		            fill.expolygons = all_polygons.empty() ? union_safety_offset_ex(polys) : diff_ex(polys, all_polygons, ApplySafetyOffset::Yes);
+		            // Ginger (2026-10-10, sedile): anche i riempimenti dopo il primo saldano le loro superfici che si toccano
+		            // (union_safety_offset) prima della differenza. Senza, la saldatura dipendeva dall'ORDINE dei pattern:
+		            // col lightning prima del concentrico il top non veniva mai saldato, e top e solido-come-top che
+		            // condividono un bordo (sedile z 615.6: 10 mm) restavano due ExPolygon riempiti e fusi separatamente.
+		            fill.expolygons = all_polygons.empty() ? union_safety_offset_ex(polys) : diff_ex(union_safety_offset(polys), all_polygons, ApplySafetyOffset::Yes);
 					append(all_polygons, std::move(polys));
 				} else if (&fill != &surface_fills.back())
 					append(all_polygons, to_polygons(fill.expolygons));
@@ -1344,6 +1350,9 @@ void export_group_fills_to_svg(const char *path, const std::vector<SurfaceFill> 
 // friend to Layer
 void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive::Octree* support_fill_octree, FillLightning::Generator* lightning_generator)
 {
+	// Ginger: i raccordi della fusione registrati dal layer precedente diventano il "layer sotto" di questo, una volta
+	// sola e PRIMA del riempimento parallelo delle superfici (FillBase.cpp, single_path_splice_begin_layer).
+	single_path_splice_begin_layer(long(this->id()));
 	for (LayerRegion *layerm : m_regions)
 		layerm->fills.clear();
 

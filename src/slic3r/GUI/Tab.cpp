@@ -2211,6 +2211,10 @@ optgroup->append_single_option_line("bottom_shell_layers", "strength_settings_to
         optgroup->append_single_option_line("bottom_surface_density", "strength_settings_top_bottom_shells#surface-density");
         optgroup->append_single_option_line("bottom_surface_pattern", "strength_settings_top_bottom_shells#surface-pattern");
         optgroup->append_single_option_line("connect_bottom_surface", "strength_settings_top_bottom_shells#connect-surface");
+        optgroup->append_single_option_line("concentric_even_beads", "strength_settings_top_bottom_shells#connect-surface");
+        optgroup->append_single_option_line("concentric_max_bead_width", "strength_settings_top_bottom_shells#connect-surface");
+        optgroup->append_single_option_line("concentric_min_hairpin_width", "strength_settings_top_bottom_shells#connect-surface");
+        optgroup->append_single_option_line("concentric_band_beads", "strength_settings_top_bottom_shells#connect-surface");
 optgroup->append_single_option_line("top_bottom_infill_wall_overlap", "strength_settings_top_bottom_shells#infillwall-overlap");
 
         optgroup = page->new_optgroup(L("Infill"), L"param_infill");

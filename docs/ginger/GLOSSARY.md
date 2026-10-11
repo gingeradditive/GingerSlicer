@@ -325,6 +325,15 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   with Internal solid as top surface it is a top anyway). Migration: both inherit `connect_infill`, so
   existing projects slice identically. Connect infill now means the SPARSE only.
 
+- **Even rings only** (`concentric_even_beads`, with `concentric_max_bead_width` 165 %,
+  `concentric_min_hairpin_width` 55 %, `concentric_band_beads` 6; Strength › Top/bottom shells, 2026-10-09,
+  default off) — Concentric pattern on a connected surface: Arachne (EvenBeadingStrategy) always lays an EVEN
+  number of beads, so the patch is closed rings fused into one path, without the open odd bead in the middle
+  (orphans/blobs) nor the narrow split pairs. The leftover goes to a central band of rings within
+  [0.85 nozzle, maximum]; narrow strips become a hairpin down to the hairpin width. Replaces the split candidate
+  where on. The concentric fill's Arachne parameters are otherwise hard-coded: the process' Arachne settings
+  (min bead width, distribution count, transitions) drive only the walls. See DFM "Even rings only".
+
 - **Unfillable solid returns to sparse** (`return_unfillable_solid_to_sparse`, PrintObject.cpp, 2026-10-02/03)
   — The PART of an internal-solid region that its pattern cannot print is given back to the sparse at
   classification time, so the sparse is computed with it and reaches the wall, instead of leaving a hole
@@ -347,6 +356,13 @@ Full rationale and implementation map in `docs/ginger/DFM.md`.
   (`continuous_path_infill_ring_always`) lays the ring; the Bar Stool numbers above are with it on. Under a
   0% sparse modifier the returned zone is (correctly) void. Top and bottom are untouched (visible skin).
   Debug `GINGER_SOLID2SPARSE_DEBUG=1` -> `[SOLID2SPARSE]`.
+  2026-10-10 (sedile, "sacche vuote dove c'era il solido"): the returned pieces did not merge with the sparse
+  next to them (`union_ex` without tolerance, 1358 of 1392 pieces left as their own sparse island, 77 % within
+  0.01 mm of it) and an island narrower than 1.5 spacings is shrunk to nothing by the filler. Now: (1) the merge is
+  a 0.02 mm closing, minus the solid kept; (2) a piece touching no sparse is not returned (it stays solid);
+  (3) with Internal solid as top the opening is computed on solid ∪ top of the layer (they print together: a strip
+  glued to a top is printable). Sedile returned zone left empty 3253 -> 677 mm2·layer (return off: 789), empty
+  clusters >= 10 mm2·layer 74 -> 6; Bar Stool wall gap unchanged.
 
 - **Internal solid as top surface** (`solid_infill_as_top`, Strength › Infill) — The internal solid
   inherits the top's pattern, flow and (through the role) speed and acceleration, so a solid patch

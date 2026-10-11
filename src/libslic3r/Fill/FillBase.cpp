@@ -1,6 +1,7 @@
 #include <mutex>
 #include <oneapi/tbb/blocked_range.h>
 #include <oneapi/tbb/parallel_for.h>
+#include <oneapi/tbb/task_arena.h>
 #include <array>
 #include <stdio.h>
 #include <cstdlib>
@@ -1758,17 +1759,43 @@ void single_path_splice_set_preferred(const Points *pts, double radius)
 // layer questi punti si leggono soltanto (li ha scritti il layer precedente, che e' gia' finito) e
 // si accodano quelli scelti, il cui ORDINE non conta - servono come insieme di punti da cui si
 // misura una distanza minima. Il lucchetto copre l'accodamento e lo scambio di fine layer.
+// Ginger (2026-10-08, sedile racing): lo scambio lo facevano i singoli riempitori (rettilineo, lightning) DENTRO
+// il riempimento parallelo: il top concentrico, che non lo chiamava, leggeva s_links_prev prima o dopo lo scambio
+// a seconda dei tempi (raccordi del layer sotto o di due layer sotto, ~1 slicing su 7 diverso) e lo leggeva
+// senza lucchetto mentre un altro thread lo svuotava. Ora lo scambio e' uno solo per layer, in Layer::make_fills
+// PRIMA del parallelo, e dentro il layer s_links_prev resta fermo. Con i layer riempiti in parallelo (nessuna
+// connessione dello sparse) un "layer sotto" non esiste ancora quando si riempie questo: l'isteresi e' spenta e
+// vale la regola senza layer sotto (lontano dagli spigoli), deterministica.
 static std::mutex s_links_mutex;
 static Points     s_links_prev, s_links_cur;
 static long       s_links_layer = -1;
+static bool       s_links_on    = false;
+// raccordi di una fusione di PROVA (candidati del top concentrico): si raccolgono a parte e si registra solo il
+// candidato tenuto (single_path_splice_record_links)
+static thread_local Points *s_links_capture = nullptr;
+void single_path_splice_start_object(bool hysteresis)
+{
+    std::lock_guard<std::mutex> lock(s_links_mutex);
+    s_links_prev.clear();
+    s_links_cur.clear();
+    s_links_layer = -1;
+    s_links_on    = hysteresis;
+}
 void single_path_splice_begin_layer(long layer_id)
 {
     std::lock_guard<std::mutex> lock(s_links_mutex);
-    if (layer_id != s_links_layer) {
+    if (s_links_on && layer_id != s_links_layer) {
         s_links_prev.swap(s_links_cur);
         s_links_cur.clear();
         s_links_layer = layer_id;
     }
+}
+void single_path_splice_capture_links(Points *dst) { s_links_capture = dst; }
+void single_path_splice_record_links(const Points &pts)
+{
+    std::lock_guard<std::mutex> lock(s_links_mutex);
+    if (s_links_on)
+        append(s_links_cur, pts);
 }
 
 void single_path_splice_loops(Polylines &loops, double max_link_distance, double stagger, const Polygons *island, bool barrier_only)
@@ -2292,13 +2319,29 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
             }
             return g;
         };
+        // Soglia 0.6 stagger: le X misurate stavano a 0.2-0.45 stagger (due ponti in versi opposti quasi
+        // coincidenti), mentre i ponti allineati fra anelli Arachne a larghezza variabile (anelli a 3.5-4.3 mm
+        // invece che a un passo) restano a 0.63-0.82 stagger, affiancati e nello stesso verso: a 0.85 (la
+        // soglia della gorge) venivano rifiutati e il top si spezzava in piu' tratti (Bar Stool, 4 -> 10 per
+        // layer, e l'anellino centrale isolato).
         // Con island == nullptr (trapezoidale multiline) ogni raccordo e' accettato, come prima.
-        const double min_rung_gap = island == nullptr ? 0. : 0.85 * stagger;
+        // Anelli piccoli (raggio sotto 1.5 stagger, l'anellino centrale di un top concentrico: 9-35 mm di
+        // giro): due ponti a uno stagger non ci stanno fisicamente - l'anello e' grande come tre cordoni e si
+        // sovrappone gia' a se stesso - e con le guardie restava isolato (Bar Stool, centro dei montanti e
+        // degli sgabelli). Li' niente guardie, come prima: la sovrapposizione resta dentro pochi millimetri.
+        const double small_ring_len = 2. * M_PI * 1.5 * stagger;
+        const bool   small_ring     = Polyline(A).length() < small_ring_len || Polyline(B).length() < small_ring_len;
+        const bool   guards         = island != nullptr && ! small_ring;
+        const double min_rung_gap   = guards ? 0.6 * stagger : 0.;
         const Point &b_exit = pieceB.back();
         // Un ponte non deve attraversare nessuna linea gia' presente (anelli e tratti aperti, l'indice di
         // link_valid): il test di auto-incrocio qui sotto guarda solo entro 4 cordoni dal raccordo, e un
         // ponte lungo (lightning: 17 mm) puo' tagliare un tratto piu' in la'. Le intersezioni ai capi del
         // ponte sono gli anelli stessi su cui atterra, e non contano.
+        // Attivo anche sugli anelli piccoli (2026-10-10): senza il veto a disco sui build_merge falliti, la fusione arriva
+        // a candidati che prima non provava, e su un anello piccolo un raccordo che ATTRAVERSA un altro anello passava
+        // (sedile z 381.6: raccordo attraverso un anello da 54 mm, 4 incroci). L'esenzione dei piccoli riguarda la
+        // distanza fra i ponti (min_rung_gap), non gli incroci con altre linee.
         auto rung_hits_lines = [&](const Point &p, const Point &q) -> bool {
             if (! retrace)
                 return false;
@@ -2310,6 +2353,20 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
             }
             return false;
         };
+        // Ginger (2026-10-09, sedile, fusione per superficie): OGNI ponte posato deve stare dentro l'isola, non solo il
+        // raccordo candidato (che passa da link_valid). Fra anelli concentrici dello stesso pezzo il secondo ponte corre
+        // parallelo al primo e non usciva mai; attraverso un collo a strozzatura diverge: z 98.5 un ponte da 7.8 mm con
+        // 3.3 mm sopra lo sparse, fuori dalla superficie. Solo il contenimento: le altre regole di link_valid (ripasso,
+        // aderenza al bordo sopra 3 stagger) sono per la scelta del raccordo e rifiutavano ponti buoni dentro i pezzi.
+        auto rung_valid = [&](const Point &p, const Point &q) -> bool {
+            if (island == nullptr || (q - p).cast<double>().norm() <= guard_free)
+                return true;
+            sp_profile_count(&SPProfile::clipper_calls);
+            double tot = 0.;
+            for (const Line &l : intersection_ln(Line(p, q), *island))
+                tot += l.length();
+            return tot + SCALED_EPSILON >= 0.999 * (q - p).cast<double>().norm();
+        };
 
         // 1) VARCHI ALLINEATI. Il varco su B va da cpb a b_exit (uno stagger); quello su A va da cproj a
         //    a_exit, uno stagger nel verso in cui a_exit cade di fronte a b_exit. A si percorre AL
@@ -2320,19 +2377,24 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         //    all'inizio dell'altro, quindi diagonali per costruzione (interasse 0.71 stagger nel caso
         //    migliore), e con un raccordo inclinato due ponti lunghi in versi opposti quasi coincidenti.
         {
-            const bool use_f = (pieceA_f.back() - b_exit).cast<double>().squaredNorm() <=
-                               (pieceA_b.back() - b_exit).cast<double>().squaredNorm();
-            const Points &pieceA = use_f ? pieceA_f : pieceA_b;
-            const Point  &a_exit = pieceA.back();
-            out.points.clear();
-            out.points.reserve(pieceA.size() + pieceB.size());
-            out.points.insert(out.points.end(), pieceB.begin(), pieceB.end());
-            out.points.insert(out.points.end(), pieceA.rbegin(), pieceA.rend());
-            if (! segments_cross(b_exit, a_exit, cproj, cpb) &&
-                rung_gap(b_exit, a_exit, cproj, cpb) >= min_rung_gap &&
-                ! rung_hits_lines(b_exit, a_exit) && ! rung_hits_lines(cproj, cpb) &&
-                ! self_crosses_near_link(out))
-                return true;
+            // Prima il verso in cui a_exit cade di fronte a b_exit, poi l'altro: su un anello piccolo (l'anellino
+            // centrale di un top concentrico, 10 mm di giro) uno stagger e' un terzo del giro e il lato "piu'
+            // vicino" puo' essere quello che incrocia - con l'altro i due ponti si aprono a V senza toccarsi.
+            const bool f_first = (pieceA_f.back() - b_exit).cast<double>().squaredNorm() <=
+                                 (pieceA_b.back() - b_exit).cast<double>().squaredNorm();
+            for (int attempt = 0; attempt < 2; ++ attempt) {
+                const Points &pieceA = (attempt == 0) == f_first ? pieceA_f : pieceA_b;
+                const Point  &a_exit = pieceA.back();
+                out.points.clear();
+                out.points.reserve(pieceA.size() + pieceB.size());
+                out.points.insert(out.points.end(), pieceB.begin(), pieceB.end());
+                out.points.insert(out.points.end(), pieceA.rbegin(), pieceA.rend());
+                if (! segments_cross(b_exit, a_exit, cproj, cpb) &&
+                    rung_gap(b_exit, a_exit, cproj, cpb) >= min_rung_gap &&
+                    ! rung_hits_lines(b_exit, a_exit) && ! rung_hits_lines(cproj, cpb) &&
+                    rung_valid(b_exit, a_exit) && ! self_crosses_near_link(out))
+                    return true;
+            }
         }
 
         // 2) Ripiego: la costruzione di prima (ponti b_exit -> cproj e a_exit -> cpb), accettata solo se
@@ -2344,7 +2406,8 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
         Points &pieceA = (f_cross != b_cross) ? (b_cross ? pieceA_f : pieceA_b)
                                               : (f_len <= b_len ? pieceA_f : pieceA_b);
         if (rung_gap(b_exit, cproj, pieceA.back(), pieceB.front()) < min_rung_gap ||
-            rung_hits_lines(b_exit, cproj) || rung_hits_lines(pieceA.back(), pieceB.front()))
+            rung_hits_lines(b_exit, cproj) || rung_hits_lines(pieceA.back(), pieceB.front()) ||
+            ! rung_valid(b_exit, cproj) || ! rung_valid(pieceA.back(), pieceB.front()))
             return false;
         out.points.clear();
         out.points.reserve(pieceA.size() + pieceB.size());
@@ -2602,12 +2665,17 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                 }
                 miss_raw[m] = std::move(raw);
             };
+            // isolato: chi aspetta qui non deve prendersi il riempimento di un'ALTRA superficie del layer (Fill.cpp
+            // le riempie in parallelo), che girerebbe con gli stati per thread di questa fusione (raccordi catturati
+            // di un candidato del top concentrico, punti preferiti, z di debug) e li cambierebbe uscendo
             if (misses.size() >= 8)
-                tbb::parallel_for(tbb::blocked_range<size_t>(0, misses.size()),
-                                  [&](const tbb::blocked_range<size_t> &r) {
-                                      for (size_t m = r.begin(); m < r.end(); ++ m)
-                                          compute_pair(m);
-                                  });
+                tbb::this_task_arena::isolate([&]() {
+                    tbb::parallel_for(tbb::blocked_range<size_t>(0, misses.size()),
+                                      [&](const tbb::blocked_range<size_t> &r) {
+                                          for (size_t m = r.begin(); m < r.end(); ++ m)
+                                              compute_pair(m);
+                                      });
+                });
             else
                 for (size_t m = 0; m < misses.size(); ++ m)
                     compute_pair(m);
@@ -2807,7 +2875,8 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                     continue;
                 }
                 bool merged_ok = false;
-                if (link_valid(c.proj, pb)) { SPTimer sp_timer_mb(SPProfile::phSpliceMergeBuild); merged_ok = build_merge(c.i, c.j, c.v, c.s, c.proj, pb, merged_best); }
+                const bool link_ok = link_valid(c.proj, pb);
+                if (link_ok) { SPTimer sp_timer_mb(SPProfile::phSpliceMergeBuild); merged_ok = build_merge(c.i, c.j, c.v, c.s, c.proj, pb, merged_best); }
                 if (merged_ok) {
                     bi = c.i; bj = c.j; b_vert = c.v; b_seg = c.s; b_proj = c.proj; b_pb = pb;
                     b_found = true;
@@ -2818,7 +2887,18 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                                      c.proj.x() * SCALING_FACTOR, c.proj.y() * SCALING_FACTOR, pb.x() * SCALING_FACTOR, pb.y() * SCALING_FACTOR);
                     break;
                 }
-                failed_links.emplace_back(c.proj, pb);
+                // Ginger (2026-10-10, sedile, Davide): si veta il vicinato solo quando e' il RACCORDO a essere invalido
+                // (fuori dall'isola, sopra un cordone: la zona e' sbagliata, i vicini lo sono anche loro - l'intaglio del
+                // commento sopra). Un build_merge fallito (ponti incrociati, autointersezione, ponte fuori isola) dipende
+                // dalla posizione esatta e dal verso: un candidato a 2 mm puo' riuscire. Su un anello piccolo il disco di
+                // 3 stagger copriva tutto l'anello e dopo il primo fallimento - spesso il candidato dell'isteresi - non si
+                // provava piu' nulla: 34 top spezzati sul sedile, con un candidato costruibile in 45 coppie su 46. I
+                // tentativi in piu' restano sotto il tetto max_validations.
+                // Senza isola (grid, rettilineo) non c'e' l'indice delle linee e nessun incrocio viene controllato: li' il
+                // veto resta l'unica protezione e si applica come prima (verifica 2026-10-10: stool grid 25% un incrocio
+                // su 51 layer, grid 60% un tratto avanti e indietro).
+                if (! link_ok || island == nullptr)
+                    failed_links.emplace_back(c.proj, pb);
             }
             if (b_found || budget_out || r >= max_link_distance)
                 break;
@@ -2834,7 +2914,10 @@ void single_path_splice_loops(Polylines &loops, double max_link_distance, double
                          b_pb.x() * SCALING_FACTOR, b_pb.y() * SCALING_FACTOR,
                          (b_pb - b_proj).cast<double>().norm() * SCALING_FACTOR);
         Polyline merged = std::move(merged_best);
-        { std::lock_guard<std::mutex> lock(s_links_mutex); s_links_cur.emplace_back((b_proj + b_pb) / 2); }
+        if (s_links_capture != nullptr)
+            s_links_capture->emplace_back((b_proj + b_pb) / 2);
+        else
+            single_path_splice_record_links(Points{ (b_proj + b_pb) / 2 });
         rings[bi] = std::move(merged);
         rings.erase(rings.begin() + bj);
         ring_tree[bi].reset();
@@ -6361,18 +6444,26 @@ void Fill::chain_or_connect_infill(Polylines &&infill_ordered, const ExPolygon &
             // be required). Filtering the OUTPUT (not the input) is what makes it robust: it never touches
             // the short scanlines of line patterns that connect_infill joins into the path. Real small
             // islands ("feet", ~8 mm) and the big interior trees (tens of mm) are kept.
-            if (params.connect_polygons && line_w > 0.) {
-                const double max_stray = 1.5 * line_w;
-                polylines_out.erase(std::remove_if(polylines_out.begin() + out_start, polylines_out.end(),
-                    [max_stray](const Polyline &pl) {
-                        if (pl.size() < 2)
-                            return true;
-                        const BoundingBox bb = pl.bounding_box();
-                        return double(std::max(bb.size().x(), bb.size().y())) < max_stray;
-                    }), polylines_out.end());
-            }
+            drop_stray_fragments(polylines_out, out_start, params, spacing);
         }
     }
+}
+
+void Fill::drop_stray_fragments(Polylines &polylines_out, size_t from, const FillParams &params, double spacing)
+{
+    if (! params.connect_polygons || from >= polylines_out.size())
+        return;
+    const double line_w = params.flow.scaled_width() > 0 ? double(params.flow.scaled_width()) : scale_(spacing);
+    if (line_w <= 0.)
+        return;
+    const double max_stray = 1.5 * line_w;
+    polylines_out.erase(std::remove_if(polylines_out.begin() + from, polylines_out.end(),
+        [max_stray](const Polyline &pl) {
+            if (pl.size() < 2)
+                return true;
+            const BoundingBox bb = pl.bounding_box();
+            return double(std::max(bb.size().x(), bb.size().y())) < max_stray;
+        }), polylines_out.end());
 }
 
 // Extend the infill lines along the perimeters, this is mainly useful for grid aligned support, where a perimeter line may be nearly

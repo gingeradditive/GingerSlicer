@@ -36,6 +36,18 @@ public:
     float   wall_transition_filter_deviation { 0.f };
     int     wall_distribution_count          { 1 };
     bool    is_top_or_bottom_layer           { false };
+    // Ginger (2026-10-06): soglie di parita' imposte dal chiamante (< 0 = calcolate da min_bead_width come in
+    // Cura/Orca). split: con un numero dispari di cordoni, oltre quale resto il cordone di mezzo si divide in due;
+    // add: con un numero pari, oltre quale resto se ne aggiunge uno in mezzo.
+    float   split_middle_threshold           { -1.f };
+    float   add_middle_threshold             { -1.f };
+    // Ginger (2026-10-09): > 0 = numero di cordoni sempre PARI (EvenBeadingStrategy) per il concentrico connesso.
+    // Larghezze di ESTRUSIONE in mm (convertite in passo qui): cordone variabile in [min_bead_width,
+    // even_max_bead_width], i due cordoni di una striscia stretta fino a even_min_pair_width; il resto va a una
+    // banda centrale di even_band cordoni, gli anelli esterni restano al passo nominale.
+    float   even_max_bead_width              { -1.f };
+    float   even_min_pair_width              { -1.f };
+    int     even_band                        { 6 };
 };
 
 WallToolPathsParams make_paths_params(const int layer_id, const PrintObjectConfig &print_object_config, const PrintConfig &print_config);

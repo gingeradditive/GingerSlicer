@@ -1826,7 +1826,12 @@ void generate_support_toolpaths(
                 } else if (support_params.support_style == SupportMaterialStyle::smsTreeOrganic) {
                     // if the tree supports are too tall, use double wall to make it stronger
                     SupportParameters support_params2 = support_params;
-                    if (support_layer.print_z > 100.0)
+                    // Ginger (2026-10-11, sedile, Davide: "un supporto di 3.6 mm e' una clava, 4 kg solo di supporti"): il
+                    // doppio muro forzato sopra i 100 mm vale solo col conteggio automatico (tree_support_wall_count = 0). Con
+                    // 1 muro scelto esplicitamente (soglia "mai doppio" = max) resta 1 muro anche in alto: prima la scelta
+                    // veniva ignorata sopra i 100 mm, e a 101 mm compariva un anello interno stampato sul vuoto.
+                    if (support_layer.print_z > 100.0 &&
+                        support_params.tree_branch_diameter_double_wall_area_scaled != std::numeric_limits<double>::max())
                         support_params2.tree_branch_diameter_double_wall_area_scaled = 0.1;
                     tree_supports_generate_paths(base_layer.extrusions, base_layer.polygons_to_extrude(), flow, support_params2);
                     done = true;

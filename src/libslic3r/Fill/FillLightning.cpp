@@ -10,7 +10,6 @@
 #include "FillLightning.hpp"
 #include "Lightning/Generator.hpp"
 
-namespace Slic3r { void single_path_splice_begin_layer(long layer_id); }
 
 // Sonda GINGER_LN_DEBUG: le isole si riempiono in parallelo (TBB) e fprintf spezza le righe lunghe
 // a meta' (buffer stdio): i poligoni di due thread si mescolavano sul log. Una riga intera per
@@ -216,12 +215,16 @@ void Filler::_fill_surface_single(
                     // arrivava a 0.4 mm dall'asse della parete e lasciava passare raccordi sopra il
                     // muro (plate 3, layer 139: due rotaie da 10 mm sul cordone di parete).
                     island = offset(expolygon, float(scale_(0.1 * params.flow.width())));
-                single_path_splice_begin_layer(long(this->layer_id));
                 LnProfile::Scope sp_splice(LnProfile::phSplice);
                 single_path_splice_loops(rings, scale_(4. * this->spacing * params.multiline), scale_(this->spacing), ln_island ? &island : nullptr, ln_island == 2);
             }
             if (ln_dbg) ln_dump_line("[LNPOCK]   dopo splice=" + std::to_string(rings.size()) + "\n");
+            // dopo la splice (non in push_ring: un anellino che la splice riesce a fondere resta): una tasca
+            // minuscola rimasta da sola e' un frammento vagante come gli altri (knee 2026-10-09: 11 anellini da
+            // 1-3 mm, ciascuno con il suo travel)
+            const size_t out_start = polylines_out.size();
             append(polylines_out, std::move(rings));
+            drop_stray_fragments(polylines_out, out_start, params, this->spacing);
             return;
         }
     }
@@ -258,9 +261,15 @@ void Filler::_fill_surface_single(
         // Under the fusion the surface only survives when the ring was asked for on every layer,
         // and then its contour already goes around each carved gorge: walking it IS that ring.
         if (params.ring_always) {
+            // la stessa regola dei frammenti vaganti che il connettore applica alla sua uscita
+            // (chain_or_connect_infill): questo ramo esce prima del connettore e la saltava, e una tasca minuscola
+            // senza alberi diventava un anellino isolato da 2-10 mm raggiunto con un travel (sedile 2026-10-08:
+            // 7 anellini, 11 retrazioni)
+            const size_t out_start = polylines_out.size();
             polylines_out.emplace_back(expolygon.contour.split_at_first_point());
             for (const Polygon &hole : expolygon.holes)
                 polylines_out.emplace_back(hole.split_at_first_point());
+            drop_stray_fragments(polylines_out, out_start, params, this->spacing);
         }
         return;
     }

@@ -2445,6 +2445,56 @@ void PrintConfigDef::init_fff_params()
     def->mode       = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
+    // Ginger (2026-10-09, poppot): anelli pari nel concentrico connesso (EvenBeadingStrategy). Arachne nel concentrico
+    // usava parametri fissi (Bambu, 2022) e un cordone dispari aperto al centro di ogni toppa a larghezza "dispari".
+    def             = this->add("concentric_even_beads", coBool);
+    def->label      = L("Even rings only");
+    def->category   = L("Strength");
+    def->tooltip    = L("Concentric pattern with connected surfaces: always lay an even number of beads across a patch, "
+                        "so every patch is made of closed rings fused into one path, without an open single bead in "
+                        "the middle (a short stub or a blob on the surface). The leftover width is spread over a "
+                        "central band of rings, between the minimum bead width and the maximum below; the outer rings "
+                        "keep the nominal width. Narrow strips become a hairpin of two narrower beads.");
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
+    def             = this->add("concentric_max_bead_width", coFloatOrPercent);
+    def->label      = L("Maximum ring width");
+    def->category   = L("Strength");
+    def->tooltip    = L("Even rings only: the widest bead the central band may print to stay with an even count. "
+                        "If expressed as a %, it will be computed over the nozzle diameter.");
+    def->sidetext   = L("mm or %");
+    def->ratio_over = "nozzle_diameter";
+    def->min        = 0;
+    def->max        = 1000;
+    def->max_literal = 20;
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionFloatOrPercent(165., true));
+
+    def             = this->add("concentric_min_hairpin_width", coFloatOrPercent);
+    def->label      = L("Minimum hairpin width");
+    def->category   = L("Strength");
+    def->tooltip    = L("Even rings only: a strip too narrow for two normal beads is printed as a hairpin of two beads "
+                        "down to this width; below twice this width it stays a single bead. "
+                        "If expressed as a %, it will be computed over the nozzle diameter.");
+    def->sidetext   = L("mm or %");
+    def->ratio_over = "nozzle_diameter";
+    def->min        = 0;
+    def->max        = 1000;
+    def->max_literal = 20;
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionFloatOrPercent(55., true));
+
+    def             = this->add("concentric_band_beads", coInt);
+    def->label      = L("Central band rings");
+    def->category   = L("Strength");
+    def->tooltip    = L("Even rings only: how many central rings share the leftover width. The other rings keep the "
+                        "nominal width, so they stay exact offsets of each other.");
+    def->min        = 2;
+    def->max        = 100;
+    def->mode       = comAdvanced;
+    def->set_default_value(new ConfigOptionInt(6));
+
     // Ginger: il solido interno smette di essere una feature a se' e diventa top/bottom a tutti gli
     // effetti - eredita pattern, densita', flusso e, tramite il ruolo, velocita' e accelerazione. Top e
     // solido interno contigui diventano cosi' UNA toppa con un percorso solo, invece di due feature

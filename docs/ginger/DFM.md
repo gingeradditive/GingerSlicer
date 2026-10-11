@@ -107,7 +107,7 @@ Every artificial connection is an extruded bead governed by D2, not by a length 
 - **virtual edges** (trail split points) are extruded as micro-bridges when they pass the
   rules; **open pieces with almost-touching ends** are joined; **residual closed loops** are
   welded into the walk by `single_path_splice_loops()` (double link on aligned cut gaps,
-  links at least 0.85 stagger apart and crossing no existing line, candidate validation
+  links at least 0.6 stagger apart and crossing no existing line, candidate validation
   budgeted per distinct region - see "Aligned cut gaps" below).
 
 **Connections ride the wall (2026-08-26, stool).** Rules (a)+(b) alone still admitted straight
@@ -135,30 +135,131 @@ The merge now carries the attach ceiling: longer than 3 stagger and the candidat
 the travel it saves). Measured: air 7.84 m -> 0.15 m, longest 221 -> 30 mm, sparse 668 -> 656 m,
 travels 116.42 -> 116.66 m (+0.2 %), and the whole sp_lab suite (37 cases) byte-identical.
 
-**Aligned cut gaps in the ring-to-ring merge (2026-10-03, Bar Stool top concentric).** Merging two
+**Aligned cut gaps in the ring-to-ring merge (2026-10-03/04, Bar Stool top concentric).** Merging two
 closed rings cuts a gap of one stagger in each and adds two links. The links used to be
 `b_exit -> cproj` and `a_exit -> cpb`: each tied the END of one gap to the START of the other, so they
 were diagonal by construction (0.71 stagger apart in the best case) and, when the candidate was
 inclined along the ring, two long links in opposite directions almost on top of each other (Bar
 Stool plate 2, last layer: 6.7 + 6.6 mm links 0.5-1.8 mm apart with a 3.2 mm bead). The centerlines
 never cross, so the orientation test (`segments_cross`, strict) let them through - in the preview
-they read as an "X" of beads, and it is 6-9 mm2 of double material per junction. Now
-`build_merge` walks ring A BACKWARDS (from `a_exit` to `cproj`, with `a_exit` the side facing
-`b_exit`): the two links are the two sides of the same aligned gap, `b_exit -> a_exit` and, on
-closing, `cproj -> cpb` - radial and parallel at one stagger on concentric rings, the PolygonConnector
-of Cura. Two guards on every construction: the links must stay at least **0.85 stagger** apart
-(sampled, the same interasse rule as the gorge attach) and must not cross any existing line (the
-`link_valid` index: a 17 mm Lightning link cut a 29 mm sparse line 14 mm away from the junction,
-beyond the 4-bead local self-crossing test). The old construction stays as a fallback only if it
-passes the same guards; otherwise the next candidate is tried. With `island == nullptr`
-(trapezoidal multiline) the interasse guard is off, as every link was accepted there before.
-Measured (area covered twice by non-consecutive beads, band = spacing): Bar Stool plate 2
-top/bottom concentric 438 -> 259 mm2 (Internal solid as top: 685 -> 293), stool top concentric
-2114 -> 1375, knee 2276 -> 1960, and the sparse merges too - grid 5 % ml=2 1496 -> 91, triangles
-953 -> 84, ml=3 8887 -> 6971; Lightning ml=2 unchanged (241 -> 239), 0 crossings. Travel mixed and
-small: stool top concentric 5.07 -> 5.50 m, dens 60 % 2.41 -> 1.89, walls_3_ribs 5.93 -> 5.76,
-grid/triangles/cubic identical. A few more separate pieces where no construction holds the
-interasse (Bar Stool plate 2 top 29 -> 34, same travel).
+they read as an "X" of beads, 6-9 mm2 of double material per junction. Now `build_merge` walks
+ring A BACKWARDS (from `a_exit` to `cproj`): the two links are the two sides of the same aligned gap,
+`b_exit -> a_exit` and, on closing, `cproj -> cpb` - radial and parallel at one stagger on concentric
+rings, the PolygonConnector of Cura. The side of A facing `b_exit` is tried first, then the other
+(on a 10 mm ring one stagger is a third of the turn and the nearest side can be the crossing one).
+Guards, on both this and the old construction (kept as fallback): the links at least **0.6 stagger**
+apart (sampled; the X cases measured 0.2-0.45, while aligned links between variable-width Arachne
+rings 3.5-4.3 mm apart sit at 0.63-0.82 - a 0.85 threshold, the gorge one, split the Bar Stool tops
+from 4 to 10 pieces per layer), and no link crossing an existing line (the `link_valid` index: a
+17 mm Lightning link cut a 29 mm sparse line 14 mm from the junction, beyond the 4-bead local
+self-crossing test). **No guards on small rings** (radius below 1.5 stagger, the central ringlet of
+a concentric top, 9-35 mm around): two links one stagger apart do not physically fit, the ringlet
+overlaps itself anyway, and with the guards it was left isolated at the centre of the tops. No
+guards either with `island == nullptr` (trapezoidal multiline), as before. Measured A/B on the same
+Bar Stool 3MF (top concentric, Internal solid as top): top pieces 73 -> 69, 62 -> 59, 64 -> 16 on the
+three plates (plate 2 last layers one piece per stool), double area 705 -> 461, 591 -> 394,
+288 -> 269 mm2, travel equal. sp_lab matrix: stool top concentric 2114 -> 1492 mm2, knee
+2276 -> 2088, sparse grid 5 % ml=2 1496 -> 91, triangles 953 -> 84, ml=3 8887 -> 7818, Lightning
+ml=2 241 -> 229 with 0 crossings; travel neutral (knee 14.59 -> 14.66 m, dens 60 % 2.41 -> 1.91)
+except the stool top concentric, 5.07 -> 5.50 m (the router enters the reshaped loops elsewhere on
+two layers).
+
+**Odd middle bead -> closed hairpin (2026-10-07, Bar Stool, Cura's trick).** Where a patch is about an even
+multiple of the spacing wide (~40% of widths) Arachne lays an ODD number of beads; the middle one runs on the medial
+axis, a tree, so it is an OPEN line (or an open "dot"). The ring fusion only joins closed rings (Cura's
+PolygonConnector too: "open paths will be left unconnected"), so the top came out open with both ends in the centre
+and the router travelled there. Closed loops always lay an even number of beads across any section: the fix has to
+act on the bead count. Cura (verified on CuraEngine 5.10 and headless runs) has the same problem and one usable
+lever: a low split-middle threshold (`min_even_wall_line_width`), which prints the odd middle bead as two narrower
+beads forming a closed hairpin. In `FillConcentric`, only with connect, only for patches whose normal Arachne run
+left an open piece, never on the first layer and never on slivers (fill < 2.5 widths, which the sliver drop would
+discard), Arachne is re-run with `split_middle_threshold` from Cura's formula with a 0.55 x nozzle minimum
+(`WallToolPathsParams::split_middle_threshold`, default -1 = computed as before). The re-run is only a CANDIDATE:
+both candidates go through centre detection + ring fusion + centre hairpin, and the re-run is kept only if
+(a) open pieces + pieces strictly decrease, (b) beads under 0.45 x nozzle total at most max(1 spacing, 0.2% of the
+patch length), (c) uncovered area does not grow by more than 0.5 spacing^2 - measured on the FUSED result (links
+and centre hairpin included), in a window around the beads that differ between the two runs, on the region grown
+by half a bead toward the wall (a hole between top and wall sits outside the Arachne outline). The winner's fusion
+is reused. Debug `GINGER_SPLIT_DEBUG=1` -> `[SPLITDBG] L.. aperti a->b pezzi c->d minw .. stretti .. scoperto x->y
+=> TENUTA|scartata`. Rejected on the way, all verified by independent agents: forcing even counts with all
+thresholds (beads down to 1.77 mm, detached inner rings); "pair beading" (Arachne at double width, each bead split
+in two closed halves: closes everything but children overlap at transitions, 126 crossings on the Bar Stool hub);
+the low threshold everywhere (round centres that already closed got tiny unmerged rings, sliver pieces appeared);
+acceptance on raw beads or on a window around the open pieces only (missed real holes). Bar Stool vs before: plate 2
+wall->top travel 206.5 -> 126.9 mm, max 26.5 -> 6.4, retractions 11 -> 5; plate 1 top chains 69 -> 50, open 38 -> 24,
+centre ends 31 -> 7; top-zone uncovered -70 / -46 mm2; logged hole deltas match the G-code within a few mm2.
+figure_knee: travel -3.9 m, open chains 200 -> 78, crossings 33 -> 13, double cover -30%. Stool: all candidates
+rejected (more holes), G-code identical. Remaining: one X at plate 2 z=222.5 on a kept hairpin closure (+16 mm3),
+router reorder travels on some layers (p1 z=26.2 +39.6 mm), round centres and one-bead arms that stay as before.
+
+*Cost of the evaluation (2026-10-08).* The first version took the stool top concentric from 8 to 19 s and the knee
+from 13 to 21 s. Three things, measured with a per-candidate stopwatch (arachne / fusion / window / hole measure):
+(1) **the arc tolerance** - for `jtRound`, the 4th argument of `offset()` is Clipper's ArcTolerance in SCALED units,
+not a miter limit: the `3.` copied from the usual miter call meant 3 nm, ~1100 vertices per circle on every round
+cap and joint of the coverage. The hole measure was 15 s of the knee's 19 s of overhead and the centre detection
+(which also runs on every concentric patch in the normal path) was most of the fusion time. Now
+`concentric_arc_tolerance()` = 5 um (~27 vertices per circle): areas shift by ~+0.1 mm2, decisions unchanged.
+(2) `concentric_uncovered_pair` measures both candidates together: the coverage of the segments COMMON to both
+(same endpoints in either direction, same 0.25 mm width step) is built once, each candidate only adds its own
+differing segments. (3) a pre-reject on the RAW beads: if the holes already grow by more than 2 spacing^2 the
+fusion will not close them, and the second fusion is skipped (stool: 10 of 11 candidates, each fusion ~0.4 s on
+the 33 m patch; knee: 3 of 492, but the raw measure now costs 0.4 s in all). Rejected: narrowing the measure window
+further to the area around the differing segments only - it biased the knee decisions (354 vs 370 kept) because
+the holes outside it do not cancel exactly once the fusion has moved links. Result (agent, sequential, 3 runs):
+stool top concentric 14.7 -> 9.5 s (8.3 before the feature), top ml=1 18.3 -> 12.5 s, knee 27.5 -> 15.2 s (12.3),
+Bar Stool plate 1 14.6 -> 7.6 s; G-code identical on stool and Bar Stool plate 1, two knee decisions on the
+threshold flipped to kept (both better: travel in the top 32 -> 23 and 58 -> 39 mm).
+
+**Even rings only (`concentric_even_beads`, 2026-10-09, poppot, default off).** The split candidate cannot touch an
+odd bead of 0.80-1.03 widths (its halves would be under 0.55 nozzle): on the poppot vase those "orphans" (3-7 mm,
+shorter than the ~20 mm flow transient, i.e. blobs) and the narrow split pairs (1.65-2.4 mm, flow -25 %) were the
+artifacts. Why Arachne makes them: its count rule (`DistributedBeadingStrategy::getOptimalBeadCount`) adds a bead as
+soon as the leftover exceeds `add_middle_threshold` (min_bead / w = 0.797) - it aims at the nominal width, parity
+never enters - and with `wall_distribution_count = 1` the whole leftover lands on the middle bead(s): middle pair up
+to 4.47 mm, odd bead 2.55-5.1 mm. The concentric fill's Arachne parameters are hard-coded (FillConcentric, Bambu
+2022): the process' Arachne settings only drive the walls. A closed path crosses every section an even number of
+times, so the fix is the count: `EvenBeadingStrategy` (Arachne/BeadingStrategy) always picks an EVEN count, the one
+whose variable beads are nearest to the nominal width inside [0.85 nozzle, `concentric_max_bead_width`] (165 %,
+~5 mm on a 3 mm nozzle; with a 5 mm ceiling an even count fits every patch wider than ~5 mm); n = 2 down to
+`concentric_min_hairpin_width` (55 %), one bead only on a true sliver. The leftover goes to a central band of
+`concentric_band_beads` (6) rings, the outer rings stay at the nominal spacing (exact offsets). All widths are
+converted to SPACINGS (Arachne's unit here). Arachne steps one bead at a time in its transitions: n -> n+1 is anchored
+to end at the mid and n+1 -> n+2 to start there, so the odd count only lives inside the transition (the U tip).
+A patch that is a single closed hairpin is judged as the base would: Arachne is re-run on it with the default
+parameters and the patch is dropped iff that run is under 2.5 widths (the hairpin is longer than the line it
+replaces, so it passed the sliver filter and added top layers; no fixed loop-length ratio matches, because this
+hairpin and the split candidate's are built differently). The base judges the whole surface, this the patch: one 12 mm
+sliver in three pieces on poppot p4 L190 is no longer printed. The split candidate is skipped. Three iterations, each verified: v1 (uniform widths over every
+bead, no unit conversion) folded every ring out and back at every transition, opened 1-bead lines on narrow strips and
+went up to 5.86 mm; v2 (band, spacing, hairpin) still jogged the band rings (coincident transition ends) and printed
+hairpin slivers base dropped; v3 = the above. v3 vs base: poppot vase tops 4-9 runs / 3-8 orphans -> 1 closed run, 0
+travel, excess about equal; poppot p3 top runs 24 -> 3; sedile crossings 7 -> 0, top retractions 170 -> 141; knee
+travel in/out of tops 9.45 -> 7.22 m; stool excess -18 %; slicing 5-10 % faster. Left: small pinches of the centre
+pair where the thickness oscillates around a boundary (Arachne dissolves one transition step at a time; the real fix
+is a 2-step transition in SkeletalTrapezoidation), isolated hairpin loops on very small tops.
+
+**The centre of a concentric top (2026-10-04/05, Bar Stool).** Arachne lays rings as long as they fit;
+inside the last one a blob stays empty (Bar Stool plate 2, last two layers: 13-23 mm2 per stool, a
+4-5 mm hole with a 3.2 mm bead). No centre line is born there: the zone is round, its medial axis
+too short for `removeSmallLines` and not a narrow wedge. Raising `wall_transition_angle` (10 deg in
+`FillConcentric`) closed one centre out of four and multiplied the pieces (59 -> 121); gap fill does
+not act on the concentric pattern. The fix works in two steps (FillConcentric.cpp, solid surfaces only).
+`find_concentric_centers`, BEFORE the ring fusion: real coverage of the rings (mean width of each), the
+residual, and only the blob enclosed by the INNERMOST ring (no other ring inside it - the centre, not a
+slit between two rings; blobs touching the patch boundary are corners). `insert_center_hairpins`, AFTER
+the fusion: the path passing nearest to the blob opens a one-stagger gap there and replaces it with a
+HAIRPIN that dives into the blob and comes back - two arms one stagger apart, like two neighbouring
+rings, deep enough for the bead to reach the far edge of the blob. A closed loop stays closed, which is
+the whole point with connect: the concentric top is a loop the router enters and leaves at the same
+point. The hairpin is rejected if it crosses any segment passing within 4 beads of the centre (the
+SEGMENT, not its ends: on the stool the rings have long straight sides crossing the zone with both ends
+far away, and an endpoint test let 46 crossings through); then the gap is tried on the other side, then
+skipped. sp_lab matrix: stool top/bottom concentric crossings and double area identical to before. Three attempts failed on the way (2026-10-05): a spiral ending in the centre OPENED
+the top (closed top loops on plate 2 30 -> 25), the link into the centre ran 1.9 mm from the ring start
+and the beads crossed; a hairpin in the innermost ring or an extra closed ringlet BEFORE the fusion
+changed the geometry the fusion works on and the rings stopped merging (top pieces 59 -> 61 / 72).
+Bar Stool, same 3MF: holes on the last top layers 71.2 -> 1.8 and 65.0 -> 3.8 mm2; closed top loops
+(30/31, 18/43, 16/16), top pieces (69 / 59 / 16) and travel unchanged; double area 394 -> 405 mm2.
 
 **4-flip + Z-bridge (2026-08-28, the current mechanism).** With one gap per vertex (forced:
 a vertex has 1 chord + 2 gaps and even degree needs exactly one) the selection family is
@@ -200,6 +301,43 @@ it was an OBSTACLE for the rib planner (35 of the 55 layers with obstacle drops 
 had one) and one more unit to reach: the layer started at the sliver, 250 mm from where the
 previous layer ended. Dropping them let the ribs merge the small holes (obstacle drops 55 -> 1
 layers) and cut the layer-change travel from 8.3 m to 2.4 m (270 of 301 changes under 10 mm).
+
+**Stray sparse fragments are dropped, on every exit** (`Fill::drop_stray_fragments`): a connected
+sparse piece whose bounding box is under 1.5 line widths on both axes is a lightning crumb reached by
+its own travel. The rule (2026-06) lived inline in `chain_or_connect_infill`; the
+`continuous_path_infill_ring_always` branch of FillLightning (pocket with no tree -> its contour as a
+ring) returns before the connector and skipped it, so tiny pockets printed as isolated 2-10 mm rings
+(sedile racing 2026-10-08: 7, each covered 98-100 % from above by beads bridging at most ~4 mm). Now
+one helper, called by both; a new exit of a connected fill must call it too. The lightning POCKET branch
+(ml=2) was the third exit without it (knee 2026-10-09: 11 pocket rings of 1-3 mm the splice could not
+merge); it now filters after the splice, so a ring the splice can merge is kept.
+
+**The router never prints a crumb of a loop between two travels** (`emit_suspended`, route_infill): a
+contact sitting next to the loop start, the loop end or the previous contact left an arc of 0.2-2.5 mm
+printed alone (knee 13, Bar Stool plate 2 with ring_always 3, sedile routed 6). A contact whose arc from
+the previous suspension point is "small" snaps onto that point (or onto the start: the unit prints first
+and the loop then runs whole); a small tail after the last suspension moves those contacts to the last
+vertex, whose arc carries the seam gap. (See also the merge veto below.) "Small" = the same metric as the stray filter, bounding box under
+1.5 widths (by arc length, V-shaped arcs survived). Same segments, different order; loops whose tail
+used to be shorter than two seam gaps now get their gap (they were printed closed).
+
+**Every fill group is welded** (`group_fills`, Fill.cpp, 2026-10-10, sedile). Only the FIRST SurfaceFill went
+through `union_safety_offset_ex`; the later ones only had the previous fills subtracted, so touching surfaces of
+one fill stayed separate ExPolygons depending on the pattern ORDER (lightning sorts before concentric: the top was
+never welded, and a top and a solid-as-top sharing a 10 mm edge were filled and fused apart). Now every fill is
+welded before the difference. Sedile: islands split this way 9 -> 0, top runs 728 -> 717; grid/sparse/wall configs
+byte-identical. Cost seen: a welded knee region (even rings off) became a ring plus odd-bead stubs in its necks.
+
+**The merge veto only vetoes a bad region** (`single_path_splice_loops`, 2026-10-10, sedile). A failed ring-ring
+candidate used to veto every later candidate within 3 stagger, whatever the reason; on a small ring (4-37 mm) that
+disc is the whole ring, so after the first failure (often the hysteresis candidate) the pair stayed unmerged: 34
+broken tops on the sedile, with a buildable candidate in 45 of 46 pairs. With an island, only a `link_valid` failure
+(link outside the island / riding a bead: the region is bad) vetoes now; a `build_merge` failure (crossing rungs,
+self-crossing, rung outside) depends on the exact position and just counts against `max_validations`. Removing the
+veto exposed checks that were off: `rung_hits_lines` was disabled on small rings (a link crossed a 54 mm ring, z 381.6)
+and without an island there is no line index at all (grid: a crossing on 51 layers, an out-and-back). Now
+`rung_hits_lines` runs on small rings too, and splices without an island keep the old veto. Sedile B 34 -> 3, top X
+on changed layers 5 -> 0; knee sparse travel -0.36 m, top -0.41 m; grid configs and Bar Stool hubs unchanged.
 
 ### 2.4 Deviation of boundary-grazing scanlines (scanline patterns only)
 A chord running nearly tangent to the contour blocks the arc under it (double bead), which can
@@ -525,6 +663,20 @@ Principles (all downstream of D1/D4):
   a whole feature dying at once (engraved text) must not capture the re-founded rib into a
   long chord across the part.
 
+**Flaring walls: drift along the rib, the dead column's axis, stub clearance (2026-10-10, poppot, "se ne
+creano due").** The planner placed one rib per layer; the extra "ribs" were buttress chains. (1) The reuse test
+budgeted the whole endpoint motion against max_drift (1.30 mm): on a wall flaring at 45° the motion is almost all
+ALONG the rib (it gets longer, it does not lean) and the column died on a coin flip (1.31 mm), was re-founded 17-38
+mm away and its buttress grew ~19 layers next to the column still printing. Now the motion is split on yesterday's
+link axis: perpendicular <= max_drift (the lean), along-axis <= 2 max_drift. (2) The re-founding scan (q on the
+loop, nearest p on the walk) never produced the dead link's own axis on a wavy wall: yesterday's link reprojected
+onto today's walls is now tried first, and wins without foundation when supported. (3) The buttress conflict test
+treated the whole merged walk as "own" (it contains the opposite hole loop through the column) and exempted own
+curves near the tip: the stub tip re-extruded the opposite wall (42 mm). Now the tip keeps one stagger from every
+bead except the wall under the foot; otherwise that layer's stub is shortened. Poppot plate 2: one rib on every
+layer (was 3 bead pairs on L3-L21), column A L1-L307, hole-wall double centerline 42 -> 0, stubs in the air 25 -> 0;
+plates 3/4 unchanged; matrix and knee unchanged but for knee_ribs (-0.2 m travel).
+
 Debug: `GINGER_RIBS_DEBUG=1` → `[RIBSTAT]` per layer (loops / candidates / spliced /
 anchor_reused / founded / drop reasons) — the tool for "why is this hole not connected".
 
@@ -640,6 +792,18 @@ single link** (knee, stool and LN80 byte-identical G-code, plate 3 within its ru
 Fill stage: plate 3 7.3 → 5.5 s, knee 4.9 → 4.0 s, stool 3.9 → 2.3 s. Inside the scan, ordering
 fell from 2.8 s to 0.4 s (plate 3) and gathering is now the dominant half — each sample still
 pays a heap allocation inside `all_lines_in_radius`, which is the next target.
+
+**Link hysteresis vs the parallel surface fill (2026-10-08, sedile racing).** Since the surfaces of one layer are
+filled in parallel (2026-09-10) the "links of the layer below" set (`s_links_prev`, FillBase.cpp) was swapped by
+`single_path_splice_begin_layer` from inside the rectilinear and lightning fillers, i.e. INSIDE the parallel
+region; the concentric top/bottom never called it and read the set before or after the swap depending on thread
+timing (links of the layer below or of two layers below), without the lock while another thread cleared it — a
+data race, ~1 slice in 7 different on the sedile (top surface at L531-533). Now: one swap per layer at the start
+of `Layer::make_fills`, before the parallel fill, and none in the fillers; `single_path_splice_start_object`
+(PrintObject::infill) clears the sets per object and switches the hysteresis on only when the layers are filled
+in sequence (with parallel layers there is no "layer below" yet: the rule without one applies, far from corners).
+The split candidates of the concentric top fuse twice: their links are captured apart
+(`single_path_splice_capture_links`, thread-local) and only the kept candidate's are recorded.
 
 ### 7.2 Where the rest of the slice goes (figure plate 3, 2026-09-08/09)
 

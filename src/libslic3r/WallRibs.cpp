@@ -492,7 +492,25 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
                         PolyPos pa, qa;
                         const double da = project_with(merged_dist, end_walk, pa);
                         const double db = project_with(*loop_dist[remaining[k]], end_loop, qa);
-                        if (da > reuse_tol || db > reuse_tol)
+                        // Ginger (2026-10-10, poppot plate 2, "se ne creano due"): lo spostamento di un capo si scompone
+                        // sull'asse del raccordo di ieri. La componente PERPENDICOLARE e' l'inclinazione della colonna
+                        // (budget max_drift, il limite a 45 gradi); quella LUNGO l'asse e' il muro che si svasa e allunga
+                        // la rib senza inclinarla. Su un muro svasato a 45 gradi lo scarto era 1.31 contro 1.30 mm quasi
+                        // tutto lungo l'asse: la colonna moriva a caso, la rib si rifondava a 17-38 mm con un buttress di
+                        // ~19 layer accanto alla colonna ancora viva (tre coppie di cordoni, uno sopra il muro del foro).
+                        // Lungo l'asse si tollera il doppio; il sostegno della rib allungata resta controllato a valle.
+                        const Vec2d axis   = (end_loop - end_walk).cast<double>();
+                        const double alen  = axis.norm();
+                        auto within = [&](const Point &from, const Point &to) {
+                            const Vec2d disp = (to - from).cast<double>();
+                            if (alen <= 0.)
+                                return disp.norm() <= reuse_tol;
+                            const Vec2d  u     = axis / alen;
+                            const double along = disp.dot(u);
+                            const double perp  = (disp - along * u).norm();
+                            return perp <= reuse_tol && std::abs(along) <= 2. * reuse_tol;
+                        };
+                        if (! within(end_walk, pa.pt) || ! within(end_loop, qa.pt))
                             continue;
                         if ((pa.pt - qa.pt).cast<double>().norm() > double(params.max_link_length))
                             continue;
@@ -601,6 +619,21 @@ bool plan_wall_ribs(const Polygons &loops, const WallRibParams &params,
                     scan.push_back({ gap, PolyPos{ size_t(line_idx), nearest.cast<coord_t>() }, cursor });
             }
             std::sort(scan.begin(), scan.end(), [](const ScanPos &l, const ScanPos &r) { return l.gap < r.gap; });
+            // Ginger (2026-10-10, poppot): il raccordo della colonna morta, riproiettato sui muri di oggi, va in TESTA.
+            // I candidati della scansione partono dall'anello e prendono il punto piu' vicino del walk: su un muro
+            // ondulato quel punto salta sulle gobbe e nessun candidato cadeva sull'asse vecchio, anche quando li' il
+            // corridoio sotto lo reggeva - la rib rinasceva lontano con un buttress. Se sostenuto, vince senza fondazione.
+            if (column_died) {
+                const double reach = 3. * double(stagger);
+                for (const auto &link : *prev_links)
+                    for (int flip = 0; flip < 2; ++ flip) {
+                        PolyPos pa, qa;
+                        const double da = project_with(merged_dist, flip ? link.second : link.first, pa);
+                        const double db = project_with(*loop_dist[target_idx], flip ? link.first : link.second, qa);
+                        if (da <= reach && db <= reach)
+                            cands.push_back({ pa, qa, false });
+                    }
+            }
             if (column_died)
                 for (const ScanPos &s : scan)
                     if (near_dead_column(s.p.pt, s.q.pt))

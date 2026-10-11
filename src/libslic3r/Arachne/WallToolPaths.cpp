@@ -7,6 +7,7 @@
 #include "WallToolPaths.hpp"
 
 #include "SkeletalTrapezoidation.hpp"
+#include "BeadingStrategy/EvenBeadingStrategy.hpp"
 #include "../ClipperUtils.hpp"
 #include "utils/linearAlg2D.hpp"
 #include "EdgeGrid.hpp"
@@ -507,12 +508,22 @@ const std::vector<VariableWidthLines> &WallToolPaths::generate()
 
     const coord_t wall_transition_length = scaled<coord_t>(this->m_params.wall_transition_length);
 	
-	const double wall_split_middle_threshold = std::clamp(2. * unscaled<double>(this->min_bead_width) / external_perimeter_extrusion_width - 1., 0.01, 0.99); // For an uneven nr. of lines: When to split the middle wall into two.
-    const double wall_add_middle_threshold   = std::clamp(unscaled<double>(this->min_bead_width) / perimeter_extrusion_width, 0.01, 0.99); // For an even nr. of lines: When to add a new middle in between the innermost two walls.
+	const double wall_split_middle_threshold = this->m_params.split_middle_threshold >= 0.f ? double(this->m_params.split_middle_threshold) :
+        std::clamp(2. * unscaled<double>(this->min_bead_width) / external_perimeter_extrusion_width - 1., 0.01, 0.99); // For an uneven nr. of lines: When to split the middle wall into two.
+    const double wall_add_middle_threshold   = this->m_params.add_middle_threshold >= 0.f ? double(this->m_params.add_middle_threshold) :
+        std::clamp(unscaled<double>(this->min_bead_width) / perimeter_extrusion_width, 0.01, 0.99); // For an even nr. of lines: When to add a new middle in between the innermost two walls.
     
     const int wall_distribution_count = this->m_params.wall_distribution_count;
     const size_t max_bead_count = (inset_count < std::numeric_limits<coord_t>::max() / 2) ? 2 * inset_count : std::numeric_limits<coord_t>::max();
-    const auto beading_strat = BeadingStrategyFactory::makeStrategy
+    const auto beading_strat = this->m_params.even_max_bead_width > 0.f ?
+        BeadingStrategyPtr(std::make_unique<EvenBeadingStrategy>(bead_width_x,
+            // Arachne lavora in PASSI (bead_width_x e' il passo): le larghezze di estrusione si convertono
+            scaled<coord_t>(Flow::rounded_rectangle_extrusion_spacing(unscaled<float>(min_bead_width), float(this->layer_height))),
+            scaled<coord_t>(Flow::rounded_rectangle_extrusion_spacing(this->m_params.even_min_pair_width > 0.f ? this->m_params.even_min_pair_width :
+                                                                      unscaled<float>(min_bead_width), float(this->layer_height))),
+            scaled<coord_t>(Flow::rounded_rectangle_extrusion_spacing(this->m_params.even_max_bead_width, float(this->layer_height))),
+            coord_t(this->m_params.even_band), wall_transition_length, transitioning_angle)) :
+        BeadingStrategyFactory::makeStrategy
         (
             bead_width_0,
             bead_width_x,

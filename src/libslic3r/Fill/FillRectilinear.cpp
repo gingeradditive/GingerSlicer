@@ -21,7 +21,7 @@
 
 #include "FillRectilinear.hpp"
 
-namespace Slic3r { void single_path_splice_set_preferred(const Points *pts, double radius); void single_path_splice_begin_layer(long layer_id); }
+namespace Slic3r { void single_path_splice_set_preferred(const Points *pts, double radius); }
 
 // #define SLIC3R_DEBUG
 // #define INFILL_DEBUG_OUTPUT
@@ -3371,7 +3371,6 @@ bool FillRectilinear::fill_surface_by_multilines(const Surface *surface, FillPar
                 // tappi del layer sotto (inversioni a U corte nello sparse gia' emesso, stesso frame)
                 Points prev_caps = single_path_prev_jogs(row_params.prev_cover, scale_(this->spacing));
                 (void) prev_caps;
-                single_path_splice_begin_layer(long(this->layer_id));
                 single_path_splice_loops(joined, scale_(4. * this->spacing * params.multiline), scale_(this->spacing));
             }
             ml_dump("ricucito", joined);
@@ -3901,7 +3900,6 @@ bool FillRectilinear::fill_surface_trapezoidal(
                 // tappi del layer sotto (inversioni a U corte nello sparse gia' emesso, stesso frame)
                 Points prev_caps = single_path_prev_jogs(row_params.prev_cover, scale_(this->spacing));
                 (void) prev_caps;
-                single_path_splice_begin_layer(long(this->layer_id));
                 single_path_splice_loops(joined, scale_(4. * this->spacing * params.multiline), scale_(this->spacing));
             }
             ml_dump("ricucito", joined);

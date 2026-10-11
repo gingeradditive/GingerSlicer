@@ -7303,6 +7303,41 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
             return;
         }
         std::sort(contacts.begin(), contacts.end(), [](const Contact &l, const Contact &r) { return l.idx < r.idx; });
+        // Ginger (2026-10-09, knee + Bar Stool): nessun arco piu' corto di 1.5 cordoni fra due sospensioni. Un
+        // contatto accanto all'inizio dell'anello, alla sua fine o al contatto precedente lasciava un tratto di
+        // 0.2-2.5 mm stampato fra due travel (13 mozziconi sul knee, 3 sul Bar Stool piatto 2): lo stesso cordone,
+        // isolato solo dall'ordine. Il contatto troppo vicino si aggancia al punto di sospensione precedente (o
+        // all'inizio: l'unita' si stampa prima e l'anello parte intero); la coda corta dopo l'ultima sospensione
+        // si stampa prima di essa, e la sospensione passa alla fine dell'anello. Stessa geometria, altro ordine.
+        // "Corto" con lo stesso metro di Fill::drop_stray_fragments, l'INGOMBRO (lato massimo del riquadro sotto
+        // 1.5 cordoni), non la lunghezza: un arco a V da 3.6 mm in un riquadro di 1.9 x 2.3 e' un mozzicone uguale
+        // (verifica 2026-10-09: 11 archi cosi' sopravvivevano al metro della lunghezza).
+        {
+            const double min_arc = 1.5 * scale_(double(proto.width));
+            // min/max a mano: BoundingBox(p, p) nasce NON definito e il primo merge() scarta p (un arco di un solo
+            // segmento dritto misurava 0 e veniva agganciato anche lungo 15 mm - verifica 2026-10-09)
+            auto small_arc = [&poly, min_arc](size_t i_from, size_t i_to) {
+                Point lo = poly.points[i_from], hi = lo;
+                for (size_t i = i_from + 1; i <= i_to; ++ i) {
+                    lo = lo.cwiseMin(poly.points[i]);
+                    hi = hi.cwiseMax(poly.points[i]);
+                    if (double(std::max(hi.x() - lo.x(), hi.y() - lo.y())) >= min_arc)
+                        return false;
+                }
+                return true;
+            };
+            size_t anchor = 0;
+            for (Contact &c : contacts) {
+                if (small_arc(anchor, c.idx))
+                    c.idx = anchor;
+                else
+                    anchor = c.idx;
+            }
+            if (anchor != 0 && small_arc(anchor, poly.size() - 1))
+                for (Contact &c : contacts)
+                    if (c.idx == anchor)
+                        c.idx = poly.size() - 1;
+        }
         // Walk the loop as arcs, suspending at each contact; the final arc carries the seam gap.
         auto emit_arc = [&](size_t i_from, size_t i_to, bool clip_tail) {
             if (i_to <= i_from)
@@ -7323,7 +7358,7 @@ std::string GCode::extrude_infill_routed(const ExtrusionEntitiesPtr &extrusions,
             if (c.unit->done)
                 continue; // consumed by an earlier cluster
             if (c.idx > seg_start)
-                emit_arc(seg_start, c.idx, false);
+                emit_arc(seg_start, c.idx, c.idx == poly.size() - 1); // all'ultimo vertice l'arco chiude l'anello: porta la cucitura
             seg_start = c.idx; // the loop resumes right where it was suspended
             emit_suspended(*c.unit, nearer_from_end(*c.unit), depth + 1);
             const Point anchor_pt = poly.points[c.idx];
