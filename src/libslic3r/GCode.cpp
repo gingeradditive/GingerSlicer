@@ -4605,8 +4605,6 @@ LayerResult GCode::process_layer(
                     for (size_t k = 0; k < pts.size(); k += stride)
                         next_layer_island_pts.emplace_back(pts[k]);
                 }
-                const std::vector<size_t> island_order = order_islands_tour(island_cand, this->last_pos(), island_entry,
-                                                                            next_layer_island_pts.empty() ? nullptr : &next_layer_island_pts);
                 // Ginger: a quale isola agganciare il support (la piu' vicina fra quelle con infill; se
                 // nessuna ha infill, la piu' vicina in assoluto, via walk del wall).
                 if (m_sp_support_coll != nullptr && ! m_sp_support_ents.empty()) {
@@ -4643,7 +4641,62 @@ LayerResult GCode::process_layer(
                                      m_sp_support_via_infill ? "infill" : "wall", (bi >= 0 ? best_inf : best_any) * SCALING_FACTOR);
                 }
 
+                // Ginger (2026-10-11, sedile, Davide: "il wall deve essere stampato tutto insieme"): senza un infill instradato
+                // il support veniva stampato dal walk del muro, sospeso a meta' giro sul vertice piu' vicino agli alberi; poi
+                // tutti gli alberi e il ritorno a quel vertice (sedile: 648 layer su 649, 143 m di ritorni, le due meta' del
+                // muro esterno a ~1 minuto l'una dall'altra). Ora ogni albero e' una TAPPA del giro delle isole: lo stampa il
+                // giro dove conviene, prima o dopo un'isola, e il muro resta intero. Via router (infill instradato) invariato.
+                const size_t        n_islands = islands.size();
+                std::vector<size_t> support_stop; // tappa extra -> indice in m_sp_support_ents
+                if (m_sp_support_coll != nullptr && ! m_sp_support_ents.empty() && ! m_sp_support_via_infill) {
+                    for (size_t k = 0; k < m_sp_support_ents.size(); ++ k) {
+                        Points pts;
+                        m_sp_support_ents[k]->collect_points(pts);
+                        if (pts.empty())
+                            continue;
+                        const size_t stride = std::max<size_t>(1, pts.size() / 32);
+                        std::vector<Point> cand;
+                        for (size_t q = 0; q < pts.size(); q += stride)
+                            cand.emplace_back(pts[q]);
+                        island_cand.emplace_back(std::move(cand));
+                        island_real.emplace_back(1);
+                        support_stop.emplace_back(k);
+                    }
+                    m_sp_support_island = -1; // nessuna isola lo aggancia al muro
+                }
+                std::vector<size_t> island_order = order_islands_tour(island_cand, this->last_pos(), island_entry,
+                                                                      next_layer_island_pts.empty() ? nullptr : &next_layer_island_pts);
                 for (size_t island_seq = 0; island_seq < island_order.size(); ++ island_seq) {
+                    // Con tappe di support il giro si RIPIANIFICA dalla posizione vera della testa a ogni tappa: il giro
+                    // tratta un'isola come un punto (uscita = entrata), ma da un'isola grande si esce dall'altra parte, e un
+                    // albero messo "subito dopo" poteva stare a 500 mm (figure_production piatto 3 senza router: +39 m).
+                    // Solo nei layer con tappe di support: gli altri restano col giro di sempre.
+                    if (! support_stop.empty() && island_seq > 0 && island_order.size() - island_seq > 1) {
+                        const std::vector<size_t> rest(island_order.begin() + island_seq, island_order.end());
+                        std::vector<std::vector<Point>> sub;
+                        sub.reserve(rest.size());
+                        for (size_t r : rest)
+                            sub.emplace_back(island_cand[r]);
+                        std::vector<Point> sub_entry;
+                        const std::vector<size_t> sub_order = order_islands_tour(sub, this->last_pos(), sub_entry,
+                                                                                 next_layer_island_pts.empty() ? nullptr : &next_layer_island_pts);
+                        for (size_t j = 0; j < sub_order.size(); ++ j)
+                            island_order[island_seq + j] = rest[sub_order[j]];
+                        for (size_t j = 0; j < rest.size(); ++ j)
+                            island_entry[rest[j]] = sub_entry[j];
+                    }
+                    if (island_order[island_seq] >= n_islands) {
+                        // tappa di support (un albero): stampato qui, fra un'isola e l'altra
+                        const size_t k = support_stop[island_order[island_seq] - n_islands];
+                        if (! m_sp_support_done[k]) {
+                            m_sp_support_done[k] = 1;
+                            if (::getenv("GINGER_SINGLE_PATH_DEBUG") != nullptr)
+                                std::fprintf(stderr, "[SPSUP] z=%.1f support: albero %zu come tappa %zu del giro\n",
+                                             m_layer ? m_layer->print_z : -1., k, island_seq);
+                            gcode += this->extrude_support_entities(ExtrusionEntitiesPtr{ const_cast<ExtrusionEntity *>(m_sp_support_ents[k]) }, nullptr);
+                        }
+                        continue;
+                    }
                     ObjectByExtruder::Island &island = islands[island_order[island_seq]];
                     m_sp_support_attach = m_sp_support_coll != nullptr && int(island_order[island_seq]) == m_sp_support_island;
                     // Look-ahead target for seam orientation: the entry point of the NEXT REAL island
@@ -8767,22 +8820,10 @@ bool GCode::needs_retraction(const Polyline &travel, ExtrusionRole role, LiftTyp
         return true;
     }
 
-    if (role == erSupportMaterial || role == erSupportTransition) {
-        const SupportLayer* support_layer = dynamic_cast<const SupportLayer*>(m_layer);
-        //FIXME support_layer->support_islands.contains should use some search structure!
-        if (support_layer != NULL)
-            // skip retraction if this is a travel move inside a support material island
-            //FIXME not retracting over a long path may cause oozing, which in turn may result in missing material
-            // at the end of the extrusion path!
-            for (const ExPolygon& support_island : support_layer->support_islands)
-                if (support_island.contains(travel))
-                    return false;
-        //reduce the retractions in lightning infills for tree support
-        if (support_layer != NULL && support_layer->support_type==stInnerTree)
-            for (auto &area : support_layer->base_areas)
-                if (area.contains(travel))
-                    return false;
-    }
+    // Ginger (2026-10-11, Davide: "deve fare la retrazione se no cola in giro"): col pellet il supporto RETRAE come tutto il
+    // resto (regola generale, retraction_minimum_travel). Upstream saltava la retrazione per i travel dentro un'isola di
+    // support e dentro le aree base dei tree interni (col suo FIXME sull'oozing): tolto. Sul percorso rimandato di
+    // Minimum travels non scattava comunque.
     //BBS: need retract when long moving to print perimeter to avoid dropping of material
     if (!is_perimeter(role) && m_config.reduce_infill_retraction && m_layer != nullptr &&
         m_config.sparse_infill_density.value > 0 && m_retract_when_crossing_perimeters.travel_inside_internal_regions(*m_layer, travel))

@@ -321,6 +321,20 @@ vertex, whose arc carries the seam gap. (See also the merge veto below.) "Small"
 1.5 widths (by arc length, V-shaped arcs survived). Same segments, different order; loops whose tail
 used to be shorter than two seam gaps now get their gap (they were printed closed).
 
+**Support trees are stops of the island tour, the wall is never suspended** (GCode.cpp, 2026-10-11, sedile, Davide:
+"il wall deve essere stampato tutto insieme"). With Minimum travels the support is deferred; without a routed infill
+it used to be printed by the wall walk, suspended mid-loop at the vertex nearest the trees, then every tree and the
+return (sedile with supports: 648/649 layers, 143 m of returns, the two halves of the outer wall ~1 min apart). Now
+each support entity is a stop of `order_islands_tour`, and on layers with such stops the remaining tour is re-planned
+from the real head position after every stop (an island is a point to the tour, but a big island is left from the
+far side). The via-router path is unchanged. Support always RETRACTS like every other feature (pellet oozes;
+Davide): the upstream rule in `needs_retraction` that skipped the retraction for travels inside a support island /
+inner-tree base area is removed (it fired on the plain support path; on the deferred one it never did). Sedile
+with supports: travel 811 -> 540 m, outer walls split by support 624 -> 0, print 25h06 -> 24h31 (the retractions
+inside trees cost ~0.47 h over a version that skipped them). Cost: figure_production plate 3 with route_infill OFF
+472 -> 509 m (one tree beside a big island whose wall seam is pinned in a rib: the wall no longer passes the tree
+mid-loop) - accepted.
+
 **Every fill group is welded** (`group_fills`, Fill.cpp, 2026-10-10, sedile). Only the FIRST SurfaceFill went
 through `union_safety_offset_ex`; the later ones only had the previous fills subtracted, so touching surfaces of
 one fill stayed separate ExPolygons depending on the pattern ORDER (lightning sorts before concentric: the top was
