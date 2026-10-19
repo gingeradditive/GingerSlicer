@@ -3772,8 +3772,29 @@ void PrintObject::bridge_over_infill()
             backup_surfaces[lidx] = {};
         }
 
-        tbb::parallel_for(tbb::blocked_range<size_t>(0, this->layers().size()), [po = this, &backup_surfaces,
+        // Ginger (2026-10-14, test notturno): DUE passate. Nell'unica passata originale il thread del layer L leggeva lo
+        // sparse del layer SOTTO mentre il thread di quel layer lo spostava nel backup, lo ricopiava, lo svuotava e lo
+        // riscriveva qui sotto: gara fra thread (codice upstream). Su figure_production dava crash 0xC0000005 (~1 su 25),
+        // abort "vector too long" sotto carico e G-code diverso da un run all'altro (piatto 1: 9 G-code diversi su 30).
+        // Ora la prima passata, di sola lettura, raccoglie per ogni layer lo sparse lightning del layer sotto dallo stato
+        // ORIGINALE; la seconda modifica e ogni layer tocca solo le sue regioni.
+        std::vector<Polygons> lower_lightning_fill(this->layer_count());
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, this->layers().size()), [po = this, &lower_lightning_fill,
                                                                                  &surfaces_by_layer](tbb::blocked_range<size_t> r) {
+            for (size_t lidx = r.begin(); lidx < r.end(); lidx++) {
+                if (surfaces_by_layer.find(lidx) == surfaces_by_layer.end())
+                    continue;
+                const Layer *lower_layer = po->get_layer(lidx)->lower_layer;
+                if (lower_layer == nullptr)
+                    continue;
+                for (const LayerRegion *region : lower_layer->regions())
+                    if (region->region().config().sparse_infill_pattern == ipLightning)
+                        polygons_append(lower_lightning_fill[lidx], to_polygons(region->fill_surfaces.filter_by_type(stInternal)));
+            }
+        });
+
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, this->layers().size()), [po = this, &backup_surfaces,
+                                                                                 &surfaces_by_layer, &lower_lightning_fill](tbb::blocked_range<size_t> r) {
             PRINT_OBJECT_TIME_LIMIT_MILLIS(PRINT_OBJECT_TIME_LIMIT_DEFAULT);
             for (size_t lidx = r.begin(); lidx < r.end(); lidx++) {
                 if (surfaces_by_layer.find(lidx) == surfaces_by_layer.end())
@@ -3784,15 +3805,7 @@ void PrintObject::bridge_over_infill()
                 if (lower_layer == nullptr)
                     continue;
 
-                Polygons lightning_fill;
-                for (const LayerRegion *region : lower_layer->regions()) {
-                    if (region->region().config().sparse_infill_pattern == ipLightning) {
-                        Polygons lf = to_polygons(region->fill_surfaces.filter_by_type(stInternal));
-                        lightning_fill.insert(lightning_fill.end(), lf.begin(), lf.end());
-                    }
-                }
-
-                if (lightning_fill.empty())
+                if (lower_lightning_fill[lidx].empty())
                     continue;
 
                 for (LayerRegion *region : layer->regions()) {
@@ -3809,7 +3822,7 @@ void PrintObject::bridge_over_infill()
                     if (sparse_infill.empty()) {
                         break;
                     }
-                    for (const auto &surface : surfaces_by_layer[lidx]) {
+                    for (const auto &surface : surfaces_by_layer.at(lidx)) {
                         if (surface.region != region)
                             continue;
                         ExPolygons expansion = intersection_ex(sparse_infill, expand(surface.new_polys, scaled<float>(3.0)));

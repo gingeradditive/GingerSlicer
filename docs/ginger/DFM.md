@@ -807,6 +807,14 @@ Fill stage: plate 3 7.3 → 5.5 s, knee 4.9 → 4.0 s, stool 3.9 → 2.3 s. Insi
 fell from 2.8 s to 0.4 s (plate 3) and gathering is now the dominant half — each sample still
 pays a heap allocation inside `all_lines_in_radius`, which is the next target.
 
+**Race in bridge_over_infill's lightning section (2026-10-14, night test; upstream code).** The parallel loop over
+layers read the lower layer's stInternal surfaces while the lower layer's own thread moved them into the backup,
+copied them back, removed and re-added them: G-code differing run to run on figure_production (plate 1: 9 distinct in
+30), an abort "vector too long" under load and a 0xC0000005 crash (~1 in 25) - the historical "figure headless
+segfault". Now a read-only pass first collects, per layer, the lower layer's lightning sparse from the ORIGINAL state,
+then the modifying pass touches only its own layer (and reads `surfaces_by_layer` with `at()`). figure p1/p2/p3: 102
+runs, 5 at a time, one G-code per plate, no crash; all other projects and the matrix byte-identical.
+
 **Link hysteresis vs the parallel surface fill (2026-10-08, sedile racing).** Since the surfaces of one layer are
 filled in parallel (2026-09-10) the "links of the layer below" set (`s_links_prev`, FillBase.cpp) was swapped by
 `single_path_splice_begin_layer` from inside the rectilinear and lightning fillers, i.e. INSIDE the parallel
