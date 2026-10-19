@@ -93,14 +93,19 @@ GingerSlicer. Each entry points to the primary source file when applicable.
   sides, so a neutral retract cycle hands the ramp-up the state the
   ramp-down left.
   (2) **pellet ramp law** (`RampLaw`) — the feedrate ramp is stretched so
-  the screw command `Qin = Q + τ·dQ/dt` stays in `[−R, Qmax]`
+  the screw command `Qin = Q + τ·dQ/dt` stays in `[0, Qmax]`
   (`Qmax = filament_max_volumetric_speed`, with 2% headroom over the
   target when the steady flow sits at the cap): above `Qmax − τ·slope` the
-  ramp-up slows exponentially; below `τ·slope_dec − R` the ramp-down tail
-  is the reservoir draining while the screw reverses at `R` (=
-  `retraction_speed` as mm³/s): E is negative there — decompression while
-  moving — while the reservoir still lays the bead (see *ERS G-code tags*
-  for how the preview shows it). Only F
+  ramp-up slows exponentially; below `τ·slope_dec` the ramp-down tail is
+  the nozzle draining freely with the screw stopped. The ramp-down never
+  reverses the screw: printing (2026-10-04, τ sweep, Q 200 mm³/s) showed
+  that a reverse inside the ramp behaves like a retraction — it empties
+  the screw tip instead of lowering the nozzle outflow 1:1 — so the head
+  slowed down too early and the last 4–5 mm over-extruded, and the
+  restart missed ~the reversed volume. Decompressing at the end of a
+  path (the pressure `τ·Q_end` left by the ramp-down) is the job of the
+  regular, user-calibrated retraction — done while moving through the
+  wipe — not of a volume computed by the ERS. Only F
   changes, never the volume per mm. Slicer-side equivalent of the ORNL BAAM
   feedforward lead filter / firmware pressure advance, for screw dynamics.
   Calibrate ONCE per nozzle (sweep); stays valid for any slope. With
@@ -145,8 +150,7 @@ GingerSlicer. Each entry points to the primary source file when applicable.
   every line it touches: `;_ERS_RAMPUP`, `;_ERS_RAMPDOWN`, `;_ERS_STEADY`
   (zone of the ramp), `;_ERS_CALIB layer=N param=value` (active global sweep
   value, one per layer), plus the `;_ERS_SWEEP` tags emitted by GCode for
-  per-object sweeps (see Calibration below). Grep these to analyze ramps
-  without the GUI. Ramp pieces carrying a τ charge append the nominal
+  per-object sweeps (see Calibration below). Grep these to analyze ramps without the GUI. Ramp pieces carrying a τ charge append the nominal
   (bead) E: `;_ERS_RAMPDOWN e0=0.14727`. `GCodeProcessor::process_G1` keeps
   any XY move with that token as an extrusion even when the commanded E is
   negative, and computes width/flow rate from `e0` — the preview shows the

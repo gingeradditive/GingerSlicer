@@ -86,16 +86,15 @@ private:
     // filament_max_volumetric_speed per extruder (mm³/min, 0 = unlimited). Pellet mode: ceiling
     // for the screw command Qin = Q + τ·dQ/dt during a ramp-up (see RampLaw).
     std::vector<float>              m_max_volumetric_speeds;
-    // retraction_speed per extruder as screw reverse rate (mm³/min). Pellet mode: floor for
-    // the screw command during a ramp-down, Qin >= -reverse (decompression while moving).
-    std::vector<float>              m_max_reverse_rates;
 
     // Pellet ramp law: the flow Q(x) along a boundary ramp under the first-order melt reservoir
     // model τ·dQ/dt + Q = Qin. The screw command must stay physically achievable:
     //   ramp-up:   Qin = Q + τ·dQ/dt <= Qmax  ->  dQ/dt <= min(slope, (Qmax - Q)/τ)
-    //   ramp-down: Qin = Q - τ·|dQ/dt| >= -R  ->  |dQ/dt| <= min(slope, (Q + R)/τ)
-    // where R is the screw reverse rate (retraction_speed): the screw may decompress while the
-    // head keeps moving, so the ramp-down tail stays short even with a large τ.
+    //   ramp-down: Qin = Q - τ·|dQ/dt| >= 0   ->  |dQ/dt| <= min(slope, Q/τ)
+    // The ramp-down never reverses the screw: below τ·slope the tail is the nozzle draining
+    // naturally. Printing showed that a reverse inside the ramp does not lower the nozzle outflow
+    // 1:1 (it empties the screw tip, like a retraction): the head slowed down too early and the
+    // tail over-extruded. Decompressing at the end of a path is left to the regular retraction.
     // Only the feedrate follows the law (Q = area·F): the extruded volume per mm stays nominal,
     // the reservoir charge τ·ΔQ is added on top at output time. With τ = 0 it degenerates to the
     // constant-slope law Q² = Q0² + 2·slope·area·x used by the native passes.
@@ -103,7 +102,6 @@ private:
         double slope { 0. };      // mm³/min²
         double tau   { 0. };      // min
         double qmax  { DBL_MAX }; // mm³/min, ramp-up only
-        double rev   { 0. };      // mm³/min, ramp-down only: max screw reverse rate
         double area  { 1. };      // mm², Q = area * F
         bool   up    { true };
         // Path length (mm) spent while the flow moves across [lo, hi].

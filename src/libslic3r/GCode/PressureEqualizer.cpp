@@ -136,12 +136,6 @@ PressureEqualizer::PressureEqualizer(const Slic3r::GCodeConfig &config, const Ca
     m_max_volumetric_speeds.clear();
     for (double q : config.filament_max_volumetric_speed.values)
         m_max_volumetric_speeds.push_back(float(std::max(q, 0.)) * 60.f); // mm³/s → mm³/min
-    m_max_reverse_rates.clear();
-    for (size_t i = 0; i < config.retraction_speed.values.size(); ++ i) {
-        const float crossection = m_filament_crossections.empty() ? 1.f :
-                                  m_filament_crossections[std::min(i, m_filament_crossections.size() - 1)];
-        m_max_reverse_rates.push_back(float(std::max(config.retraction_speed.values[i], 0.)) * crossection * 60.f); // mm/s → mm³/min
-    }
 
     // Volumetric rate of a 0.45mm x 0.2mm extrusion at 60mm/s XY movement: 0.45*0.2*60*60=5.4*60 = 324 mm^3/min
     // Volumetric rate of a 0.45mm x 0.2mm extrusion at 20mm/s XY movement: 0.45*0.2*20*60=1.8*60 = 108 mm^3/min
@@ -429,15 +423,12 @@ double PressureEqualizer::RampLaw::dist(double lo, double hi) const
         }
         return d;
     }
-    // Ramp-down, below qs the screw reverses at its maximum rate R and the reservoir drains:
-    // dQ/dt = -(Q + R)/τ, i.e. dx = τ·Q·dQ / (area·(Q + R)). With R = 0 this is the free
-    // drain, linear in space (dQ/dx = -area/τ).
-    const double qs = tau * slope - rev;
+    // Ramp-down, below qs the screw is stopped and the nozzle drains the reservoir freely:
+    // dQ/dt = -Q/τ, which in space is linear, dQ/dx = -area/τ.
+    const double qs = tau * slope;
     double d = 0.;
-    if (lo < qs) {
-        const double b = std::min(hi, qs);
-        d += tau * ((b - lo) - (rev > 0. ? rev * std::log((b + rev) / (lo + rev)) : 0.)) / area;
-    }
+    if (lo < qs)
+        d += tau * (std::min(hi, qs) - lo) / area;
     if (hi > qs)
         d += sqrt_part(std::max(lo, qs), hi);
     return d;
@@ -480,8 +471,6 @@ PressureEqualizer::RampLaw PressureEqualizer::make_ramp_law(bool up, float slope
                 // When the target sits at (or above) the ceiling the approach would be asymptotic:
                 // keep a 2% headroom over the target so the ramp completes in finite length.
                 law.qmax = std::max(double(qmax), double(target) / 0.98);
-        } else if (extruder_id < m_max_reverse_rates.size()) {
-            law.rev = m_max_reverse_rates[extruder_id];
         }
     }
     return law;
@@ -1740,9 +1729,8 @@ void PressureEqualizer::push_line_to_output(const size_t line_idx, float new_fee
     // τ·(q_end - q_start) — positive on a ramp-up (pressurize), negative on a ramp-down (the
     // stored pressure feeds the bead). The charge telescopes across pieces and lines, so a
     // whole ramp receives exactly τ·ΔQ regardless of how it is split. RampLaw already keeps the
-    // resulting screw command within [-R, Qmax] by stretching the feedrate ramp, so no material
-    // is dropped here; on a ramp-down tail E may be negative (the screw decompresses while the
-    // head moves, the reservoir still feeds the bead). The rampup/rampdown flow percentages act as an empirical trim on top.
+    // resulting screw command within [0, Qmax] by stretching the feedrate ramp, so no material
+    // is dropped here. The rampup/rampdown flow percentages act as an empirical trim on top.
     float extra_e    = 0.f;
     float flow_scale = 1.f;
     if (m_pellet_ers_mode && m_use_relative_e_distances && ers_tag != nullptr) {

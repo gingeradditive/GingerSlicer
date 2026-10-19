@@ -24,6 +24,7 @@
 #include "libslic3r/format.hpp"
 #include "Time.hpp"
 #include "GCode/ExtrusionProcessor.hpp"
+#include "GCode/PelletScrewLaw.hpp" // Pellet screw law (Ginger), MVP stage
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -1953,7 +1954,8 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
     if (print.config().spiral_mode.value)
         m_spiral_vase = make_unique<SpiralVase>(print.config());
 
-    if (print.config().max_volumetric_extrusion_rate_slope.value > 0){
+    // Pellet screw law (Ginger), MVP stage: with GINGER_SCREW_LAW set the PressureEqualizer is not created.
+    if (print.config().max_volumetric_extrusion_rate_slope.value > 0 && !PelletScrewLaw::enabled_from_env()){
     		// Only a global sweep is driven by the PressureEqualizer itself; per-object
     		// sweeps are communicated through ;_ERS_SWEEP tags emitted at object changes.
     		// An automatic step (step <= 0) is resolved here with the plate's layer
@@ -2772,12 +2774,18 @@ void GCode::process_layers(
             GCodeSPProfile::Scope sp_prof_pe(GCodeSPProfile::phPressureEq);
             return pressure_equalizer->process_layer(std::move(in));
         });
+    // Pellet screw law (Ginger), MVP stage: post-processing right after the CoolingBuffer, only with
+    // GINGER_SCREW_LAW set (nullptr otherwise: the output is unchanged).
+    std::unique_ptr<PelletScrewLaw> screw_law = PelletScrewLaw::create_from_env(print.config());
     const auto cooling = tbb::make_filter<LayerResult, std::string>(slic3r_tbb_filtermode::serial_in_order,
-        [&cooling_buffer = *this->m_cooling_buffer.get()](LayerResult in) -> std::string {
+        [&cooling_buffer = *this->m_cooling_buffer.get(), law = screw_law.get()](LayerResult in) -> std::string {
             GCodeSPProfile::Scope sp_prof_cool(GCodeSPProfile::phCooling);
         	if (in.nop_layer_result)
                 return in.gcode;
-            return cooling_buffer.process_layer(std::move(in.gcode), in.layer_id, in.cooling_buffer_flush);
+            std::string out = cooling_buffer.process_layer(std::move(in.gcode), in.layer_id, in.cooling_buffer_flush);
+            if (law != nullptr)
+                out = law->process_layer(std::move(out));
+            return out;
         });
     const auto pa_processor_filter = tbb::make_filter<std::string, std::string>(slic3r_tbb_filtermode::serial_in_order,
             [&pa_processor = *this->m_pa_processor](std::string in) -> std::string {
@@ -2819,6 +2827,9 @@ void GCode::process_layers(
         tbb::parallel_pipeline(12, generator & pressure_equalizer & cooling & fan_mover & pa_processor_filter & output);
     else
     	tbb::parallel_pipeline(12, generator & cooling & fan_mover & pa_processor_filter & output);
+    // Pellet screw law (Ginger), MVP stage
+    if (screw_law != nullptr)
+        screw_law->log_stats();
 }
 
 // Process all layers of a single object instance (sequential mode) with a parallel pipeline:
@@ -2833,6 +2844,11 @@ void GCode::process_layers(
     // BBS
     const bool                               prime_extruder)
 {
+    // Pellet screw law (Ginger), MVP stage: sequential (by object) printing is not supported, stop with an error
+    // instead of exporting G-code with neither the law nor the PressureEqualizer.
+    if (PelletScrewLaw::enabled_from_env())
+        throw Slic3r::RuntimeError("Pellet screw law: sequential (by object) printing is not supported yet (MVP). "
+                                   "Use print sequence \"By layer\" or unset GINGER_SCREW_LAW.");
     // The pipeline is variable: The vase mode filter is optional.
     size_t layer_to_print_idx = 0;
     const auto generator = tbb::make_filter<void, LayerResult>(slic3r_tbb_filtermode::serial_in_order,
@@ -8794,7 +8810,9 @@ std::string GCode::retract(bool toolchange, bool is_last_retraction, LiftType li
 
     bool needs_lift = toolchange
         || m_writer.extruder()->retraction_length() > 0
-        || m_config.use_firmware_retraction;
+        || m_config.use_firmware_retraction
+        // Pellet screw law (Ginger), MVP stage: Z lift at every stop even with retraction 0.
+        || PelletScrewLaw::enabled_from_env();
 
     bool last_fill_extrusion_role_top_infill = (this->m_last_notgapfill_extrusion_role == ExtrusionRole::erTopSolidInfill || this->m_last_notgapfill_extrusion_role == ExtrusionRole::erIroning);
 

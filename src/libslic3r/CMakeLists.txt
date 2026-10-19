@@ -221,6 +221,8 @@ set(lisbslic3r_sources
     GCode/PostProcessor.hpp
     GCode/PressureEqualizer.cpp
     GCode/PressureEqualizer.hpp
+    GCode/PelletScrewLaw.cpp
+    GCode/PelletScrewLaw.hpp
     GCode/PrintExtents.cpp
     GCode/PrintExtents.hpp
     GCodeReader.cpp

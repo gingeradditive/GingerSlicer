@@ -145,29 +145,44 @@ The theory above maps 1:1 onto what `PressureEqualizer` does in pellet mode:
 
 ### Physically achievable ramps (pellet RampLaw)
 
-The screw command `Qin = Q + τ·dQ/dt` must stay within `[−R, Qmax]`
-(`Qmax = filament_max_volumetric_speed`, `R` = `retraction_speed` as a
-volumetric reverse rate: a pellet screw can decompress while the head
-moves). Instead of clipping the material
+The screw command `Qin = Q + τ·dQ/dt` must stay within `[0, Qmax]`
+(`Qmax = filament_max_volumetric_speed`). Instead of clipping the material
 (which just moves the defect elsewhere), the **ramp itself is shaped** —
 only the feedrate changes, the volume per mm is never reduced:
 
 ```
 ramp-up:   dQ/dt ≤ min(slope, (Qmax − Q)/τ)     exponential approach near Qmax
-ramp-down: |dQ/dt| ≤ min(slope_dec, (Q + R)/τ)  below τ·slope_dec − R: screw
-                                                reversing at R, reservoir draining
+ramp-down: |dQ/dt| ≤ min(slope_dec, Q/τ)        below τ·slope_dec: screw stopped,
+                                                the nozzle drains (linear in x)
 ```
 
 Both laws have closed-form path lengths (`RampLaw::dist`) and are inverted
 by bisection (`RampLaw::q_hi`); with τ = 0 they reduce to the constant-slope
 law `Q² = Q0² + 2·slope·area·x`. When the steady flow equals `Qmax` the
 approach would be asymptotic, so the ceiling gets 2% headroom over the
-target. The ramp-down tail lasts `τ·ln((Q_s + R)/(Q_end + R))` with
-`Q_s = τ·slope_dec − R`: without reverse (R = 0) a large τ gives
-multi-second tails (≈10 s at τ = 2 s), which is why the reverse is allowed.
-On those pieces E is negative. They carry the nominal bead E in their tag
-(`e0=`), which the G-code preview uses to draw them as extrusions with the
-bead flow rate (a plain XY move with negative E would be drawn as travel).
+target. The ramp-down tail lasts `τ·ln(τ·slope_dec / Q_end)`: raise
+`pellet_ers_min_rate` to shorten it (the ramp then ends at a higher flow and
+leaves more pressure for the retraction to remove).
+
+**Why the ramp-down does not reverse the screw.** A version allowing
+`Qin ≥ −R` (screw reverse inside the ramp, R = `retraction_speed`) was
+printed on 2026-10-04 (τ sweep from 1 s, Q = 200 mm³/s): the last 4–5 mm
+of every ramp-down over-extruded and the restart lacked ~the reversed
+volume (~96 mm³ at τ = 1, no bead for ~2 cm). A two-state model in which
+the reverse empties the screw tip (a void refilled first by the next
+forward rotation) instead of lowering the melt pressure reproduces both
+defects, the linear model neither. Only the screw-stopped tail is
+predictable in both models, so the ramp stays within `Qin ≥ 0`. The
+residual pressure `τ·Q_end` is left to the regular retraction (volume
+calibrated on the machine, executed while moving through the wipe):
+since the reverse does not decompress 1:1, a reverse volume computed from
+`τ·Q_end` would only be a guess. A stationary give-back of the reversed
+volume (`;_ERS_RECOVER`) and a reverse during the travel were tried and
+dropped for the same reason.
+
+Charged ramp pieces carry the nominal bead E in their tag (`e0=`), which the
+G-code preview uses for width and flow rate (the "Screw flow" view shows the
+commanded E instead).
 
 History: until 2026-10-03 the charge was a per-segment factor
 `1 ± τ·slope/Q` clamped to [5%, 4×]. The 4× cap cut the charge exactly at
