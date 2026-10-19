@@ -5060,6 +5060,136 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionFloats { 26.7f });
 
+    // Ginger: pellet screw law (GCode/PelletScrewLaw). Filament options: the characterization depends on the material and
+    // on the nozzle (one filament profile per nozzle), the two scales on the material state (moisture, lot).
+    def = this->add("screw_law_enable", coBools);
+    def->label = L("Pellet screw law");
+    def->tooltip = L("Pellet screw extruder: every extrusion run gets a restart (injection that refills the screw after a stop) "
+                     "and an end (taper and coasting on the material still flowing), followed by a short pause and a vertical "
+                     "exit. Replaces the pellet ERS. Requires retraction 0, wipe off and a z-hop: the slicer then lifts at "
+                     "every stop.");
+    def->mode = comSimple;
+    def->set_default_value(new ConfigOptionBools { false });
+
+    def = this->add("screw_law_restart_scale", coFloats);
+    def->label = L("Restart");
+    def->tooltip = L("Material-state correction of the restart injection (1 = the characterized material). "
+                     "Raise it when the bead starts thin after a stop (moist material: about 1.5), lower it when the start "
+                     "is fat.");
+    def->sidetext = "×";
+    def->min = 0.3;
+    def->max = 3.0;
+    def->mode = comSimple;
+    def->set_default_value(new ConfigOptionFloats { 1. });
+
+    def = this->add("screw_law_coast_scale", coFloats);
+    def->label = L("Coasting");
+    def->tooltip = L("Material-state correction of the coasting at the end of a run (1 = the characterized material). "
+                     "Raise it when the end of the bead is fat or leaves a drop (moist material: about 1.15), lower it when "
+                     "the end is thin.");
+    def->sidetext = "×";
+    def->min = 0.3;
+    def->max = 3.0;
+    def->mode = comSimple;
+    def->set_default_value(new ConfigOptionFloats { 1. });
+
+    def = this->add("screw_law_parameters", coStrings);
+    def->label = L("Screw characterization");
+    def->tooltip = L("Characterization of the screw, the nozzle and the material (JSON: machine, model, coef, knobs, stop, "
+                     "short_runs sections), measured with the screw identification tests. The default is the 3 mm nozzle "
+                     "with dry PETG.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionStrings { R"LAW({
+ "version": "law_general 2026-10-18 (kappa 0.65, ke_wall 0.93/-0.08, stop exit)",
+ "machine": {
+  "eta": 0.984,
+  "q_max": 520.0,
+  "icv": 30.0,
+  "icv_frac": 0.6,
+  "l_stand": 0.05,
+  "print_acc": 500.0,
+  "e_acc": 3000.0,
+  "end_dt": 0.001,
+  "dt_coast": 0.025,
+  "pause_s": 0.3,
+  "end_from_state": false,
+  "stop_travel_mm": 3.0,
+  "first_stop_s": 5.0,
+  "sim_dt": 0.002,
+  "z_max_v": 7.0,
+  "z_max_a": 100.0,
+  "travel_acc_default": 2500.0,
+  "max_extrude_only_e": 100.0,
+  "max_cross_section": 150.0,
+  "tail_speed_tol": 0.01,
+  "end_taper_n0_margin": 0.95,
+  "end_taper_mults": [
+   1.0,
+   1.25,
+   1.5,
+   2.0,
+   2.5,
+   3.0,
+   4.0
+  ]
+ },
+ "model": {
+  "k100": 555.52,
+  "n": 0.1,
+  "r100": 0.999,
+  "tau_f": 0.1756,
+  "k2": 24.434,
+  "n2": 0.7913,
+  "tau2": 2.452,
+  "lam": 0.0915
+ },
+ "coef": {
+  "c_f": 1.144,
+  "c_s": 1.6104,
+  "x_e": 1.6464,
+  "c_v": 1.0933,
+  "L_B": 1.0456,
+  "a_0": 302.4047,
+  "a_e": 0.5418,
+  "c_b": 0.2825,
+  "q_0": 132.2394,
+  "c_L": 0.3682,
+  "c_g": 0.5209,
+  "T_t": 0.2,
+  "v_floor": 2.0,
+  "T_cmax": 3.0,
+  "anchor_cap_A": 16.863576874597992,
+  "anchor_max_cmd": 99.0,
+  "creep_cap_A": 10.0,
+  "fit_total": true,
+  "coast_floor_rel": 0.4,
+  "end_coarse_v": 4.0,
+  "end_seg_min": 0.055
+ },
+ "knobs": {
+  "kr_0": 0.65,
+  "kr_1": 0.0,
+  "ke_0": 0.76,
+  "ke_1": 0.0,
+  "q_ref": 200.0,
+  "clamp_min": 0.6,
+  "clamp_max": 1.6,
+  "ke_wall_0": 0.93,
+  "ke_wall_1": -0.08
+ },
+ "stop": {
+  "reverse_mm3": 0.0,
+  "reverse_time_s": 0.25,
+  "exit_mm": 10.0,
+  "exit_hop_mm": 1.0,
+  "exit_speed_mm_s": 500.0
+ },
+ "short_runs": {
+  "policy": "B",
+  "k_r_trunc": -1.0
+ }
+})LAW" });
+
     def = this->add("minimum_sparse_infill_area", coFloat);
     def->label = L("Minimum sparse infill threshold");
     def->category = L("Strength");

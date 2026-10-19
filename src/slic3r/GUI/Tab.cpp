@@ -3305,10 +3305,16 @@ void TabFilament::update_filament_overrides_page(const DynamicPrintConfig* print
 
     const bool have_retract_length = m_config->option("filament_retraction_length")->is_nil() ||
                                      m_config->opt_float("filament_retraction_length", extruder_idx) > 0;
+    // Ginger: with the pellet screw law (retraction 0) the lift overrides stay editable: the slicer lifts at every stop
+    const bool screw_law = m_config->has("screw_law_enable") && m_config->opt_bool("screw_law_enable", extruder_idx);
+    auto is_lift_key = [](const std::string &k) {
+        return k == "filament_z_hop" || k == "filament_z_hop_types" || k == "filament_retract_lift_above" ||
+               k == "filament_retract_lift_below" || k == "filament_retract_lift_enforce";
+    };
 
     for (const std::string& opt_key : opt_keys)
     {
-        bool is_checked = opt_key=="filament_retraction_length" ? true : have_retract_length;
+        bool is_checked = opt_key=="filament_retraction_length" ? true : (have_retract_length || (screw_law && is_lift_key(opt_key)));
         m_overrides_options[opt_key]->Enable(is_checked);
 
         is_checked &= !m_config->option(opt_key)->is_nil();
@@ -3557,6 +3563,19 @@ void TabFilament::build()
         optgroup->append_line(line);
         //BBS
         add_filament_overrides_page();
+
+        // Ginger: pellet screw law
+        page = add_options_page(L("Screw law"), "advanced");
+        optgroup = page->new_optgroup(L("Pellet screw law"), L"param_flow_ratio_and_pressure_advance");
+        optgroup->append_single_option_line("screw_law_enable");
+        optgroup->append_single_option_line("screw_law_restart_scale");
+        optgroup->append_single_option_line("screw_law_coast_scale");
+        optgroup = page->new_optgroup(L("Screw characterization"), L"param_advanced");
+        option = optgroup->get_option("screw_law_parameters");
+        option.opt.full_width = true;
+        option.opt.is_code = true;
+        option.opt.height = 25;
+        optgroup->append_single_option_line(option);
         const int gcode_field_height = 15; // 150
         const int notes_field_height = 25; // 250
 
@@ -3669,6 +3688,11 @@ void TabFilament::toggle_options()
       bool has_volume_based_cooling = m_config->opt_bool("volume_based_cooling", 0);
       toggle_option("slow_down_layer_time", !has_volume_based_cooling);
       toggle_option("cooling_time_per_cross_section", has_volume_based_cooling);
+    }
+    if (m_active_page->title() == L("Screw law")) {
+        const bool screw_law = m_config->opt_bool("screw_law_enable", 0);
+        for (auto el : {"screw_law_restart_scale", "screw_law_coast_scale", "screw_law_parameters"})
+            toggle_option(el, screw_law);
     }
     if (m_active_page->title() == L("Filament"))
     {
@@ -4523,15 +4547,17 @@ void TabPrinter::toggle_options()
         // user can customize other retraction options if retraction is enabled
         //BBS
         bool retraction = have_retract_length || use_firmware_retraction;
+        // Ginger: pellet printers lift without retracting (pellet screw law: retraction 0, lift at every stop)
+        const bool lift = retraction || m_config->opt_bool("pellet_modded_printer");
         std::vector<std::string> vec = {"z_hop", "retract_when_changing_layer"};
         for (auto el : vec)
-            toggle_option(el, retraction, i);
+            toggle_option(el, lift, i);
 
         // retract lift above / below + enforce only applies if using retract lift
         vec.resize(0);
         vec = {"retract_lift_above", "retract_lift_below", "retract_lift_enforce"};
         for (auto el : vec)
-          toggle_option(el, retraction && (m_config->opt_float("z_hop", i) > 0), i);
+          toggle_option(el, lift && (m_config->opt_float("z_hop", i) > 0), i);
 
         // some options only apply when not using firmware retraction
         vec.resize(0);

@@ -22,7 +22,7 @@
 // C3/C4 EMIT: the law is written into the G-code (restart + policy B + END + pause + screw reverse), the model
 // integrated on the EMITTED moves; guardrails are errors.
 //
-// Environment (read once per export in create_from_env):
+// Environment (read once per export in create):
 //   GINGER_SCREW_LAW=<json>        activates the stage (the PressureEqualizer is not created). Default mode EMIT.
 //   GINGER_SCREW_LAW_SELFTEST=1    self-test to stderr at the stage creation
 //   GINGER_SCREW_LAW_DRY=1         diagnostic: parse + analyse, output rebuilt from the parsed line slices: byte-identical
@@ -90,6 +90,9 @@ struct Knobs {
     // (v61 + v62 refit, valid 157-315 mm3/s; outside the curve is extrapolated and clamped like every knob).
     double ke_wall_0 = 1.062, ke_wall_1 = -0.231;
     bool   ke_wall_set = false;
+    // Material-state scales (filament settings "Restart" / "Coasting"), applied after the clamp: k_r x restart_scale,
+    // k_e and ke_wall x coast_scale. 1 = the characterized material.
+    double restart_scale = 1., coast_scale = 1.;
     double k_r(double v, double A, double eta) const;
     double k_e(double v, double A, double eta, bool wall = false) const;
 };
@@ -118,6 +121,8 @@ struct MachineParams {
     double end_dt = 0.001, dt_coast = 0.025, pause_s = 0.3;
     bool   end_from_state = false;        // false = design_end from steady state (as v51-v57)
     double stop_travel_mm = 3.0;          // a gap is a STOP if XY travel >= this, or it has a Z move / G4
+    double pause_assumed_s = 300.0;       // print pause / filament change (M600, PAUSE, ;PAUSE_PRINT ...): its real length is
+                                          // unknown, timed as a stop of this length (optional in the JSON)
     double first_stop_s = 5.0;            // assumed stop after START_PRINT
     double sim_dt = 0.002;
     double z_max_v = 7.0, z_max_a = 100.0, travel_acc_default = 2500.0;
@@ -139,6 +144,8 @@ struct LawParams {
     // Throws Slic3r::RuntimeError on a missing file, a parse error, a missing REQUIRED key or an invalid value.
     // Optional: knobs.ke_wall_0/1, the whole `stop` section, short_runs.k_r_trunc (-1), version.
     static LawParams from_json_file(const std::string &path);
+    // `source` names the origin in the error messages (a file path, "filament settings")
+    static LawParams from_json_text(const std::string &text, const std::string &source);
 };
 
 struct ModelState { double V = 0., V2 = 0., q = 0.; };
@@ -216,7 +223,7 @@ int self_test(const LawParams &lp, FILE *out);
 namespace ScrewLaw {
 
 // Machine / G-code values the stage needs besides the law JSON. Kept independent of PrintConfig so that the
-// standalone harness can run PelletScrewLaw::process_layer on real G-code files; create_from_env fills it.
+// standalone harness can run PelletScrewLaw::process_layer on real G-code files; create fills it.
 // The planner limits are those of tools/model/kplanner.LIMITS (the reference of the timing check); Z limits,
 // extruder ICV / acceleration and the initial ACCEL come from the JSON `machine` section.
 struct StageConfig {
@@ -302,6 +309,8 @@ public:
         // C2 runs and stops
         size_t runs = 0, ends = 0;
         size_t stops = 0, stop_travel = 0, stop_z = 0, stop_dwell = 0, stop_retract = 0, stop_chunk_end = 0;
+        size_t gap_eonly = 0;          // E-only moves with E > 0 between two runs (e.g. retract_restart_extra): a second injection
+        size_t user_pauses = 0;        // print pauses / filament changes seen (timed as machine.pause_assumed_s)
         size_t chunk_splits = 0;       // run apparently continuing across a chunk boundary (no stop): split there
         size_t full = 0, fast_end_trunc = 0, fast_trunc = 0;   // short-run policy B outcomes (planned, not emitted)
         size_t unsupported_runs = 0;   // runs with arcs
@@ -330,12 +339,20 @@ public:
         double law_time = 0.;          // seconds spent in the emitter (wall clock)
     };
 
-    // GINGER_SCREW_LAW set and not empty (cached at the first call).
+    // GINGER_SCREW_LAW set and not empty (cached at the first call): a law JSON file that overrides the filament
+    // characterization (research / debug).
     static bool enabled_from_env();
 #ifndef SCREWLAW_STANDALONE
-    // nullptr when disabled; throws Slic3r::RuntimeError if the JSON cannot be loaded or the self-test fails.
-    static std::unique_ptr<PelletScrewLaw> create_from_env(const PrintConfig &config);
+    // The law is on: filament setting screw_law_enable (first filament) or GINGER_SCREW_LAW.
+    static bool enabled(const PrintConfig &config);
+    // nullptr when disabled; throws Slic3r::RuntimeError on a bad characterization, a setting the law cannot work with,
+    // or a failed self-test. Parameters: GINGER_SCREW_LAW file if set, else the filament screw_law_parameters; the
+    // filament scales (restart / coasting) apply in both cases.
+    static std::unique_ptr<PelletScrewLaw> create(const PrintConfig &config);
 #endif
+    // Gap length (XY travel, mm) from which the stage counts a STOP (machine.stop_travel_mm of the law loaded by the last
+    // create, 3 before): GCode.cpp lifts at every such travel.
+    static double active_stop_travel_mm();
 
     // Throws Slic3r::RuntimeError in Emit mode with absolute E (cfg.relative_e false).
     explicit PelletScrewLaw(ScrewLaw::LawParams lp, ScrewLaw::StageConfig cfg = ScrewLaw::StageConfig(),
@@ -388,6 +405,8 @@ private:
                       double F, double acc, const std::string &tag, bool split);
     void put_standing(Out &o, const ScrewLaw::Move &ref, double E, double dt, const std::string &tag);
     void put_exit(Out &o, const std::vector<ScrewLaw::Move> &M, const ScrewLaw::Run &run);
+    void gap_guardrails();
+    void mark_pause(ScrewLaw::Move &m);
     void lay_block(Out &o, Path &path, const std::vector<ScrewLaw::Segment> &segs, double A_ref, bool rampup, double s_nominal);
     void lay_plain(Out &o, Path &path, double target);
     void advance(Out &o, Path &path, double target, const std::function<void(size_t, double, double)> &fn);
@@ -441,6 +460,9 @@ private:
     // input guardrails
     bool   m_warned_input = false;
     std::string m_first_bad_input;             // first retraction / wipe line (message)
+    bool   m_warned_gap = false;
+    std::string m_first_bad_gap;               // first flat stop travel / gap E-only move (message)
+    bool   m_pause_in_gap = false;             // a pause already counted since the last extrusion (tag + command = one)
     // emitter state (across chunks): the printer state after the EMITTED lines
     std::vector<ScrewLaw::Move> m_piece;       // emitted plan moves not timed yet
     double m_emit_f = 600., m_emit_accel = 0.; // modal F / ACCEL (as written) of the emitted stream

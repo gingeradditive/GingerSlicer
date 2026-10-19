@@ -15,6 +15,7 @@
 #include "GCode.hpp"
 #include "GCode/WipeTower.hpp"
 #include "GCode/WipeTower2.hpp"
+#include "GCode/PelletScrewLaw.hpp"
 #include "Utils.hpp"
 #include "PrintConfig.hpp"
 #include "Model.hpp"
@@ -94,6 +95,11 @@ bool Print::invalidate_state_by_config_options(const ConfigOptionResolver & /* n
         "overhang_fan_speed",
         "overhang_fan_threshold",
         "slow_down_for_layer_cooling",
+        // Ginger: pellet screw law (a G-code post-processing stage)
+        "screw_law_enable",
+        "screw_law_restart_scale",
+        "screw_law_coast_scale",
+        "screw_law_parameters",
         "default_acceleration",
         "deretraction_speed",
         "close_fan_the_first_x_layers",
@@ -1172,6 +1178,38 @@ StringObjectException Print::validate(StringObjectException *warning, Polygons* 
                 return {L("The spiral vase mode does not work when an object contains more than one materials."), nullptr, "spiral_mode"};
             }
         }
+    }
+
+    // Ginger: pellet screw law (GCode/PelletScrewLaw). Settings it cannot work with are reported here, before slicing,
+    // with a link to the option (the stage repeats the checks at the export as a backstop).
+    if (PelletScrewLaw::enabled(m_config)) {
+        auto law = [](const std::string &msg, const std::string &opt_key) {
+            return StringObjectException{ std::string(L("Pellet screw law")) + ": " + msg, nullptr, opt_key };
+        };
+        if (m_config.print_sequence == PrintSequence::ByObject)
+            return law(L("print sequence \"By object\" is not supported, use \"By layer\"."), "print_sequence");
+        if (m_config.spiral_mode)
+            return law(L("spiral vase mode is not supported (the whole object would be one run with an end on every layer)."), "spiral_mode");
+        if (extruders.size() > 1)
+            return law(L("only one filament can be used: the law models a single screw."), "");
+        if (m_config.enable_prime_tower)
+            return law(L("the prime tower is not supported."), "enable_prime_tower");
+        if (m_config.enable_arc_fitting)
+            return law(L("arc fitting must be off (the law lays its pieces along straight moves)."), "enable_arc_fitting");
+        if (!m_config.use_relative_e_distances)
+            return law(L("relative E distances are required."), "use_relative_e_distances");
+        if (m_config.use_firmware_retraction)
+            return law(L("firmware retraction must be off: the law handles the stop."), "use_firmware_retraction");
+        if (m_config.retraction_length.get_at(0) > 0.)
+            return law(L("retraction length must be 0: the law handles the stop (set it in the printer or as a filament override)."), "retraction_length");
+        if (m_config.wipe.get_at(0))
+            return law(L("wipe must be off: the law handles the stop."), "wipe");
+        if (m_config.retract_restart_extra.get_at(0) != 0.)
+            return law(L("extra length on restart must be 0: it would be a second injection on top of the law's restart."), "retract_restart_extra");
+        if (m_config.z_hop.get_at(0) < 1.)
+            return law(L("z-hop must be at least 1 mm (3 mm in the tests): the slicer lifts at every stop."), "z_hop");
+        if (m_config.retract_lift_above.get_at(0) > 0. || m_config.retract_lift_below.get_at(0) > 0.)
+            return law(L("\"Only lift Z above / below\" must be 0: the slicer must lift at every height."), "retract_lift_above");
     }
 
     // Cache of layer height profiles for checking:

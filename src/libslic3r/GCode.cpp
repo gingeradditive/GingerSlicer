@@ -1955,7 +1955,7 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
         m_spiral_vase = make_unique<SpiralVase>(print.config());
 
     // Pellet screw law (Ginger), MVP stage: with GINGER_SCREW_LAW set the PressureEqualizer is not created.
-    if (print.config().max_volumetric_extrusion_rate_slope.value > 0 && !PelletScrewLaw::enabled_from_env()){
+    if (print.config().max_volumetric_extrusion_rate_slope.value > 0 && !PelletScrewLaw::enabled(print.config())){
     		// Only a global sweep is driven by the PressureEqualizer itself; per-object
     		// sweeps are communicated through ;_ERS_SWEEP tags emitted at object changes.
     		// An automatic step (step <= 0) is resolved here with the plate's layer
@@ -2776,7 +2776,12 @@ void GCode::process_layers(
         });
     // Pellet screw law (Ginger), MVP stage: post-processing right after the CoolingBuffer, only with
     // GINGER_SCREW_LAW set (nullptr otherwise: the output is unchanged).
-    std::unique_ptr<PelletScrewLaw> screw_law = PelletScrewLaw::create_from_env(print.config());
+    std::unique_ptr<PelletScrewLaw> screw_law = PelletScrewLaw::create(print.config());
+    if (screw_law) {
+        if (print.extruders().size() > 1)
+            throw Slic3r::RuntimeError("Pellet screw law: more than one extruder is used; the law models a single screw. "
+                                       "Print with one filament or disable Filament > Screw law.");
+    }
     const auto cooling = tbb::make_filter<LayerResult, std::string>(slic3r_tbb_filtermode::serial_in_order,
         [&cooling_buffer = *this->m_cooling_buffer.get(), law = screw_law.get()](LayerResult in) -> std::string {
             GCodeSPProfile::Scope sp_prof_cool(GCodeSPProfile::phCooling);
@@ -2846,9 +2851,9 @@ void GCode::process_layers(
 {
     // Pellet screw law (Ginger), MVP stage: sequential (by object) printing is not supported, stop with an error
     // instead of exporting G-code with neither the law nor the PressureEqualizer.
-    if (PelletScrewLaw::enabled_from_env())
-        throw Slic3r::RuntimeError("Pellet screw law: sequential (by object) printing is not supported yet (MVP). "
-                                   "Use print sequence \"By layer\" or unset GINGER_SCREW_LAW.");
+    if (PelletScrewLaw::enabled(print.config()))
+        throw Slic3r::RuntimeError("Pellet screw law: sequential (by object) printing is not supported yet. "
+                                   "Use print sequence \"By layer\" or disable Filament > Screw law.");
     // The pipeline is variable: The vase mode filter is optional.
     size_t layer_to_print_idx = 0;
     const auto generator = tbb::make_filter<void, LayerResult>(slic3r_tbb_filtermode::serial_in_order,
@@ -4958,8 +4963,13 @@ std::string GCode::change_layer(coordf_t print_z)
     coordf_t z = print_z + m_config.z_offset.value;  // in unscaled coordinates
     if (EXTRUDER_CONFIG(retract_when_changing_layer) && m_writer.will_move_z(z)) {
         LiftType lift_type = this->to_lift_type(ZHopType(EXTRUDER_CONFIG(z_hop_types)));
+        // Pellet screw law (Ginger): vertical lift only (a spiral / slope lift starts moving while the nozzle is still low)
+        if (PelletScrewLaw::enabled(m_config))
+            lift_type = LiftType::NormalLift;
         //BBS: force to use SpiralLift when change layer if lift type is auto
-        gcode += this->retract(false, false, ZHopType(EXTRUDER_CONFIG(z_hop_types)) == ZHopType::zhtAuto ? LiftType::SpiralLift : lift_type);
+        else if (ZHopType(EXTRUDER_CONFIG(z_hop_types)) == ZHopType::zhtAuto)
+            lift_type = LiftType::SpiralLift;
+        gcode += this->retract(false, false, lift_type);
     }
 
     m_writer.add_object_change_labels(gcode);
@@ -8660,6 +8670,14 @@ LiftType GCode::to_lift_type(ZHopType z_hop_types) {
 
 bool GCode::needs_retraction(const Polyline &travel, ExtrusionRole role, LiftType& lift_type)
 {
+    // Pellet screw law (Ginger): every travel the stage counts as a STOP (>= stop_travel_mm) "retracts" (retraction 0: only
+    // the lift) with a NORMAL lift - no minimum-travel / infill / support-island skip, no slope or spiral lift. After the
+    // law's END and exit the head must leave vertically: a missing or lazy lift drags the strand that does not cut and
+    // carries the bead away (stampa A sA1, 2026-10-18). Shorter travels stay inside the run, as the stage sees them.
+    if (PelletScrewLaw::enabled(m_config)) {
+        lift_type = LiftType::NormalLift;
+        return travel.length() >= scale_(PelletScrewLaw::active_stop_travel_mm());
+    }
     if (travel.length() < scale_(EXTRUDER_CONFIG(retraction_minimum_travel))) {
         // skip retraction if the move is shorter than the configured threshold
         return false;
@@ -8812,7 +8830,7 @@ std::string GCode::retract(bool toolchange, bool is_last_retraction, LiftType li
         || m_writer.extruder()->retraction_length() > 0
         || m_config.use_firmware_retraction
         // Pellet screw law (Ginger), MVP stage: Z lift at every stop even with retraction 0.
-        || PelletScrewLaw::enabled_from_env();
+        || PelletScrewLaw::enabled(m_config);
 
     bool last_fill_extrusion_role_top_infill = (this->m_last_notgapfill_extrusion_role == ExtrusionRole::erTopSolidInfill || this->m_last_notgapfill_extrusion_role == ExtrusionRole::erIroning);
 
@@ -8831,6 +8849,10 @@ std::string GCode::retract(bool toolchange, bool is_last_retraction, LiftType li
     else {
         can_lift = false;
     }
+
+    // Pellet screw law (Ginger): lift at every stop whatever retract_lift_enforce says
+    if (PelletScrewLaw::enabled(m_config))
+        can_lift = true;
 
     if (needs_lift && can_lift) {
         gcode += m_writer.lift(lift_type, m_spiral_vase != nullptr);

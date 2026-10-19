@@ -99,13 +99,13 @@ static double knob_curve(double k0, double k1, double Q, const Knobs &kn)
 
 double Knobs::k_r(double v, double A, double eta) const
 {
-    return knob_curve(kr_0, kr_1, eta * A * v, *this);
+    return knob_curve(kr_0, kr_1, eta * A * v, *this) * restart_scale;
 }
 
 double Knobs::k_e(double v, double A, double eta, bool wall) const
 {
-    if (wall && ke_wall_set) return knob_curve(ke_wall_0, ke_wall_1, eta * A * v, *this);
-    return knob_curve(ke_0, ke_1, eta * A * v, *this);
+    if (wall && ke_wall_set) return knob_curve(ke_wall_0, ke_wall_1, eta * A * v, *this) * coast_scale;
+    return knob_curve(ke_0, ke_1, eta * A * v, *this) * coast_scale;
 }
 
 // ===================================================================================== JSON
@@ -170,9 +170,15 @@ LawParams LawParams::from_json_file(const std::string &path)
     std::ifstream f(path, std::ios::in | std::ios::binary);
     if (!f)
         throw Slic3r::RuntimeError("Pellet screw law: cannot open the law JSON \"" + path + "\" (GINGER_SCREW_LAW)");
+    std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    return from_json_text(text, path);
+}
+
+LawParams LawParams::from_json_text(const std::string &text, const std::string &path)
+{
     json j;
     try {
-        j = json::parse(f);
+        j = json::parse(text);
     } catch (const std::exception &e) {
         throw Slic3r::RuntimeError("Pellet screw law: JSON parse error in \"" + path + "\": " + e.what());
     }
@@ -199,6 +205,7 @@ LawParams LawParams::from_json_file(const std::string &path)
     mp.end_from_state      = req_bool(m, "machine", "end_from_state", path);
     mp.stop_travel_mm      = req_num(m, "machine", "stop_travel_mm", path);
     mp.first_stop_s        = req_num(m, "machine", "first_stop_s", path);
+    mp.pause_assumed_s     = opt_num(m, "machine", "pause_assumed_s", mp.pause_assumed_s, nullptr, path);
     mp.sim_dt              = req_num(m, "machine", "sim_dt", path);
     mp.z_max_v             = req_num(m, "machine", "z_max_v", path);
     mp.z_max_a             = req_num(m, "machine", "z_max_a", path);
@@ -1367,6 +1374,9 @@ double sl_junction(const Move &m0, const Move &m1, double e_icv)
 #define SL_LOG_ERROR(expr) BOOST_LOG_TRIVIAL(error) << expr
 #endif
 
+// machine.stop_travel_mm of the law loaded by the last create (exports are sequential), read by GCode::needs_retraction
+static double s_active_stop_travel_mm = 3.0;
+
 bool PelletScrewLaw::enabled_from_env()
 {
     static const bool on = [] {
@@ -1383,12 +1393,31 @@ static bool env_flag(const char *name)
     return v != nullptr && std::strcmp(v, "1") == 0;
 }
 
-std::unique_ptr<PelletScrewLaw> PelletScrewLaw::create_from_env(const PrintConfig &config)
+bool PelletScrewLaw::enabled(const PrintConfig &config)
 {
-    if (!enabled_from_env())
+    return enabled_from_env() || (!config.screw_law_enable.values.empty() && config.screw_law_enable.get_at(0));
+}
+
+std::unique_ptr<PelletScrewLaw> PelletScrewLaw::create(const PrintConfig &config)
+{
+    if (!enabled(config))
         return nullptr;
-    const std::string path = std::getenv("GINGER_SCREW_LAW");
-    ScrewLaw::LawParams lp = ScrewLaw::LawParams::from_json_file(path);   // throws on any error
+    std::string path;
+    ScrewLaw::LawParams lp;   // the parsers throw on any error
+    if (enabled_from_env()) {
+        path = std::getenv("GINGER_SCREW_LAW");
+        lp = ScrewLaw::LawParams::from_json_file(path);
+    } else {
+        path = "filament settings (Screw law > Screw characterization)";
+        const std::string text = config.screw_law_parameters.values.empty() ? std::string() : config.screw_law_parameters.get_at(0);
+        if (text.find_first_not_of(" \t\r\n") == std::string::npos)
+            throw Slic3r::RuntimeError("Pellet screw law: the screw characterization is empty (Filament > Screw law)");
+        lp = ScrewLaw::LawParams::from_json_text(text, path);
+    }
+    if (!config.screw_law_restart_scale.values.empty()) lp.knobs.restart_scale = config.screw_law_restart_scale.get_at(0);
+    if (!config.screw_law_coast_scale.values.empty())   lp.knobs.coast_scale   = config.screw_law_coast_scale.get_at(0);
+    if (!(lp.knobs.restart_scale > 0.) || !(lp.knobs.coast_scale > 0.))
+        throw Slic3r::RuntimeError("Pellet screw law: the restart / coasting scales must be > 0 (Filament > Screw law)");
     BOOST_LOG_TRIVIAL(info) << "[SCREWLAW] law loaded from " << path << " (" << lp.version << "): knobs k_r " << lp.knobs.kr_0
                             << (lp.knobs.kr_1 != 0. ? " (sloped)" : "") << ", k_e " << lp.knobs.ke_0 << (lp.knobs.ke_1 != 0. ? " (sloped)" : "")
                             << (lp.knobs.ke_wall_set ? ", ke_wall set" : ", ke_wall = k_e") << ", reverse " << lp.stop.reverse_mm3
@@ -1415,6 +1444,27 @@ std::unique_ptr<PelletScrewLaw> PelletScrewLaw::create_from_env(const PrintConfi
 
     ScrewLaw::StageConfig cfg;
     cfg.relative_e = config.use_relative_e_distances.value;
+    s_active_stop_travel_mm = lp.mach.stop_travel_mm;
+    // Settings that would make the law fail silently at the printer: errors before the export starts.
+    {
+        auto bad = [&](const std::string &msg) {
+            throw Slic3r::RuntimeError("Pellet screw law: " + msg + " (or disable Filament > Screw law).");
+        };
+        if (config.spiral_mode.value)
+            bad("spiral vase mode is not supported (one run across the layers would get an END on every layer): disable it");
+        if (config.enable_prime_tower.value)
+            bad("the prime tower is not supported (single screw): disable it");
+        const double z_hop = config.z_hop.values.empty() ? 0. : config.z_hop.get_at(0);
+        if (z_hop <= 0. || z_hop < lp.stop.exit_hop_mm)
+            bad(strfmt("z_hop is %g mm: the slicer must lift at every stop, set z_hop >= %g mm (3 mm in the tests) in the printer "
+                       "or as a filament override", z_hop, std::max(1., lp.stop.exit_hop_mm)));
+        if (!config.retract_lift_above.values.empty() && config.retract_lift_above.get_at(0) > 0.)
+            bad("retract_lift_above must be 0: the slicer must lift at every height");
+        if (!config.retract_lift_below.values.empty() && config.retract_lift_below.get_at(0) > 0.)
+            bad("retract_lift_below must be 0: the slicer must lift at every height");
+        if (!config.retract_restart_extra.values.empty() && config.retract_restart_extra.get_at(0) != 0.)
+            bad("retract_restart_extra must be 0: the extra length after a travel is a second injection on top of the law's anchor");
+    }
     if (!config.printable_area.values.empty()) {   // bounding box of the printable area: the stop exit stays inside
         cfg.bed_min[0] = cfg.bed_min[1] = 1e9; cfg.bed_max[0] = cfg.bed_max[1] = -1e9;
         for (const Vec2d &pt : config.printable_area.values)
@@ -1431,6 +1481,8 @@ std::unique_ptr<PelletScrewLaw> PelletScrewLaw::create_from_env(const PrintConfi
     return std::make_unique<PelletScrewLaw>(std::move(lp), cfg, mode, dump);
 }
 #endif // SCREWLAW_STANDALONE
+
+double PelletScrewLaw::active_stop_travel_mm() { return s_active_stop_travel_mm; }
 
 PelletScrewLaw::PelletScrewLaw(ScrewLaw::LawParams lp, ScrewLaw::StageConfig cfg, ScrewLaw::StageMode mode, bool dump)
     : m_lp(std::move(lp)), m_cfg(cfg), m_mode(mode), m_dump(dump)
@@ -1519,6 +1571,8 @@ void PelletScrewLaw::parse(const std::string &g)
                 auto it = std::find(m_roles.begin(), m_roles.end(), role);
                 if (it == m_roles.end()) { m_roles.push_back(role); it = m_roles.end() - 1; }
                 m_role = int(it - m_roles.begin()); m.role = m_role;
+            } else if (sl_starts(p, end, ";PAUSE_PRINT") || sl_starts(p, end, ";COLOR_CHANGE")) {
+                mark_pause(m);   // Orca's tag before the machine pause / filament change G-code
             } else if (sl_starts(p, end, ";WIPE_START")) {
                 if (m_stats.in_retracts + m_stats.in_fw_retracts + m_stats.in_wipes == 0)
                     m_first_bad_input = strfmt("wipe (;WIPE_START) at layer %d (Z %.3f), stage line %zu", m_layer, m_pos[2], m.line + 1);
@@ -1553,6 +1607,8 @@ void PelletScrewLaw::parse(const std::string &g)
                 for (char &ch : word) ch = sl_upper(ch);
                 if (!m_model_on && (word == "START_PRINT" || word.find("PURGE") != std::string::npos))
                     m_origin_idx = long(m_moves.size());   // first-stop origin, resolved to a time after move_time()
+                if (word == "PAUSE" || word == "M600")
+                    mark_pause(m);
             }
             m_moves.push_back(m);
             continue;
@@ -1593,6 +1649,10 @@ void PelletScrewLaw::parse(const std::string &g)
             }
             case 220: case 221:
                 ++m_stats.unsupported;   // speed / extrusion factor: the timing and E would be wrong if != 100
+                break;
+            case 0: case 1: case 25: case 600: case 601:
+                mark_pause(m);           // pause / filament change: a long stop of unknown length
+                ++m_stats.known;
                 break;
             case 17: case 18: case 73: case 84: case 104: case 105: case 106: case 107: case 109: case 117: case 118:
             case 140: case 141: case 190: case 191: case 201: case 203: case 205: case 300: case 400: case 486:
@@ -1647,7 +1707,7 @@ void PelletScrewLaw::parse(const std::string &g)
             if (e < -1e-9)                                 m.type = MoveType::Retract;
             else if (std::abs(dz) > 1e-9 && e <= 1e-9)     m.type = MoveType::ZMove;
             else if (L < 1e-9)                             m.type = MoveType::EOnly;
-            else if (e > 1e-9)                             m.type = MoveType::Extrude;
+            else if (e > 1e-9)                           { m.type = MoveType::Extrude; m_pause_in_gap = false; }
             else                                           m.type = MoveType::Travel;
             if (m.type == MoveType::Retract) {
                 if (m_stats.in_retracts + m_stats.in_fw_retracts + m_stats.in_wipes == 0)
@@ -1849,7 +1909,20 @@ void PelletScrewLaw::find_runs()
         switch (m.type) {
         case MoveType::Travel:
             m_gap_xy += m.L_xy;
-            if (m_gap_xy >= stop_xy) { m_gap_stop = true; ++m_stats.stop_travel; }
+            if (m_gap_xy >= stop_xy) {   // a stop with no Z move before the travel: the head travels at layer height
+                m_gap_stop = true; ++m_stats.stop_travel;
+                if (m_first_bad_gap.empty())
+                    m_first_bad_gap = strfmt("travel of %.1f mm at layer height after a run (layer %d, Z %.3f, X %.3f Y %.3f, "
+                                             "stage line %zu)", m_gap_xy, m.layer, m.p0[2], m.p0[0], m.p0[1], m.line + 1);
+            }
+            break;
+        case MoveType::EOnly:
+            if (m.e > 1e-9) {
+                ++m_stats.gap_eonly;
+                if (m_first_bad_gap.empty())
+                    m_first_bad_gap = strfmt("extrude-only move E %.5f between two runs (layer %d, Z %.3f, stage line %zu)", m.e,
+                                             m.layer, m.p0[2], m.line + 1);
+            }
             break;
         case MoveType::ZMove:   m_gap_stop = true; ++m_stats.stop_z; break;
         case MoveType::Dwell:   m_gap_stop = true; ++m_stats.stop_dwell; break;
@@ -2140,6 +2213,37 @@ void PelletScrewLaw::input_guardrails()
         SL_LOG_WARN("[SCREWLAW] " << what << " - EMIT mode would fail: set retraction_length = 0, wipe = off (and z_hop >= 3, "
                     "Normal Lift) in the profile");
     }
+}
+
+// Gaps between runs (stampa A sA1, 2026-10-18): a stop by XY travel without a Z move before it means the slicer did not
+// lift (z_hop 0, slope / spiral lift, skipped retraction): after the END and the exit the head would travel at layer
+// height dragging the strand and the bead. An extrude-only move with E > 0 in a gap (retract_restart_extra) is a second
+// injection on top of the anchor. Emit: error; Dry / Annotate: warning once.
+void PelletScrewLaw::gap_guardrails()
+{
+    if (m_stats.stop_travel == 0 && m_stats.gap_eonly == 0) return;
+    const std::string what = strfmt("%zu stop(s) by a travel at layer height (no Z lift) and %zu extrude-only move(s) between "
+                                    "runs; first: %s", m_stats.stop_travel, m_stats.gap_eonly, m_first_bad_gap.c_str());
+    if (m_mode == ScrewLaw::StageMode::Emit)
+        fail("the slicer must lift (Normal lift, z_hop > 0) at every stop and must not extrude between runs "
+             "(retract_restart_extra = 0). (" + what + ")", nullptr);
+    if (!m_warned_gap) {
+        m_warned_gap = true;
+        SL_LOG_WARN("[SCREWLAW] " << what << " - EMIT mode would fail");
+    }
+}
+
+// Print pause / filament change: timed as a dwell of machine.pause_assumed_s (a STOP of unknown, long duration), the line
+// itself stays verbatim. One per gap (Orca's tag and the pause command that follows it count once).
+void PelletScrewLaw::mark_pause(ScrewLaw::Move &m)
+{
+    if (m_pause_in_gap) return;
+    m_pause_in_gap = true;
+    m.type = ScrewLaw::MoveType::Dwell; m.plan = true; m.dwell = m_lp.mach.pause_assumed_s;
+    ++m_stats.user_pauses;
+    if (m_stats.user_pauses == 1)
+        SL_LOG_WARN("[SCREWLAW] print pause / filament change at layer " << m.layer << " (stage line " << m.line + 1
+                    << "): timed as a stop of " << m_lp.mach.pause_assumed_s << " s (machine.pause_assumed_s), the real length is unknown");
 }
 
 void PelletScrewLaw::push_move(ScrewLaw::Move &&mv, const char *what)
@@ -2584,7 +2688,7 @@ void PelletScrewLaw::emit_run(Out &o, const std::vector<ScrewLaw::Move> &M, cons
             ++m_stats.pauses;
         }
     }
-    if (m_lp.stop.exit_mm > 0.) put_exit(o, M, run);
+    if (m_lp.stop.exit_mm > 0. && has_end) put_exit(o, M, run);   // fast_trunc (no END, no pause): no exit either
     if (m_emit_accel != M[run.last].accel_raw) put_accel(o, M[run.last].accel_raw);
 }
 
@@ -2663,6 +2767,7 @@ std::string PelletScrewLaw::emit_chunk(const std::string &g)
         fail("absolute E distances (M82) are not supported: enable use_relative_e_distances (M83) in the printer profile", nullptr);
     input_guardrails();
     find_runs();
+    gap_guardrails();
     std::vector<Move> M;
     M.swap(m_moves);
     Out o;
@@ -2708,6 +2813,7 @@ std::string PelletScrewLaw::process_layer(std::string &&gcode)
         move_time();
         if (m_origin_idx >= 0) { m_t_origin = m_moves[size_t(m_origin_idx)].t0; m_origin_seen = true; m_origin_idx = -1; }
         find_runs();
+        gap_guardrails();   // warning only (Dry / Annotate)
         analyse(m_mode == ScrewLaw::StageMode::Annotate ? &notes : nullptr);
     }
     m_line_base += m_moves.size();
@@ -2760,7 +2866,7 @@ void PelletScrewLaw::log_stats() const
     if (m_mode == ScrewLaw::StageMode::Emit)
         os << " | EMIT: restarts=" << s.law_restarts << " ends=" << s.law_ends << " law lines=" << s.law_lines << " (standing "
            << s.standing_lines << ") split=" << s.split_lines << " verbatim run moves=" << s.verbatim_run_moves << " ACCEL lines="
-           << s.accel_lines << " F restores=" << s.f_restores << " pauses=" << s.pauses << " exits=" << s.exits << " reverses=" << s.reverses
+           << s.accel_lines << " F restores=" << s.f_restores << " pauses=" << s.pauses << " exits=" << s.exits << " user pauses=" << s.user_pauses << " reverses=" << s.reverses
            << " (pause extended " << s.pause_extended << ") compensated restarts=" << s.comp_applied
            << strfmt(" (%.1f mm3)", s.comp_mm3) << " tail speed cuts=" << s.tail_speed_cuts << " tail fits=" << s.tail_fits << " (fallbacks " << s.tail_fit_fallbacks << ")"
            << " tiny pieces skipped=" << s.tiny_skipped << " fine-XY lines=" << s.fine_xy
