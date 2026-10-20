@@ -4795,16 +4795,14 @@ int CLI::run(int argc, char **argv)
                         }
                     }
                     // The sweep machinery only acts on the calib.hpp key sets (writer / gcode
-                    // params in GCode, ERS params in the PressureEqualizer); any other key
+                    // params in GCode, screw-law knobs in the PelletScrewLaw stage); any other key
                     // would silently sweep NOTHING - a typo must fail loudly, not waste a
                     // full calibration print.
-                    if (valid && ! (calib_is_ers_param(params.sweep_param) ||
+                    if (valid && ! (calib_is_law_param(params.sweep_param) ||
                                     calib_is_writer_param(params.sweep_param) ||
                                     calib_is_gcode_param(params.sweep_param))) {
                         BOOST_LOG_TRIVIAL(error) << "--sweep: unsupported parameter \"" << params.sweep_param
-                            << "\". Supported: max_volumetric_extrusion_rate_slope, pellet_ers_deceleration_slope,"
-                               " pellet_ers_min_rate, pellet_ers_rampup_flow,"
-                               " pellet_ers_rampdown_flow, pellet_ers_pressure_tau, retraction_length,"
+                            << "\". Supported: screw_law_restart_scale, screw_law_coast_scale, retraction_length,"
                                " retraction_speed, deretraction_speed, retract_restart_extra,"
                                " wipe_distance, wipe_speed" << std::endl;
                         valid = false;

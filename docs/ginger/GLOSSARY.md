@@ -34,18 +34,18 @@ GingerSlicer. Each entry points to the primary source file when applicable.
 
 - **Virtual retract** — Pellet printers cannot retract filament mechanically.
   "Retraction" is emulated via screw decompression (brief reverse rotation)
-  and/or by reducing target volumetric flow before travels. See pellet-ramp
-  logic around `m_pellet_ers_min_rate` in `PressureEqualizer.cpp`.
+  and/or by reducing target volumetric flow before travels. Superseded by
+  the pellet screw law (coast + pause + exit, see below).
 
 ---
 
 ## Extrusion Rate Smoothing (ERS)
 
-- **ERS — Extrusion Rate Smoothing** — Post-processing pass in
-  `PressureEqualizer` that clamps `dV/dt` so volumetric flow changes do not
-  exceed `max_volumetric_extrusion_rate_slope`. Compensates for slow pressure
-  response of long melt zones (especially pellet screws).
-  File: `src/libslic3r/GCode/PressureEqualizer.cpp`.
+- **ERS — Extrusion Rate Smoothing** — Orca's post-processing pass
+  (`PressureEqualizer`) that clamps `dV/dt` so volumetric flow changes do not
+  exceed `max_volumetric_extrusion_rate_slope`, within continuous extrusion.
+  File: `src/libslic3r/GCode/PressureEqualizer.cpp`. It is NOT created when the
+  pellet screw law is on (the law owns every speed and flow transition of a run).
 
 - **Slope** (`max_volumetric_extrusion_rate_slope`) — Maximum allowed
   change in mm³/(s·s) during transitions between adjacent extrusion paths.
@@ -56,124 +56,87 @@ GingerSlicer. Each entry points to the primary source file when applicable.
   length over which a ramp is allowed to be distributed before the slicer
   forces shorter sub-segments.
 
-- **Pellet ERS mode** (`pellet_ers_mode`) — Extends ERS across **gaps**
-  (travels, retracts, discontinuities) rather than only within continuous
-  extrusion. Required on pellet machines because pressure does not collapse
-  during travel as it does on Bowden/Direct filament setups.
-  Field: `m_pellet_ers_mode` in `PressureEqualizer.hpp`.
-
-- **Travel threshold**
-  (`pellet_ers_travel_threshold_mm`) — Travel moves shorter than this are
-  treated as continuous extrusion (no ramp-down/ramp-up). Default 3 mm.
-  Avoids redundant micro-ramps over hops/seams.
-
-- **Ramp shape** — Fixed: the pellet `RampLaw` (see *Pressure time
-  constant*). With τ = 0 it is the constant-dQ/dt kinematic law
-  `Q² = Q0² + 2·slope·area·x` (the former "Sqrt" profile); with τ > 0 it
-  is additionally bounded by the screw limits. The option
-  `pellet_ers_ramp_profile` (Linear / Sqrt / Exponential) was removed on
-  2026-10-03: any shape other than the law exceeds the allowed dQ/dt
-  somewhere along the same ramp length. Old 3MF/presets carrying the key
-  load fine (ignored in `handle_legacy`).
-
-- **Deceleration slope** (`pellet_ers_deceleration_slope`) — Independent
-  slope for **all negative flow transitions** in pellet mode (boundary
-  ramp-downs AND internal decelerations — overhangs, slower features, width
-  changes). `0` means use the same value as the main slope. The
-  pressurize/release asymmetry is a property of the screw, not of travels.
-  Applied via `apply_effective_slopes()` into the per-role slope table.
-
-- **Pressure time constant** (`pellet_ers_pressure_tau`, seconds) — τ of
-  the first-order melt-reservoir model (τ = R·C: nozzle resistance × melt
-  compressibility). Primary ramp flow compensation, two parts:
-  (1) **reservoir charge** — every `;_ERS_RAMPUP`/`;_ERS_RAMPDOWN` piece gets
-  its nominal E plus `τ·(Q_end − Q_start)` (mm³; negative on ramp-downs). The
-  charge telescopes, so a whole ramp receives exactly `τ·ΔQ` however it is
-  split. Boundary ramps end at `max(min_rate, flow at 1 mm/s)` on both
-  sides, so a neutral retract cycle hands the ramp-up the state the
-  ramp-down left.
-  (2) **pellet ramp law** (`RampLaw`) — the feedrate ramp is stretched so
-  the screw command `Qin = Q + τ·dQ/dt` stays in `[0, Qmax]`
-  (`Qmax = filament_max_volumetric_speed`, with 2% headroom over the
-  target when the steady flow sits at the cap): above `Qmax − τ·slope` the
-  ramp-up slows exponentially; below `τ·slope_dec` the ramp-down tail is
-  the nozzle draining freely with the screw stopped. The ramp-down never
-  reverses the screw: printing (2026-10-04, τ sweep, Q 200 mm³/s) showed
-  that a reverse inside the ramp behaves like a retraction — it empties
-  the screw tip instead of lowering the nozzle outflow 1:1 — so the head
-  slowed down too early and the last 4–5 mm over-extruded, and the
-  restart missed ~the reversed volume. Decompressing at the end of a
-  path (the pressure `τ·Q_end` left by the ramp-down) is the job of the
-  regular, user-calibrated retraction — done while moving through the
-  wipe — not of a volume computed by the ERS. Only F
-  changes, never the volume per mm. Slicer-side equivalent of the ORNL BAAM
-  feedforward lead filter / firmware pressure advance, for screw dynamics.
-  Calibrate ONCE per nozzle (sweep); stays valid for any slope. With
-  `retract_restart_extra` > 0 the charge is delivered twice (standstill
-  blob) — keep it ~0 once τ is calibrated. BAAM reference: τ ≈ 0.06–0.09 s
-  on a large-nozzle machine; expect more on small nozzles (R ∝ ~1/r⁴).
-  0 = disabled (plain constant-slope ramps). Theory:
-  `docs/ginger/EXTRUSION_DYNAMICS.md`. Before 2026-10-03 the charge was a
-  per-segment factor `1 ± τ·slope/Q` clamped to [5%, 4×], which cut the
-  charge at the ramp start (under-extruded ramp-up) and left the reservoir
-  charged at ramp-down ends.
-
-- **Ramp flow trim** (`pellet_ers_rampup_flow` /
-  `pellet_ers_rampdown_flow`, %) — Empirical multipliers applied on top of
-  the τ compensation inside the ramp zones (with τ = 0 they act alone as a
-  constant-percentage compensation). They absorb what the linear model does
-  not capture: shear-thinning τ(Q), screw feed non-linearity. The feedrate
-  ramp alone only redistributes the pressure mismatch — under-extrusion at
-  path start / over-extrusion at path end, the classic bad-seam signature
-  even with stringing solved. Both sweepable. Requires relative E.
-  100% = no trim.
-
-- **Min rate** (`pellet_ers_min_rate`) — Floor of the ramp in mm³/min. The
-  ramp never goes below this even at the boundary of a travel; prevents the
-  screw from stalling. Default 30 mm³/min (≈ 0.5 mm³/s). Raised per line to
-  the flow at the 1 mm/s feedrate floor when that is higher (the slowest
-  speed the PressureEqualizer emits).
-
-- **Pellet ramp segment** — Sub-segment generated by the pellet-ERS
-  mini-pass to enforce ramps across gaps. Tagged via `GCodeLine::pellet_ramp`
-  in `PressureEqualizer.hpp` to distinguish from native ERS adjustments.
-
-- **Mini-pass** — Second-stage adjustment in pellet mode: re-scans the line
-  buffer to insert ramp sub-lines around detected travel boundaries that the
-  primary ERS pass cannot reach. See `adjust_volumetric_rate(..., is_segment_start, is_segment_end)`.
-
-- **`travel_before_polyline` / `travel_after_polyline`** — Per-line metadata
-  in `GCodeLine` storing the travel distance immediately preceding/following
-  the line. Drives the threshold check for whether a ramp must be inserted.
-
-- **ERS G-code tags** — Debug comments emitted by the PressureEqualizer on
-  every line it touches: `;_ERS_RAMPUP`, `;_ERS_RAMPDOWN`, `;_ERS_STEADY`
-  (zone of the ramp), `;_ERS_CALIB layer=N param=value` (active global sweep
-  value, one per layer), plus the `;_ERS_SWEEP` tags emitted by GCode for
-  per-object sweeps (see Calibration below). Grep these to analyze ramps without the GUI. Ramp pieces carrying a τ charge append the nominal
-  (bead) E: `;_ERS_RAMPDOWN e0=0.14727`. `GCodeProcessor::process_G1` keeps
-  any XY move with that token as an extrusion even when the commanded E is
-  negative, and computes width/flow rate from `e0` — the preview shows the
-  bead flow ramp, while filament usage keeps the commanded E. Point
-  retracts (`G1 E-…`) and wipes carry no token and are classified as
-  before. The **Screw flow** preview view (`EViewType::ScrewRate`,
-  `MoveVertex::screw_rate()`) colors the same bead geometry by the flow
-  commanded to the screw instead: forward on the usual scale, reverse
-  (negative E) on a separate pink→purple scale; the hover tooltip shows
-  both bead flow and screw flow.
-
 - **Feedrate quantization** — `push_line_to_output` rounds every re-emitted
   feedrate to **0.1 mm/s** (was 1 mm/s upstream). With pellet bead
   cross-sections (~3.8 mm² at 3.2×1.3) 1 mm/s of speed is ~1.9 mm³/s of
-  flow — enough to overshoot `filament_max_volumetric_speed` and to
-  staircase the ERS ramps. Historical bug: walls printed at alternating
-  150/151.89 mm³/s because 39.5 mm/s was rounded up to 40.
+  flow — enough to overshoot `filament_max_volumetric_speed`. Historical bug:
+  walls printed at alternating 150/151.89 mm³/s because 39.5 mm/s was rounded
+  up to 40.
 
-- **`POLYLINE_START` / `POLYLINE_END` markers** — Comments emitted by
-  `GCode::_extrude()` when `pellet_ers_mode` is enabled. They delimit each
-  continuous extrusion polyline and carry `travel_mm=` so the
-  PressureEqualizer can detect segments and decide ramp-up/ramp-down without
-  re-deriving travel distances.
+- **Active-role mask** (2026-09-08) — `adjust_volumetric_rate` walks only the
+  extrusion roles with a rate already seen (64-bit mask) instead of all 42:
+  same visiting order, byte-identical G-code, export 11.6 → 4.9 s on a 2.7 M-line
+  plate.
+
+- **Pellet ERS (removed 2026-10-20)** — The pellet extension of the
+  PressureEqualizer (`pellet_ers_mode`, `pellet_ers_travel_threshold_mm`,
+  `pellet_ers_deceleration_slope`, `pellet_ers_min_rate`,
+  `pellet_ers_rampup_flow` / `pellet_ers_rampdown_flow`,
+  `pellet_ers_pressure_tau`: ramps across gaps, τ reservoir charge, `RampLaw`,
+  `;POLYLINE_START/END` markers from `GCode::_extrude`) was replaced by the
+  pellet screw law, which models the screw with two stores measured on the
+  machine instead of a first-order τ. The PressureEqualizer went back to
+  Orca's (commit 5e4519bb4) plus the quantization and the role mask above.
+  Old 3MF/presets carrying the keys load fine (ignored in `handle_legacy`).
+  Theory of the old ramps: `docs/ginger/EXTRUSION_DYNAMICS.md` (historical).
+
+---
+
+## Pellet screw law
+
+- **Pellet screw law** — G-code post-processing stage
+  (`src/libslic3r/GCode/PelletScrewLaw.cpp/.hpp`), run after the
+  CoolingBuffer, that rewrites every extrusion **run** (consecutive extrusions
+  between two **stops**) with a physical restart and end designed on a model of
+  the screw (fast store V = nozzle pressure, slow store V2 = barrel; deficits
+  G1 / D2 at the restart). Enabled per filament: **Filament › Screw law**
+  (`screw_law_enable`); `GINGER_SCREW_LAW=<json>` overrides the
+  characterization for research/debug. Research, tests and the Python
+  reference: shared Drive `01_SVILUPPO/ginger-screw-dynamics`.
+
+- **Run / stop** — A run is a sequence of extrusion moves; a **stop** is an XY
+  travel ≥ `stop_travel_mm` (3 mm), a Z move without extrusion, a G4 or a
+  retraction. Comments (`;TYPE:`, `;WIDTH:`), F changes, fan lines and shorter
+  gaps stay inside the run, so Arachne / feature changes never split a run.
+
+- **Restart** — Anchor (extrude-only injection, capped by
+  `anchor_cap_A`·A and the Klipper extrude-only limit), creep, step-down,
+  acceleration pieces with their own ACCEL, slow tail (cut at the first input
+  move with a different speed). Laid along the original path, split at its
+  vertices; the run's middle stays verbatim.
+
+- **End** — Taper then **coast** (head moving with E 0 while the nozzle still
+  delivers), knob `k_e` (`ke_wall` on layers ≥ 2), then a 0.3 s pause
+  (`;_ERS_PAUSE`) and the **stop exit**: lift `exit_hop_mm` and move
+  `exit_mm` forward along the last bead direction (`;_ERS_EXIT`), so the strand
+  that does not cut pulls the bead lengthwise (2026-10-18: without it the
+  slicer travel carried beads away).
+
+- **Characterization** (`screw_law_parameters`, JSON: `machine`, `model`,
+  `coef`, `knobs`, `stop`, `short_runs`) — measured per nozzle × material;
+  default = 3 mm nozzle, dry PETG (`law_general` 2026-10-18: κ 0.65, k_e 0.76,
+  ke_wall 0.93 − 0.08·ln(Q/200)).
+
+- **Restart / Coasting scales** (`screw_law_restart_scale`,
+  `screw_law_coast_scale`, ×, default 1) — material-state correction applied
+  after the knob clamp: κ × restart, k_e and ke_wall × coasting. Slightly moist
+  PETG measured ~1.5 / ~1.2 (stampa C, 2026-10-19). Sweepable.
+
+- **What the law takes over** — With the law on, `GCode::needs_retraction`
+  lifts (Normal lift) at every travel ≥ `stop_travel_mm`, `retract()` ignores
+  `retract_lift_enforce`, and `Print::validate` refuses retraction > 0, wipe,
+  firmware retraction, `retract_restart_extra`, arc fitting, spiral vase,
+  prime tower, more than one filament, by-object printing, z-hop < 1 mm and
+  lift above/below limits. Print pauses / filament changes (`;PAUSE_PRINT`,
+  M600, PAUSE…) are timed as `machine.pause_assumed_s` (300 s).
+
+- **Law G-code tags** — `;_ERS_LAW restart|end …` (plan inputs),
+  `;_ERS_RAMPUP anchor|creep|down|acc|tail`, `;_ERS_RAMPDOWN taper|coast`
+  (both with `e0=` bead E), `;_ERS_SPLIT`, `;_ERS_ACC`, `;_ERS_F`,
+  `;_ERS_PAUSE`, `;_ERS_REV`, `;_ERS_EXIT`. `GCodeProcessor::process_G1` keeps
+  any XY move with `_ERS_RAMP… e0=` as an extrusion (width/flow from `e0`);
+  the **Screw flow** preview view (`EViewType::ScrewRate`) colors the bead by
+  the flow commanded to the screw.
 
 ---
 
@@ -189,8 +152,7 @@ GingerSlicer. Each entry points to the primary source file when applicable.
   last layer — i.e. the value is linear in Z over the whole object, and
   objects of different heights each span the full range. The layer count is
   resolved at G-code time (`PrintObject::layer_count()` per object,
-  `m_layer_count` for the global sweep, passed pre-resolved to the
-  PressureEqualizer ctor). The dialog's **Apply to** combo targets either
+  `m_layer_count` for the global sweep). The dialog's **Apply to** combo targets either
   **All objects** (one global sweep for the whole plate) or a single object,
   so several per-object sweeps (one per object, different parameters/ranges)
   can run in the same print. Dialog: `Param_Sweep_Dlg` in
@@ -203,43 +165,32 @@ GingerSlicer. Each entry points to the primary source file when applicable.
   (`Print::set_calib_params` enforces it, `Calib_None` removes the target's
   entry).
 
-- **Sweepable parameters** — Two application paths (`calib_is_writer_param` /
-  `calib_is_ers_param` in `calib.hpp`):
-  - retraction group (`retraction_length`, `retraction_speed`,
-    `deretraction_speed`, `retract_restart_extra`): applied to the G-code
-    writer config — global sweep at each layer change, per-object sweeps at
-    each object change (`GCode::apply_per_object_sweep`, which also restores
-    profile values on non-swept objects); comment
-    `; Calib_Param_Sweep: layer: N[, object: name], key: value`.
-  - ERS group (`max_volumetric_extrusion_rate_slope`,
-    `pellet_ers_deceleration_slope`, `pellet_ers_min_rate`,
-    `pellet_ers_rampup_flow`,
-    `pellet_ers_rampdown_flow`, `pellet_ers_pressure_tau`): applied inside
-    the PressureEqualizer (global sweep via ctor `const Calib_Params*`,
-    comment `;_ERS_CALIB`; per-object sweeps via `;_ERS_SWEEP` tags, see
-    below). Requires `max_volumetric_extrusion_rate_slope > 0` (otherwise
-    the PressureEqualizer is never instantiated). The pellet-only parameters
-    (decel slope, min rate, flow trims, τ) additionally require
-    `pellet_ers_mode = 1` to have any effect.
-
-- **`;_ERS_SWEEP` tags** — Per-object ERS sweep transport: GCode emits
-  `;_ERS_SWEEP obj=<ModelObject id> <key>=<value>` before each swept
-  object's extrusions and `;_ERS_SWEEP default` at layer changes / before
-  non-swept objects. The PressureEqualizer turns each tag into a
-  `SweepEvent` (line index + full `SweepSnapshot` built from the profile
-  baseline, `rebuild_sweep_events`) and replays events per extrusion segment
-  while processing and per line while outputting (flow factors and τ are
-  consumed at output time). The tags survive into the final
-  G-code: grep `;_ERS_SWEEP` for the object→value map.
+- **Sweepable parameters** — Three application paths (`calib.hpp`):
+  - screw-law knobs (`calib_is_law_param`: `screw_law_restart_scale`,
+    `screw_law_coast_scale`): GCode emits `;_ERS_SWEEP <key>=<value>` at each
+    layer change (global sweep) or `;_ERS_SWEEP obj=<id> <key>=<value>` at each
+    object change (per-object; `;_ERS_SWEEP default` restores the filament
+    values), and the PelletScrewLaw stage applies the value to the runs that
+    follow. Requires the screw law enabled in the filament.
+  - retraction group (`calib_is_writer_param`: `retraction_length`,
+    `retraction_speed`, `deretraction_speed`, `retract_restart_extra`):
+    applied to the G-code writer config — global sweep at each layer change,
+    per-object sweeps at each object change (`GCode::apply_per_object_sweep`,
+    which also restores profile values on non-swept objects).
+  - wipe group (`calib_is_gcode_param`: `wipe_distance`, `wipe_speed`):
+    applied to GCode's own config with the same cadence.
+  Every swept layer / object gets `; Calib_Param_Sweep: layer: N[, object:
+  name], key: value`. Before 2026-10-20 the ERS parameters were swept inside
+  the PressureEqualizer (removed with the pellet ERS).
 
 - **CLI sweep** — `--sweep "parameter:start:end"` (automatic step) or
   `--sweep "parameter:start:end:step"` (explicit, step > 0), global or
   per-object with `@Object name` (entries separated by `;`, matched by
   ModelObject name) together with `--slice N`:
-  `Ginger-Slicer.exe --slice 2 --sweep "pellet_ers_deceleration_slope:5:40@Cube" --outputdir out project.3mf`.
+  `Ginger-Slicer.exe --slice 2 --sweep "screw_law_restart_scale:1:1.8@Cube" --outputdir out project.3mf`.
   Parsed in `GingerSlicer.cpp` (slice branch) → `Print::set_calib_params`.
   With duplicate object names the first match wins. Fully headless: grep
-  `;_ERS_CALIB` (global) or `;_ERS_SWEEP` (per-object) in the output.
+  `Calib_Param_Sweep` / `;_ERS_SWEEP` in the output.
 
 - **Sweep lifecycle** — `Print::set_calib_params` invalidates `psGCodeExport`
   so the next slice regenerates G-code. Loading new files resets the calib
@@ -248,11 +199,6 @@ GingerSlicer. Each entry points to the primary source file when applicable.
   Per-object sweeps reference `ModelObject::id()` (session-scoped ObjectID),
   so they don't survive a project reload either; the dialog's "Active
   sweeps" box shows what is currently set.
-
-- **One-layer output buffering** — The PressureEqualizer emits layer N−1
-  while processing layer N. The sweep keeps a `SweepSnapshot` of the
-  parameters each layer was processed with, so the output pass and the
-  `;_ERS_CALIB` comment always match the ramps actually generated.
 
 ---
 
@@ -296,7 +242,7 @@ GingerSlicer. Each entry points to the primary source file when applicable.
   `src/libslic3r/GCode/CoolingBuffer.cpp`.
 
 - **PressureEqualizer** — Final post-process pass over the G-code line
-  buffer. Owns ERS + pellet-ERS logic. File:
+  buffer. Owns Orca's ERS (not created when the pellet screw law is on). File:
   `src/libslic3r/GCode/PressureEqualizer.cpp`.
 
 - **`PrintObjectSlice.cpp`** — Where 3D mesh becomes per-layer 2D

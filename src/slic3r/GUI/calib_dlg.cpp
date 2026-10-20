@@ -50,12 +50,8 @@ static const SweepParamEntry s_sweep_params[] = {
     {"retract_restart_extra",                "Extra length on restart (mm)",                  0,   1},
     {"wipe_distance",                        "Wipe distance (mm)",                            0,   10},
     {"wipe_speed",                           "Wipe speed (mm/s)",                             20,  150},
-    {"max_volumetric_extrusion_rate_slope",  "ERS smoothing slope (mm3/s2)",                  5,   40},
-    {"pellet_ers_deceleration_slope",        "ERS deceleration slope (mm3/s2)",               5,   40},
-    {"pellet_ers_min_rate",                  "ERS minimum flow rate (mm3/s)",                 0.2, 3},
-    {"pellet_ers_rampup_flow",               "ERS ramp-up flow (%)",                          100, 160},
-    {"pellet_ers_rampdown_flow",             "ERS ramp-down flow (%)",                        100, 40},
-    {"pellet_ers_pressure_tau",              "ERS pressure time constant (s)",                0,   0.5},
+    {"screw_law_restart_scale",              "Screw law: restart scale (x)",                  0.7, 1.8},
+    {"screw_law_coast_scale",                "Screw law: coasting scale (x)",                 0.8, 1.4},
 };
 
 Param_Sweep_Dlg::Param_Sweep_Dlg(wxWindow* parent, wxWindowID id, Plater* plater)
@@ -321,12 +317,11 @@ bool Param_Sweep_Dlg::apply_sweep() {
     {
         const std::string key = s_sweep_params[sel].key;
         wxString warn;
-        if (calib_is_ers_param(key)) {
-            const DynamicPrintConfig &print_cfg = wxGetApp().preset_bundle->prints.get_edited_preset().config;
-            if (print_cfg.option<ConfigOptionFloat>("max_volumetric_extrusion_rate_slope")->value <= 0)
-                warn = _L("'Extrusion rate smoothing' is 0: the ERS post-processor is disabled and this sweep would have no effect.\nSet a smoothing slope > 0 first.");
-            else if (key != "max_volumetric_extrusion_rate_slope" && !print_cfg.opt_bool("pellet_ers_mode"))
-                warn = _L("'Pellet extruder mode' is disabled: this parameter only affects Pellet ERS mode and the sweep would have no effect.\nEnable pellet ERS mode first.");
+        if (calib_is_law_param(key)) {
+            const DynamicPrintConfig full_cfg = wxGetApp().preset_bundle->full_config();
+            if (const auto *on = full_cfg.option<ConfigOptionBools>("screw_law_enable");
+                on == nullptr || on->values.empty() || !on->get_at(0))
+                warn = _L("The pellet screw law is disabled in the filament profile (Screw law): this sweep would have no effect.\nEnable the screw law first.");
         } else if (calib_is_gcode_param(key)) {
             const DynamicPrintConfig full_cfg = wxGetApp().preset_bundle->full_config();
             if (const auto *wipe = full_cfg.option<ConfigOptionBools>("wipe");

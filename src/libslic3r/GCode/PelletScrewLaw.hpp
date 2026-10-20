@@ -406,6 +406,7 @@ private:
     void put_standing(Out &o, const ScrewLaw::Move &ref, double E, double dt, const std::string &tag);
     void put_exit(Out &o, const std::vector<ScrewLaw::Move> &M, const ScrewLaw::Run &run);
     void gap_guardrails();
+    void sweep_tag(const char *p, const char *end);   // ;_ERS_SWEEP (Parameter Sweep of the screw-law knobs)
     void mark_pause(ScrewLaw::Move &m);
     void lay_block(Out &o, Path &path, const std::vector<ScrewLaw::Segment> &segs, double A_ref, bool rampup, double s_nominal);
     void lay_plain(Out &o, Path &path, double target);
@@ -463,6 +464,7 @@ private:
     bool   m_warned_gap = false;
     std::string m_first_bad_gap;               // first flat stop travel / gap E-only move (message)
     bool   m_pause_in_gap = false;             // a pause already counted since the last extrusion (tag + command = one)
+    double m_base_restart_scale = 1., m_base_coast_scale = 1.;   // filament values, restored by ";_ERS_SWEEP default"
     // emitter state (across chunks): the printer state after the EMITTED lines
     std::vector<ScrewLaw::Move> m_piece;       // emitted plan moves not timed yet
     double m_emit_f = 600., m_emit_accel = 0.; // modal F / ACCEL (as written) of the emitted stream

@@ -1,5 +1,10 @@
 # Extrusion Dynamics — Constant Bead Cross-Section on Screw Extruders
 
+> **Historical (2026-10-20):** the pellet ERS described here (`pellet_ers_*`, τ reservoir charge,
+> `RampLaw`) was removed and replaced by the pellet screw law (`GCode/PelletScrewLaw.cpp`,
+> GLOSSARY › Pellet screw law). The physics below still explains why a pellet extruder needs a
+> restart injection and an end coast; the slicer no longer implements these formulas.
+
 Research notes backing the pellet-ERS design in GingerSlicer: why the bead
 cross-section drifts at every flow change, what physics governs it, what the
 industry does about it, and how our slicer-side compensation maps onto that

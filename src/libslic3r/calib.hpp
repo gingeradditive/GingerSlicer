@@ -2,8 +2,9 @@
 // Ginger: the layer-by-layer Parameter Sweep is the ONLY calibration in GingerSlicer -
 // the stock filament-oriented calibrations (PA/temp/flow/VFA towers...) were removed
 // together with their pattern generators. The sweep varies one process parameter layer
-// by layer on the current plate: ERS parameters are applied by the PressureEqualizer
-// post-processor, G-code writer parameters (retraction...) by GCode at each layer change.
+// by layer on the current plate: the pellet screw law knobs (restart / coasting scale) by the
+// PelletScrewLaw stage through ;_ERS_SWEEP tags, G-code writer parameters (retraction...) by
+// GCode at each layer change.
 #include <string>
 #include <algorithm>
 #include <cmath>
@@ -40,14 +41,12 @@ inline double calib_sweep_effective_step(const Calib_Params &params, size_t laye
     return std::abs(params.end - params.start) / double(std::max<size_t>(2, layer_count) - 1);
 }
 
-// Parameters swept by the PressureEqualizer post-processor (per-object switching is
-// done through ;_ERS_SWEEP tags emitted by GCode at each object change).
-inline bool calib_is_ers_param(const std::string &key)
+// Pellet screw law knobs (filament "Screw law"), swept by the PelletScrewLaw stage: GCode emits
+// ";_ERS_SWEEP <key>=<value>" at each layer change (global sweep) or object change (per-object,
+// ";_ERS_SWEEP default" restores the filament values), the stage applies it to the runs that follow.
+inline bool calib_is_law_param(const std::string &key)
 {
-    return key == "max_volumetric_extrusion_rate_slope" || key == "pellet_ers_deceleration_slope" ||
-           key == "pellet_ers_min_rate" ||
-           key == "pellet_ers_rampup_flow" || key == "pellet_ers_rampdown_flow" ||
-           key == "pellet_ers_pressure_tau";
+    return key == "screw_law_restart_scale" || key == "screw_law_coast_scale";
 }
 
 // Parameters applied through the G-code writer config (at each layer change for a

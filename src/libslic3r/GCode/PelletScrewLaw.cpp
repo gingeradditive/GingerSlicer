@@ -1487,6 +1487,8 @@ double PelletScrewLaw::active_stop_travel_mm() { return s_active_stop_travel_mm;
 PelletScrewLaw::PelletScrewLaw(ScrewLaw::LawParams lp, ScrewLaw::StageConfig cfg, ScrewLaw::StageMode mode, bool dump)
     : m_lp(std::move(lp)), m_cfg(cfg), m_mode(mode), m_dump(dump)
 {
+    m_base_restart_scale = m_lp.knobs.restart_scale;
+    m_base_coast_scale   = m_lp.knobs.coast_scale;
     m_f       = m_cfg.init_f;
     m_accel   = std::min(m_lp.mach.travel_acc_default, m_cfg.max_accel);
     m_accel_raw = m_lp.mach.travel_acc_default;
@@ -1917,7 +1919,8 @@ void PelletScrewLaw::find_runs()
             }
             break;
         case MoveType::EOnly:
-            if (m.e > 1e-9) {
+            // > 0.05 mm3: Orca leaves zero-length end segments with E ~0.002 (bar stool, 20/10), not an injection
+            if (m.e > 0.05) {
                 ++m_stats.gap_eonly;
                 if (m_first_bad_gap.empty())
                     m_first_bad_gap = strfmt("extrude-only move E %.5f between two runs (layer %d, Z %.3f, stage line %zu)", m.e,
@@ -2233,6 +2236,27 @@ void PelletScrewLaw::gap_guardrails()
     }
 }
 
+// Parameter Sweep of the screw-law knobs (GCode, calib.hpp): ";_ERS_SWEEP default" restores the filament scales,
+// ";_ERS_SWEEP [obj=N] screw_law_restart_scale=v | screw_law_coast_scale=v" sets the scale (absolute, x the knob) for
+// the runs that follow in print order; other keys are ignored.
+void PelletScrewLaw::sweep_tag(const char *p, const char *end)
+{
+    const std::string s(p, end);
+    if (s.find("default") != std::string::npos) {
+        m_lp.knobs.restart_scale = m_base_restart_scale;
+        m_lp.knobs.coast_scale   = m_base_coast_scale;
+        return;
+    }
+    static const char *keys[2] = { "screw_law_restart_scale=", "screw_law_coast_scale=" };
+    for (int i = 0; i < 2; ++i) {
+        const size_t k = s.find(keys[i]);
+        if (k == std::string::npos) continue;
+        const double v = std::strtod(s.c_str() + k + std::strlen(keys[i]), nullptr);
+        if (!(v > 0.)) continue;
+        (i == 0 ? m_lp.knobs.restart_scale : m_lp.knobs.coast_scale) = v;
+    }
+}
+
 // Print pause / filament change: timed as a dwell of machine.pause_assumed_s (a STOP of unknown, long duration), the line
 // itself stays verbatim. One per gap (Orca's tag and the pause command that follows it count once).
 void PelletScrewLaw::mark_pause(ScrewLaw::Move &m)
@@ -2270,6 +2294,8 @@ void PelletScrewLaw::push_move(ScrewLaw::Move &&mv, const char *what)
 void PelletScrewLaw::put_verbatim(Out &o, const ScrewLaw::Move &m, bool origin)
 {
     using namespace ScrewLaw;
+    if (m.type == MoveType::Other && m.len > 11 && o.g->compare(m.begin, 11, ";_ERS_SWEEP") == 0)
+        sweep_tag(o.g->data() + m.begin + 11, o.g->data() + m.begin + m.len);   // knobs of the runs that follow
     if (m.motion && !m.has_f && m_emit_f != m.f) {
         o.put("G1 F" + sl_short(m.f) + " ;_ERS_F");
         m_emit_f = m.f;

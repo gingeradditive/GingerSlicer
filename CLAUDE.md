@@ -18,10 +18,14 @@ GingerSlicer is Ginger Additive's pellet-focused fork of OrcaSlicer (itself fork
   `connect_infill_single_path`, `single_path_splice_loops` or the wall ribs planner; keep it
   updated when those areas change. (`continuous_path_mode`, ex `single_path_mode`, was removed
   2026-09-27 and split into those options — see the GLOSSARY entry.)
-- **Pellet ERS** lives in `src/libslic3r/GCode/PressureEqualizer.cpp` (tags
-  `;_ERS_RAMPUP/RAMPDOWN/STEADY`). Feedrates re-emitted by the PressureEqualizer are
-  quantized to 0.1 mm/s (NOT 1 mm/s as upstream Orca): pellet beads are several mm²,
-  so 1 mm/s of speed is mm³/s-scale flow error.
+- **Pellet screw law** (replaces the pellet ERS, removed 2026-10-20) lives in
+  `src/libslic3r/GCode/PelletScrewLaw.cpp` (post-processing after the CoolingBuffer, tags
+  `;_ERS_LAW / _ERS_RAMPUP / _ERS_RAMPDOWN / _ERS_EXIT ...`); enabled per filament
+  (Filament › Screw law, `screw_law_*`) or with `GINGER_SCREW_LAW=<json>` (research/debug).
+  Research, tests and the Python reference: shared Drive `01_SVILUPPO/ginger-screw-dynamics`.
+  The PressureEqualizer is back to Orca's; its re-emitted feedrates are quantized to 0.1 mm/s
+  (NOT 1 mm/s as upstream Orca): pellet beads are several mm², so 1 mm/s of speed is
+  mm³/s-scale flow error.
 - **Calibration**: the only exposed calibration is "Parameter tuning (per-layer sweep)"
   (`CalibMode::Calib_Param_Sweep`, dialog `Param_Sweep_Dlg`). The stock filament
   calibrations (temp tower, flow rate, PA, VFA…) are removed entirely — code, dialogs
@@ -30,7 +34,7 @@ GingerSlicer is Ginger Additive's pellet-focused fork of OrcaSlicer (itself fork
 - **Headless slicing for testing** (works, use it to verify slicing changes without GUI):
   ```
   build/src/Release/Ginger-Slicer.exe --slice <plate|0> --outputdir <dir> project.3mf
-  build/src/Release/Ginger-Slicer.exe --slice 2 --sweep "pellet_ers_deceleration_slope:5:40:0.5" --outputdir out project.3mf
+  build/src/Release/Ginger-Slicer.exe --slice 2 --sweep "screw_law_restart_scale:1:1.8" --outputdir out project.3mf
   ```
   The project 3MF must embed its settings (save the project from the GUI). Output:
   `<dir>/plate_N.gcode`. CLI help does not print (GUI subsystem); logs go to stderr.

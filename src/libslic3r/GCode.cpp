@@ -1954,24 +1954,12 @@ void GCode::_do_export(Print& print, GCodeOutputStream &file, ThumbnailsGenerato
     if (print.config().spiral_mode.value)
         m_spiral_vase = make_unique<SpiralVase>(print.config());
 
-    // Pellet screw law (Ginger), MVP stage: with GINGER_SCREW_LAW set the PressureEqualizer is not created.
-    if (print.config().max_volumetric_extrusion_rate_slope.value > 0 && !PelletScrewLaw::enabled(print.config())){
-    		// Only a global sweep is driven by the PressureEqualizer itself; per-object
-    		// sweeps are communicated through ;_ERS_SWEEP tags emitted at object changes.
-    		// An automatic step (step <= 0) is resolved here with the plate's layer
-    		// count (m_layer_count, computed above): the PressureEqualizer streams the
-    		// layers and cannot know the total by itself.
-    		const Calib_Params *global_sweep = print.global_calib_params();
-    		Calib_Params        global_sweep_resolved;
-    		if (global_sweep != nullptr && global_sweep->step <= 0.) {
-    			global_sweep_resolved      = *global_sweep;
-    			global_sweep_resolved.step = calib_sweep_effective_step(*global_sweep, size_t(m_layer_count));
-    			global_sweep               = &global_sweep_resolved;
-    		}
-    		m_pressure_equalizer = make_unique<PressureEqualizer>(print.config(), global_sweep);
-    		m_enable_extrusion_role_markers = (bool)m_pressure_equalizer;
+    // Pellet screw law (Ginger): with the law on, the PressureEqualizer is not created.
+    if (print.config().max_volumetric_extrusion_rate_slope.value > 0 && !PelletScrewLaw::enabled(print.config())) {
+        m_pressure_equalizer = make_unique<PressureEqualizer>(print.config());
+        m_enable_extrusion_role_markers = (bool)m_pressure_equalizer;
     } else
-	    m_enable_extrusion_role_markers = false;
+        m_enable_extrusion_role_markers = false;
 
     if (!print.config().small_area_infill_flow_compensation_model.empty())
         m_small_area_infill_flow_compensator = make_unique<SmallAreaInfillFlowCompensator>(print.config());
@@ -3715,14 +3703,14 @@ static ConfigOption *sweep_gcode_config_option(const std::string &key, double va
 
 // Ginger: per-object Parameter Sweep - bring every swept parameter back to its profile
 // value: writer and gcode-config parameters are restored directly (their profile value
-// is remembered the first time the key is seen, before anything overrode it), ERS
-// parameters through the returned ";_ERS_SWEEP default" tag (empty when none is swept).
+// is remembered the first time the key is seen, before anything overrode it), screw-law
+// knobs through the returned ";_ERS_SWEEP default" tag (empty when none is swept).
 std::string GCode::restore_swept_defaults(const Print &print)
 {
-    bool need_ers_reset = false;
+    bool need_law_reset = false;
     for (const Calib_Params &p : print.calib_params()) {
-        if (calib_is_ers_param(p.sweep_param)) {
-            need_ers_reset = true;
+        if (calib_is_law_param(p.sweep_param)) {
+            need_law_reset = true;
             continue;
         }
         const bool is_writer = calib_is_writer_param(p.sweep_param);
@@ -3745,12 +3733,12 @@ std::string GCode::restore_swept_defaults(const Print &print)
             m_sweep_gcode_overrides.erase(p.sweep_param);
         }
     }
-    return need_ers_reset ? std::string(";_ERS_SWEEP default\n") : std::string();
+    return need_law_reset ? std::string(";_ERS_SWEEP default\n") : std::string();
 }
 
 // Ginger: per-object Parameter Sweep. Called at each object change inside a layer:
-// activates the object's swept value (writer parameters directly, ERS parameters via a
-// ;_ERS_SWEEP tag consumed by the PressureEqualizer) and restores the profile values
+// activates the object's swept value (writer parameters directly, screw-law knobs via a
+// ;_ERS_SWEEP tag consumed by the PelletScrewLaw stage) and restores the profile values
 // for objects that have no sweep of their own - a previous instance in the same layer
 // may have left another object's value active.
 std::string GCode::apply_per_object_sweep(const Print &print, const PrintObject &print_object)
@@ -3786,10 +3774,11 @@ std::string GCode::apply_per_object_sweep(const Print &print, const PrintObject 
             }
             gcode += std::string("; Calib_Param_Sweep: layer: ") + std::to_string(obj_layer_idx) +
                      ", object: " + model_object->name + ", " + cp->sweep_param + ": " + valbuf + "\n";
-        } else if (calib_is_ers_param(cp->sweep_param)) {
+        } else if (calib_is_law_param(cp->sweep_param)) {
             // This object's tag replaces the "default" reset from above.
-            gcode = std::string(";_ERS_SWEEP obj=") + std::to_string(obj_id) + " " +
-                    cp->sweep_param + "=" + valbuf + "\n";
+            gcode = std::string("; Calib_Param_Sweep: layer: ") + std::to_string(obj_layer_idx) + ", object: " +
+                    model_object->name + ", " + cp->sweep_param + ": " + valbuf + "\n" +
+                    ";_ERS_SWEEP obj=" + std::to_string(obj_id) + " " + cp->sweep_param + "=" + valbuf + "\n";
         }
     }
     return gcode;
@@ -3956,11 +3945,10 @@ LayerResult GCode::process_layer(
 
     // Ginger: layer-specific calibration G-code. Upstream removed the stock calibration
     // towers (PA/temp/VFA/retraction/input-shaping); the per-layer Parameter Sweep is
-    // Ginger's own calibration and stays. ERS parameters (slope, decel slope, min rate,
-    // ramp profile) are swept inside the PressureEqualizer post-processor; here we handle
-    // the parameters applied through the G-code writer config.
+    // Ginger's own calibration and stays. Writer / gcode-config parameters are applied here;
+    // the screw-law knobs are passed to the PelletScrewLaw stage with a ;_ERS_SWEEP tag.
     // Per-object sweeps are applied at each object change instead (see
-    // apply_per_object_sweep()); at the layer change we only reset the ERS parameters
+    // apply_per_object_sweep()); at the layer change we only reset the swept parameters
     // to the profile values, so skirt/brim/wipe tower printed before the first object
     // never inherit the previous object's swept value.
     if (print.calib_mode() == CalibMode::Calib_Param_Sweep) {
@@ -3979,6 +3967,11 @@ LayerResult GCode::process_layer(
                     m_sweep_gcode_overrides.set_key_value(cp->sweep_param, sweep_gcode_config_option(cp->sweep_param, value));
                 }
                 sprintf(buf, "; Calib_Param_Sweep: layer: %d, %s: %g\n", m_layer_index, cp->sweep_param.c_str(), value);
+                gcode += buf;
+            } else if (calib_is_law_param(cp->sweep_param)) {
+                const double value = calib_sweep_value_for_layer(*cp, m_layer_index, size_t(m_layer_count));
+                sprintf(buf, "; Calib_Param_Sweep: layer: %d, %s: %g\n;_ERS_SWEEP %s=%g\n", m_layer_index,
+                        cp->sweep_param.c_str(), value, cp->sweep_param.c_str(), value);
                 gcode += buf;
             }
         } else {
@@ -7596,18 +7589,6 @@ bool GCode::_needSAFC(const ExtrusionPath &path)
 std::string GCode::_extrude(const ExtrusionPath &path, std::string description, double speed)
 {
     std::string gcode;
-    
-    // Pellet ERS: Mark start of continuous polyline extrusion
-    // Calculate travel distance from last position to this path's start
-    static unsigned int polyline_id = 0;
-    if (m_config.pellet_ers_mode.value) {
-        double travel_dist = 0.0;
-        if (m_last_pos_defined) {
-            travel_dist = unscale<double>((m_last_pos - path.first_point()).cast<double>().norm());
-        }
-        gcode += std::string(";POLYLINE_START id=") + std::to_string(polyline_id++) + 
-                 " travel_mm=" + std::to_string(travel_dist) + "\n";
-    }
 
     if (is_bridge(path.role()))
         description += " (bridge)";
@@ -8445,11 +8426,6 @@ std::string GCode::_extrude(const ExtrusionPath &path, std::string description, 
       m_last_notgapfill_extrusion_role = path.role();
     }
 
-    // Pellet ERS: Mark end of continuous polyline extrusion
-    if (m_config.pellet_ers_mode.value) {
-        gcode += ";POLYLINE_END\n";
-    }
-    
     this->set_last_pos(path.last_point());
     return gcode;
 }

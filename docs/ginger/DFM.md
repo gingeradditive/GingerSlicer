@@ -518,12 +518,13 @@ anchor_reused / founded / drop reasons) — the tool for "why is this hole not c
 
 ---
 
-## 5. Flow continuity — pellet ERS
+## 5. Flow continuity — pellet screw law (ex pellet ERS)
 
 See `EXTRUSION_DYNAMICS.md` (model, saturation, identification protocol) and the ERS section
 of `GLOSSARY.md`. DFM consequences used throughout this codebase:
 
-- `pellet_ers_mode` extends rate smoothing **across gaps** (travels/retracts), tagged
+- (removed 2026-10-20, replaced by the pellet screw law — GLOSSARY › Pellet screw law)
+  `pellet_ers_mode` extended rate smoothing **across gaps** (travels/retracts), tagged
   `;_ERS_RAMPUP/RAMPDOWN/STEADY` in `PressureEqualizer.cpp`.
 - Re-emitted feedrates are quantized at **0.1 mm/s** (upstream Orca uses 1 mm/s — mm³/s-scale
   flow error at pellet cross-sections).
@@ -531,7 +532,7 @@ of `GLOSSARY.md`. DFM consequences used throughout this codebase:
   travel eliminated removes one decompression/recompression cycle and one ERS transition.
 - Calibration: the per-layer Parameter Sweep (`Calib_Param_Sweep`, also headless via
   `--sweep "key:start:end:step"`) sweeps a calibration key along Z. Supported keys are the
-  `calib.hpp` sets: ERS (`max_volumetric_extrusion_rate_slope`, `pellet_ers_*`), retraction
+  `calib.hpp` sets: screw-law knobs (`screw_law_restart_scale`, `screw_law_coast_scale`), retraction
   (`retraction_length/speed`, `deretraction_speed`, `retract_restart_extra`) and wipe
   (`wipe_distance`, `wipe_speed`); anything else is rejected at parse.
 
