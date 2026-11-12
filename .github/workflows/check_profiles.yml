@@ -28,7 +28,7 @@ jobs:
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.force_release != true }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -46,6 +46,12 @@ jobs:
       - name: Check profile version bump
         if: github.event_name == 'pull_request'
         run: |
+          # Only require a version bump when the PR actually changes profiles
+          # (this workflow also runs when only check_profiles.yml is edited).
+          if git diff --quiet origin/${{ github.base_ref }}...HEAD -- resources/profiles; then
+            echo "No profile changes in this PR, skipping version bump check."
+            exit 0
+          fi
           python3 ./scripts/check_profile_version_bump.py --base origin/${{ github.base_ref }}
 
   release_profiles:
@@ -54,7 +60,7 @@ jobs:
     if: ${{ always() && ((github.ref == 'refs/heads/main' && needs.check_profiles.result == 'success') || (github.event_name == 'workflow_dispatch' && (needs.check_profiles.result == 'success' || inputs.force_release == true))) }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up GitHub CLI
         run: |
